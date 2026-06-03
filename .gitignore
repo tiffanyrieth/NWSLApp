@@ -60,3 +60,7 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# Local-only reference material — competitor-app screenshots (MLS, NWSL, MLB,
+# etc.) kept on disk for Claude to look at when discussing features. Not synced.
+Reference/

@@ -65,6 +65,15 @@ final class ScheduleViewModel {
             .sorted { $0.id < $1.id }
     }
 
+    // True once the schedule has finished loading. Lets the view drive its
+    // one-time scroll-to-today off the clean idle/loading -> loaded edge,
+    // rather than watching `sections.first?.id` (which is the season opener
+    // and stays identical across reloads, so it's a fragile trigger).
+    var isLoaded: Bool {
+        if case .loaded = state { return true }
+        return false
+    }
+
     // Today's section if present, otherwise the first future section.
     // Returns nil if everything in the season is in the past.
     var initialScrollSectionID: String? {

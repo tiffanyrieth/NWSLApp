@@ -2,12 +2,15 @@
 //  MatchCard.swift
 //  NWSLApp
 //
-//  One row in ScheduleView's list. Left: stacked home/away team rows with
-//  scores (or blank if the match hasn't been played). Right: status badge —
-//  kickoff time for upcoming matches, "LIVE" + clock for in-progress, or the
-//  short status detail ("FT") for finished matches.
+//  One game as a self-contained card in ScheduleView (MLS-app style). Left:
+//  stacked home/away rows, each a team crest + abbreviation, with scores once
+//  the match is in progress or final. Right: status badge — kickoff time for
+//  upcoming matches, "LIVE" + clock for in-progress, or the short status
+//  detail ("FT") for finished matches.
 //
-//  Honors design rule #1: lives entirely inside its list row, no overlays.
+//  Honors design rule #1: lives entirely inside its card, no overlays.
+//  Clarity over density: a solid rounded card surface with breathing room so
+//  ~4–5 games read cleanly per screen.
 //
 
 import SwiftUI
@@ -17,25 +20,31 @@ struct MatchCard: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 18) {
                 teamRow(event.homeCompetitor)
                 teamRow(event.awayCompetitor)
             }
             Spacer(minLength: 8)
             statusView
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 20)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     @ViewBuilder
     private func teamRow(_ competitor: Competitor?) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 12) {
+            TeamLogo(urlString: competitor?.team?.logo, size: 34)
+            // Fixed minWidth keeps home/away abbreviations aligned regardless
+            // of logo load state — no horizontal shift as crests resolve.
             Text(competitor?.team?.abbreviation ?? competitor?.team?.shortDisplayName ?? "—")
-                .font(.body.monospaced())
-                .frame(minWidth: 44, alignment: .leading)
+                .font(.title3.weight(.medium))
+                .frame(minWidth: 52, alignment: .leading)
             if showScores, let score = competitor?.score {
                 Text(score)
-                    .font(.body.weight(.semibold))
+                    .font(.title3.weight(.bold))
             }
         }
     }

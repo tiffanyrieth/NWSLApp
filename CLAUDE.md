@@ -161,9 +161,10 @@ NWSLApp/
 ├── ViewModels/
 │   └── ScheduleViewModel.swift     — @Observable; State enum (idle/loading/loaded/error); exposes day-grouped sections + initial scroll target
 ├── Views/
-│   └── ScheduleView.swift          — full-season schedule list, scrolls to today on first load, pull-to-refresh
+│   └── ScheduleView.swift          — full-season schedule as a ScrollView + LazyVStack of cards with sticky day headers; scrolls to today (or next matchday) on first load via .scrollPosition(id:); pull-to-refresh
 ├── Components/
-│   └── MatchCard.swift             — one row: stacked home/away abbreviations + score (or kickoff time) + status badge (LIVE / FT / scheduled)
+│   ├── MatchCard.swift             — one game as a rounded card: stacked home/away rows (logo + abbreviation) + score (or kickoff time) + status badge (LIVE / FT / scheduled)
+│   └── TeamLogo.swift              — reusable AsyncImage crest: fixed frame, loading placeholder, neutral failure fallback (no broken-image glyph); reused by future Standings/Teams
 └── Assets.xcassets/                — app icons, accent color
 ```
 
@@ -171,40 +172,51 @@ NWSLApp/
 
 ## Current State
 
-The first real feature ships: `ScheduleView` loads the full current NWSL season
-in one call (`ESPNService.fetchScoreboard(year:)` →
-`?dates=YYYY0101-YYYY1231&limit=500`, ~240 events for 2026), groups events into
-day sections in the user's local time zone, and scrolls to today (or the next
-upcoming matchday) on first appearance so fans land on what's relevant.
-Pull-to-refresh works without yanking the scroll position back. The MVVM spine
-is real: `ScheduleViewModel` owns state, `ScheduleView` renders, `ESPNService`
-fetches. The temporary `ContentView` smoke test has been removed.
+`ScheduleView` loads the full current NWSL season in one call
+(`ESPNService.fetchScoreboard(year:)` → `?dates=YYYY0101-YYYY1231&limit=500`,
+~240 events for 2026) and presents it as an MLS-app-style vertical scroll of
+game **cards** (`ScrollView` + `LazyVStack`, ~4–5 per screen) grouped under
+sticky local-day headers. Each `MatchCard` shows both teams' crests
+(`TeamLogo` → `AsyncImage`) and abbreviations with score or kickoff time and a
+status badge. On first load it scrolls to today (or the next upcoming matchday)
+via iOS 17's `.scrollPosition(id:)` — the previous `List` + `ScrollViewReader`
+approach couldn't anchor reliably; this lands correctly (verified in-sim:
+skipped the March opener and the empty June FIFA window, landed on the July
+matchday). A `hasScrolledToToday` guard keeps pull-to-refresh from yanking the
+position back. The MVVM spine is real: `ScheduleViewModel` owns state,
+`ScheduleView` renders, `ESPNService` fetches.
 
 ---
 
 ## What's Next
 
-1. **(Bug)** Initial scroll position lands at the first game of the season
-   instead of today (or the next upcoming matchday). Investigate why
-   `initialScrollSectionID` isn't taking effect — likely candidates:
-   `.onChange` fires before the `List` has finished laying out the new sections;
-   `Section { header: ... }`'s `.id(section.id)` isn't a valid `scrollTo` target
-   inside a `List`; or `vm.sections.first?.id` isn't changing the way the guard
-   expects. May need `.scrollPosition()` (iOS 17+), a `DispatchQueue.main.async`
-   delay inside the `onChange`, or moving the `.id` from the header `Text` onto a
-   zero-height marker view inside the section.
+1. **(Perf/TEMP)** `TeamLogo` uses bare `AsyncImage`, which has no cross-cell
+   image cache — crests re-download every time a card recycles during scroll.
+   Acceptable for v1 (small PNGs, lazy rows) and marked with a `TEMP` comment in
+   `Components/TeamLogo.swift`. Replace with a shared cache (NSCache-backed
+   loader, or route logos through the future Vercel proxy with caching headers)
+   and remove the TEMP note.
 2. **(Architecture)** Tab-bar navigation. `ScheduleView` should be a tab, not
    the root. Plan the structure: **Home / Schedule / Standings / Teams / News**.
    Decide which tab opens on launch (likely Home once it exists, Schedule until
    then), and give each tab its own `NavigationStack` so back-stacks survive tab
    switches.
-3. **(Enhancement)** Team logos in `MatchCard` via `AsyncImage` —
-   `competitor.team.logo` already decodes; needs a placeholder, a small fixed
-   frame, and a failure fallback (initials or abbreviation block).
+3. **(Polish)** Pull-to-refresh flips `state` to `.loading`, which swaps the
+   whole card list for a centered `ProgressView` mid-refresh (pre-existing, not
+   introduced by the card redesign). Consider keeping the list visible during a
+   refresh (only show the full-screen spinner on the very first load) so the
+   refresh control's own spinner carries the interaction.
 4. Capture a real ESPN response into `NWSLAppTests/Fixtures/scoreboard.json` and
    add a decode-only test for `Scoreboard` + Event helpers (date parsing,
    `dayKey` time-zone behavior).
-5. Tap-through to a match detail screen (scorers, lineups, stats, news) — uses
-   the `NavigationStack` already in place.
-6. Standings view (must show all teams end-to-end, without truncation).
-7. Team detail page (profile, roster, schedule filtered to that team).
+5. **(Enhancement)** Enrich the schedule cards with the broadcast (TV) and
+   venue info real fans need — this is what the NWSL/MLS apps surface per game.
+   No new endpoint required: the scoreboard response we already fetch includes
+   `competition.venue.fullName` (+ city) and `competition.broadcasts` /
+   `geoBroadcasts` (e.g. `["ION"]`). Decode those onto the model and add a
+   compact third line to `MatchCard` (stadium · network). Likely the moment to
+   bump cards toward MLS-style ~4-per-screen once they carry more detail.
+6. Make `MatchCard` tappable → push a match detail screen (scorers, lineups,
+   stats, news) via the `NavigationStack` already in place.
+7. Standings view (must show all teams end-to-end, without truncation).
+8. Team detail page (profile, roster, schedule filtered to that team).

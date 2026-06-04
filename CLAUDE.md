@@ -181,7 +181,7 @@ NWSLApp/
 │   ├── RootTabView.swift           — app root; 5-tab bottom TabView (Home / Schedule / Standings / Teams / Feed), each tab owns its own NavigationStack; lands on Schedule for now (flip `selection` default to .home once Home exists); creates the FollowingStore AND the MatchStore and injects both via .environment; Home/Standings/Feed are ComingSoonView PLACEHOLDERS
 │   ├── ScheduleView.swift          — full-season schedule as a ScrollView + LazyVStack of cards with sticky day headers; reads the shared MatchStore (handed to its view model); scrolls to today (or next matchday) on first load via .scrollPosition(id:); pull-to-refresh
 │   ├── TeamsView.swift             — Teams tab: directory of all 16 clubs in a List; a "Following" section floats followed clubs to the top, "All Clubs" lists every club end-to-end. Each row is a sibling pair of buttons — a row button (pushes TeamDetailView via a NavigationPath) + a Follow star (FollowingStore) — NOT nested (a Button inside a NavigationLink swallows the row's nav tap)
-│   └── TeamDetailView.swift        — a club's page, pushed from Teams (no own NavigationStack): header (crest + name + Follow star) / club schedule slice from MatchStore.matches(for:) reusing MatchCard / roster grouped by position via PlayerRow. Roster loads independently so its failure never blanks the header + schedule
+│   └── TeamDetailView.swift        — a club's page, pushed from Teams (no own NavigationStack): a PINNED header (crest + name + Follow star) above a segmented sub-tab bar (Overview · Schedule · Squad); only the selected section scrolls. Overview (default) = next match + recent result, derived from MatchStore via Event.statusState (no extra fetch/date math); Schedule = the club's MatchStore.matches(for:) slice split into Upcoming/Results (reusing MatchCard); Squad = roster grouped by position via PlayerRow. Replaces the old single long scroll (header→full schedule→roster) where the roster was buried below the season — now it's one tap. Roster loads independently so its failure never blanks header/Overview/Schedule. (Three reversible design calls: default tab, segmented-vs-underline control, schedule order.)
 ├── Components/
 │   ├── ComingSoonView.swift        — reusable intentional placeholder (SF Symbol + title + "coming soon" copy) for not-yet-built tabs; drives the 4 placeholder tabs in RootTabView
 │   ├── MatchCard.swift             — one game as a rounded card: stacked home/away rows (logo + abbreviation) + score (or kickoff time) + status badge (LIVE / FT / scheduled); reused by ScheduleView + TeamDetailView's schedule slice
@@ -221,9 +221,17 @@ Home" and tailored Feed will build on. Note: SwiftData is now in use **nowhere**
 
 **Team detail page + shared `MatchStore`.** Tapping a club in Teams pushes
 `TeamDetailView` (no own `NavigationStack` — it rides the Teams tab's stack, so
-the back affordance is free): a header (crest + name + the same Follow star, so
-toggling here reflects everywhere), that club's **schedule slice**, and its
-**roster** grouped by position. The schedule slice introduced the app's second
+the back affordance is free): a **pinned header** (crest + name + the same
+Follow star, so toggling here reflects everywhere) above a segmented **sub-tab
+bar — Overview · Schedule · Squad** (only the selected section scrolls). This
+replaced an earlier single long scroll (header → full schedule → roster) where
+the roster was buried below the whole season; every reference app
+(Athletic/MLS/NWSL) fronts the team page with sub-tabs, so now the roster is one
+tap. **Overview** (the default) leads with next match + recent result — derived
+from `MatchStore` via `Event.statusState`, no extra fetch or date math, and the
+app's first small "alive" seed (the "when's the next game / what was the score"
+use case). **Schedule** splits the club's slice into Upcoming/Results; **Squad**
+is the roster grouped by position. The schedule slice introduced the app's second
 app-wide store: `MatchStore` (`@Observable`, created in `RootTabView`, injected
 via `.environment` alongside `FollowingStore`) fetches the full season **once**
 and serves it to every screen — `ScheduleView` was refactored to read from it
@@ -235,16 +243,19 @@ The roster comes from `ESPNService.fetchRoster(clubID:)` → `Roster.swift`,
 rendered via `PlayerRow` with **jersey-number monogram avatars** because NWSL
 headshots are null in ESPN's feed (a deliberate, permanent choice). Roster loads
 on its own `TeamDetailViewModel` state, independent of the schedule, so a roster
-failure never blanks the header + matches. The Teams rows were reworked into
-**sibling** buttons (row-button pushes via a `NavigationPath`; Follow star is
-separate) — a `Button` nested inside a `NavigationLink` swallows the row's
-navigation tap, which we hit and fixed. Verified in-sim (UI-test driven, then
-removed): Teams → tap a club pushes the page with a working back button; the
-schedule slice shows that club's home + away games (reusing `MatchCard`); the
-roster loads ~24 players grouped GK/DEF/MID/FWD with monogram avatars and
-position·age·height·nationality; tapping the header star toggles Follow **without
-navigating** and floats the club into Teams' Following section; and Schedule's
-scroll-to-today still lands on the July matchday after the store refactor.
+failure never blanks the header + Overview/Schedule. The Teams rows were
+reworked into **sibling** buttons (row-button pushes via a `NavigationPath`;
+Follow star is separate) — a `Button` nested inside a `NavigationLink` swallows
+the row's navigation tap, which we hit and fixed. Verified in-sim (UI-test
+driven, then removed): Teams → tap a club pushes the page with a working back
+button and lands on **Overview** (next match + recent-result cards reusing
+`MatchCard`); the **Squad** sub-tab reaches the roster in one tap (~24 players
+grouped GK/DEF/MID/FWD with monogram avatars and position·age·height·nationality);
+the **Schedule** sub-tab shows Upcoming then Results; tapping the header star
+toggles Follow **without navigating** and floats the club into Teams' Following
+section; and Schedule's scroll-to-today still lands on the July matchday after
+the store refactor. (Note: the sub-tab label "Schedule" shares its name with the
+bottom tab-bar item — purely an a11y/test-targeting wrinkle, not user-facing.)
 
 `ScheduleView` loads the full current NWSL season in one call
 (`ESPNService.fetchScoreboard(year:)` → `?dates=YYYY0101-YYYY1231&limit=500`,
@@ -316,15 +327,18 @@ not the view model — see the Team-detail section above.)
    would silently empty a club's schedule (the page shows a visible empty state,
    not a crash). Real fix when a back end exists: a normalized club-id map, or a
    proxy that attaches a stable id to every competitor.
-10. **(UX/TEMP)** `TeamDetailView` lists the **full** season schedule above the
-    roster, so reaching the roster is a long scroll. Revisit next session.
-    Tiffany's hypothesis (to confirm against competitor apps): most clubs have a
-    team **landing page that's a hub** — a compact header with buttons/links that
-    drill *into* roster, schedule, etc. — rather than one long scroll of
-    everything. Next steps: Tiffany adds competitor club-page/roster screenshots
-    to `Reference/`, then we redesign this around that pattern (candidate
-    directions: a hub with section buttons; a "next match + recent result"
-    summary up top; a Results/Fixtures split; roster behind its own push).
+10. **(DONE)** ~~`TeamDetailView` lists the **full** season schedule above the
+    roster, so reaching the roster is a long scroll.~~ Redesigned around the
+    competitor pattern (Athletic/MLS/NWSL all front the team page with sub-tabs):
+    a pinned header (crest + name + Follow) above a segmented **Overview ·
+    Schedule · Squad** control — roster is now one tap, not a long scroll.
+    Overview leads with next match + recent result (Tiffany's #1 use case + the
+    first small "alive" seed); Schedule splits Upcoming/Results. Verified in-sim
+    (temporary XCUITest, then removed). Deferred follow-ups from this redesign:
+    a Follow-confirmation sheet (rename star → "Follow" + first-time "here's what
+    following buys you"), a standings/record line in the header (needs the
+    standings endpoint), and a future per-team News/Spotlights sub-tab (the
+    "alive" work — long-term vision being moved to Claude Cowork).
 
 **Longer-term (vision — see `Reference/Sessions/` for the full discussion):**
 

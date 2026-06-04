@@ -30,6 +30,11 @@ struct RootTabView: View {
     // once Home is built out.
     @State private var selection: Tab = .schedule
 
+    // The personalization lens, created once at the root and shared with every
+    // tab via the environment so Teams (now) and Home/Feed (later) read the
+    // same followed-clubs set.
+    @State private var following = FollowingStore()
+
     var body: some View {
         TabView(selection: $selection) {
             placeholderTab(title: "Home", systemImage: "house")
@@ -42,12 +47,14 @@ struct RootTabView: View {
             placeholderTab(title: "Standings", systemImage: "list.number")
                 .tag(Tab.standings)
 
-            placeholderTab(title: "Teams", systemImage: "shield")
+            TeamsView()
+                .tabItem { Label("Teams", systemImage: "shield") }
                 .tag(Tab.teams)
 
             placeholderTab(title: "Feed", systemImage: "dot.radiowaves.left.and.right")
                 .tag(Tab.feed)
         }
+        .environment(following)
     }
 
     /// A not-yet-built tab: a clean "coming soon" screen in its own

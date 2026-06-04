@@ -12,20 +12,25 @@
 //  RootTabView), not constructed here — so this screen and future ones share
 //  the same single source of truth for who you follow.
 //
-//  Note: rows aren't tappable yet. A club → detail page (roster, schedule) is
-//  the next milestone; we don't ship navigation that goes nowhere.
+//  Each row is a NavigationLink into TeamDetailView (crest, club schedule,
+//  roster, Follow). The destination reads the shared MatchStore + FollowingStore
+//  from the environment, both injected in RootTabView.
 //
 
 import SwiftUI
 
 struct TeamsView: View {
     @State private var viewModel = TeamsViewModel()
+    @State private var path = NavigationPath()
     @Environment(FollowingStore.self) private var following
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             content
                 .navigationTitle("Teams")
+                .navigationDestination(for: Club.self) { club in
+                    TeamDetailView(club: club)
+                }
                 .refreshable { await viewModel.load() }
         }
         // Load once on first appearance; don't refetch every time the tab is
@@ -64,10 +69,25 @@ struct TeamsView: View {
     }
 
     private func row(for club: Club) -> some View {
+        // Navigation and the Follow star are SIBLING buttons, not nested: a
+        // `Button` inside a `NavigationLink` swallows the row's navigation tap
+        // (the star toggles, the rest of the row goes dead). So the row body is
+        // its own button that pushes the club via the navigation path, and the
+        // star is a separate button beside it — each owns its own taps.
         HStack(spacing: 12) {
-            TeamLogo(urlString: club.logoURL, size: 32)
-            Text(club.displayName)
-            Spacer()
+            Button {
+                path.append(club)
+            } label: {
+                HStack(spacing: 12) {
+                    TeamLogo(urlString: club.logoURL, size: 32)
+                    Text(club.displayName)
+                        .foregroundStyle(.primary)
+                    Spacer(minLength: 8)
+                }
+                .contentShape(Rectangle())   // whole left area is tappable
+            }
+            .buttonStyle(.plain)
+
             followButton(for: club)
         }
     }
@@ -104,4 +124,5 @@ struct TeamsView: View {
 #Preview {
     TeamsView()
         .environment(FollowingStore())
+        .environment(MatchStore())
 }

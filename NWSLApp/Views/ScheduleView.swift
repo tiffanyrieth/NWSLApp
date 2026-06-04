@@ -24,6 +24,9 @@ import SwiftUI
 
 struct ScheduleView: View {
     @State private var viewModel = ScheduleViewModel()
+    // The season's events live in the shared store (injected in RootTabView);
+    // this screen reads its slice through the view model.
+    @Environment(MatchStore.self) private var matchStore
     // The section the scroll view is anchored to. Set once on first load to
     // scroll to today; afterwards `.scrollPosition` owns this binding as the
     // user scrolls, and we never write it again.
@@ -38,7 +41,13 @@ struct ScheduleView: View {
                 .navigationTitle("Schedule")
                 .refreshable { await viewModel.load() }
         }
-        .task { await viewModel.load() }
+        // Hand the view model the shared store, then load once on first
+        // appearance — guarding on `.idle` so re-selecting the tab (or another
+        // screen having loaded the store first) doesn't refetch.
+        .task {
+            viewModel.store = matchStore
+            if case .idle = matchStore.state { await viewModel.load() }
+        }
         // Drive the one-time scroll-to-today off the idle/loading -> loaded
         // edge, after the LazyVStack has had a chance to realize its sections.
         .onChange(of: viewModel.isLoaded) { _, loaded in
@@ -124,4 +133,5 @@ private struct DayHeader: View {
 
 #Preview {
     ScheduleView()
+        .environment(MatchStore())
 }

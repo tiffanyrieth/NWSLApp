@@ -35,6 +35,12 @@ struct RootTabView: View {
     // same followed-clubs set.
     @State private var following = FollowingStore()
 
+    // The season's matches, also created once and shared app-wide: Schedule
+    // renders the whole season, a club's Team page renders its slice, and the
+    // future Home will lead with followed clubs' next match — one fetch, many
+    // readers (see MatchStore).
+    @State private var matches = MatchStore()
+
     var body: some View {
         TabView(selection: $selection) {
             placeholderTab(title: "Home", systemImage: "house")
@@ -55,6 +61,7 @@ struct RootTabView: View {
                 .tag(Tab.feed)
         }
         .environment(following)
+        .environment(matches)
     }
 
     /// A not-yet-built tab: a clean "coming soon" screen in its own

@@ -49,6 +49,18 @@ struct ESPNService {
         return try await fetch(TeamsResponse.self, from: url).clubs
     }
 
+    // Fetches one club's squad from `teams/{id}/roster` and returns the
+    // flattened, view-friendly athletes (see Roster.swift). `clubID` is ESPN's
+    // team id — the stable `Club.id`, not the abbreviation. Components are
+    // appended one at a time so the id is treated as a single path segment.
+    func fetchRoster(clubID: String) async throws -> [Athlete] {
+        let url = base
+            .appendingPathComponent("teams")
+            .appendingPathComponent(clubID)
+            .appendingPathComponent("roster")
+        return try await fetch(RosterResponse.self, from: url).players
+    }
+
     // Shared GET-and-decode: one place for the status check and typed-error
     // wrapping, generic over whatever Decodable an endpoint returns.
     private func fetch<T: Decodable>(_ type: T.Type, from url: URL) async throws -> T {

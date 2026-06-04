@@ -2,57 +2,53 @@
 //  ScheduleViewModel.swift
 //  NWSLApp
 //
-//  Owns state for ScheduleView: fetches the full current NWSL season,
-//  groups events by local-day sections, and computes the section the
-//  view should scroll to on first appearance (today or next upcoming).
+//  Owns the *presentation* of ScheduleView: it groups the season's events into
+//  local-day sections, labels them, and computes the section the view should
+//  scroll to on first appearance (today, or the next upcoming matchday).
+//
+//  It no longer fetches. The season's events live in the shared MatchStore
+//  (injected app-wide), and this view model derives its sections from that
+//  store — so the Schedule screen and the Team page read the exact same data.
+//  The store is handed in by the view (`store = ...`) before the first load,
+//  because a SwiftUI `@State` view model can't read the environment at init.
 //
 
 import Foundation
 
 @Observable
 final class ScheduleViewModel {
-    enum State {
-        case idle
-        case loading
-        case loaded([Event])
-        case error(String)
-    }
-
     struct DaySection: Identifiable {
         let id: String       // "yyyy-MM-dd"
         let label: String    // "Today" or "Saturday, Jun 6"
         let events: [Event]
     }
 
-    private(set) var state: State = .idle
+    // Set by ScheduleView from the environment before the first load. Optional
+    // because the view model is constructed before the environment is readable;
+    // until it's wired, the screen simply reads as `.idle`.
+    var store: MatchStore?
 
-    private let service: ESPNService
     private let calendar: Calendar
     private let now: () -> Date
 
     init(
-        service: ESPNService = ESPNService(),
         calendar: Calendar = .current,
         now: @escaping () -> Date = Date.init
     ) {
-        self.service = service
         self.calendar = calendar
         self.now = now
     }
 
+    // Proxy the shared store's state so ScheduleView's `switch` over
+    // idle/loading/loaded/error is unchanged.
+    var state: MatchStore.State { store?.state ?? .idle }
+
     func load() async {
-        state = .loading
-        let year = calendar.component(.year, from: now())
-        do {
-            let board = try await service.fetchScoreboard(year: year)
-            state = .loaded(board.events)
-        } catch {
-            state = .error(message(for: error))
-        }
+        await store?.load()
     }
 
     var sections: [DaySection] {
-        guard case .loaded(let events) = state else { return [] }
+        let events = store?.events ?? []
         let grouped = Dictionary(grouping: events.filter { $0.dayKey != nil }) { $0.dayKey! }
         return grouped
             .map { (key, events) in
@@ -70,7 +66,7 @@ final class ScheduleViewModel {
     // rather than watching `sections.first?.id` (which is the season opener
     // and stays identical across reloads, so it's a fragile trigger).
     var isLoaded: Bool {
-        if case .loaded = state { return true }
+        if case .loaded = store?.state { return true }
         return false
     }
 
@@ -106,18 +102,5 @@ final class ScheduleViewModel {
         display.timeZone = .current
         display.dateFormat = "EEEE, MMM d"
         return display.string(from: date)
-    }
-
-    private func message(for error: Error) -> String {
-        switch error {
-        case ESPNServiceError.badStatus(let code):
-            return "ESPN returned an error (status \(code)). Pull to retry."
-        case ESPNServiceError.decoding:
-            return "Couldn't read the schedule response. Pull to retry."
-        case ESPNServiceError.badURL:
-            return "Couldn't build the request. This is a bug — please report it."
-        default:
-            return "Couldn't load the schedule. Check your connection and pull to retry."
-        }
     }
 }

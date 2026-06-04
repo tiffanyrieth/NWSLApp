@@ -136,7 +136,10 @@ working in this repo:
 - Every drilled-in view has an explicit back affordance; don't rely on the
   edge-swipe gesture alone.
 - Navigation state resets predictably (tapping a tab returns to its root).
-- Don't ship placeholder or empty sections.
+- Placeholder tabs/sections are allowed only as intentional structural
+  scaffolding — and only when they (a) show a clean "Coming soon" state (never a
+  blank or broken screen), and (b) are flagged as placeholders in the File Map.
+  The bar is: a placeholder must look deliberate, not forgotten.
 - The schedule displays the full season, not a rolling window.
 - Clarity over density — screens should breathe.
 
@@ -153,7 +156,7 @@ working in this repo:
 
 ```
 NWSLApp/
-├── NWSLAppApp.swift                — app entry point; launches ScheduleView
+├── NWSLAppApp.swift                — app entry point; launches RootTabView
 ├── Models/
 │   └── Scoreboard.swift            — Codable structs mirroring ESPN's NWSL scoreboard JSON + Event helpers (kickoff, dayKey, home/away accessors)
 ├── Services/
@@ -161,8 +164,10 @@ NWSLApp/
 ├── ViewModels/
 │   └── ScheduleViewModel.swift     — @Observable; State enum (idle/loading/loaded/error); exposes day-grouped sections + initial scroll target
 ├── Views/
+│   ├── RootTabView.swift           — app root; 5-tab bottom TabView (Home / Schedule / Standings / Teams / Feed), each tab owns its own NavigationStack; lands on Schedule for now (flip `selection` default to .home once Home exists); Home/Standings/Teams/Feed are ComingSoonView PLACEHOLDERS
 │   └── ScheduleView.swift          — full-season schedule as a ScrollView + LazyVStack of cards with sticky day headers; scrolls to today (or next matchday) on first load via .scrollPosition(id:); pull-to-refresh
 ├── Components/
+│   ├── ComingSoonView.swift        — reusable intentional placeholder (SF Symbol + title + "coming soon" copy) for not-yet-built tabs; drives the 4 placeholder tabs in RootTabView
 │   ├── MatchCard.swift             — one game as a rounded card: stacked home/away rows (logo + abbreviation) + score (or kickoff time) + status badge (LIVE / FT / scheduled)
 │   └── TeamLogo.swift              — reusable AsyncImage crest: fixed frame, loading placeholder, neutral failure fallback (no broken-image glyph); reused by future Standings/Teams
 └── Assets.xcassets/                — app icons, accent color
@@ -171,6 +176,18 @@ NWSLApp/
 ---
 
 ## Current State
+
+The app root is now `RootTabView` — a conventional 5-tab bottom bar
+(**Home · Schedule · Standings · Teams · Feed**), each tab in its own
+`NavigationStack` so back-stacks survive tab switches. Only **Schedule** is
+built; Home/Standings/Teams/Feed render a shared, intentional `ComingSoonView`
+placeholder. The app deliberately **lands on Schedule** (not the leftmost Home
+tab) since Home is still a placeholder — flip `selection`'s default to `.home`
+once Home is real. Tab is `Feed` (not `News`) on purpose, to signal the
+social-native, "alive" direction (full rationale in the gitignored
+`Reference/Sessions/` notes). Verified in-sim: lands on Schedule, all 5 tabs
+render, Schedule's scroll-to-today still works inside the tab, and a placeholder
+tab shows the clean "coming soon" screen.
 
 `ScheduleView` loads the full current NWSL season in one call
 (`ESPNService.fetchScoreboard(year:)` → `?dates=YYYY0101-YYYY1231&limit=500`,
@@ -196,11 +213,15 @@ position back. The MVVM spine is real: `ScheduleViewModel` owns state,
    `Components/TeamLogo.swift`. Replace with a shared cache (NSCache-backed
    loader, or route logos through the future Vercel proxy with caching headers)
    and remove the TEMP note.
-2. **(Architecture)** Tab-bar navigation. `ScheduleView` should be a tab, not
-   the root. Plan the structure: **Home / Schedule / Standings / Teams / News**.
-   Decide which tab opens on launch (likely Home once it exists, Schedule until
-   then), and give each tab its own `NavigationStack` so back-stacks survive tab
-   switches.
+2. **(Next — Teams + Following)** Build the **Teams** tab into a real directory
+   of all 16 clubs (NWSL is 16 teams as of 2026), and introduce a **Following**
+   concept (which teams you
+   follow) — a cross-cutting *lens*, not its own tab. The team page holds the
+   Follow button; following then personalizes Home (your-teams-first), Feed, and
+   eventually push notifications. "My teams" is NOT a separate tab — that view
+   *is* what Home becomes. Extend the lens to **players** later (the "watch 1–2
+   players a week" learning mechanic). See `Reference/Sessions/` for full
+   rationale.
 3. **(Polish)** Pull-to-refresh flips `state` to `.loading`, which swaps the
    whole card list for a centered `ProgressView` mid-refresh (pre-existing, not
    introduced by the card redesign). Consider keeping the list visible during a
@@ -220,3 +241,18 @@ position back. The MVVM spine is real: `ScheduleViewModel` owns state,
    stats, news) via the `NavigationStack` already in place.
 7. Standings view (must show all teams end-to-end, without truncation).
 8. Team detail page (profile, roster, schedule filtered to that team).
+
+**Longer-term (vision — see `Reference/Sessions/` for the full discussion):**
+
+9. **Feed, reimagined** — social-native news (reporters' Bluesky/Twitter, team
+   IG/TikTok) tailored to followed teams, not a closed-loop press-release feed.
+10. **Push notifications** — the day-before/day-of heads-up + the live ladder
+    (lineup → kickoff → goals → half → full). This is the first feature the
+    iPhone can't do alone: it needs a server polling the schedule + APNs, i.e.
+    the "future Vercel proxy" becomes a real backend.
+11. **Competition-aware schedule** — don't hardwire to a single league; make
+    matches carry a competition so Challenge Cup, Concacaf W, and USWNT can be
+    added later without a painful refactor.
+12. **Engagement / Home hub** — player spotlights (eventually a contributor
+    pipeline), community links (subreddits/Discords), prediction games. These
+    live as Home *modules* first and graduate to their own tab only if earned.

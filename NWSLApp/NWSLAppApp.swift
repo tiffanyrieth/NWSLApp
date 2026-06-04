@@ -11,7 +11,7 @@ import SwiftUI
 struct NWSLAppApp: App {
     var body: some Scene {
         WindowGroup {
-            ScheduleView()
+            RootTabView()
         }
     }
 }

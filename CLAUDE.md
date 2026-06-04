@@ -110,6 +110,13 @@ proceeding.
 - Commit secrets, API keys, or tokens. Use a gitignored config or environment
   variable.
 
+**Local enforcement:** the `hooks/` folder holds git hooks that back the
+branch rule on this machine — `pre-commit` blocks commits onto `main`, and
+`pre-push` blocks deleting/force-pushing `main` (warns on a direct push). They
+are local guardrails, not policy: bypass with `--no-verify`, and a fresh clone
+must run `git config core.hooksPath hooks` to enable them. (GitHub server-side
+protection needs Pro on a private repo.) See `hooks/README.md`.
+
 ---
 
 ## Collaboration Preferences

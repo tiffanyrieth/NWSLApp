@@ -39,6 +39,19 @@ struct ESPNService {
             throw ESPNServiceError.badURL
         }
 
+        return try await fetch(Scoreboard.self, from: url)
+    }
+
+    // Fetches the league's club directory from the `teams` endpoint and returns
+    // the flattened, alphabetically-sorted active clubs (see Club.swift).
+    func fetchTeams() async throws -> [Club] {
+        let url = base.appendingPathComponent("teams")
+        return try await fetch(TeamsResponse.self, from: url).clubs
+    }
+
+    // Shared GET-and-decode: one place for the status check and typed-error
+    // wrapping, generic over whatever Decodable an endpoint returns.
+    private func fetch<T: Decodable>(_ type: T.Type, from url: URL) async throws -> T {
         let (data, response) = try await session.data(from: url)
 
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
@@ -46,7 +59,7 @@ struct ESPNService {
         }
 
         do {
-            return try JSONDecoder().decode(Scoreboard.self, from: data)
+            return try JSONDecoder().decode(T.self, from: data)
         } catch {
             throw ESPNServiceError.decoding(error)
         }

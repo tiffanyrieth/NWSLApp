@@ -172,23 +172,27 @@ NWSLApp/
 ├── Services/
 │   └── ESPNService.swift           — URLSession + async/await wrapper; fetchScoreboard(year:) (full season) + fetchTeams() (club directory) + fetchRoster(clubID:) → ClubSquad (one club's squad + team color/standing profile, one call) + fetchStandings() (league table, built from the apis/v2/… path explicitly — not `base`), all routed through a private generic fetch<T:Decodable>; throws ESPNServiceError
 ├── Stores/
-│   ├── FollowingStore.swift        — @Observable personalization lens: which clubs the user follows (Set<String> of club IDs), persisted to UserDefaults; injected app-wide via .environment so all tabs share it (NOT a per-screen ViewModel)
-│   └── MatchStore.swift            — @Observable shared season store: fetches the full scoreboard ONCE and exposes it app-wide (State enum + events + matches(for: Club)); injected in RootTabView via .environment. ScheduleView renders all of it; future Home leads with followed clubs' next match. matches(for:) joins club↔match by abbreviation (TEMP-commented fragility: ESPN competitors carry no id). NOTE: TeamDetailView no longer reads this (the Teams-tab redesign removed the per-club Schedule sub-tab — schedule lives in the Schedule tab); matches(for:) is currently used only by future Home — keep it.
+│   ├── FollowingStore.swift        — @Observable personalization lens: which clubs the user follows (Set<String> of club IDs), persisted to UserDefaults; injected app-wide via .environment so all tabs share it (NOT a per-screen ViewModel). ALSO tracks hasOnboarded (persisted Bool + completeOnboarding()) — the one-time first-open gate that flips Home from the "Make it yours" picker to the hub; init treats an existing follower as already onboarded so seeded sims/users skip the picker.
+│   └── MatchStore.swift            — @Observable shared season store: fetches the full scoreboard ONCE and exposes it app-wide (State enum + events + matches(for: Club)); injected in RootTabView via .environment. ScheduleView renders all of it; Home now DERIVES its modules from it (next match per followed club via matches(for:), plus the next-matchday slate). matches(for:) joins club↔match by abbreviation (TEMP-commented fragility: ESPN competitors carry no id). NOTE: TeamDetailView does NOT read this (the Teams-tab redesign moved schedule to the Schedule tab); matches(for:) now powers HomeView's "Your next matches" module.
 ├── ViewModels/
+│   ├── HomeViewModel.swift         — @Observable; owns the Home tab's club-directory fetch (idle/loading/loaded/error) and DERIVES Home's modules from the injected MatchStore + FollowingStore (mirrors ScheduleViewModel's store-handoff). Fetches the club directory only — to resolve followed IDs → full Clubs (crest/name); the season comes from the shared store. nextMatches(following:) → one FollowedFixture per followed club (next non-final match, else most-recent result; upcoming sorted soonest-first), each with a time-aware label ("TODAY"/"TOMORROW"/"SAT, JUL 12"). aroundTheLeague → the next matchday's league-wide slate (earliest local day with a non-final game + every game that day).
 │   ├── ScheduleViewModel.swift     — @Observable; DERIVES day-grouped sections + initial scroll target from the injected MatchStore (no longer fetches); proxies the store's State; view hands it the store before first load
 │   ├── TeamsViewModel.swift        — @Observable; State enum (idle/loading/loaded/error); fetches the club directory via ESPNService.fetchTeams()
 │   ├── TeamDetailViewModel.swift   — @Observable; State enum holding the ClubSquad from one roster fetch (load(clubID:) → fetchRoster). Exposes positionGroups (via Roster.grouped, FWD-first), accentColorHex (club color for cards/badges), and standingLine (the header's "4th in NWSL — 21 pts"). One fetch feeds the whole page; no MatchStore dependency anymore.
 │   └── StandingsViewModel.swift    — @Observable; same idle/loading/loaded/error State enum; one-shot fetch via ESPNService.fetchStandings() (own per-screen fetch, not the shared MatchStore — standings has no other readers)
 ├── Views/
-│   ├── RootTabView.swift           — app root; 5-tab bottom TabView (Home / Schedule / Standings / Teams / Feed), each tab owns its own NavigationStack; lands on Schedule for now (flip `selection` default to .home once Home exists); creates the FollowingStore AND the MatchStore and injects both via .environment; Home/Feed are ComingSoonView PLACEHOLDERS (Schedule/Standings/Teams are built)
+│   ├── RootTabView.swift           — app root; 5-tab bottom TabView (Home / Schedule / Standings / Teams / Feed), each tab owns its own NavigationStack; LANDS ON HOME (Home is built); creates the FollowingStore AND the MatchStore and injects both via .environment; only Feed is still a ComingSoonView PLACEHOLDER (Home/Schedule/Standings/Teams are built)
+│   ├── HomeView.swift              — Home tab: the your-teams-first hub. While FollowingStore.hasOnboarded is false it renders OnboardingView in place (tab bar stays visible). Otherwise the hub: a ScrollView of modules per Reference/Design/home-tab-design-spec.md — (1) "Your next matches" = a NextMatchCard per followed club (real, from HomeViewModel); (2) "From your teams" = an intentional "coming soon" card (no team-content endpoint yet); (3) "Play" = a horizontal row of intentional "coming soon" game cards (Daily Trivia / Predict the XI / Bracket Battle — spec's reserved structural slot); (4) Spotlight = opt-in, NOT shown; (5) "Around the league" = the next matchday's slate as MatchCards (real, hidden when none). Reads MatchStore + FollowingStore from the environment, hands the store to its view model, loads both once on .task. Empty Module-1 state (follows nobody) shows a "Choose your teams" prompt that re-presents the picker as a sheet.
+│   ├── OnboardingView.swift        — first-open "Make it yours" team picker (per the Home spec): a single alphabetical List of every club (no grid, no search), each a whole-row follow toggle (filled checkmark when on), with a collapsed-by-default "Also follow international competitions" disclosure (TEMP intentional placeholder — its rows say "Coming soon" and do NOT toggle, because FollowingStore tracks club IDs only; competition-following needs its own data model). A pinned bottom bar shows the running "Follow N teams" count (disabled at 0) + "you can always change this later"; the button calls completeOnboarding() (flips Home to the hub) and dismiss() (so it also works re-presented as a sheet). Reuses TeamsViewModel for the fetch + the shared FollowingStore for the picks.
 │   ├── ScheduleView.swift          — full-season schedule as a ScrollView + LazyVStack of cards with sticky day headers; reads the shared MatchStore (handed to its view model); scrolls to today (or next matchday) on first load via .scrollPosition(id:); pull-to-refresh
 │   ├── TeamsView.swift             — Teams tab: directory of all 16 clubs in a List; a "Following" section floats followed clubs to the top, "All Clubs" lists every club end-to-end. Each row is a sibling pair of buttons — a row button (pushes TeamDetailView via a NavigationPath) + a Follow star (FollowingStore) — NOT nested (a Button inside a NavigationLink swallows the row's nav tap)
 │   ├── TeamDetailView.swift        — a club's page, pushed from Teams/Standings (no own NavigationStack): a PINNED header (crest + name + standing line "4th in NWSL — 21 pts" + Follow star) above a segmented sub-tab bar (Squad · Stats); only the selected section scrolls. Squad (default) = the "meet the team" 2-col LazyVGrid of PlayerCards grouped FWD→MID→DEF→GK, each NavigationLink→PlayerDetailView. Stats = an INTENTIONAL placeholder ("Team stats coming soon" — team leaders + formation need per-player stats / lineup data not in the endpoints we map yet; flagged here as a placeholder). Built per Reference/Design/teams-tab-design-spec.md, which removed the old Overview/Schedule sub-tabs (identity audit: schedule→Schedule tab, next-match→future Home). One roster fetch powers everything (cards + header line).
 │   ├── PlayerDetailView.swift      — INTENTIONAL placeholder, pushed when a Squad card is tapped (player detail is a future build). Shows the bio we already have from the roster (monogram, name, jersey/position/age/height/nationality) + a "player stats coming soon" panel — deliberate, not blank. Accent color threaded down from TeamDetailView. Becomes the real stats screen when the player-stats endpoint is mapped.
 │   └── StandingsView.swift         — Standings tab: a clean league table per the design spec (Reference/Design/standings-tab-design-spec.md). Non-scrolling column header (# · Team · PTS · GP · W · L · D) kept aligned with the scrolling rows via shared fixed Col widths (Grid can't bridge the scroll boundary); all 16 teams end-to-end, no truncation/horizontal scroll. Followed teams render blue (text + soft blue-tint bg) via FollowingStore. Each row is a Button that appends row.club to a NavigationPath → TeamDetailView (same pattern + destination as Teams). Footer = stat legend. Deliberately NO GF/GA/GD or home-away splits (would force horizontal scroll). PTS is bold and fronted (Tiffany's column order).
 ├── Components/
-│   ├── ComingSoonView.swift        — reusable intentional placeholder (SF Symbol + title + "coming soon" copy) for not-yet-built tabs; drives the 4 placeholder tabs in RootTabView
-│   ├── MatchCard.swift             — one game as a rounded card: stacked home/away rows (logo + abbreviation) + score (or kickoff time) + status badge (LIVE / FT / scheduled); used by ScheduleView (no longer by TeamDetailView after the Teams redesign — still the schedule's card)
+│   ├── ComingSoonView.swift        — reusable intentional placeholder (SF Symbol + title + "coming soon" copy) for not-yet-built tabs; now drives only the Feed placeholder tab in RootTabView
+│   ├── MatchCard.swift             — one game as a rounded card: stacked home/away rows (logo + abbreviation) + score (or kickoff time) + status badge (LIVE / FT / scheduled); used by ScheduleView AND Home's "Around the league" module (the league-wide next-matchday slate)
+│   ├── NextMatchCard.swift         — Home → "Your next matches" card: a followed team's next fixture, richer than MatchCard — leads with a time-aware label ("TODAY"/"TOMORROW"/date), shows full team names, gives a live match an elevated treatment (red dot + LIVE + clock), and flips to score + "FT" when finished. TEMP: the spec also wants venue (pin) + broadcast (TV) lines here — those fields aren't decoded onto Event yet (tracked in What's-Next #5).
 │   ├── PlayerCard.swift            — one player in the Teams → Squad grid: team-color top accent (3px) + jersey/initials monogram in a team-color circle badge + shortName + position. Team color via Color.teamAccent (legible number color picked by luminance). Replaces the old list-row PlayerRow now the squad is a grid.
 │   └── TeamLogo.swift              — reusable AsyncImage crest: fixed frame, loading placeholder, neutral failure fallback (no broken-image glyph); used by MatchCard + TeamsView + TeamDetailView + StandingsView
 ├── Extensions/
@@ -202,15 +206,51 @@ NWSLApp/
 
 The app root is now `RootTabView` — a conventional 5-tab bottom bar
 (**Home · Schedule · Standings · Teams · Feed**), each tab in its own
-`NavigationStack` so back-stacks survive tab switches. **Schedule**,
-**Standings**, and **Teams** are built; Home/Feed render a shared, intentional
-`ComingSoonView` placeholder. The app deliberately **lands on Schedule** (not
-the leftmost Home tab) since Home is still a placeholder — flip `selection`'s
-default to `.home` once Home is real. Tab is `Feed` (not `News`) on purpose, to
-signal the social-native, "alive" direction (full rationale in the gitignored
-`Reference/Sessions/` notes). Verified in-sim: lands on Schedule, all 5 tabs
-render, Schedule's scroll-to-today still works inside the tab, and a placeholder
-tab shows the clean "coming soon" screen.
+`NavigationStack` so back-stacks survive tab switches. **Home, Schedule,
+Standings, and Teams** are built; only **Feed** still renders the intentional
+`ComingSoonView` placeholder. The app now **lands on Home** (the leftmost tab),
+its your-teams-first hub. Tab is `Feed` (not `News`) on purpose, to signal the
+social-native, "alive" direction (full rationale in the gitignored
+`Reference/Sessions/` notes). Verified in-sim: lands on Home, all 5 tabs render,
+Schedule's scroll-to-today still works inside the tab, and the Feed tab shows the
+clean "coming soon" screen.
+
+**Home (the your-teams-first hub).** Built per
+`Reference/Design/home-tab-design-spec.md` (approved Cowork session). On first
+open — `FollowingStore.hasOnboarded == false` — Home renders `OnboardingView` in
+place (so the tab bar stays visible, signaling depth): the "Make it yours" team
+picker, a single alphabetical `List` of every club (no grid, no search) with a
+whole-row follow toggle, a collapsed-by-default "international competitions"
+disclosure (an intentional placeholder — its rows read "Coming soon" and don't
+toggle, since `FollowingStore` tracks club IDs only and competition-following
+needs its own data model), and a pinned bottom bar with the running "Follow N
+teams" count + "you can always change this later." Tapping it calls
+`completeOnboarding()` (persisted) and flips Home to the hub. Existing followers
+are treated as already onboarded, so a seeded sim skips the picker. Once
+onboarded, the hub is a `ScrollView` of modules: **(1) "Your next matches"** —
+the marquee, one `NextMatchCard` per followed club showing its next non-final
+fixture (or a most-recent-result fallback) with a time-aware label
+("TODAY"/"TOMORROW"/date), live treatment, and FT/score flip; **(2) "From your
+teams"** — an intentional "coming soon" card (no team-content endpoint exists
+yet); **(3) "Play"** — a horizontal row of intentional "coming soon" game cards
+(Daily Trivia / Predict the XI / Bracket Battle), the spec's reserved structural
+slot; **(4) Spotlight** — opt-in only, deliberately **not shown**; **(5) "Around
+the league"** — the next matchday's league-wide slate as `MatchCard`s (hidden
+when nothing's upcoming). Home owns no season data: `HomeViewModel` fetches only
+the club directory (to resolve followed IDs → full `Club`s) and **derives** every
+module from the shared `MatchStore` + `FollowingStore` read from the environment —
+one season fetch, many readers. The empty Module-1 state (following nobody) shows
+a "Choose your teams" prompt that re-presents the picker as a sheet. **Verified
+in-sim:** a fresh install opens onto the "Make it yours" picker (all clubs incl.
+the 2026 expansion sides, dimmed "Follow your teams" button, tab bar visible);
+seeding three follows (Portland/Washington/Kansas City) + `hasOnboarded` and
+relaunching shows the hub with three correctly-sorted next-match cards (Fri Jul 3
+Washington, Fri Jul 3 Denver–KC, Sun Jul 5 Portland) bearing date labels +
+kickoff times, the "From your teams" placeholder, the horizontally-scrolling
+"Play" cards, and "Around the league" labeled "FRI, JUL 3" listing that day's
+games. (Verification used the project's established seed-UserDefaults path, since
+UI taps flake under this machine's memory pressure — see the Teams-redesign
+note.) Screenshots in the gitignored verification folder.
 
 **Teams + Following (personalization spine).** The Teams tab (`TeamsView` +
 `TeamsViewModel`, `ESPNService.fetchTeams()`) lists all 16 clubs from ESPN's
@@ -344,11 +384,30 @@ not the view model — see the Team-detail section above.)
        with real per-player stats (same `statistics.splits` source).
      - The spec's deferred **Follow-confirmation sheet** (first-time "what following
        buys you") still applies to the header star.
-   - **Your-teams-first Home** — build the Home tab as a hub that leads with
-     followed clubs' next match / recent result (the "My teams" view *is* Home,
-     not a separate tab). **Now unblocked:** the shared `MatchStore` already
-     answers "this club's next match" — Home is mostly assembly over the same
-     store + `FollowingStore`.
+   - **(DONE)** ~~Your-teams-first Home — build the Home tab as a hub that leads
+     with followed clubs' next match / recent result.~~ Shipped per
+     `Reference/Design/home-tab-design-spec.md`: `HomeView` + `HomeViewModel` +
+     `OnboardingView` + `NextMatchCard`, landing tab flipped to Home.
+     First-open "Make it yours" onboarding picker + the hub (Module 1 "Your next
+     matches" and Module 5 "Around the league" are real and data-backed; Modules
+     2/3 are intentional "coming soon" slots; Module 4 Spotlight is opt-in and
+     not shown). **New follow-ups from the Home build:**
+     - **Module 1 venue + broadcast** — `NextMatchCard` doesn't yet show the
+       stadium/TV lines the spec wants; blocked on the same venue/broadcast
+       decode as What's-Next #5. Add the third info line when that lands.
+     - **Module 2 "From your teams"** is a placeholder — needs a team
+       social/video content source (team IG/YouTube/TikTok/Bluesky); part of the
+       Feed-reimagined work (#11).
+     - **Module 3 "Play"** is a placeholder structural slot — build the games
+       (Daily Trivia, Predict the XI, Bracket Battle); the prediction games reuse
+       the same back end as push (#12/#14).
+     - **Module 4 "Spotlight"** (opt-in) — not built; needs the player-spotlight
+       content pipeline + a Settings toggle.
+     - **International competitions** in onboarding are a placeholder (rows don't
+       toggle) — needs a Competition data model + a separate follow set in
+       `FollowingStore`; ties into the competition-aware schedule (#13).
+     - The spec's **Follow-confirmation sheet** + "all onboarding choices
+       adjustable in Settings" still apply (no Settings screen exists yet).
    - **Extend the lens to players** later (the "watch 1–2 players a week"
      mechanic). See `Reference/Sessions/` for full rationale.
 3. **(Polish)** Pull-to-refresh flips `state` to `.loading`, which swaps the

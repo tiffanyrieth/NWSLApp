@@ -49,6 +49,20 @@ struct ESPNService {
         return try await fetch(TeamsResponse.self, from: url).clubs
     }
 
+    // Fetches the current league table from the standings endpoint and returns
+    // the flattened, rank-sorted rows (see Standings.swift).
+    //
+    // Standings is the one endpoint NOT under `base`: it lives at `apis/v2/…`,
+    // while everything else is `apis/site/v2/…` (the `site/v2` standings path
+    // returns an empty object). So we build this URL explicitly rather than
+    // appending to `base`.
+    func fetchStandings() async throws -> [StandingsRow] {
+        guard let url = URL(string: "https://site.api.espn.com/apis/v2/sports/soccer/usa.nwsl/standings") else {
+            throw ESPNServiceError.badURL
+        }
+        return try await fetch(StandingsResponse.self, from: url).rows
+    }
+
     // Fetches one club's squad from `teams/{id}/roster` and returns the
     // flattened, view-friendly athletes (see Roster.swift). `clubID` is ESPN's
     // team id — the stable `Club.id`, not the abbreviation. Components are

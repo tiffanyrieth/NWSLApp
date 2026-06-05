@@ -21,6 +21,11 @@ struct Club: Identifiable, Hashable {
     let displayName: String
     let abbreviation: String
     let logoURL: String?
+    /// ESPN's short form ("Angel City", "Washington", "Kansas City") — the
+    /// chip-friendly label for the Feed tab's per-team filters, where the full
+    /// `displayName` ("Kansas City Current") would be too long. Defaulted so
+    /// existing call sites that don't set it fall back to `displayName`.
+    var shortName: String? = nil
 }
 
 // MARK: - ESPN teams endpoint decoding
@@ -51,7 +56,8 @@ struct TeamsResponse: Decodable {
                     id: id,
                     displayName: team.displayName ?? team.shortDisplayName ?? team.abbreviation ?? "—",
                     abbreviation: team.abbreviation ?? "",
-                    logoURL: team.logos?.first?.href
+                    logoURL: team.logos?.first?.href,
+                    shortName: team.shortDisplayName
                 )
             }
             .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }

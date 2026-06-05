@@ -55,13 +55,18 @@ struct ScheduleView: View {
             }
             .navigationTitle("Schedule")
         }
-        // Hand the view model the shared store + following lens, then load once
-        // on first appearance — guarding on `.idle` so re-selecting the tab (or
-        // another screen having loaded the store first) doesn't refetch.
+        // Hand the view model the shared store + following lens, then load on
+        // first appearance. Gate ONLY the season on `.idle` (so re-selecting the
+        // tab — or another screen, e.g. Home, having loaded the store first —
+        // doesn't refetch ~240 events). The club directory is fetched separately
+        // and unconditionally: it's independent of the season, internally guarded
+        // (`clubs.isEmpty`), and the "My teams" filter needs it even when the
+        // store was already loaded elsewhere.
         .task {
             viewModel.store = matchStore
             viewModel.following = following
-            if case .idle = matchStore.state { await viewModel.load() }
+            if case .idle = matchStore.state { await matchStore.load() }
+            await viewModel.loadClubs()
         }
         // First-load scroll-to-today, off the idle/loading -> loaded edge.
         .onChange(of: viewModel.isLoaded) { _, loaded in

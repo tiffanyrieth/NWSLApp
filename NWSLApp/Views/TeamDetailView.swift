@@ -2,25 +2,26 @@
 //  TeamDetailView.swift
 //  NWSLApp
 //
-//  A club's page, pushed from the Teams directory. A pinned header (crest +
-//  name + the same Follow star used in the Teams list, so toggling here reflects
-//  everywhere) sits above a segmented sub-tab bar — Overview · Schedule · Squad —
-//  and only the selected section scrolls. This replaces the old single long
-//  scroll (header → full schedule → roster) where reaching the roster meant
-//  scrolling past the whole season; every reference app (Athletic/MLS/NWSL)
-//  fronts the team page with sub-tabs instead, so the roster is one tap away.
+//  A club's page, pushed from the Teams directory (and from a Standings row). A
+//  pinned header — crest + name + standing line ("4th in NWSL — 21 pts") + the
+//  same Follow star used in the Teams list — sits above a segmented sub-tab bar,
+//  and only the selected section scrolls.
 //
-//  Sections, top to bottom:
-//   • Overview — the glanceable default: next match + recent result, derived
-//     from the shared MatchStore via Event.statusState (no extra fetch, no date
-//     math). This is the "when's the next game / what was the score" use case.
-//   • Schedule — that club's matches split into Upcoming / Results.
-//   • Squad — the roster from ESPN's roster endpoint, grouped by position.
+//  Two sub-tabs, per the Teams tab design spec:
+//   • Squad (default) — the "meet the team" grid: a 2-column LazyVGrid of player
+//     cards grouped FWD → MID → DEF → GK, each accented in the club's color.
+//     Tapping a card pushes PlayerDetailView.
+//   • Stats — team leaders + formation; the data (per-player stats, lineups)
+//     isn't in the endpoints we map yet, so this is an intentional placeholder.
 //
-//  No NavigationStack of its own: it's pushed onto the Teams tab's stack, so the
-//  back affordance comes for free (UI rule: every drilled-in view is reversible).
-//  The roster loads independently of the schedule, so a roster failure never
-//  blanks the header + Overview/Schedule that already rendered.
+//  Earlier this page had Overview and Schedule sub-tabs too; the spec's identity
+//  audit removed them — schedule lives in the Schedule tab, and the per-club
+//  "next match / recent result" belongs to the future Home. Teams now answers
+//  one question: "who are these people?"
+//
+//  No NavigationStack of its own: it rides the pushing tab's stack, so the back
+//  affordance comes for free (UI rule: every drilled-in view is reversible).
+//  One roster fetch powers everything — the colored cards AND the header line.
 //
 
 import SwiftUI
@@ -30,17 +31,19 @@ struct TeamDetailView: View {
 
     @State private var viewModel = TeamDetailViewModel()
     @Environment(FollowingStore.self) private var following
-    @Environment(MatchStore.self) private var matchStore
 
-    // Named TeamSection (not Section) to avoid shadowing SwiftUI's Section view,
-    // which the Schedule/Squad lists below use.
+    // Named TeamSection (not Section) to avoid shadowing SwiftUI's Section view.
     private enum TeamSection: String, CaseIterable, Hashable {
-        case overview = "Overview"
-        case schedule = "Schedule"
         case squad = "Squad"
+        case stats = "Stats"
     }
 
-    @State private var section: TeamSection = .overview
+    @State private var section: TeamSection = .squad
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12),
+    ]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -58,23 +61,19 @@ struct TeamDetailView: View {
 
             Divider()
 
-            // Each branch owns its own scroll view, so switching tabs swaps the
-            // scrollable content beneath the pinned header above.
             switch section {
-            case .overview: overviewSection
-            case .schedule: scheduleSection
             case .squad: squadSection
+            case .stats: statsSection
             }
         }
-        .navigationTitle(club.displayName)
+        // Empty inline title: the pinned header already shows the club name big,
+        // so we leave the nav bar as just the back chevron (no duplicate name).
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            // The schedule slice reuses the shared season store. If a user lands
-            // here before Schedule has loaded it, kick the load; otherwise reuse
-            // what's already there. Then load this club's roster.
-            if case .idle = matchStore.state { await matchStore.load() }
-            await viewModel.load(clubID: club.id)
+        .navigationDestination(for: Athlete.self) { athlete in
+            PlayerDetailView(athlete: athlete, accentHex: viewModel.accentColorHex)
         }
+        .task { await viewModel.load(clubID: club.id) }
     }
 
     // MARK: - Header (pinned)
@@ -85,7 +84,13 @@ struct TeamDetailView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(club.displayName)
                     .font(.title2.weight(.bold))
-                if !club.abbreviation.isEmpty {
+                // Prefer the live standing line; fall back to the abbreviation
+                // so the header never looks empty while the roster loads.
+                if let standingLine = viewModel.standingLine {
+                    Text(standingLine)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else if !club.abbreviation.isEmpty {
                     Text(club.abbreviation)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -112,42 +117,34 @@ struct TeamDetailView: View {
         .accessibilityLabel(isFollowing ? "Unfollow \(club.displayName)" : "Follow \(club.displayName)")
     }
 
-    // MARK: - Overview
+    // MARK: - Squad (grouped player-card grid)
 
     @ViewBuilder
-    private var overviewSection: some View {
-        let matches = matchStore.matches(for: club)
-        // matches(for:) is sorted ascending by kickoff, so "next" is the first
-        // upcoming (prefer a live one) and "recent" is the last completed.
-        let nextMatch = matches.first(where: { $0.statusState == "in" })
-            ?? matches.first(where: { $0.statusState == "pre" })
-        let recentMatch = matches.last(where: { $0.statusState == "post" })
-
+    private var squadSection: some View {
         ScrollView {
-            if matches.isEmpty {
-                scheduleEmptyState
+            switch viewModel.state {
+            case .idle, .loading:
+                ProgressView()
                     .frame(maxWidth: .infinity)
                     .padding(.top, 40)
-            } else {
-                VStack(alignment: .leading, spacing: 24) {
-                    if let nextMatch {
-                        labeledMatch(nextMatch.statusState == "in" ? "Live now" : "Next match", nextMatch)
+            case .error(let message):
+                squadError(message)
+            case .loaded:
+                LazyVStack(alignment: .leading, spacing: 24) {
+                    ForEach(viewModel.positionGroups) { group in
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(group.label)
+                                .font(.headline)
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                ForEach(group.athletes) { athlete in
+                                    NavigationLink(value: athlete) {
+                                        PlayerCard(athlete: athlete, accentHex: viewModel.accentColorHex)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
                     }
-                    if let recentMatch {
-                        labeledMatch("Recent result", recentMatch)
-                    }
-                    if nextMatch == nil && recentMatch == nil {
-                        Text("No matches found for this club.")
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 40)
-                    }
-                    Button {
-                        section = .schedule
-                    } label: {
-                        Label("Full schedule", systemImage: "calendar")
-                    }
-                    .padding(.top, 4)
                 }
                 .padding()
             }
@@ -156,116 +153,54 @@ struct TeamDetailView: View {
         .background(Color(.systemGroupedBackground))
     }
 
-    private func labeledMatch(_ label: String, _ event: Event) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(label)
-                .font(.headline)
-            MatchCard(event: event)
-        }
-    }
-
-    // MARK: - Schedule (Upcoming / Results)
-
-    @ViewBuilder
-    private var scheduleSection: some View {
-        let matches = matchStore.matches(for: club)
-        let upcoming = matches.filter { $0.statusState != "post" }     // pre + in, soonest first
-        let results = Array(matches.filter { $0.statusState == "post" }.reversed()) // most recent first
-
-        List {
-            if matches.isEmpty {
-                Section { scheduleEmptyState }
-            } else {
-                if !upcoming.isEmpty {
-                    Section("Upcoming") {
-                        ForEach(upcoming) { matchRow($0) }
-                    }
-                }
-                if !results.isEmpty {
-                    Section("Results") {
-                        ForEach(results) { matchRow($0) }
-                    }
-                }
-            }
-        }
-        .listStyle(.insetGrouped)
-    }
-
-    private func matchRow(_ event: Event) -> some View {
-        MatchCard(event: event)
-            // Let the card's own surface sit on the grouped background instead
-            // of an inset List row.
-            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-            .listRowBackground(Color.clear)
-    }
-
-    @ViewBuilder
-    private var scheduleEmptyState: some View {
-        switch matchStore.state {
-        case .idle, .loading:
-            ProgressView()
-                .frame(maxWidth: .infinity)
-        case .error(let message):
+    private func squadError(_ message: String) -> some View {
+        VStack(spacing: 8) {
             Text(message)
                 .font(.callout)
                 .foregroundStyle(.secondary)
-        case .loaded:
-            // Loaded, but nothing matched this club — surfaces the abbreviation
-            // join breaking rather than hiding it (see MatchStore.matches).
-            Text("No matches found for this club.")
-                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button("Try again") {
+                Task { await viewModel.load(clubID: club.id) }
+            }
+            .buttonStyle(.bordered)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 40)
+        .padding(.horizontal, 32)
     }
 
-    // MARK: - Squad (roster)
+    // MARK: - Stats (intentional placeholder)
 
-    @ViewBuilder
-    private var squadSection: some View {
-        List {
-            switch viewModel.state {
-            case .idle, .loading:
-                Section {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                }
-            case .error(let message):
-                Section {
-                    VStack(spacing: 8) {
-                        Text(message)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                        Button("Try again") {
-                            Task { await viewModel.load(clubID: club.id) }
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
-                }
-            case .loaded:
-                ForEach(viewModel.positionGroups) { group in
-                    Section(group.label) {
-                        ForEach(group.athletes) { athlete in
-                            PlayerRow(athlete: athlete)
-                        }
-                    }
-                }
-            }
+    // Team leaders + most-recent formation per the design spec. The data
+    // (per-player season stats, lineups/formation) isn't in the endpoints we map
+    // yet — so this is a deliberate "coming soon", not a blank tab. Flagged as a
+    // placeholder in the File Map; becomes the real section once stats land.
+    private var statsSection: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "chart.bar.xaxis")
+                .font(.system(size: 44, weight: .regular))
+                .foregroundStyle(.secondary)
+            Text("Team stats coming soon")
+                .font(.headline)
+            Text("Team leaders and the latest formation will live here as the data comes online.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
         }
-        .listStyle(.insetGrouped)
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
     }
 }
 
 #Preview {
     NavigationStack {
         TeamDetailView(club: Club(
-            id: "21422",
-            displayName: "Angel City FC",
-            abbreviation: "LA",
+            id: "15365",
+            displayName: "Washington Spirit",
+            abbreviation: "WAS",
             logoURL: nil
         ))
     }
     .environment(FollowingStore())
-    .environment(MatchStore())
 }

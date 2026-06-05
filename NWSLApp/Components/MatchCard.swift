@@ -15,22 +15,81 @@
 
 import SwiftUI
 
+/// A non-NWSL competition tag for a match card (CONCACAF W, etc.): a colored
+/// left accent + a pill at the top of the card.
+///
+/// TEMP / placeholder-ready (per the schedule design spec's "competition-aware
+/// from day one" intent): MatchCard renders this fully, but nothing constructs a
+/// non-nil value yet — every match we fetch today is NWSL, and there's no
+/// Competition data model. When non-NWSL data exists, build the badge from it
+/// and the dormant rendering below lights up with no card-layout changes.
+struct CompetitionBadge {
+    let label: String   // e.g. "CONCACAF W — Semifinal"
+    let color: Color
+}
+
 struct MatchCard: View {
     let event: Event
+    /// nil for ordinary NWSL matches (the only kind today). See CompetitionBadge.
+    var badge: CompetitionBadge? = nil
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 18) {
-                teamRow(event.homeCompetitor)
-                teamRow(event.awayCompetitor)
+        VStack(alignment: .leading, spacing: 14) {
+            if let badge { badgePill(badge) }
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 18) {
+                    teamRow(event.homeCompetitor)
+                    teamRow(event.awayCompetitor)
+                }
+                Spacer(minLength: 8)
+                statusView
             }
-            Spacer(minLength: 8)
-            statusView
+            if hasInfoLine { infoLine }
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 20)
         .background(Color(.secondarySystemGroupedBackground))
+        // 3px competition-color left accent, clipped to the rounded corners.
+        // Dormant until a badge is supplied (see CompetitionBadge).
+        .overlay(alignment: .leading) {
+            if let badge {
+                badge.color.frame(width: 3)
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private func badgePill(_ badge: CompetitionBadge) -> some View {
+        Text(badge.label)
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(badge.color.opacity(0.18), in: Capsule())
+            .foregroundStyle(badge.color)
+    }
+
+    // Venue (always, when known) + broadcast (upcoming/live only — a finished
+    // game's channel is moot). Mirrors how the NWSL/MLS apps surface per-game
+    // stadium + TV info.
+    private var hasInfoLine: Bool {
+        event.venueName != nil || (event.statusState != "post" && event.broadcastName != nil)
+    }
+
+    private var infoLine: some View {
+        HStack(spacing: 14) {
+            if let venue = event.venueName {
+                Label(venue, systemImage: "mappin.and.ellipse")
+                    .lineLimit(1)
+            }
+            if event.statusState != "post", let channel = event.broadcastName {
+                Label(channel, systemImage: "tv")
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .labelStyle(.titleAndIcon)
     }
 
     @ViewBuilder

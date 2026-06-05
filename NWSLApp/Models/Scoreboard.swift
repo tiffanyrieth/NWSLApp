@@ -67,6 +67,24 @@ struct StatusType: Decodable {
 
 struct Competition: Decodable {
     let competitors: [Competitor]?
+    // Venue + broadcasts ride the SAME scoreboard response we already fetch — no
+    // extra request. Optional/defensive like everything else here.
+    let venue: Venue?
+    let broadcasts: [Broadcast]?
+}
+
+struct Venue: Decodable {
+    let fullName: String?
+    let address: Address?
+
+    struct Address: Decodable {
+        let city: String?
+    }
+}
+
+struct Broadcast: Decodable {
+    // ESPN nests channel names: broadcasts[].names = ["Prime Video"].
+    let names: [String]?
 }
 
 struct Competitor: Decodable {
@@ -122,4 +140,17 @@ extension Event {
 
     // "pre" | "in" | "post" | nil
     var statusState: String? { status?.type?.state }
+
+    // Venue name for the match card's info line (pin icon), e.g. "Audi Field".
+    var venueName: String? {
+        competitions?.first?.venue?.fullName
+    }
+
+    // First broadcast channel name (TV icon), e.g. "Prime Video". ESPN can list
+    // several markets; we surface the first available name.
+    var broadcastName: String? {
+        competitions?.first?.broadcasts?
+            .compactMap { $0.names?.first(where: { !$0.isEmpty }) }
+            .first
+    }
 }

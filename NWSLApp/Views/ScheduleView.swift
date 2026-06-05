@@ -7,16 +7,20 @@
 //  scrolls to today's section (or the next upcoming matchday if today has no
 //  matches) so fans land on what's relevant instead of the season opener.
 //
+//  Three always-visible filter tabs sit below the title (per the schedule
+//  design spec): NWSL (default) · My teams · All matches — three functions over
+//  the same MatchStore data, no extra fetch for the season. Switching a filter
+//  re-anchors the scroll to that filter's next upcoming match.
+//
 //  Layout note: this is a ScrollView + LazyVStack rather than a List. That
-//  gives full control over card spacing (the crisp ~4-per-screen feel) and —
-//  crucially — unlocks iOS 17's `.scrollPosition(id:)`, which is reliable for
-//  lazy stacks but not for List. The old List + ScrollViewReader approach
-//  couldn't land the scroll-to-today reliably; this can.
+//  gives full control over card spacing (the crisp feel) and — crucially —
+//  unlocks iOS 17's `.scrollPosition(id:)`, which is reliable for lazy stacks
+//  but not for List.
 //
 //  Design rules honored:
-//   #1 — no persistent overlays obscuring content (status lives inside each
-//        card; nav title is the standard NavigationStack title bar; content
-//        respects safe-area insets).
+//   #1 — no persistent overlays obscuring content (the filter control + nav
+//        title are standard chrome above the scroll; status lives inside cards;
+//        content respects safe-area insets).
 //   #2 — NavigationStack is in place so future detail pushes are reversible.
 //
 
@@ -27,40 +31,65 @@ struct ScheduleView: View {
     // The season's events live in the shared store (injected in RootTabView);
     // this screen reads its slice through the view model.
     @Environment(MatchStore.self) private var matchStore
-    // The section the scroll view is anchored to. Set once on first load to
-    // scroll to today; afterwards `.scrollPosition` owns this binding as the
-    // user scrolls, and we never write it again.
+    // The personalization lens, for the "My teams" filter + its empty prompt.
+    @Environment(FollowingStore.self) private var following
+
+    // Which filter tab is selected. Defaults to NWSL (the full league) so fans
+    // can discover other games — NOT "My teams" (see the spec).
+    @State private var selectedFilter: ScheduleViewModel.Filter = .nwsl
+
+    // The section the scroll view is anchored to. Set on first load (scroll to
+    // today) and re-set on filter change; otherwise `.scrollPosition` owns it as
+    // the user scrolls.
     @State private var scrollTarget: String?
     // Prevents pull-to-refresh (which re-emits .loaded) from yanking the scroll
-    // position back to today.
+    // position back to today on the FIRST-load path. (Filter changes re-anchor
+    // independently of this guard.)
     @State private var hasScrolledToToday = false
 
     var body: some View {
         NavigationStack {
-            content
-                .navigationTitle("Schedule")
-                .refreshable { await viewModel.load() }
+            VStack(spacing: 0) {
+                filterPicker
+                content
+            }
+            .navigationTitle("Schedule")
         }
-        // Hand the view model the shared store, then load once on first
-        // appearance — guarding on `.idle` so re-selecting the tab (or another
-        // screen having loaded the store first) doesn't refetch.
+        // Hand the view model the shared store + following lens, then load once
+        // on first appearance — guarding on `.idle` so re-selecting the tab (or
+        // another screen having loaded the store first) doesn't refetch.
         .task {
             viewModel.store = matchStore
+            viewModel.following = following
             if case .idle = matchStore.state { await viewModel.load() }
         }
-        // Drive the one-time scroll-to-today off the idle/loading -> loaded
-        // edge, after the LazyVStack has had a chance to realize its sections.
+        // First-load scroll-to-today, off the idle/loading -> loaded edge.
         .onChange(of: viewModel.isLoaded) { _, loaded in
-            guard loaded, !hasScrolledToToday,
-                  let target = viewModel.initialScrollSectionID else { return }
-            hasScrolledToToday = true
-            // One runloop hop so the sections exist before we anchor to one;
-            // otherwise the position binding has no matching id to land on.
-            Task { @MainActor in
-                await Task.yield()
-                scrollTarget = target
+            if loaded { anchorIfNeeded() }
+        }
+        // The "My teams" filter also needs the club directory (it resolves a
+        // beat after the season). When it lands, retry the first-load anchor —
+        // otherwise My teams would open stuck at the season opener.
+        .onChange(of: viewModel.clubs.isEmpty) { _, isEmpty in
+            if !isEmpty { anchorIfNeeded() }
+        }
+        // Re-anchor when the filter changes, so each tab lands on its own next
+        // upcoming match rather than keeping a now-invalid section id.
+        .onChange(of: selectedFilter) { _, _ in
+            anchor(to: viewModel.initialScrollSectionID(for: selectedFilter))
+        }
+    }
+
+    private var filterPicker: some View {
+        Picker("Filter", selection: $selectedFilter) {
+            ForEach(ScheduleViewModel.Filter.allCases) { filter in
+                Text(filter.title).tag(filter)
             }
         }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
     }
 
     @ViewBuilder
@@ -72,21 +101,40 @@ struct ScheduleView: View {
         case .error(let message):
             errorView(message)
         case .loaded:
-            loadedList
+            loadedContent
         }
     }
 
-    private var loadedList: some View {
+    // The loaded body depends on the filter — "My teams" has its own empty
+    // states (no follows yet, or follows still resolving).
+    @ViewBuilder
+    private var loadedContent: some View {
+        if selectedFilter == .myTeams && following.followedIDs.isEmpty {
+            followPrompt
+        } else if selectedFilter == .myTeams && viewModel.isResolvingFollowedTeams {
+            ProgressView("Loading your teams…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            let sections = viewModel.sections(for: selectedFilter)
+            if sections.isEmpty {
+                emptyState
+            } else {
+                matchList(sections)
+            }
+        }
+    }
+
+    private func matchList(_ sections: [ScheduleViewModel.DaySection]) -> some View {
         ScrollView {
             LazyVStack(spacing: 12, pinnedViews: [.sectionHeaders]) {
-                ForEach(viewModel.sections) { section in
+                ForEach(sections) { section in
                     Section {
                         ForEach(section.events) { event in
                             MatchCard(event: event)
                         }
                     } header: {
                         DayHeader(label: section.label)
-                            .id(section.id)   // scroll-to-today anchor
+                            .id(section.id)   // scroll-to anchor
                     }
                 }
             }
@@ -94,6 +142,40 @@ struct ScheduleView: View {
         }
         .scrollPosition(id: $scrollTarget, anchor: .top)
         .contentMargins(.horizontal, 16, for: .scrollContent)
+        .background(Color(.systemGroupedBackground))
+        .refreshable { await viewModel.load() }
+    }
+
+    // "My teams" with nothing followed yet — a gentle nudge, per the spec.
+    private var followPrompt: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "star")
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary)
+            Text("Follow your teams to see their matches here")
+                .font(.headline)
+                .multilineTextAlignment(.center)
+            Text("Tap the star on any club in the Teams tab.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
+    }
+
+    // A filter that resolves to no matches (e.g. all of a followed team's games
+    // already played). Rare, but never show a blank screen.
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "calendar")
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary)
+            Text("No matches to show")
+                .font(.headline)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
     }
 
@@ -109,6 +191,28 @@ struct ScheduleView: View {
             .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // First-load anchor: runs once, and only when the current filter actually
+    // has a target to land on. NWSL is ready at season-load; "My teams" also
+    // needs the club directory, so this may no-op on the first call and succeed
+    // when clubs resolve. The guard is set only on a successful anchor, so a
+    // premature call doesn't burn the one-shot.
+    private func anchorIfNeeded() {
+        guard !hasScrolledToToday,
+              let target = viewModel.initialScrollSectionID(for: selectedFilter) else { return }
+        hasScrolledToToday = true
+        anchor(to: target)
+    }
+
+    // Set the scroll position to a section. One runloop hop so the LazyVStack
+    // has realized the (possibly just-changed) sections before we set the binding.
+    private func anchor(to target: String?) {
+        guard let target else { return }
+        Task { @MainActor in
+            await Task.yield()
+            scrollTarget = target
+        }
     }
 }
 
@@ -134,4 +238,5 @@ private struct DayHeader: View {
 #Preview {
     ScheduleView()
         .environment(MatchStore())
+        .environment(FollowingStore())
 }

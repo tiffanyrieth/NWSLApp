@@ -6,11 +6,17 @@
 //  local-day sections, labels them, and computes the section the view should
 //  scroll to on first appearance (today, or the next upcoming matchday).
 //
-//  It no longer fetches. The season's events live in the shared MatchStore
-//  (injected app-wide), and this view model derives its sections from that
-//  store — so the Schedule screen and the Team page read the exact same data.
-//  The store is handed in by the view (`store = ...`) before the first load,
-//  because a SwiftUI `@State` view model can't read the environment at init.
+//  The season's events live in the shared MatchStore (injected app-wide), and
+//  this view model derives its sections from that store — so the Schedule screen
+//  and the Team page read the exact same data. The store is handed in by the
+//  view (`store = ...`) before the first load, because a SwiftUI `@State` view
+//  model can't read the environment at init.
+//
+//  It DOES make one small fetch of its own: the club directory, used only to
+//  resolve the user's followed club IDs (FollowingStore holds IDs) into team
+//  abbreviations for the "My teams" filter. (HomeViewModel/TeamsViewModel fetch
+//  the same directory — a future shared ClubStore could consolidate the three;
+//  see CLAUDE.md What's-Next.)
 //
 
 import Foundation
@@ -19,22 +25,44 @@ import Foundation
 final class ScheduleViewModel {
     struct DaySection: Identifiable {
         let id: String       // "yyyy-MM-dd"
-        let label: String    // "Today" or "Saturday, Jun 6"
+        let label: String    // "Today" or "Saturday, June 6"
         let events: [Event]
+    }
+
+    /// The three always-visible filter tabs (per the schedule design spec).
+    enum Filter: String, CaseIterable, Identifiable {
+        case nwsl, myTeams, allMatches
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .nwsl:       return "NWSL"
+            case .myTeams:    return "My teams"
+            case .allMatches: return "All matches"
+            }
+        }
     }
 
     // Set by ScheduleView from the environment before the first load. Optional
     // because the view model is constructed before the environment is readable;
     // until it's wired, the screen simply reads as `.idle`.
     var store: MatchStore?
+    // Also handed in by the view: the personalization lens for the "My teams"
+    // filter (which followed clubs are playing).
+    var following: FollowingStore?
 
+    private let service: ESPNService
     private let calendar: Calendar
     private let now: () -> Date
 
+    // Club directory, fetched once, used only to map followed IDs → abbreviations.
+    private(set) var clubs: [Club] = []
+
     init(
+        service: ESPNService = ESPNService(),
         calendar: Calendar = .current,
         now: @escaping () -> Date = Date.init
     ) {
+        self.service = service
         self.calendar = calendar
         self.now = now
     }
@@ -45,10 +73,58 @@ final class ScheduleViewModel {
 
     func load() async {
         await store?.load()
+        // The club directory only needs fetching once; pull-to-refresh reloads
+        // the season but reuses the cached clubs (or retries if it never landed).
+        if clubs.isEmpty {
+            clubs = (try? await service.fetchTeams()) ?? []
+        }
     }
 
-    var sections: [DaySection] {
-        let events = store?.events ?? []
+    /// Day-grouped sections for a given filter tab.
+    func sections(for filter: Filter) -> [DaySection] {
+        sections(from: events(for: filter))
+    }
+
+    /// Followed clubs' team abbreviations — the join key for the "My teams"
+    /// filter (scoreboard competitors carry an abbreviation, not a club id).
+    var followedAbbreviations: Set<String> {
+        guard let following else { return [] }
+        return Set(
+            clubs.filter { following.followedIDs.contains($0.id) }.map(\.abbreviation)
+        )
+    }
+
+    /// True when the user follows clubs but the directory hasn't resolved yet —
+    /// lets the view show a spinner instead of a misleading "follow teams" prompt.
+    var isResolvingFollowedTeams: Bool {
+        !(following?.followedIDs.isEmpty ?? true) && clubs.isEmpty
+    }
+
+    // MARK: - Filtering
+
+    private func events(for filter: Filter) -> [Event] {
+        let all = store?.events ?? []
+        switch filter {
+        case .nwsl, .allMatches:
+            // Every match the app tracks today is NWSL, so these two tabs show
+            // the same set. They diverge once non-NWSL competition data exists:
+            // NWSL = NWSL + the user's *followed* competitions; All = *every*
+            // competition the app tracks. Structurally distinct, identical now.
+            return all
+        case .myTeams:
+            let abbreviations = followedAbbreviations
+            guard !abbreviations.isEmpty else { return [] }
+            return all.filter { event in
+                if let home = event.homeCompetitor?.team?.abbreviation,
+                   abbreviations.contains(home) { return true }
+                if let away = event.awayCompetitor?.team?.abbreviation,
+                   abbreviations.contains(away) { return true }
+                return false
+            }
+        }
+    }
+
+    private func sections(from events: [Event]) -> [DaySection] {
         let grouped = Dictionary(grouping: events.filter { $0.dayKey != nil }) { $0.dayKey! }
         return grouped
             .map { (key, events) in
@@ -70,11 +146,12 @@ final class ScheduleViewModel {
         return false
     }
 
-    // Today's section if present, otherwise the first future section.
-    // Returns nil if everything in the season is in the past.
-    var initialScrollSectionID: String? {
+    // Today's section if present, otherwise the first future section, within the
+    // given filter. Returns nil if everything in that filter is in the past.
+    // Used both for the one-time scroll-to-today and to re-anchor on filter change.
+    func initialScrollSectionID(for filter: Filter) -> String? {
         let today = todayKey()
-        let ids = sections.map(\.id)
+        let ids = sections(for: filter).map(\.id)
         if ids.contains(today) { return today }
         return ids.first(where: { $0 > today })
     }
@@ -100,7 +177,7 @@ final class ScheduleViewModel {
         let display = DateFormatter()
         display.locale = .current
         display.timeZone = .current
-        display.dateFormat = "EEEE, MMM d"
+        display.dateFormat = "EEEE, MMMM d"   // "Friday, June 6" (per the spec)
         return display.string(from: date)
     }
 }

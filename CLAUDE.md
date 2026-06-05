@@ -165,12 +165,14 @@ working in this repo:
 NWSLApp/
 ├── NWSLAppApp.swift                — app entry point; launches RootTabView
 ├── Models/
-│   ├── Club.swift                  — league club directory model (flat, view-friendly Club) + defensive Decodable wrappers for ESPN's nested /teams payload (TeamsResponse.clubs flattens + sorts active clubs); named Club to avoid colliding with Scoreboard's competitor-level Team
+│   ├── Club.swift                  — league club directory model (flat, view-friendly Club) + defensive Decodable wrappers for ESPN's nested /teams payload (TeamsResponse.clubs flattens + sorts active clubs); named Club to avoid colliding with Scoreboard's competitor-level Team. Club also carries optional shortName (ESPN shortDisplayName, e.g. "Angel City"), `var … = nil` defaulted so other Club call sites (Standings) compile unchanged — it's the chip-friendly label for the Feed tab's per-team filters.
+│   ├── FeedItem.swift              — one Feed-tab item: a flat, view-friendly FeedItem (kind = .reporterPost | .articleLink; sourceName/handle/platform/timestamp; body for posts, headline+summary for articles; url; teams tags; isLeague) + a FeedTeamTag (abbreviation only — the join key for the per-team filters, matched to followed clubs by abbreviation; the team isn't shown on the card). Codable-shaped so the current TEMP static seed can later be swapped for a real Bluesky/news backend with no view/VM change. Legal: articles hold headline + 1-line summary + link ONLY, never the body.
 │   ├── Roster.swift                — a club's squad + team profile: flat view-friendly Athlete (incl. shortName "T. Rodman") + a ClubSquad result (athletes + team colorHex + standingSummary + record; ClubSquad.standingLine = "4th in NWSL — 21 pts", points derived from the W-D-L record) + defensive RosterResponse wrappers for ESPN's /teams/{id}/roster payload (RosterResponse.squad bundles it; the roster payload ALSO carries team color + standing/record, so ONE fetch powers the whole team page). Roster.grouped() buckets athletes by position FWD→MID→DEF→GK (attackers first — the "meet the team" Squad grid leads with the players fans come to see). NOTE: NWSL headshots are null in ESPN's feed, so Athlete carries no photo — PlayerCard shows a jersey/initials monogram (deliberate, permanent)
 │   ├── Scoreboard.swift            — Codable structs mirroring ESPN's NWSL scoreboard JSON + Event helpers (kickoff, dayKey, home/away accessors, venueName, broadcastName). Venue (competition.venue.fullName) + broadcasts (competition.broadcasts[].names) ride the SAME scoreboard response — no extra fetch; decoded defensively (all optional).
 │   └── Standings.swift             — league table: flat view-friendly StandingsRow (rank + a full Club + GP/W/D/L/PTS) + defensive StandingsResponse wrappers for ESPN's standings payload (children[0].standings.entries; StandingsResponse.rows flattens + sorts by rank). Each row carries a Club so it's tappable→TeamDetailView and follow-aware. Stats read by stable `type` key, not display order (draws = ESPN's "ties"). NOTE: standings lives at apis/v2/… NOT the apis/site/v2/… base (the site path returns {})
 ├── Services/
-│   └── ESPNService.swift           — URLSession + async/await wrapper; fetchScoreboard(year:) (full season) + fetchTeams() (club directory) + fetchRoster(clubID:) → ClubSquad (one club's squad + team color/standing profile, one call) + fetchStandings() (league table, built from the apis/v2/… path explicitly — not `base`), all routed through a private generic fetch<T:Decodable>; throws ESPNServiceError
+│   ├── ESPNService.swift           — URLSession + async/await wrapper; fetchScoreboard(year:) (full season) + fetchTeams() (club directory) + fetchRoster(clubID:) → ClubSquad (one club's squad + team color/standing profile, one call) + fetchStandings() (league table, built from the apis/v2/… path explicitly — not `base`), all routed through a private generic fetch<T:Decodable>; throws ESPNServiceError
+│   └── FeedContentProvider.swift   — ⚠️ TEMP/SCAFFOLDING: curated static seed for the Feed tab. async items() → [FeedItem] drawn from real NWSL reporters/outlets (The Athletic, ESPN, The Equalizer, Just Women's Sports; Meg Linehan, Jeff Kassouf, Steph Yang, et al.) and real, recent storylines, covering ALL 16 clubs (~2 items each) + a few league-wide items. Coverage is deliberately even/league-wide — NOT skewed to any club — so picking ANY team in onboarding surfaces a few listings (the concept-demo goal). Posts paraphrase real storylines (not verbatim quotes). Exists because there's no content backend yet. Swap items() for a real social/news source (or the planned proxy) to remove — the async signature is already shaped for it. Editorial policy (no culture-war/political/identity hot takes) lives here when it becomes a live gate.
 ├── Stores/
 │   ├── FollowingStore.swift        — @Observable personalization lens: which clubs the user follows (Set<String> of club IDs), persisted to UserDefaults; injected app-wide via .environment so all tabs share it (NOT a per-screen ViewModel). ALSO tracks hasOnboarded (persisted Bool + completeOnboarding()) — the one-time first-open gate that flips Home from the "Make it yours" picker to the hub; init treats an existing follower as already onboarded so seeded sims/users skip the picker.
 │   └── MatchStore.swift            — @Observable shared season store: fetches the full scoreboard ONCE and exposes it app-wide (State enum + events + matches(for: Club)); injected in RootTabView via .environment. ScheduleView renders all of it; Home now DERIVES its modules from it (next match per followed club via matches(for:), plus the next-matchday slate). matches(for:) joins club↔match by abbreviation (TEMP-commented fragility: ESPN competitors carry no id). NOTE: TeamDetailView does NOT read this (the Teams-tab redesign moved schedule to the Schedule tab); matches(for:) now powers HomeView's "Your next matches" module.
@@ -179,18 +181,22 @@ NWSLApp/
 │   ├── ScheduleViewModel.swift     — @Observable; DERIVES day-grouped sections + initial scroll target from the injected MatchStore; proxies the store's State; view hands it the store + FollowingStore before first load. Owns a Filter enum (nwsl / myTeams / allMatches) and sections(for:)/initialScrollSectionID(for:) so the three filter tabs are three functions over ONE data set. Fetches the club directory ONCE (the only thing it fetches) purely to resolve followed IDs → team abbreviations for the My-teams filter (followedAbbreviations); nwsl & allMatches return the full set today (they diverge once non-NWSL competition data exists). NOTE: club fetch is duplicated in Home/Teams/Schedule — a future shared ClubStore could consolidate (What's-Next).
 │   ├── TeamsViewModel.swift        — @Observable; State enum (idle/loading/loaded/error); fetches the club directory via ESPNService.fetchTeams()
 │   ├── TeamDetailViewModel.swift   — @Observable; State enum holding the ClubSquad from one roster fetch (load(clubID:) → fetchRoster). Exposes positionGroups (via Roster.grouped, FWD-first), accentColorHex (club color for cards/badges), and standingLine (the header's "4th in NWSL — 21 pts"). One fetch feeds the whole page; no MatchStore dependency anymore.
-│   └── StandingsViewModel.swift    — @Observable; same idle/loading/loaded/error State enum; one-shot fetch via ESPNService.fetchStandings() (own per-screen fetch, not the shared MatchStore — standings has no other readers)
+│   ├── StandingsViewModel.swift    — @Observable; same idle/loading/loaded/error State enum; one-shot fetch via ESPNService.fetchStandings() (own per-screen fetch, not the shared MatchStore — standings has no other readers)
+│   └── FeedViewModel.swift         — @Observable; owns the Feed tab. Loads the (TEMP seed) items + fetches the club directory (same pattern as Home, idle/loading/loaded/error State, to resolve followed IDs → chips). DERIVES: chips(following) = All + one per followed team (clean text, shortName label) + League; items(following) filters the stream by the selected Filter (.all = followed-teams + league news, newest first · .team(abbrev) = that team incl. multi-team items · .league = league-wide only). Chip↔item matching is by club abbreviation (mirrors MatchStore's join — ESPN gives no stable competitor id). The view passes in the shared FollowingStore.
 ├── Views/
-│   ├── RootTabView.swift           — app root; 5-tab bottom TabView (Home / Schedule / Standings / Teams / Feed), each tab owns its own NavigationStack; LANDS ON HOME (Home is built); creates the FollowingStore AND the MatchStore and injects both via .environment; only Feed is still a ComingSoonView PLACEHOLDER (Home/Schedule/Standings/Teams are built)
+│   ├── RootTabView.swift           — app root; 5-tab bottom TabView (Home / Schedule / Standings / Teams / Feed), each tab owns its own NavigationStack; LANDS ON HOME; creates the FollowingStore AND the MatchStore and injects both via .environment. ALL FIVE TABS ARE NOW BUILT — no placeholder tab remains (ComingSoonView is now unreferenced).
 │   ├── HomeView.swift              — Home tab: the your-teams-first hub. While FollowingStore.hasOnboarded is false it renders OnboardingView in place (tab bar stays visible). Otherwise the hub: a ScrollView of modules per Reference/Design/home-tab-design-spec.md — (1) "Your next matches" = a NextMatchCard per followed club (real, from HomeViewModel); (2) "From your teams" = an intentional "coming soon" card (no team-content endpoint yet); (3) "Play" = a horizontal row of intentional "coming soon" game cards (Daily Trivia / Predict the XI / Bracket Battle — spec's reserved structural slot); (4) Spotlight = opt-in, NOT shown; (5) "Around the league" = the next matchday's slate as MatchCards (real, hidden when none). Reads MatchStore + FollowingStore from the environment, hands the store to its view model, loads both once on .task. Empty Module-1 state (follows nobody) shows a "Choose your teams" prompt that re-presents the picker as a sheet.
 │   ├── OnboardingView.swift        — first-open "Make it yours" team picker (per the Home spec): a single alphabetical List of every club (no grid, no search), each a whole-row follow toggle (filled checkmark when on), with a collapsed-by-default "Also follow international competitions" disclosure (TEMP intentional placeholder — its rows say "Coming soon" and do NOT toggle, because FollowingStore tracks club IDs only; competition-following needs its own data model). A pinned bottom bar shows the running "Follow N teams" count (disabled at 0) + "you can always change this later"; the button calls completeOnboarding() (flips Home to the hub) and dismiss() (so it also works re-presented as a sheet). Reuses TeamsViewModel for the fetch + the shared FollowingStore for the picks.
 │   ├── ScheduleView.swift          — full-season schedule as a ScrollView + LazyVStack of cards with sticky day headers; reads the shared MatchStore + FollowingStore (handed to its view model). THREE always-visible segmented filter tabs below the title (NWSL default · My teams · All matches), per Reference/Design/schedule-tab-design-spec.md. Scrolls to today (or next matchday) on first load via .scrollPosition(id:) AND re-anchors to the next upcoming match when the filter changes; the first-load anchor retries once the club directory resolves (My teams needs it — otherwise it'd open at the season opener). My teams with no follows shows a gentle "follow your teams" prompt; pull-to-refresh on the list.
 │   ├── TeamsView.swift             — Teams tab: directory of all 16 clubs in a List; a "Following" section floats followed clubs to the top, "All Clubs" lists every club end-to-end. Each row is a sibling pair of buttons — a row button (pushes TeamDetailView via a NavigationPath) + a Follow star (FollowingStore) — NOT nested (a Button inside a NavigationLink swallows the row's nav tap)
 │   ├── TeamDetailView.swift        — a club's page, pushed from Teams/Standings (no own NavigationStack): a PINNED header (crest + name + standing line "4th in NWSL — 21 pts" + Follow star) above a segmented sub-tab bar (Squad · Stats); only the selected section scrolls. Squad (default) = the "meet the team" 2-col LazyVGrid of PlayerCards grouped FWD→MID→DEF→GK, each NavigationLink→PlayerDetailView. Stats = an INTENTIONAL placeholder ("Team stats coming soon" — team leaders + formation need per-player stats / lineup data not in the endpoints we map yet; flagged here as a placeholder). Built per Reference/Design/teams-tab-design-spec.md, which removed the old Overview/Schedule sub-tabs (identity audit: schedule→Schedule tab, next-match→future Home). One roster fetch powers everything (cards + header line).
 │   ├── PlayerDetailView.swift      — INTENTIONAL placeholder, pushed when a Squad card is tapped (player detail is a future build). Shows the bio we already have from the roster (monogram, name, jersey/position/age/height/nationality) + a "player stats coming soon" panel — deliberate, not blank. Accent color threaded down from TeamDetailView. Becomes the real stats screen when the player-stats endpoint is mapped.
-│   └── StandingsView.swift         — Standings tab: a clean league table per the design spec (Reference/Design/standings-tab-design-spec.md). Non-scrolling column header (# · Team · PTS · GP · W · L · D) kept aligned with the scrolling rows via shared fixed Col widths (Grid can't bridge the scroll boundary); all 16 teams end-to-end, no truncation/horizontal scroll. Followed teams render blue (text + soft blue-tint bg) via FollowingStore. Each row is a Button that appends row.club to a NavigationPath → TeamDetailView (same pattern + destination as Teams). Footer = stat legend. Deliberately NO GF/GA/GD or home-away splits (would force horizontal scroll). PTS is bold and fronted (Tiffany's column order).
+│   ├── StandingsView.swift         — Standings tab: a clean league table per the design spec (Reference/Design/standings-tab-design-spec.md). Non-scrolling column header (# · Team · PTS · GP · W · L · D) kept aligned with the scrolling rows via shared fixed Col widths (Grid can't bridge the scroll boundary); all 16 teams end-to-end, no truncation/horizontal scroll. Followed teams render blue (text + soft blue-tint bg) via FollowingStore. Each row is a Button that appends row.club to a NavigationPath → TeamDetailView (same pattern + destination as Teams). Footer = stat legend. Deliberately NO GF/GA/GD or home-away splits (would force horizontal scroll). PTS is bold and fronted at the start of the stat columns.
+│   ├── FeedView.swift              — Feed tab: "the world talking about your teams" (reporters, news), built per Reference/Design/feed-tab-design-spec.md. Own NavigationStack; title "Feed" + a top-right settings gear (→ FeedSourcesView sheet). A PINNED horizontal chip bar below the title (All · one per followed team · League — clean text chips, always-visible, like the Schedule filters), over a chronological ScrollView of FeedCards. Reads the shared FollowingStore from the environment, hands it to FeedViewModel, loads once on .task. Per-filter contextual empty states; pull-to-refresh. Distinct from Home Module 2 "From your teams" (direct team content) — Feed is the conversation AROUND your teams.
+│   └── FeedSourcesView.swift       — the Feed gear's sheet (source management): a List of the curated default sources powering the Feed today (The Athletic, ESPN, + the four beat reporters with handles) + an INTENTIONAL "Coming soon" section (Add a source / Content preferences, disabled) with explanatory footer. Looks deliberate per the UI rules; becomes the live source manager when a content backend exists.
 ├── Components/
-│   ├── ComingSoonView.swift        — reusable intentional placeholder (SF Symbol + title + "coming soon" copy) for not-yet-built tabs; now drives only the Feed placeholder tab in RootTabView
+│   ├── ComingSoonView.swift        — reusable intentional placeholder (SF Symbol + title + "coming soon" copy) for not-yet-built tabs. Currently UNREFERENCED (all five tabs are built) — kept as a ready component for the next structural placeholder rather than deleted.
+│   ├── FeedCard.swift              — one Feed item as a rounded card; a single component renders both kinds so they read as one stream. .reporterPost: blue @ avatar + reporter name + "Bluesky — 2h ago" + full body + "View on Bluesky →". .articleLink: gray newspaper avatar + publication + "Article — 4h ago" + bold headline + 1-line summary + "Read on … →" (headline+summary+link ONLY, never body). NO per-team marker on the card (the avatar marks source type only) — the top filter bar is the team selector, so an on-card team tag would be redundant. Whole card opens the source (Environment openURL).
 │   ├── MatchCard.swift             — one game as a rounded card: stacked home/away rows (logo + abbreviation — kept as abbreviations to match the NWSL app's schedule convention) + score (or kickoff time) + status badge (LIVE / FT / scheduled) + an info line (📍 venue always · 📺 broadcast for upcoming/live only). Also defines CompetitionBadge + renders a placeholder-ready non-NWSL treatment (3px colored left accent + top pill) gated on an optional `badge` that is NIL today (no Competition data model yet — dormant scaffolding per the schedule spec's competition-aware intent). Used by ScheduleView AND Home's "Around the league" module.
 │   ├── NextMatchCard.swift         — Home → "Your next matches" card: a followed team's next fixture, richer than MatchCard — leads with a time-aware label ("TODAY"/"TOMORROW"/date), shows full team names, gives a live match an elevated treatment (red dot + LIVE + clock), and flips to score + "FT" when finished. Could now gain the same venue/broadcast info line as MatchCard (Event.venueName/broadcastName exist) — a small follow-up.
 │   ├── PlayerCard.swift            — one player in the Teams → Squad grid: team-color top accent (3px) + jersey/initials monogram in a team-color circle badge + shortName + position. Team color via Color.teamAccent (legible number color picked by luminance). Replaces the old list-row PlayerRow now the squad is a grid.
@@ -206,14 +212,51 @@ NWSLApp/
 
 The app root is now `RootTabView` — a conventional 5-tab bottom bar
 (**Home · Schedule · Standings · Teams · Feed**), each tab in its own
-`NavigationStack` so back-stacks survive tab switches. **Home, Schedule,
-Standings, and Teams** are built; only **Feed** still renders the intentional
-`ComingSoonView` placeholder. The app now **lands on Home** (the leftmost tab),
-its your-teams-first hub. Tab is `Feed` (not `News`) on purpose, to signal the
-social-native, "alive" direction (full rationale in the gitignored
-`Reference/Sessions/` notes). Verified in-sim: lands on Home, all 5 tabs render,
-Schedule's scroll-to-today still works inside the tab, and the Feed tab shows the
-clean "coming soon" screen.
+`NavigationStack` so back-stacks survive tab switches. **All five tabs are now
+built** — no placeholder tab remains (the reusable `ComingSoonView` is currently
+unreferenced, kept for the next structural placeholder). The app **lands on
+Home** (the leftmost tab), its your-teams-first hub. Tab is `Feed` (not `News`)
+on purpose, to signal the social-native, "alive" direction (full rationale in the
+gitignored `Reference/Sessions/` notes).
+
+**Feed (the world talking about your teams).** Built per
+`Reference/Design/feed-tab-design-spec.md` (approved Cowork session). Feed is the
+Reddit-replacement layer — reporters, news outlets, fan-adjacent content filtered
+to your followed teams — explicitly distinct from Home Module 2 ("From your
+teams," direct team content): Feed is the *conversation around* your teams, Home
+is the teams *talking to you*. `FeedView` shows the title + a top-right settings
+gear, a **pinned horizontal chip bar** below it (**All** · one chip per followed
+team (clean text, short name) · **League** for league-wide news), over a
+chronological `ScrollView` of `FeedCard`s. A single card component
+renders two content types so they read as one stream: **reporter posts** (blue @
+avatar, name, "Bluesky — 2h ago", full body, "View on Bluesky →") and **news
+article links** (newspaper avatar, publication, "Article — 4h ago", bold headline
++ one-line summary, "Read on The Athletic →" — headline + summary + link only,
+never the article body, per the spec's legal note). Cards carry **no per-team
+marker** — the top filter bar is the team selector, so an on-card team tag would
+be redundant — though an item can be tagged to multiple teams (it then surfaces
+under each team's filter). The gear opens `FeedSourcesView` — a sheet listing the
+curated default sources (The Athletic, ESPN, The Equalizer, Just Women's Sports +
+the beat reporters with handles) plus an intentional "Coming soon" section for
+adding/tuning sources. `FeedViewModel` derives the chips and the per-filter
+stream; it reads the shared `FollowingStore` and fetches the club directory (same
+pattern as Home) to resolve followed IDs → chips, matching content to clubs by
+abbreviation. **The content itself is a TEMP curated static seed**
+(`FeedContentProvider`) — items drawn from real NWSL reporters/outlets and real,
+recent storylines, covering **all 16 clubs** (~2 items each) plus a few
+league-wide items, deliberately **even across the league rather than skewed to any
+club**, so picking any team in onboarding surfaces a few listings (the
+concept-demo goal). The app has no content backend yet; the seed sits behind a
+swappable async `items()` so a real social/news source (or the planned caching
+proxy) drops in with no change to the ViewModel or views. **Verified in-sim** (via
+temporary launch-env scaffolding to land on Feed / select a filter, then removed —
+the established pattern, since UI taps flake under this machine's memory
+pressure): a user following only **Racing Louisville** (a single arbitrary club)
+lands on a populated Feed — the **All** stream mixing that club's items with
+league-wide news (ESPN power rankings, a World-Cup-break note, The Equalizer's
+stats column), and the **Louisville** filter narrowing to that club's two items (a
+Bluesky reporter post + a Just Women's Sports article). Screenshots in the
+gitignored verification folder.
 
 **Home (the your-teams-first hub).** Built per
 `Reference/Design/home-tab-design-spec.md` (approved Cowork session). On first
@@ -318,7 +361,7 @@ proven `ComingSoonView`). Screenshots in the gitignored
 league table per the approved design spec
 (`Reference/Design/standings-tab-design-spec.md`): pure reference utility, "the
 simplest tab in the app." Six stat columns only — **PTS · GP · W · L · D**
-(Tiffany's chosen order, PTS fronted and bold) — with **GF/GA/GD and home/away
+(PTS fronted and bold) — with **GF/GA/GD and home/away
 splits deliberately omitted** because they'd force horizontal scrolling on a
 phone and serve a stat-obsessive audience that already has FotMob/ESPN; this
 app's thesis is connection over stat overload. All 16 teams show end-to-end (no
@@ -475,7 +518,7 @@ Screenshots in gitignored `Reference/Design/schedule-verification/`.
     competitor pattern (Athletic/MLS/NWSL all front the team page with sub-tabs):
     a pinned header (crest + name + Follow) above a segmented **Overview ·
     Schedule · Squad** control — roster is now one tap, not a long scroll.
-    Overview leads with next match + recent result (Tiffany's #1 use case + the
+    Overview leads with next match + recent result (the primary use case + the
     first small "alive" seed); Schedule splits Upcoming/Results. Verified in-sim
     (temporary XCUITest, then removed). Deferred follow-ups from this redesign:
     a Follow-confirmation sheet (rename star → "Follow" + first-time "here's what
@@ -485,8 +528,31 @@ Screenshots in gitignored `Reference/Design/schedule-verification/`.
 
 **Longer-term (vision — see `Reference/Sessions/` for the full discussion):**
 
-11. **Feed, reimagined** — social-native news (reporters' Bluesky/Twitter, team
-    IG/TikTok) tailored to followed teams, not a closed-loop press-release feed.
+11. **(UI DONE — backend pending)** ~~Feed, reimagined~~ — the Feed tab is
+    **built** per `Reference/Design/feed-tab-design-spec.md`: `FeedView` +
+    `FeedViewModel` + `FeedCard` + `FeedSourcesView` + `FeedItem` (chips per
+    followed team, mixed reporter-post / article-link stream, source-management
+    gear). It runs today on a **TEMP curated static seed** (`FeedContentProvider`,
+    real reporters/outlets + real recent storylines, covering all 16 clubs evenly)
+    because there's no content backend.
+    **Still needed to make it live:**
+    - **Real content source** — replace `FeedContentProvider.items()` with a
+      Bluesky/news aggregator (or route through the planned caching proxy);
+      the async signature + Codable-shaped `FeedItem` are already set up for it.
+    - **Editorial filtering as a real gate** — the spec's "no culture-war /
+      political / identity hot takes" policy is currently honored by hand-curating
+      the seed; it becomes a real filter (here or server-side) when content is
+      live. (The spec references a `nwslapp-feed-content-rules.md` policy memo.)
+    - **Source management** — the gear's "Add a source" / "Content preferences" /
+      mute are intentional placeholders; wire them once sources are user-editable.
+    - **Content tagging (live content)** — the per-team filter chips depend on each
+      post being tagged to the right NWSL team(s). With a live source this can't be
+      done by source/handle alone — a reporter may cover multiple leagues or write
+      about a team off their usual beat. Plan: once the caching proxy exists, run
+      each incoming post through a lightweight AI call (Claude Haiku) that reads the
+      content and returns the relevant NWSL team tag(s), dropping non-NWSL content.
+      That per-post tagging is what makes the filters (and the league-vs-team split)
+      reliable.
 12. **Push notifications + the server/back-end question.** The day-before/day-of
     heads-up + the live ladder (lineup → kickoff → goals → half → full). This is
     the first feature the iPhone can't do alone. Key split we worked out: the

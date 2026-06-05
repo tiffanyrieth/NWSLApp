@@ -9,13 +9,13 @@
 //
 //  Tab order is conventional (Home leftmost) and the app now *lands* on Home —
 //  the your-teams-first hub (first open shows onboarding; afterwards the hub).
-//  Feed is the last remaining placeholder tab.
+//  All five tabs are now built — no placeholder tab remains.
 //
 //  Navigation pattern: each tab's root view owns its OWN NavigationStack, so
 //  every tab keeps an independent back-stack across tab switches, and a future
 //  drilled-in detail screen can hide the tab bar without disturbing siblings.
-//  ScheduleView already carries its own NavigationStack; the not-yet-built tabs
-//  get one here via the placeholder wrapper.
+//  Each tab's root view (HomeView, ScheduleView, FeedView, …) carries its own
+//  NavigationStack internally.
 //
 
 import SwiftUI
@@ -58,21 +58,12 @@ struct RootTabView: View {
                 .tabItem { Label("Teams", systemImage: "shield") }
                 .tag(Tab.teams)
 
-            placeholderTab(title: "Feed", systemImage: "dot.radiowaves.left.and.right")
+            FeedView()
+                .tabItem { Label("Feed", systemImage: "dot.radiowaves.left.and.right") }
                 .tag(Tab.feed)
         }
         .environment(following)
         .environment(matches)
-    }
-
-    /// A not-yet-built tab: a clean "coming soon" screen in its own
-    /// NavigationStack (so its title bar and future back-stack already work),
-    /// tagged into the tab bar with a matching icon.
-    private func placeholderTab(title: String, systemImage: String) -> some View {
-        NavigationStack {
-            ComingSoonView(title: title, systemImage: systemImage)
-        }
-        .tabItem { Label(title, systemImage: systemImage) }
     }
 }
 

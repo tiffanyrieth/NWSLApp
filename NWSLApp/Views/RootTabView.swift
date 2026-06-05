@@ -7,9 +7,9 @@
 //  signature soul") — a bottom TabView is a learned thumb pattern, so the
 //  novelty belongs inside the screens, not in how you switch between them.
 //
-//  Tab order is conventional (Home leftmost), but the app *lands* on Schedule
-//  for now because Home is still a placeholder: there's no point opening onto a
-//  "coming soon" screen. Once Home is real, flip `selection`'s default to .home.
+//  Tab order is conventional (Home leftmost) and the app now *lands* on Home —
+//  the your-teams-first hub (first open shows onboarding; afterwards the hub).
+//  Feed is the last remaining placeholder tab.
 //
 //  Navigation pattern: each tab's root view owns its OWN NavigationStack, so
 //  every tab keeps an independent back-stack across tab switches, and a future
@@ -26,9 +26,8 @@ struct RootTabView: View {
         case home, schedule, standings, teams, feed
     }
 
-    // Land on Schedule for now — the only fully-built screen. Becomes .home
-    // once Home is built out.
-    @State private var selection: Tab = .schedule
+    // Land on Home — the your-teams-first hub (now built).
+    @State private var selection: Tab = .home
 
     // The personalization lens, created once at the root and shared with every
     // tab via the environment so Teams (now) and Home/Feed (later) read the
@@ -43,7 +42,8 @@ struct RootTabView: View {
 
     var body: some View {
         TabView(selection: $selection) {
-            placeholderTab(title: "Home", systemImage: "house")
+            HomeView()
+                .tabItem { Label("Home", systemImage: "house") }
                 .tag(Tab.home)
 
             ScheduleView()

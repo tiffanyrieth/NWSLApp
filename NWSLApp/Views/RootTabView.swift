@@ -50,7 +50,8 @@ struct RootTabView: View {
                 .tabItem { Label("Schedule", systemImage: "calendar") }
                 .tag(Tab.schedule)
 
-            placeholderTab(title: "Standings", systemImage: "list.number")
+            StandingsView()
+                .tabItem { Label("Standings", systemImage: "list.number") }
                 .tag(Tab.standings)
 
             TeamsView()

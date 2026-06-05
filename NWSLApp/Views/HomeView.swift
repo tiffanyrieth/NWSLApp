@@ -6,18 +6,18 @@
 //  Until the user has been through onboarding it renders the "Make it yours"
 //  team picker in place (tab bar stays visible); afterwards it shows the hub.
 //
-//  Modules, top to bottom (per Reference/Design/home-tab-design-spec.md):
-//   1. Your next matches — one card per followed club's next fixture (real).
-//   2. From your teams   — team social/video content (intentional placeholder:
-//                          no content endpoint exists yet).
-//   3. Play              — games/challenges (intentional placeholder: spec's
-//                          reserved structural slot; no games engine yet).
-//   4. Spotlight         — opt-in only, NOT shown by default (omitted here).
-//   5. Around the league — the next matchday's games league-wide (real).
+//  Modules, top to bottom (per Reference/Design/home-tab-design-spec.md —
+//  content leads, schedule demoted):
+//   1. From your teams          — team-channel content (the hook), real seeded.
+//   2. Get to know your players — one weekly player spotlight (seeded).
+//   3. Play                     — games/challenges (intentional placeholder).
+//   4. Coming up                — a compact next-match strip per followed club.
+//  ("Around the league" was removed — it duplicated the Schedule tab.)
 //
-//  Home owns no season data: it reads the shared MatchStore + FollowingStore
-//  from the environment and derives everything through HomeViewModel. The only
-//  fetch it triggers is the club directory (to resolve followed IDs → Clubs).
+//  Home owns no season data: it reads the shared MatchStore + FollowingStore from
+//  the environment and derives everything through HomeViewModel. The fetches it
+//  triggers are the club directory (followed IDs → Clubs) and two TEMP content
+//  seeds (Modules 1 & 2), both via HomeViewModel.loadClubs().
 //
 
 import SwiftUI
@@ -74,10 +74,10 @@ struct HomeView: View {
     private var hub: some View {
         ScrollView {
             VStack(spacing: 28) {
-                yourNextMatches
                 fromYourTeams
+                getToKnowYourPlayers
                 playSection
-                aroundTheLeague
+                comingUp
             }
             .padding(.vertical, 8)
         }
@@ -85,30 +85,34 @@ struct HomeView: View {
         .background(Color(.systemGroupedBackground))
     }
 
-    // MARK: - Module 1: Your next matches
+    // MARK: - Module 1: From your teams (the hook)
 
     @ViewBuilder
-    private var yourNextMatches: some View {
-        let fixtures = viewModel.nextMatches(following: following)
-        section("Your next matches") {
-            if fixtures.isEmpty {
+    private var fromYourTeams: some View {
+        let items = viewModel.teamContent(following: following)
+        section("From your teams") {
+            if items.isEmpty {
                 followPrompt
             } else {
-                VStack(spacing: 12) {
-                    ForEach(fixtures) { NextMatchCard(fixture: $0) }
+                VStack(spacing: 14) {
+                    ForEach(items) { item in
+                        TeamContentCard(
+                            item: item,
+                            club: viewModel.club(forAbbreviation: item.teamAbbreviation)
+                        )
+                    }
                 }
             }
         }
     }
 
-    // Shown when no followed club has a fixture to surface — usually because the
-    // user follows nobody (e.g. unfollowed everyone after onboarding).
+    // Shown when the user follows nobody (so the lead module has nothing to show).
     private var followPrompt: some View {
         VStack(spacing: 12) {
             Image(systemName: "star")
                 .font(.system(size: 32))
                 .foregroundStyle(.secondary)
-            Text("Follow your teams to see their next matches here.")
+            Text("Follow your teams to fill your home feed with their latest content.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -121,22 +125,24 @@ struct HomeView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
-    // MARK: - Module 2: From your teams (placeholder)
+    // MARK: - Module 2: Get to know your players (spotlight)
 
-    private var fromYourTeams: some View {
-        section("From your teams") {
-            comingSoonCard(
-                icon: "play.rectangle.on.rectangle",
-                title: "Team content, coming soon",
-                message: "Posts and videos from your teams' own channels will land here."
-            )
+    @ViewBuilder
+    private var getToKnowYourPlayers: some View {
+        if let spotlight = viewModel.spotlight(following: following) {
+            section("Get to know your players") {
+                PlayerSpotlightCard(
+                    spotlight: spotlight,
+                    club: viewModel.club(forAbbreviation: spotlight.teamAbbreviation)
+                )
+            }
         }
     }
 
     // MARK: - Module 3: Play (placeholder, horizontal slot reserved)
 
     private var playSection: some View {
-        section("Play") {
+        section("Play", subtitle: "Test your NWSL knowledge and compete with other fans") {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     playCard(icon: "brain.head.profile", title: "Daily Trivia")
@@ -166,15 +172,15 @@ struct HomeView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
-    // MARK: - Module 5: Around the league
+    // MARK: - Module 4: Coming up (compact schedule strip)
 
     @ViewBuilder
-    private var aroundTheLeague: some View {
-        let games = viewModel.aroundTheLeague
-        if !games.isEmpty {
-            section("Around the league", subtitle: viewModel.aroundTheLeagueLabel) {
-                VStack(spacing: 12) {
-                    ForEach(games) { MatchCard(event: $0) }
+    private var comingUp: some View {
+        let fixtures = viewModel.nextMatches(following: following)
+        if !fixtures.isEmpty {
+            section("Coming up") {
+                VStack(spacing: 8) {
+                    ForEach(fixtures) { ComingUpRow(fixture: $0) }
                 }
             }
         }
@@ -189,39 +195,17 @@ struct HomeView: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.title3.weight(.bold))
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.caption.weight(.semibold))
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Spacer()
             }
             content()
         }
-    }
-
-    private func comingSoonCard(icon: String, title: String, message: String) -> some View {
-        HStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(.secondary)
-                .frame(width: 40)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                Text(message)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     // MARK: - State plumbing

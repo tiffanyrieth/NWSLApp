@@ -5,16 +5,17 @@
 //  Owns the Home tab's state and DERIVES its modules from data the app already
 //  has — it does not own a second copy of the season. Like ScheduleViewModel,
 //  it reads the shared MatchStore (handed in by the view) rather than fetching
-//  the scoreboard itself; the one thing it does fetch is the club directory,
-//  because Home needs to resolve followed club IDs (FollowingStore stores IDs
-//  only) into full Clubs with crests and names.
+//  the scoreboard itself. It fetches the club directory (FollowingStore stores
+//  IDs only, so Home needs full Clubs with crests/names) and loads two TEMP
+//  static content seeds for the content-led modules.
 //
-//  Home keys every module off the Following lens:
-//   • Module 1 "Your next matches" — for each followed club, its next upcoming
-//     match (or, if the season's done for them, their most recent result).
-//   • Module 5 "Around the league" — the next matchday's games league-wide.
-//  (Modules 2/3 are intentional placeholders in the view; Module 4 is opt-in
-//  and not shown — see the design spec.)
+//  Home keys every module off the Following lens (new order per the updated
+//  Reference/Design/home-tab-design-spec.md — content leads, schedule demoted):
+//   • Module 1 "From your teams"          — team content items for followed clubs.
+//   • Module 2 "Get to know your players" — one weekly player spotlight.
+//   • Module 3 "Play"                     — placeholder (in the view).
+//   • Module 4 "Coming up"                — compact next-match strip per club.
+//  ("Around the league" was removed — it duplicated the Schedule tab.)
 //
 
 import Foundation
@@ -22,8 +23,8 @@ import Foundation
 @Observable
 final class HomeViewModel {
     // Same idle/loading/loaded/error shape as the other view models — here it
-    // tracks the CLUB DIRECTORY fetch specifically (the season's load state
-    // lives on the shared MatchStore).
+    // tracks the CLUB DIRECTORY fetch specifically (the season's load state lives
+    // on the shared MatchStore; the content seeds load alongside it).
     enum State {
         case idle
         case loading
@@ -33,27 +34,44 @@ final class HomeViewModel {
 
     private(set) var clubsState: State = .idle
 
+    // Module 1/2 content (TEMP static seeds; see the providers). Loaded in
+    // loadClubs() so they're ready by the time clubsState is .loaded.
+    private(set) var teamContentItems: [TeamContentItem] = []
+    private(set) var spotlights: [PlayerSpotlight] = []
+
     // The shared season store, handed in by the view (mirrors ScheduleViewModel):
     // Home derives its modules from the same events Schedule renders, instead of
     // re-downloading ~240 events.
     var store: MatchStore?
 
     private let service: ESPNService
+    private let contentProvider: TeamContentProvider
+    private let spotlightProvider: PlayerSpotlightProvider
     private let calendar: Calendar
     private let now: () -> Date
 
     init(
         service: ESPNService = ESPNService(),
+        contentProvider: TeamContentProvider = TeamContentProvider(),
+        spotlightProvider: PlayerSpotlightProvider = PlayerSpotlightProvider(),
         calendar: Calendar = .current,
         now: @escaping () -> Date = Date.init
     ) {
         self.service = service
+        self.contentProvider = contentProvider
+        self.spotlightProvider = spotlightProvider
         self.calendar = calendar
         self.now = now
     }
 
+    /// Loads the club directory plus the (TEMP) content seeds. Named for its
+    /// primary job — resolving followed IDs → Clubs — but also pulls Module 1/2
+    /// content so the whole hub is ready in one pass.
     func loadClubs() async {
         clubsState = .loading
+        // Seeds resolve immediately today; the async shape is the future source's.
+        teamContentItems = await contentProvider.items()
+        spotlights = await spotlightProvider.spotlights()
         do {
             let clubs = try await service.fetchTeams()
             clubsState = .loaded(clubs)
@@ -68,10 +86,49 @@ final class HomeViewModel {
         return []
     }
 
-    // MARK: - Module 1: Your next matches
+    /// A followed club looked up by abbreviation — the join key content items and
+    /// spotlights carry (ESPN gives no stable competitor id; mirrors MatchStore).
+    func club(forAbbreviation abbreviation: String) -> Club? {
+        clubs.first { $0.abbreviation == abbreviation }
+    }
 
-    /// One followed club's match to surface on Home, with a display label and a
-    /// flag for whether it's an upcoming fixture or a fallback recent result.
+    /// Abbreviations of the clubs the user follows.
+    private func followedAbbreviations(_ following: FollowingStore) -> Set<String> {
+        Set(clubs.filter { following.followedIDs.contains($0.id) }.map(\.abbreviation))
+    }
+
+    // MARK: - Module 1: From your teams
+
+    /// The latest team-content items across all followed clubs, newest first,
+    /// capped so the hook stays scannable above the rest of the hub.
+    func teamContent(following: FollowingStore, limit: Int = 6) -> [TeamContentItem] {
+        let followed = followedAbbreviations(following)
+        return teamContentItems
+            .filter { followed.contains($0.teamAbbreviation) }
+            .sorted { $0.timestamp > $1.timestamp }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    // MARK: - Module 2: Get to know your players
+
+    /// One spotlight from a followed team, rotated weekly. Deterministic (week of
+    /// year over a stably-ordered list) so it's stable within a week and cycles
+    /// across followed teams week to week — no randomness needed.
+    func spotlight(following: FollowingStore) -> PlayerSpotlight? {
+        let followed = followedAbbreviations(following)
+        let available = spotlights
+            .filter { followed.contains($0.teamAbbreviation) }
+            .sorted { $0.teamAbbreviation < $1.teamAbbreviation }
+        guard !available.isEmpty else { return nil }
+        let week = calendar.component(.weekOfYear, from: now())
+        return available[week % available.count]
+    }
+
+    // MARK: - Module 4: Coming up (compact next-match strip)
+
+    /// One followed club's match to surface, with a display label and a flag for
+    /// whether it's an upcoming fixture or a fallback recent result.
     struct FollowedFixture: Identifiable {
         let club: Club
         let event: Event
@@ -80,9 +137,9 @@ final class HomeViewModel {
         var id: String { club.id }
     }
 
-    /// For each followed club: its next non-final match (preferred), else its
-    /// most recent finished result so the card is never empty. Upcoming fixtures
-    /// sort first (soonest kickoff), recent results last.
+    /// For each followed club: its next non-final match (preferred), else its most
+    /// recent finished result so the row is never empty. Upcoming fixtures sort
+    /// first (soonest kickoff), recent results last.
     func nextMatches(following: FollowingStore) -> [FollowedFixture] {
         guard let store else { return [] }
         let followed = clubs.filter { following.followedIDs.contains($0.id) }
@@ -112,25 +169,6 @@ final class HomeViewModel {
             // Upcoming: soonest first. Results: most recent first.
             return a.isResult ? ka > kb : ka < kb
         }
-    }
-
-    // MARK: - Module 5: Around the league (next matchday)
-
-    /// The next matchday's games league-wide: the earliest local day that still
-    /// has a non-final match, and every game sharing that day. NWSL's staggered
-    /// weekend slate keeps this a small, glanceable list.
-    var aroundTheLeague: [Event] {
-        guard let store else { return [] }
-        let upcoming = store.events
-            .filter { $0.statusState != "post" }
-            .sorted { ($0.kickoff ?? .distantFuture) < ($1.kickoff ?? .distantFuture) }
-        guard let firstDay = upcoming.first?.dayKey else { return [] }
-        return upcoming.filter { $0.dayKey == firstDay }
-    }
-
-    /// Display label for the next matchday ("TODAY" / "SAT, JUL 12").
-    var aroundTheLeagueLabel: String {
-        dayLabel(for: aroundTheLeague.first?.kickoff, result: false)
     }
 
     // MARK: - Helpers

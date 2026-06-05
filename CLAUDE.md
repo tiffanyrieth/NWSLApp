@@ -166,30 +166,33 @@ NWSLApp/
 ├── NWSLAppApp.swift                — app entry point; launches RootTabView
 ├── Models/
 │   ├── Club.swift                  — league club directory model (flat, view-friendly Club) + defensive Decodable wrappers for ESPN's nested /teams payload (TeamsResponse.clubs flattens + sorts active clubs); named Club to avoid colliding with Scoreboard's competitor-level Team
-│   ├── Roster.swift                — a club's squad: flat view-friendly Athlete + defensive RosterResponse wrappers for ESPN's /teams/{id}/roster payload (RosterResponse.players flattens). Roster.grouped() buckets athletes by position (GK→DEF→MID→FWD). NOTE: NWSL headshots are null in ESPN's feed, so Athlete carries no photo — PlayerRow shows a jersey monogram (deliberate, permanent)
+│   ├── Roster.swift                — a club's squad + team profile: flat view-friendly Athlete (incl. shortName "T. Rodman") + a ClubSquad result (athletes + team colorHex + standingSummary + record; ClubSquad.standingLine = "4th in NWSL — 21 pts", points derived from the W-D-L record) + defensive RosterResponse wrappers for ESPN's /teams/{id}/roster payload (RosterResponse.squad bundles it; the roster payload ALSO carries team color + standing/record, so ONE fetch powers the whole team page). Roster.grouped() buckets athletes by position FWD→MID→DEF→GK (attackers first — the "meet the team" Squad grid leads with the players fans come to see). NOTE: NWSL headshots are null in ESPN's feed, so Athlete carries no photo — PlayerCard shows a jersey/initials monogram (deliberate, permanent)
 │   ├── Scoreboard.swift            — Codable structs mirroring ESPN's NWSL scoreboard JSON + Event helpers (kickoff, dayKey, home/away accessors)
 │   └── Standings.swift             — league table: flat view-friendly StandingsRow (rank + a full Club + GP/W/D/L/PTS) + defensive StandingsResponse wrappers for ESPN's standings payload (children[0].standings.entries; StandingsResponse.rows flattens + sorts by rank). Each row carries a Club so it's tappable→TeamDetailView and follow-aware. Stats read by stable `type` key, not display order (draws = ESPN's "ties"). NOTE: standings lives at apis/v2/… NOT the apis/site/v2/… base (the site path returns {})
 ├── Services/
-│   └── ESPNService.swift           — URLSession + async/await wrapper; fetchScoreboard(year:) (full season) + fetchTeams() (club directory) + fetchRoster(clubID:) (one club's squad) + fetchStandings() (league table, built from the apis/v2/… path explicitly — not `base`), all routed through a private generic fetch<T:Decodable>; throws ESPNServiceError
+│   └── ESPNService.swift           — URLSession + async/await wrapper; fetchScoreboard(year:) (full season) + fetchTeams() (club directory) + fetchRoster(clubID:) → ClubSquad (one club's squad + team color/standing profile, one call) + fetchStandings() (league table, built from the apis/v2/… path explicitly — not `base`), all routed through a private generic fetch<T:Decodable>; throws ESPNServiceError
 ├── Stores/
 │   ├── FollowingStore.swift        — @Observable personalization lens: which clubs the user follows (Set<String> of club IDs), persisted to UserDefaults; injected app-wide via .environment so all tabs share it (NOT a per-screen ViewModel)
-│   └── MatchStore.swift            — @Observable shared season store: fetches the full scoreboard ONCE and exposes it app-wide (State enum + events + matches(for: Club)); injected in RootTabView via .environment. ScheduleView renders all of it, TeamDetailView renders a club's slice, future Home leads with followed clubs' next match. matches(for:) joins club↔match by abbreviation (TEMP-commented fragility: ESPN competitors carry no id)
+│   └── MatchStore.swift            — @Observable shared season store: fetches the full scoreboard ONCE and exposes it app-wide (State enum + events + matches(for: Club)); injected in RootTabView via .environment. ScheduleView renders all of it; future Home leads with followed clubs' next match. matches(for:) joins club↔match by abbreviation (TEMP-commented fragility: ESPN competitors carry no id). NOTE: TeamDetailView no longer reads this (the Teams-tab redesign removed the per-club Schedule sub-tab — schedule lives in the Schedule tab); matches(for:) is currently used only by future Home — keep it.
 ├── ViewModels/
 │   ├── ScheduleViewModel.swift     — @Observable; DERIVES day-grouped sections + initial scroll target from the injected MatchStore (no longer fetches); proxies the store's State; view hands it the store before first load
 │   ├── TeamsViewModel.swift        — @Observable; State enum (idle/loading/loaded/error); fetches the club directory via ESPNService.fetchTeams()
-│   ├── TeamDetailViewModel.swift   — @Observable; State enum for the ROSTER fetch only (matches come from the shared MatchStore); load(clubID:) → fetchRoster; positionGroups via Roster.grouped
+│   ├── TeamDetailViewModel.swift   — @Observable; State enum holding the ClubSquad from one roster fetch (load(clubID:) → fetchRoster). Exposes positionGroups (via Roster.grouped, FWD-first), accentColorHex (club color for cards/badges), and standingLine (the header's "4th in NWSL — 21 pts"). One fetch feeds the whole page; no MatchStore dependency anymore.
 │   └── StandingsViewModel.swift    — @Observable; same idle/loading/loaded/error State enum; one-shot fetch via ESPNService.fetchStandings() (own per-screen fetch, not the shared MatchStore — standings has no other readers)
 ├── Views/
 │   ├── RootTabView.swift           — app root; 5-tab bottom TabView (Home / Schedule / Standings / Teams / Feed), each tab owns its own NavigationStack; lands on Schedule for now (flip `selection` default to .home once Home exists); creates the FollowingStore AND the MatchStore and injects both via .environment; Home/Feed are ComingSoonView PLACEHOLDERS (Schedule/Standings/Teams are built)
 │   ├── ScheduleView.swift          — full-season schedule as a ScrollView + LazyVStack of cards with sticky day headers; reads the shared MatchStore (handed to its view model); scrolls to today (or next matchday) on first load via .scrollPosition(id:); pull-to-refresh
 │   ├── TeamsView.swift             — Teams tab: directory of all 16 clubs in a List; a "Following" section floats followed clubs to the top, "All Clubs" lists every club end-to-end. Each row is a sibling pair of buttons — a row button (pushes TeamDetailView via a NavigationPath) + a Follow star (FollowingStore) — NOT nested (a Button inside a NavigationLink swallows the row's nav tap)
-│   ├── TeamDetailView.swift        — a club's page, pushed from Teams (no own NavigationStack): a PINNED header (crest + name + Follow star) above a segmented sub-tab bar (Overview · Schedule · Squad); only the selected section scrolls. Overview (default) = next match + recent result, derived from MatchStore via Event.statusState (no extra fetch/date math); Schedule = the club's MatchStore.matches(for:) slice split into Upcoming/Results (reusing MatchCard); Squad = roster grouped by position via PlayerRow. Replaces the old single long scroll (header→full schedule→roster) where the roster was buried below the season — now it's one tap. Roster loads independently so its failure never blanks header/Overview/Schedule. (Three reversible design calls: default tab, segmented-vs-underline control, schedule order.)
+│   ├── TeamDetailView.swift        — a club's page, pushed from Teams/Standings (no own NavigationStack): a PINNED header (crest + name + standing line "4th in NWSL — 21 pts" + Follow star) above a segmented sub-tab bar (Squad · Stats); only the selected section scrolls. Squad (default) = the "meet the team" 2-col LazyVGrid of PlayerCards grouped FWD→MID→DEF→GK, each NavigationLink→PlayerDetailView. Stats = an INTENTIONAL placeholder ("Team stats coming soon" — team leaders + formation need per-player stats / lineup data not in the endpoints we map yet; flagged here as a placeholder). Built per Reference/Design/teams-tab-design-spec.md, which removed the old Overview/Schedule sub-tabs (identity audit: schedule→Schedule tab, next-match→future Home). One roster fetch powers everything (cards + header line).
+│   ├── PlayerDetailView.swift      — INTENTIONAL placeholder, pushed when a Squad card is tapped (player detail is a future build). Shows the bio we already have from the roster (monogram, name, jersey/position/age/height/nationality) + a "player stats coming soon" panel — deliberate, not blank. Accent color threaded down from TeamDetailView. Becomes the real stats screen when the player-stats endpoint is mapped.
 │   └── StandingsView.swift         — Standings tab: a clean league table per the design spec (Reference/Design/standings-tab-design-spec.md). Non-scrolling column header (# · Team · PTS · GP · W · L · D) kept aligned with the scrolling rows via shared fixed Col widths (Grid can't bridge the scroll boundary); all 16 teams end-to-end, no truncation/horizontal scroll. Followed teams render blue (text + soft blue-tint bg) via FollowingStore. Each row is a Button that appends row.club to a NavigationPath → TeamDetailView (same pattern + destination as Teams). Footer = stat legend. Deliberately NO GF/GA/GD or home-away splits (would force horizontal scroll). PTS is bold and fronted (Tiffany's column order).
 ├── Components/
 │   ├── ComingSoonView.swift        — reusable intentional placeholder (SF Symbol + title + "coming soon" copy) for not-yet-built tabs; drives the 4 placeholder tabs in RootTabView
-│   ├── MatchCard.swift             — one game as a rounded card: stacked home/away rows (logo + abbreviation) + score (or kickoff time) + status badge (LIVE / FT / scheduled); reused by ScheduleView + TeamDetailView's schedule slice
-│   ├── PlayerRow.swift             — one roster player: jersey-number / initials monogram avatar (NWSL has no headshots) + name + details line (position · age · height · nationality); used by TeamDetailView
+│   ├── MatchCard.swift             — one game as a rounded card: stacked home/away rows (logo + abbreviation) + score (or kickoff time) + status badge (LIVE / FT / scheduled); used by ScheduleView (no longer by TeamDetailView after the Teams redesign — still the schedule's card)
+│   ├── PlayerCard.swift            — one player in the Teams → Squad grid: team-color top accent (3px) + jersey/initials monogram in a team-color circle badge + shortName + position. Team color via Color.teamAccent (legible number color picked by luminance). Replaces the old list-row PlayerRow now the squad is a grid.
 │   └── TeamLogo.swift              — reusable AsyncImage crest: fixed frame, loading placeholder, neutral failure fallback (no broken-image glyph); used by MatchCard + TeamsView + TeamDetailView + StandingsView
+├── Extensions/
+│   └── Color+Hex.swift             — Color.teamAccent(hex:) → (fill, on): turns an ESPN team-color hex into a SwiftUI Color plus a legible foreground (black/white by perceived luminance); falls back to the app accent for missing/malformed hex. Used by PlayerCard + PlayerDetailView.
 └── Assets.xcassets/                — app icons, accent color
 ```
 
@@ -222,43 +225,53 @@ writes the identical key/format). This is the foundation the "your-teams-first
 Home" and tailored Feed will build on. Note: SwiftData is now in use **nowhere**
 — following persists via `UserDefaults` (right-sized for a small ID set).
 
-**Team detail page + shared `MatchStore`.** Tapping a club in Teams pushes
-`TeamDetailView` (no own `NavigationStack` — it rides the Teams tab's stack, so
-the back affordance is free): a **pinned header** (crest + name + the same
-Follow star, so toggling here reflects everywhere) above a segmented **sub-tab
-bar — Overview · Schedule · Squad** (only the selected section scrolls). This
-replaced an earlier single long scroll (header → full schedule → roster) where
-the roster was buried below the whole season; every reference app
-(Athletic/MLS/NWSL) fronts the team page with sub-tabs, so now the roster is one
-tap. **Overview** (the default) leads with next match + recent result — derived
-from `MatchStore` via `Event.statusState`, no extra fetch or date math, and the
-app's first small "alive" seed (the "when's the next game / what was the score"
-use case). **Schedule** splits the club's slice into Upcoming/Results; **Squad**
-is the roster grouped by position. The schedule slice introduced the app's second
-app-wide store: `MatchStore` (`@Observable`, created in `RootTabView`, injected
-via `.environment` alongside `FollowingStore`) fetches the full season **once**
-and serves it to every screen — `ScheduleView` was refactored to read from it
-(its view model now *derives* sections/scroll-target rather than fetching), and
-`MatchStore.matches(for: club)` returns a club's games (joined by abbreviation —
-a TEMP-commented fragility, since ESPN's scoreboard competitors carry no id;
-verified all 16 clubs' abbreviations match across `/teams` and `/scoreboard`).
-The roster comes from `ESPNService.fetchRoster(clubID:)` → `Roster.swift`,
-rendered via `PlayerRow` with **jersey-number monogram avatars** because NWSL
-headshots are null in ESPN's feed (a deliberate, permanent choice). Roster loads
-on its own `TeamDetailViewModel` state, independent of the schedule, so a roster
-failure never blanks the header + Overview/Schedule. The Teams rows were
-reworked into **sibling** buttons (row-button pushes via a `NavigationPath`;
-Follow star is separate) — a `Button` nested inside a `NavigationLink` swallows
-the row's navigation tap, which we hit and fixed. Verified in-sim (UI-test
-driven, then removed): Teams → tap a club pushes the page with a working back
-button and lands on **Overview** (next match + recent-result cards reusing
-`MatchCard`); the **Squad** sub-tab reaches the roster in one tap (~24 players
-grouped GK/DEF/MID/FWD with monogram avatars and position·age·height·nationality);
-the **Schedule** sub-tab shows Upcoming then Results; tapping the header star
-toggles Follow **without navigating** and floats the club into Teams' Following
-section; and Schedule's scroll-to-today still lands on the July matchday after
-the store refactor. (Note: the sub-tab label "Schedule" shares its name with the
-bottom tab-bar item — purely an a11y/test-targeting wrinkle, not user-facing.)
+**Team detail page (redesigned per the Teams tab spec).** Tapping a club in Teams
+(or a Standings row) pushes `TeamDetailView` (no own `NavigationStack` — it rides
+the pushing tab's stack, so the back affordance is free): a **pinned header**
+(crest + name + a **standing line** "4th in NWSL — 21 pts" + the same Follow star,
+so toggling here reflects everywhere) above a segmented **sub-tab bar — Squad ·
+Stats** (only the selected section scrolls). This redesign (per
+`Reference/Design/teams-tab-design-spec.md`, approved in a Cowork session)
+**removed the old Overview and Schedule sub-tabs** via the spec's identity audit:
+schedule belongs to the Schedule tab, and the per-club next-match/recent-result
+belongs to the future Home — so Teams now answers exactly one question, "who are
+these people?" **Squad** (the default) is the "meet the team" experience: a
+2-column `LazyVGrid` of `PlayerCard`s grouped **FWD → MID → DEF → GK** (attackers
+first — fans come to see the forwards), each card a team-color top accent + a
+jersey/initials monogram in a team-color circle badge + the player's `shortName`
++ position. Tapping a card pushes `PlayerDetailView` (an intentional placeholder
+showing the bio we already have + "stats coming soon", since the full player-stats
+endpoint isn't mapped yet). **Stats** is likewise an intentional placeholder —
+its marquee features (team leaders + a formation pitch) need per-player season
+stats and lineup/formation data that **no current endpoint provides**, so it
+shows a clean "Team stats coming soon" rather than a half-built table (flagged as
+a placeholder in the File Map). The big efficiency win: ESPN's **roster payload
+already carries the team color, standing summary, and W-D-L record**, so a single
+`ESPNService.fetchRoster(clubID:)` → `ClubSquad` (in `Roster.swift`) powers the
+whole page — the colored cards AND the header line (points are derived from the
+record, 3·W + D, so no second fetch). `TeamDetailViewModel` holds that `ClubSquad`
+and exposes `positionGroups` / `accentColorHex` / `standingLine`; it no longer
+touches `MatchStore` (the per-club schedule is gone). Team color comes through a
+new reusable `Color.teamAccent(hex:)` helper (`Extensions/Color+Hex.swift`) that
+also picks a legible number color (black/white) by luminance. The old list-row
+`PlayerRow` was removed in favor of `PlayerCard`. The Teams rows remain **sibling**
+buttons (row-button pushes via a `NavigationPath`; Follow star is separate) — a
+`Button` nested inside a `NavigationLink` swallows the row's nav tap.
+**Verified in-sim** (via a temporary launch-env deep-link into the screen, then
+removed — a full tab-navigation XCUITest flaked under the dev machine's 8GB
+memory pressure: the app took ~30s+ just to launch, so the test's taps raced a
+not-yet-ready UI; the deep-link screenshot path is deterministic and avoids it):
+opening Kansas City Current shows the pinned header with crest + **"6th in NWSL
+— 21 pts"** (standing line + record-derived points) + Follow star, the **Squad ·
+Stats** segmented control, and the Squad grid grouped **Forwards-first** with red
+(`cf3339`) top accents, red jersey badges carrying **legible white numbers** (the
+luminance-contrast path), `shortName`s, and position labels; tapping a card's
+deep-link opens **PlayerDetailView** with the red monogram, the bio grid (jersey
+· position · age · height · nationality from the roster), and the "player stats
+coming soon" panel. The **Stats** placeholder is build-verified (a static
+"coming soon" identical in structure to the rendered PlayerDetail panel + the
+proven `ComingSoonView`). Screenshots in the gitignored
+`Reference/Design/teams-redesign-verification/`.
 
 **Standings.** The Standings tab (`StandingsView` + `StandingsViewModel`,
 `ESPNService.fetchStandings()` → `Standings.swift`) renders the full 16-team
@@ -316,9 +329,21 @@ not the view model — see the Team-detail section above.)
    cross-cutting *lens*, not its own tab — it will personalize Home
    (your-teams-first) and Feed next. **Next builds on this:**
    - **(DONE)** ~~Team detail page — make Teams rows tappable → push a club page
-     (roster, schedule filtered to that club, Follow).~~ Shipped: `TeamDetailView`
-     + `TeamDetailViewModel` + shared `MatchStore` + `Roster.swift` + `PlayerRow`.
-     Also satisfies What's-Next #8.
+     (roster, schedule filtered to that club, Follow).~~ Shipped, then **redesigned
+     per `Reference/Design/teams-tab-design-spec.md`**: `TeamDetailView` is now a
+     pinned header (crest + standing line + Follow) over **Squad · Stats** sub-tabs;
+     Squad is a team-colored `PlayerCard` grid (`Roster.swift` `ClubSquad` from one
+     roster fetch), cards push `PlayerDetailView`. Also satisfies What's-Next #8.
+     **New follow-ups from the redesign:**
+     - **Stats sub-tab** is a placeholder — build **team leaders** (top-3 Goals/
+       Assists/Clean Sheets) and the **most-recent formation** pitch once the data
+       is mapped. Per-player stats DO exist on `athletes[].statistics.splits` in the
+       roster payload (sparse — null for some players); the **formation** needs a
+       lineup/event-summary endpoint we haven't mapped. Fold into the endpoint pass.
+     - **PlayerDetailView** is a placeholder (bio + "stats coming soon") — flesh out
+       with real per-player stats (same `statistics.splits` source).
+     - The spec's deferred **Follow-confirmation sheet** (first-time "what following
+       buys you") still applies to the header star.
    - **Your-teams-first Home** — build the Home tab as a hub that leads with
      followed clubs' next match / recent result (the "My teams" view *is* Home,
      not a separate tab). **Now unblocked:** the shared `MatchStore` already
@@ -352,9 +377,11 @@ not the view model — see the Team-detail section above.)
    column); a club record/standings line in the TeamDetailView header can now
    reuse this endpoint (What's-Next #8 leftover).
 8. **(DONE)** ~~Team detail page (profile, roster, schedule filtered to that
-   team).~~ See item #2. Roster, club schedule, and Follow shipped; club
-   record/standings header is deferred (needs the standings endpoint — fold into
-   the endpoint-mapping pass).
+   team).~~ See item #2. Roster + Follow shipped, then redesigned (Squad · Stats).
+   The **club record/standings header line is now DONE** ("4th in NWSL — 21 pts"),
+   built from the roster payload's `standingSummary` + record (no standings fetch
+   needed after all). The per-club **schedule** sub-tab was intentionally REMOVED
+   in the redesign (identity audit: schedule lives in the Schedule tab).
 9. **(Fragility)** `MatchStore.matches(for: club)` joins a club to its games by
    `abbreviation` (string), because ESPN's scoreboard competitor `Team` carries
    no id. Verified safe today (all 16 clubs' abbreviations match across `/teams`

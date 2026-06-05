@@ -2,10 +2,11 @@
 //  TeamDetailViewModel.swift
 //  NWSLApp
 //
-//  Owns state for TeamDetailView's *roster* fetch only. The club's matches come
-//  from the shared MatchStore (already loaded for Schedule), so this view model
-//  is responsible solely for loading and grouping the squad — keeping the same
-//  idle/loading/loaded/error State enum the other screens use.
+//  Owns state for TeamDetailView's roster fetch. One call to ESPN's roster
+//  endpoint returns a ClubSquad — the players plus the team profile (color,
+//  standing line) that rides along — so this view model feeds the whole page:
+//  the position-grouped squad grid AND the pinned header's standing line. Uses
+//  the same idle/loading/loaded/error State enum as the other screens.
 //
 
 import Foundation
@@ -15,7 +16,7 @@ final class TeamDetailViewModel {
     enum State {
         case idle
         case loading
-        case loaded([Athlete])
+        case loaded(ClubSquad)
         case error(String)
     }
 
@@ -30,18 +31,31 @@ final class TeamDetailViewModel {
     func load(clubID: String) async {
         state = .loading
         do {
-            let roster = try await service.fetchRoster(clubID: clubID)
-            state = .loaded(roster)
+            let squad = try await service.fetchRoster(clubID: clubID)
+            state = .loaded(squad)
         } catch {
             state = .error(message(for: error))
         }
     }
 
-    /// The squad grouped by position (GK → DEF → MID → FWD); empty unless loaded.
-    var positionGroups: [Roster.PositionGroup] {
-        if case .loaded(let athletes) = state { return Roster.grouped(athletes) }
-        return []
+    /// The loaded squad, or nil until the roster has loaded.
+    private var squad: ClubSquad? {
+        if case .loaded(let squad) = state { return squad }
+        return nil
     }
+
+    /// The squad grouped by position (FWD → MID → DEF → GK); empty unless loaded.
+    var positionGroups: [Roster.PositionGroup] {
+        squad.map { Roster.grouped($0.athletes) } ?? []
+    }
+
+    /// The club's accent color hex for card/badge tinting (nil falls back to the
+    /// app accent in Color.teamAccent).
+    var accentColorHex: String? { squad?.colorHex }
+
+    /// The header line, e.g. "4th in NWSL — 21 pts"; nil until loaded or when
+    /// ESPN didn't provide a standing summary.
+    var standingLine: String? { squad?.standingLine }
 
     private func message(for error: Error) -> String {
         switch error {

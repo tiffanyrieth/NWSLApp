@@ -73,11 +73,19 @@ final class ScheduleViewModel {
 
     func load() async {
         await store?.load()
-        // The club directory only needs fetching once; pull-to-refresh reloads
-        // the season but reuses the cached clubs (or retries if it never landed).
-        if clubs.isEmpty {
-            clubs = (try? await service.fetchTeams()) ?? []
-        }
+        await loadClubs()
+    }
+
+    /// Club directory — fetched once, used only to resolve followed IDs →
+    /// abbreviations for the "My teams" filter. Kept SEPARATE from the season
+    /// load because it must run even when another screen (e.g. Home, the landing
+    /// tab) already loaded the shared MatchStore: that path skips the season
+    /// `.idle` guard, and if the club fetch rode along inside it the "My teams"
+    /// filter would be stuck resolving forever. Idempotent via `clubs.isEmpty`,
+    /// so it's safe to call on every appearance and from pull-to-refresh.
+    func loadClubs() async {
+        guard clubs.isEmpty else { return }
+        clubs = (try? await service.fetchTeams()) ?? []
     }
 
     /// Day-grouped sections for a given filter tab.

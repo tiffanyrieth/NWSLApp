@@ -172,6 +172,7 @@ placeholder (looks deliberate per the UI rules). Design specs in
 NWSLApp/
 ├── NWSLAppApp.swift                — app entry point; launches RootTabView
 ├── Models/
+│   ├── BracketEdition.swift        — Bracket Battle (Play game 2): BracketEntrant (teamAbbreviation join + playerName + credential) + BracketEdition (title/theme + entrants in SEED order) + BracketRoundLabel (round titles from matchup count). Seed: ⚠️BracketEditionProvider; bracket tree + simulated results derived in BracketViewModel.
 │   ├── Club.swift                  — flat view-friendly Club + defensive wrappers for ESPN's /teams payload (TeamsResponse.clubs flattens/sorts active clubs). Named Club to avoid colliding with Scoreboard's competitor-level Team. Optional shortName = chip label for Feed filters.
 │   ├── FeedItem.swift              — one Feed item (kind = .reporterPost | .articleLink; source/handle/platform/timestamp; body or headline+summary; url; teams tags; isLeague) + FeedTeamTag (abbreviation join key). Legal: articles hold headline+summary+link only, never the body.
 │   ├── PlayerSpotlight.swift       — Home Module 2 "player of the week" (Option B mini-profile): teamAbbreviation join + name/jersey/position + bioBlurb + video fields (videoURL nil = written-only fallback) + extended profile (nationality/age/careerHighlights/funFacts; seasonForm nil today). Seed: ⚠️PlayerSpotlightProvider.
@@ -181,16 +182,19 @@ NWSLApp/
 │   ├── TeamContentItem.swift       — Home Module 1 ("From your teams") — teams' OWN channels (Platform enum .youtube/.instagram/.tiktok/.bluesky each w/ symbol + isVideo, timestamp/caption/durationLabel/url + teamAbbreviation join). Distinct from Feed (news ABOUT teams). Seed: ⚠️TeamContentProvider.
 │   └── TriviaQuestion.swift        — one Daily-Trivia question (id, question, four options, correctIndex, Category + Difficulty enums; correctAnswer convenience). Seed: ⚠️TriviaQuestionProvider; daily 5 derived in TriviaViewModel, stats in TriviaStore.
 ├── Services/
+│   ├── ⚠️BracketEditionProvider.swift — curated Bracket Battle seed; async edition()→one "Best Goalkeeper" edition (16 real GKs, one/club, in editorial seed order) + leaderboardOpponents() (sample usernames + fixed points for the simulated board). Durable credentials, 2026 snapshot.
 │   ├── ESPNService.swift           — URLSession + async/await; fetchScoreboard(year:) + fetchTeams() + fetchRoster(clubID:)→ClubSquad + fetchStandings() (builds the apis/v2/… path explicitly), all via a private generic fetch<T:Decodable>; throws ESPNServiceError.
 │   ├── ⚠️FeedContentProvider.swift  — curated Feed seed; async items()→[FeedItem] from real reporters/outlets (The Athletic, ESPN, The Equalizer, Just Women's Sports + beat reporters), all 16 clubs (~2 each) + league items, deliberately even. Editorial policy (no culture-war/political hot takes) lives here when it becomes a live gate.
 │   ├── ⚠️TeamContentProvider.swift  — curated Module-1 seed; async items()→[TeamContentItem], ~2/club. URLs are real account-level links (each team's YouTube/IG, incl. 2026 expansion sides).
 │   ├── ⚠️TriviaQuestionProvider.swift — async questions()→55 hand-written NWSL questions, all 16 clubs, mixed difficulty across six categories. Leans on DURABLE facts, avoids volatile current-season trivia.
 │   └── ⚠️PlayerSpotlightProvider.swift — async spotlights()→one real 2026 player/club (all 16) w/ hand-written bio + extended profile + a real oembed-verified player YouTube video (sources attributed honestly). One written-only fallback (Mondésir/SEA, lives only on Facebook).
 ├── Stores/
+│   ├── BracketStore.swift          — @Observable Bracket Battle durable state → UserDefaults, injected app-wide: editionID + picks (matchup→entrant, JSON) + lockedRoundCount (= currentRound) + points + roundCount. beginEdition resets only on edition change; lockRound banks points in-order + idempotent; restart() for demo replay. No day-gate (play-through cadence).
 │   ├── FollowingStore.swift        — @Observable personalization lens: followed club IDs (Set<String>) → UserDefaults; injected app-wide via .environment. ALSO tracks hasOnboarded (first-open gate + completeOnboarding()); an existing follower is treated as already onboarded so seeded sims skip the picker.
 │   ├── MatchStore.swift            — @Observable shared season store: fetches the full scoreboard ONCE; exposes State + events + matches(for:Club). Schedule renders all of it; Home derives "Coming up". matches(for:) joins club↔match by abbreviation (TEMP-commented fragility: ESPN competitors carry no id).
 │   └── TriviaStore.swift           — @Observable Daily-Trivia durable stats → UserDefaults, injected app-wide: streak/bestStreak, lifetime accuracy, lastScore, lastCompletedDay. hasPlayedToday = one-scored-play/day gate; recordCompletion(correct:outOf:) idempotent for the day; now/calendar injectable for tests.
 ├── ViewModels/
+│   ├── BracketViewModel.swift      — @Observable; one Bracket Battle session. load() pulls the edition, builds the bracket by standard seeding (1v16…), and DETERMINISTICALLY simulates the "community" (SplitMix64 seeded by a stable hash of each matchup id, seed-weighted so favourites usually advance) → stable winners + vote %s. Derives rounds/champion/correctPicks/leaderboard (sample opponents + You). Best-effort club fetch for crests (game stays playable if it fails).
 │   ├── HomeViewModel.swift         — @Observable; loadClubs() fetches the club directory + both content seeds in one pass; DERIVES every module from the injected MatchStore + FollowingStore. teamContent(following:) / spotlights(following:) (one per followed team, deterministic weekly rotation) / nextMatches(following:) / club(forAbbreviation:).
 │   ├── ScheduleViewModel.swift     — @Observable; derives day-grouped sections + scroll target from MatchStore. Filter enum (nwsl/myTeams/allMatches) → three functions over ONE data set. A SEPARATE idempotent loadClubs() (decoupled from the season .idle guard) resolves followed IDs → abbreviations for My-teams. NOTE: club fetch duplicated across Home/Teams/Schedule (→ future ClubStore, What's-Next #15).
 │   ├── TeamsViewModel.swift        — @Observable; State enum (idle/loading/loaded/error); fetchTeams().
@@ -199,9 +203,10 @@ NWSLApp/
 │   ├── TriviaViewModel.swift       — @Observable; one Daily-Trivia SESSION. loadDaily() locks today's 5 via a deterministic daily shuffle (private SplitMix64 seeded by day number — stable all day, no persistence). Transient play state (currentIndex/selectedIndex/isRevealed/correctCount/picks/isFinished) + select→submit→advance/finish; commits to TriviaStore on finish.
 │   └── FeedViewModel.swift         — @Observable; loads the seed + club directory. chips(following) = All + per followed team + League; items(following) filters by Filter (.all/.team/.league, newest first). Chip↔item match by abbreviation.
 ├── Views/
-│   ├── RootTabView.swift           — app root; 5-tab TabView (Home/Schedule/Standings/Teams/Feed), each its own NavigationStack; LANDS ON HOME; creates + injects FollowingStore, MatchStore, TriviaStore via .environment. All five tabs built (no placeholder tab).
-│   ├── HomeView.swift              — Home hub (home-tab-design-spec.md, content-leads order). Pre-onboarding renders OnboardingView in place (tab bar stays visible). Hub modules: (1) "From your teams" TeamContentCards (the hook); (2) "Get to know your players" PlayerSpotlightCards, one/followed team → PlayerSpotlightView (hidden if none); (3) "Play" game row (Daily Trivia live → DailyTriviaView; Predict the XI / Bracket Battle 🔧); (4) "Coming up" ComingUpRow/club. No-follows → "Choose your teams" picker sheet. ("Around the league" removed.)
+│   ├── RootTabView.swift           — app root; 5-tab TabView (Home/Schedule/Standings/Teams/Feed), each its own NavigationStack; LANDS ON HOME; creates + injects FollowingStore, MatchStore, TriviaStore, BracketStore via .environment. All five tabs built (no placeholder tab).
+│   ├── HomeView.swift              — Home hub (home-tab-design-spec.md, content-leads order). Pre-onboarding renders OnboardingView in place (tab bar stays visible). Hub modules: (1) "From your teams" TeamContentCards (the hook); (2) "Get to know your players" PlayerSpotlightCards, one/followed team → PlayerSpotlightView (hidden if none); (3) "Play" game row (Daily Trivia live → DailyTriviaView, Bracket Battle live → BracketBattleView; Predict the XI 🔧); (4) "Coming up" ComingUpRow/club. No-follows → "Choose your teams" picker sheet. ("Around the league" removed.)
 │   ├── DailyTriviaView.swift       — Daily Trivia (rides Home's stack): 5 MC/day, select→submit (green/red reveal, A–D badges)→next→results (score, 🔥streak, all-time accuracy + per-question review). One scored play/day (locked summary on re-open). Indigo accent. Reads TriviaStore, owns session via TriviaViewModel.
+│   ├── BracketBattleView.swift     — Bracket Battle (rides Home's stack): header (title/theme + R16·QF·SF·F progress pills + points/rank) over stacked rounds — current round = tap-to-vote matchups + "Lock in" (reveals winner + vote %s, banks a point per correct pick), closed rounds collapse to compact results (green ✓/red ✗). Champion banner + simulated leaderboard (You highlighted) on completion; "Play again" resets. Teal accent. Reads BracketStore, derives via BracketViewModel.
 │   ├── OnboardingView.swift        — first-open "Make it yours" picker: alphabetical List, whole-row follow toggle, collapsed "international competitions" disclosure (🔧 rows don't toggle — needs a Competition model), pinned "Follow N teams" bar → completeOnboarding() + dismiss(). Reuses TeamsViewModel + FollowingStore.
 │   ├── ScheduleView.swift          — full-season ScrollView + LazyVStack of cards, sticky day headers (schedule-tab-design-spec.md). THREE segmented filters (NWSL/My teams/All matches). Scrolls to today/next matchday; re-anchors on filter change (first-load anchor retries once clubs resolve). No-follows prompt; pull-to-refresh.
 │   ├── TeamsView.swift             — Teams directory (all 16) in a List; a "Following" section floats followed clubs to the top. Each row = sibling buttons (row pushes TeamDetailView via NavigationPath + separate Follow star — NOT nested, which would swallow the nav tap).
@@ -246,8 +251,8 @@ content-leads order). Pre-onboarding (`hasOnboarded == false`) renders
 `OnboardingView` in place (tab bar stays visible). The hub is a `ScrollView` of
 modules: (1) **"From your teams"** TeamContentCards (the hook); (2) **"Get to
 know your players"** one PlayerSpotlightCard per followed team →
-`PlayerSpotlightView`; (3) **"Play"** game row (Daily Trivia live; Predict the
-XI / Bracket Battle placeholders); (4) **"Coming up"** compact ComingUpRow per
+`PlayerSpotlightView`; (3) **"Play"** game row (Daily Trivia + Bracket Battle
+live; Predict the XI placeholder); (4) **"Coming up"** compact ComingUpRow per
 club. "Around the league" was removed (duplicated Schedule). Home owns no season
 data — `HomeViewModel.loadClubs()` fetches the club directory + both seeds in
 one pass and derives every module from the shared `MatchStore` + `FollowingStore`.
@@ -260,8 +265,24 @@ score, streak, all-time accuracy + per-question review). One scored play/day
 (Wordle-style lock — re-open shows the locked summary). Deterministic daily pick
 (SplitMix64 seeded by day number). Indigo identity. Split: `TriviaQuestion` +
 ⚠️`TriviaQuestionProvider` (55 questions) + `TriviaViewModel` (session) +
-`TriviaStore` (durable streak/accuracy/day-gate). Predict the XI / Bracket
-Battle remain placeholders (build order per spec).
+`TriviaStore` (durable streak/accuracy/day-gate).
+
+**Bracket Battle** (Module 3 "Play", game 2; `games-design-spec.md`). A
+single-elimination "Best Goalkeeper" edition — 16 real GKs (one/club). Vote each
+matchup who the community advances, **lock** a round to reveal the result (winner
++ vote split) and bank a point per correct pick, then the next round opens below
+(the approved "play through, daily-styled" cadence — no calendar gate). Champion
+banner + simulated leaderboard (you ranked among sample fans) on completion. The
+"community" is a **deterministic, seed-weighted simulation** (stable across
+launches), standing in for real multi-user voting. Teal identity. Split:
+`BracketEdition` + ⚠️`BracketEditionProvider` (16-GK seed + sample leaderboard) +
+`BracketViewModel` (bracket build + simulation + leaderboard) + `BracketStore`
+(durable votes/points/locked rounds). **Verified in-sim** (temporary
+launch-env deep-link + an autoplay hook drove the fresh Round-of-16 voting screen
+and a fully auto-played tournament — locked-round reveals with green ✓/red ✗ and
+vote %s, an upset, the champion banner [Naeher, 67% final] and the climb to rank
+#1 — then removed). Predict the XI remains the one placeholder in Play (build
+order per spec).
 
 **Player Spotlight** (Module 2; `spotlight-design-spec.md`). One Option-B
 mini-profile per followed team (bio blurb + video preview) → narrative
@@ -356,11 +377,15 @@ here. Original item numbers are kept so existing cross-references stay valid.
   for real thumbnails/durations, a deeper per-team pool (so the weekly rotation
   cycles a full roster), the opt-in weekly notification, and a team-colored
   badge (needs the club hex). The optional one-time intro card isn't built.
-- **Home Module 3 games** — Daily Trivia done; swap ⚠️`TriviaQuestionProvider`
-  for a real question backend (grow the pool / add categories); add a
-  leaderboard (needs #12), a share-result card, and the streak push (local-
-  notification path). Next games: **Bracket Battle**, then **Predict the XI**
-  (needs lineup data; both reuse the #12/#14 backend).
+- **Home Module 3 games** — Daily Trivia + Bracket Battle done. Trivia: swap
+  ⚠️`TriviaQuestionProvider` for a real question backend (grow the pool / add
+  categories); add a leaderboard (needs #12), a share-result card, and the streak
+  push (local-notification path). Bracket Battle: swap ⚠️`BracketEditionProvider`
+  for a real editorial/voting backend so the "community" is **real multi-user
+  votes + a real leaderboard** instead of the deterministic simulation (needs
+  #12); rotate themed editions (Best Forward, Best Kit, …); add real crests/
+  durations and the per-round "vote now" push; the share-entry card. Next game:
+  **Predict the XI** (needs lineup data; reuses the #12/#14 backend).
 
 **Longer-term (vision — see `Reference/Sessions/` for full rationale)**
 11. **Feed backend** — UI built on the ⚠️seed. Needs: a real content source

@@ -50,6 +50,15 @@ final class FeedViewModel {
         var id: Filter { filter }
     }
 
+    /// A distinct source powering the Feed, for the Sources sheet's mute list.
+    /// `name` matches FeedItem.sourceName (the mute key); `detail` is the handle
+    /// for reporters or the platform for outlets.
+    struct Source: Identifiable, Hashable {
+        let name: String
+        let detail: String
+        var id: String { name }
+    }
+
     private(set) var clubsState: State = .idle
     private(set) var allItems: [FeedItem] = []
     var selectedFilter: Filter = .all
@@ -111,24 +120,47 @@ final class FeedViewModel {
     /// Items visible for the current `selectedFilter`, already newest-first.
     /// The base set is always scoped to the user's world — their followed teams
     /// plus league-wide news — so the Feed never shows content about clubs they
-    /// don't follow.
-    func items(_ following: FollowingStore) -> [FeedItem] {
+    /// don't follow. The user's content preferences (muted sources, post/article
+    /// toggles) are then applied on top.
+    func items(_ following: FollowingStore, preferences: FeedPreferencesStore) -> [FeedItem] {
         let followed = Set(followedClubs(following).map(\.abbreviation))
+        let base: [FeedItem]
         switch selectedFilter {
         case .all:
-            return allItems.filter { $0.isLeague || isFollowed($0, followed) }
+            base = allItems.filter { $0.isLeague || isFollowed($0, followed) }
         case .league:
-            return allItems.filter { $0.isLeague }
+            base = allItems.filter { $0.isLeague }
         case .team(let abbreviation):
-            return allItems.filter { item in
+            base = allItems.filter { item in
                 item.teams.contains { $0.abbreviation == abbreviation }
             }
         }
+        return base.filter { passesPreferences($0, preferences) }
     }
 
     /// True if any of the item's tagged teams is one the user follows.
     private func isFollowed(_ item: FeedItem, _ followed: Set<String>) -> Bool {
         item.teams.contains { followed.contains($0.abbreviation) }
+    }
+
+    /// Honor the content preferences: drop muted sources and toggled-off kinds.
+    private func passesPreferences(_ item: FeedItem, _ prefs: FeedPreferencesStore) -> Bool {
+        if prefs.isMuted(item.sourceName) { return false }
+        switch item.kind {
+        case .reporterPost: return prefs.showReporterPosts
+        case .articleLink:  return prefs.showArticleLinks
+        }
+    }
+
+    /// The distinct sources powering the Feed, alphabetical — for the mute list.
+    func sources() -> [Source] {
+        var seen = Set<String>()
+        var result: [Source] = []
+        for item in allItems where !seen.contains(item.sourceName) {
+            seen.insert(item.sourceName)
+            result.append(Source(name: item.sourceName, detail: item.sourceHandle ?? item.platform))
+        }
+        return result.sorted { $0.name < $1.name }
     }
 
     // MARK: - Helpers

@@ -55,6 +55,10 @@ struct RootTabView: View {
     // the same state (see PredictionStore). A persistent Store, like the others.
     @State private var predict = PredictionStore()
 
+    // Feed content preferences (content-type toggles + muted sources), created once
+    // and shared so the Feed list and its Sources sheet read the same settings.
+    @State private var feedPreferences = FeedPreferencesStore()
+
     var body: some View {
         TabView(selection: $selection) {
             HomeView()
@@ -82,6 +86,7 @@ struct RootTabView: View {
         .environment(trivia)
         .environment(bracket)
         .environment(predict)
+        .environment(feedPreferences)
     }
 }
 

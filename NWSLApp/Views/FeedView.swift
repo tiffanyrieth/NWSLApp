@@ -24,6 +24,7 @@ struct FeedView: View {
     @State private var viewModel = FeedViewModel()
     @State private var showSources = false
     @Environment(FollowingStore.self) private var following
+    @Environment(FeedPreferencesStore.self) private var feedPreferences
 
     var body: some View {
         NavigationStack {
@@ -49,7 +50,8 @@ struct FeedView: View {
                 }
             }
             .sheet(isPresented: $showSources) {
-                FeedSourcesView()
+                FeedSourcesView(sources: viewModel.sources())
+                    .environment(feedPreferences)
             }
         }
         .task {
@@ -99,7 +101,7 @@ struct FeedView: View {
 
     @ViewBuilder
     private var content: some View {
-        let items = viewModel.items(following)
+        let items = viewModel.items(following, preferences: feedPreferences)
         if items.isEmpty {
             emptyState
         } else {
@@ -169,4 +171,5 @@ struct FeedView: View {
 #Preview {
     FeedView()
         .environment(FollowingStore())
+        .environment(FeedPreferencesStore())
 }

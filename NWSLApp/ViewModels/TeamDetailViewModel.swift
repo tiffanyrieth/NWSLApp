@@ -22,10 +22,17 @@ final class TeamDetailViewModel {
 
     private(set) var state: State = .idle
 
-    private let service: ESPNService
+    /// The club's social/community links, in display order; empty until loaded (or
+    /// for a club with none). Drives the header's social row.
+    private(set) var socialLinks: [SocialLink] = []
 
-    init(service: ESPNService = ESPNService()) {
+    private let service: ESPNService
+    private let socialLinksProvider: TeamSocialLinksProvider
+
+    init(service: ESPNService = ESPNService(),
+         socialLinksProvider: TeamSocialLinksProvider = TeamSocialLinksProvider()) {
         self.service = service
+        self.socialLinksProvider = socialLinksProvider
     }
 
     func load(clubID: String) async {
@@ -36,6 +43,13 @@ final class TeamDetailViewModel {
         } catch {
             state = .error(message(for: error))
         }
+    }
+
+    /// Loads the club's social links by abbreviation (the curated seed's join key).
+    /// Separate from the roster fetch so the row can appear immediately — local seed
+    /// data, no network — and recolor once the roster's accent arrives.
+    func loadSocialLinks(abbreviation: String) async {
+        socialLinks = await socialLinksProvider.links(for: abbreviation)?.links ?? []
     }
 
     /// The loaded squad, or nil until the roster has loaded.

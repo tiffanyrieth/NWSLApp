@@ -49,6 +49,8 @@ struct TeamDetailView: View {
         VStack(spacing: 0) {
             header
 
+            socialRow
+
             Picker("Section", selection: $section) {
                 ForEach(TeamSection.allCases, id: \.self) { section in
                     Text(section.rawValue).tag(section)
@@ -73,7 +75,13 @@ struct TeamDetailView: View {
         .navigationDestination(for: Athlete.self) { athlete in
             PlayerDetailView(athlete: athlete, accentHex: viewModel.accentColorHex)
         }
-        .task { await viewModel.load(clubID: club.id) }
+        .task {
+            // Social links are local seed data (instant) — load them first so the
+            // row appears right away, then the roster fetch fills the squad and the
+            // accent color the icons recolor to.
+            await viewModel.loadSocialLinks(abbreviation: club.abbreviation)
+            await viewModel.load(clubID: club.id)
+        }
     }
 
     // MARK: - Header (pinned)
@@ -102,6 +110,25 @@ struct TeamDetailView: View {
         .padding(.horizontal)
         .padding(.top, 8)
         .padding(.bottom, 12)
+    }
+
+    // MARK: - Social row (below the header, above the sub-tabs)
+
+    // A centered cluster of the club's social/community links, per the Teams tab
+    // spec. Hidden entirely when the club has none, so there's no empty gap or dead
+    // icons. The cluster is centered (not full-width-distributed) so it stays
+    // balanced whether a team has two links or five.
+    @ViewBuilder
+    private var socialRow: some View {
+        if !viewModel.socialLinks.isEmpty {
+            HStack(spacing: 28) {
+                ForEach(viewModel.socialLinks) { link in
+                    SocialLinkButton(link: link, accentHex: viewModel.accentColorHex)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.bottom, 12)
+        }
     }
 
     private var followButton: some View {

@@ -17,6 +17,11 @@
 //  card's attribution line are resolved from the followed Club (by abbreviation,
 //  the same join MatchStore/Feed use — ESPN gives no stable competitor id).
 //
+//  Thumbnails: YouTube items carry the real `youTubeVideoID`, from which
+//  `thumbnailURL` builds the public thumbnail (img.youtube.com/vi/{id}/…). Items
+//  with no video id (other platforms) return nil and the card falls back to its
+//  designed crest tile.
+//
 
 import Foundation
 
@@ -66,8 +71,22 @@ struct TeamContentItem: Identifiable {
     /// platforms only; nil for photo/text posts.
     let durationLabel: String?
 
-    /// External link opened when the card is tapped (the team's channel/profile).
+    /// External link opened when the card is tapped (the specific video/post).
     let url: URL?
+
+    /// The YouTube video id this item points at, when it's a YouTube video.
+    /// Drives `thumbnailURL`; nil for non-YouTube items (they fall back to the
+    /// card's designed crest tile). Other platforms expose no equivalent public
+    /// thumbnail, so only YouTube is wired here.
+    let youTubeVideoID: String?
+
+    /// Public thumbnail for the card's 16:9 image, derived from the YouTube video
+    /// id. `hqdefault.jpg` is the durable 480×360 frame YouTube always serves for
+    /// a valid id. Nil when there's no video id.
+    var thumbnailURL: URL? {
+        guard let id = youTubeVideoID else { return nil }
+        return URL(string: "https://img.youtube.com/vi/\(id)/hqdefault.jpg")
+    }
 
     /// "via YouTube" / "via Instagram" — the source tag on the card.
     var sourceTag: String { "via \(platform.rawValue)" }

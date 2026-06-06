@@ -26,13 +26,21 @@ final class TeamDetailViewModel {
     /// for a club with none). Drives the header's social row.
     private(set) var socialLinks: [SocialLink] = []
 
+    /// Per-player season stats keyed by athlete id (⚠️TEMP simulated, see
+    /// StatsProvider). Powers the player pages' season block and the team-leaders
+    /// board, which is derived from these same lines so the two always agree.
+    private(set) var seasonStats: [String: PlayerSeasonStats] = [:]
+
     private let service: ESPNService
     private let socialLinksProvider: TeamSocialLinksProvider
+    private let statsProvider: StatsProvider
 
     init(service: ESPNService = ESPNService(),
-         socialLinksProvider: TeamSocialLinksProvider = TeamSocialLinksProvider()) {
+         socialLinksProvider: TeamSocialLinksProvider = TeamSocialLinksProvider(),
+         statsProvider: StatsProvider = StatsProvider()) {
         self.service = service
         self.socialLinksProvider = socialLinksProvider
+        self.statsProvider = statsProvider
     }
 
     func load(clubID: String) async {
@@ -40,6 +48,10 @@ final class TeamDetailViewModel {
         do {
             let squad = try await service.fetchRoster(clubID: clubID)
             state = .loaded(squad)
+            // Stats ride a second (local, instant) pass once the squad is known —
+            // they're derived from the roster, so they can't load before it.
+            let stats = await statsProvider.seasonStats(for: squad.athletes)
+            seasonStats = Dictionary(uniqueKeysWithValues: stats.map { ($0.athleteID, $0) })
         } catch {
             state = .error(message(for: error))
         }
@@ -70,6 +82,42 @@ final class TeamDetailViewModel {
     /// The header line, e.g. "4th in NWSL — 21 pts"; nil until loaded or when
     /// ESPN didn't provide a standing summary.
     var standingLine: String? { squad?.standingLine }
+
+    /// The club's real W-D-L record string from the roster payload (e.g. "6-3-2"),
+    /// used by the Stats tab's season summary. nil until loaded / when absent.
+    var record: String? { squad?.record }
+
+    /// Stats for one player, or nil before the roster (and thus stats) have loaded.
+    func stats(for athlete: Athlete) -> PlayerSeasonStats? {
+        seasonStats[athlete.id]
+    }
+
+    /// Top players in each category, derived from `seasonStats` (so the board and
+    /// each player's page always agree). Top 3 with a non-zero value, ranked.
+    var teamLeaders: TeamLeaders {
+        guard let athletes = squad?.athletes, !seasonStats.isEmpty else {
+            return TeamLeaders(topScorers: [], topAssists: [], topCleanSheets: [])
+        }
+        return TeamLeaders(
+            topScorers: leaders(athletes) { $0.goals },
+            topAssists: leaders(athletes) { $0.assists },
+            topCleanSheets: leaders(athletes) { $0.cleanSheets }
+        )
+    }
+
+    /// Rank athletes by a stat, keep the top 3 with a value > 0.
+    private func leaders(_ athletes: [Athlete], by value: (PlayerSeasonStats) -> Int) -> [StatLeader] {
+        athletes
+            .compactMap { athlete -> StatLeader? in
+                guard let stats = seasonStats[athlete.id] else { return nil }
+                let v = value(stats)
+                guard v > 0 else { return nil }
+                return StatLeader(athleteID: athlete.id, name: athlete.shortName ?? athlete.name, value: v)
+            }
+            .sorted { $0.value > $1.value }
+            .prefix(3)
+            .map { $0 }
+    }
 
     private func message(for error: Error) -> String {
         switch error {

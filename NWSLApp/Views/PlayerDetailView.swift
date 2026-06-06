@@ -2,15 +2,15 @@
 //  PlayerDetailView.swift
 //  NWSLApp
 //
-//  Pushed when a player card in the Teams → Squad grid is tapped. The full
-//  player profile (per-player stats, season totals) is a future build — that
-//  data isn't in the endpoints we map yet — so this is an INTENTIONAL placeholder
-//  (flagged in the File Map), not a blank screen: it shows the bio we already
-//  have from the roster (jersey, position, age, height, nationality) and a clean
-//  "stats coming soon" panel so the tap lands somewhere deliberate.
+//  Pushed when a player card in the Teams → Squad grid is tapped. It shows the
+//  roster bio (jersey, position, age, height, nationality) and a season stat block
+//  (appearances, goals/assists or, for keepers, clean sheets/saves).
 //
-//  When the player-stats endpoint is mapped, the placeholder panel below becomes
-//  the real stats section; everything else here stays.
+//  The stat *numbers* come from ⚠️StatsProvider — a TEMP deterministic simulation,
+//  not a real per-player feed (ESPN's are sparse). They're stable per player and
+//  match the team-leaders board on TeamDetailView, which is derived from the same
+//  lines. When a real player-stats endpoint is mapped, pass real values in here;
+//  the layout doesn't change.
 //
 
 import SwiftUI
@@ -20,6 +20,9 @@ struct PlayerDetailView: View {
     /// The club's ESPN color hex, threaded down from TeamDetailView so the
     /// monogram matches the squad card the user tapped.
     let accentHex: String?
+    /// The player's season stats (⚠️TEMP simulated), threaded from TeamDetailView.
+    /// nil only in the brief window before the roster/stats finish loading.
+    let stats: PlayerSeasonStats?
 
     var body: some View {
         let accent = Color.teamAccent(hex: accentHex)
@@ -65,23 +68,9 @@ struct PlayerDetailView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
 
-                // Intentional placeholder — see file header.
-                VStack(spacing: 8) {
-                    Image(systemName: "chart.bar.xaxis")
-                        .font(.system(size: 32))
-                        .foregroundStyle(.secondary)
-                    Text("Player stats coming soon")
-                        .font(.headline)
-                    Text("Goals, assists, appearances and more will live here.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                if let stats {
+                    statsCard(stats)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 28)
-                .padding(.horizontal, 16)
-                .background(Color(.secondarySystemGroupedBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
             .padding()
         }
@@ -103,6 +92,52 @@ struct PlayerDetailView: View {
         return initials.isEmpty ? "—" : initials
     }
 
+    // The season stat block — keepers and outfield players show different lines.
+    // Styled to match the bio table directly above it.
+    private func statsCard(_ stats: PlayerSeasonStats) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("SEASON 2026")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            VStack(spacing: 0) {
+                let rows = statRows(stats)
+                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                    HStack {
+                        Text(row.label).foregroundStyle(.secondary)
+                        Spacer()
+                        Text(row.value).fontWeight(.semibold).monospacedDigit()
+                    }
+                    .font(.subheadline)
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 16)
+                    if index < rows.count - 1 { Divider() }
+                }
+            }
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func statRows(_ s: PlayerSeasonStats) -> [(label: String, value: String)] {
+        if s.isGoalkeeper {
+            return [
+                ("Appearances", "\(s.appearances)"),
+                ("Clean sheets", "\(s.cleanSheets)"),
+                ("Saves", "\(s.saves)"),
+                ("Goals against", "\(s.goalsAgainst)"),
+                ("Minutes", "\(s.minutes)"),
+            ]
+        }
+        return [
+            ("Appearances", "\(s.appearances)"),
+            ("Goals", "\(s.goals)"),
+            ("Assists", "\(s.assists)"),
+            ("Shots", "\(s.shots)"),
+            ("Minutes", "\(s.minutes)"),
+        ]
+    }
+
     // Only the bio fields ESPN actually gave us, in a stable order.
     private var bioRows: [(label: String, value: String)] {
         var rows: [(String, String)] = []
@@ -121,6 +156,10 @@ struct PlayerDetailView: View {
             id: "1", name: "Trinity Rodman", shortName: "T. Rodman", jersey: "2",
             positionName: "Forward", positionAbbreviation: "F",
             age: 23, displayHeight: "5' 8\"", citizenship: "USA"
-        ), accentHex: "C8102E")
+        ), accentHex: "C8102E", stats: PlayerSeasonStats(
+            athleteID: "1", appearances: 18, minutes: 1540,
+            goals: 9, assists: 4, shots: 41,
+            saves: 0, cleanSheets: 0, goalsAgainst: 0, isGoalkeeper: false
+        ))
     }
 }

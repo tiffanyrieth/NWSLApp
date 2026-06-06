@@ -11,9 +11,10 @@
 //  PlayerDetail has real content.
 //
 //  Rides the pushing tab's NavigationStack (no own stack), so the nav bar back
-//  button is the explicit back affordance. The jersey badge / video tile reuse
-//  the same TEMP treatment as the card (app accent, designed crest tile) — Home
-//  fetches no team color or per-post media; a content backend brings both.
+//  button is the explicit back affordance. The video hero loads the real YouTube
+//  thumbnail (spotlight.thumbnailURL, designed-crest-tile fallback), matching the
+//  card. The jersey badge is still TEMP (app accent — Home fetches no club color);
+//  a content backend brings the team color.
 //
 
 import SwiftUI
@@ -61,12 +62,7 @@ struct PlayerSpotlightView: View {
         } label: {
             VStack(alignment: .leading, spacing: 8) {
                 ZStack {
-                    LinearGradient(
-                        colors: [Color(.systemGray5), Color(.systemGray4)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    )
-                    TeamLogo(urlString: club?.logoURL, size: 72)
-                        .opacity(0.9)
+                    heroBackground
                     Image(systemName: "play.circle.fill")
                         .font(.system(size: 56))
                         .foregroundStyle(.white.opacity(0.95))
@@ -91,6 +87,34 @@ struct PlayerSpotlightView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    /// Real video frame when available, else the designed crest tile (also covers
+    /// AsyncImage's loading/failure phases).
+    @ViewBuilder
+    private var heroBackground: some View {
+        if let thumbnailURL = spotlight.thumbnailURL {
+            AsyncImage(url: thumbnailURL) { phase in
+                if let image = phase.image {
+                    image.resizable().scaledToFill()
+                } else {
+                    heroTile
+                }
+            }
+        } else {
+            heroTile
+        }
+    }
+
+    private var heroTile: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(.systemGray5), Color(.systemGray4)],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+            TeamLogo(urlString: club?.logoURL, size: 72)
+                .opacity(0.9)
+        }
     }
 
     // MARK: - Header (jersey badge + identity line)

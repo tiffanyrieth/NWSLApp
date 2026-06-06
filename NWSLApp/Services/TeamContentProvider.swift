@@ -5,26 +5,29 @@
 //  ⚠️ TEMP / SCAFFOLDING — curated static seed for Home's Module 1 ("From your
 //  teams").
 //
-//  WHAT: ~2 content items per club (all 16) representing each team's OWN channels
-//  — official YouTube, Instagram, TikTok, Bluesky. Every `url` is a REAL, durable
-//  account-level link (the team's actual channel/profile, verified for the 2026
-//  season incl. the Denver Summit / Boston Legacy expansion sides). Captions
-//  paraphrase the kind of content these accounts post (matchday hype, player
-//  features, behind-the-scenes, community) — they are illustrative, not scraped
-//  posts.
+//  WHAT: 2 content items per club (all 16) — each a REAL, recent video from the
+//  team's OWN official YouTube channel (verified for the 2026 season, incl. the
+//  Denver Summit / Boston Legacy expansion sides and the Chicago Stars rebrand).
+//  Every item carries the real `youTubeVideoID`, so the card loads the real
+//  YouTube thumbnail (img.youtube.com/vi/{id}/…) and the tap opens the actual
+//  video. Captions are the videos' real titles, lightly cleaned (sponsor tags /
+//  HTML entities trimmed).
 //
 //  WHY: Module 1 is the spec's hook — "content sweeps you in like an IG post."
-//  The app has no content backend yet, so this seed lets the module be fully
-//  functional and realistic for concept demos and for testing how Home looks
-//  across different team selections, mirroring how FeedContentProvider seeds the
-//  Feed tab.
+//  The app has no content backend yet, so this hand-picked seed lets the module
+//  be fully functional and realistic for concept demos and for testing how Home
+//  looks across different team selections, mirroring how FeedContentProvider
+//  seeds the Feed tab.
 //
 //  WHEN REMOVED: Replace `items()` with a real source — a team-channel aggregator
 //  (YouTube Data API / IG Graph / Bluesky firehose) or the planned caching proxy
 //  — returning the same `[TeamContentItem]`. The async signature is already shaped
-//  for it; the ViewModel/views don't change. A live source would also carry real
-//  per-post thumbnails (the seed renders a designed crest tile — see
-//  TeamContentCard) and real per-post deep links instead of channel-level URLs.
+//  for it; the ViewModel/views don't change. A live source would refresh this set
+//  continuously instead of pinning these specific videos.
+//
+//  NOTE: these are a fixed snapshot of real videos. They won't rotate or expire
+//  on their own; if a team deletes a video its thumbnail 404s and the card falls
+//  back to the designed crest tile (see TeamContentCard). Re-curate when stale.
 //
 
 import Foundation
@@ -40,118 +43,87 @@ struct TeamContentProvider {
         Date().addingTimeInterval(-h * 3600)
     }
 
-    private static func item(
-        _ id: String, _ abbr: String, _ platform: TeamContentItem.Platform,
-        _ hours: Double, _ caption: String, _ url: String, duration: String? = nil
+    /// Builds a YouTube content item. The tap URL and the thumbnail are both
+    /// derived from `videoID`, so the seed only needs the real id + real title +
+    /// real duration.
+    private static func video(
+        _ id: String, _ abbr: String, _ hours: Double,
+        caption: String, videoID: String, duration: String
     ) -> TeamContentItem {
         TeamContentItem(
-            id: id, teamAbbreviation: abbr, platform: platform,
+            id: id, teamAbbreviation: abbr, platform: .youtube,
             timestamp: hoursAgo(hours), caption: caption,
-            durationLabel: duration, url: URL(string: url)
+            durationLabel: duration,
+            url: URL(string: "https://www.youtube.com/watch?v=\(videoID)"),
+            youTubeVideoID: videoID
         )
     }
 
-    // Real, durable official account URLs (verified, 2026 season).
-    private static let yt: [String: String] = [
-        "LA":  "https://www.youtube.com/@AngelCityFC",
-        "BAY": "https://www.youtube.com/@WeAreBayFC",
-        "BOS": "https://www.youtube.com/@BostonLegacyFC",
-        "CHI": "https://www.youtube.com/chicagoredstarsnwsl",
-        "DEN": "https://www.youtube.com/channel/UC55HcqZQqqdnkjsWWrD01Wg",
-        "GFC": "https://www.youtube.com/channel/UCX5SydaP78jaqqcNx9ZrrtQ",
-        "HOU": "https://www.youtube.com/user/houstondash",
-        "KC":  "https://www.youtube.com/kccurrent",
-        "NC":  "https://www.youtube.com/c/NorthCarolinaCourage",
-        "ORL": "https://www.youtube.com/@ORLPride",
-        "POR": "https://www.youtube.com/user/PortlandThornsFC",
-        "LOU": "https://www.youtube.com/channel/UC3xOx0RR9rerRp20jJyHQdw",
-        "SD":  "https://www.youtube.com/@sandiegowavefc",
-        "SEA": "https://www.youtube.com/seattlereignfc",
-        "UTA": "https://www.youtube.com/@utahroyalsfc",
-        "WAS": "https://www.youtube.com/WashingtonSpirit",
-    ]
-    private static let ig: [String: String] = [
-        "LA":  "https://www.instagram.com/weareangelcity",
-        "BAY": "https://www.instagram.com/wearebayfc",
-        "BOS": "https://www.instagram.com/bostonlegacyfc",
-        "CHI": "https://www.instagram.com/thechicagostars",
-        "DEN": "https://www.instagram.com/denversummit_fc",
-        "GFC": "https://www.instagram.com/gothamfc",
-        "HOU": "https://www.instagram.com/houstondash",
-        "KC":  "https://www.instagram.com/kccurrent",
-        "NC":  "https://www.instagram.com/thenccourage",
-        "ORL": "https://www.instagram.com/orlpride",
-        "POR": "https://www.instagram.com/thornsfc",
-        "LOU": "https://www.instagram.com/racinglouisvillefc",
-        "SD":  "https://www.instagram.com/sandiegowavefc",
-        "SEA": "https://www.instagram.com/reignfc",
-        "UTA": "https://www.instagram.com/utahroyalsfc",
-        "WAS": "https://www.instagram.com/washingtonspirit",
-    ]
-
+    // Real, recent videos from each club's official YouTube channel (verified
+    // 2026 season). ids/titles/durations pulled live from each channel's feed.
     private static let seed: [TeamContentItem] = [
         // Angel City FC
-        item("LA-1", "LA", .youtube, 5, "Mic'd up: a forward's first goal of the season, told in her own words", yt["LA"]!, duration: "6:18"),
-        item("LA-2", "LA", .instagram, 14, "Pregame fits at BMO — rate the looks 🔥", ig["LA"]!),
+        video("LA-1", "LA", 5, caption: "Matchday Walkout Experience", videoID: "PJzN7vvV5es", duration: "1:05"),
+        video("LA-2", "LA", 14, caption: "Headphone Challenge with Hina Sugita and Jun Endo", videoID: "6-tUxTJJiZc", duration: "1:41"),
 
         // Bay FC
-        item("BAY-1", "BAY", .youtube, 8, "Inside training: finishing drills ahead of the road trip", yt["BAY"]!, duration: "4:47"),
-        item("BAY-2", "BAY", .instagram, 21, "A look around the Bay before kickoff 🌉", ig["BAY"]!),
+        video("BAY-1", "BAY", 8, caption: "Caroline Conti STRIKES against Orlando Pride", videoID: "FCt8ZY3xocY", duration: "0:34"),
+        video("BAY-2", "BAY", 21, caption: "Full Highlights | Bay FC at Orlando Pride", videoID: "iYm5ormS9qA", duration: "9:51"),
 
         // Boston Legacy FC
-        item("BOS-1", "BOS", .instagram, 3, "First home kits have landed. Welcome to the Legacy. 🟢", ig["BOS"]!),
-        item("BOS-2", "BOS", .youtube, 18, "Building a club from scratch: meet the inaugural squad", yt["BOS"]!, duration: "8:02"),
+        video("BOS-1", "BOS", 3, caption: "Aly Raisman Joins BLFC for Lunch", videoID: "Z6CPyFCVlJI", duration: "0:44"),
+        video("BOS-2", "BOS", 18, caption: "Cinematic Recap vs. Orlando Pride", videoID: "yQL7aDtSPRI", duration: "1:05"),
 
         // Chicago Stars FC
-        item("CHI-1", "CHI", .youtube, 7, "Locker room reaction after a hard-fought point on the road", yt["CHI"]!, duration: "3:29"),
-        item("CHI-2", "CHI", .instagram, 26, "Matchday at Wrigleyville-adjacent ⭐️ tap in", ig["CHI"]!),
+        video("CHI-1", "CHI", 7, caption: "Is it a Star? The squad plays our categories game 🌟", videoID: "dLiMB5XM8U4", duration: "1:05"),
+        video("CHI-2", "CHI", 26, caption: "Match Highlights | Chicago Stars FC @ Bay FC", videoID: "0OyyhjYaTOo", duration: "5:01"),
 
         // Denver Summit FC
-        item("DEN-1", "DEN", .instagram, 4, "Altitude advantage. First season, new heights. ⛰️", ig["DEN"]!),
-        item("DEN-2", "DEN", .youtube, 16, "Expansion diaries: building the Summit from day one", yt["DEN"]!, duration: "7:33"),
+        video("DEN-1", "DEN", 4, caption: "A behind-the-scenes look at training with our GK union 👀", videoID: "p0cvf5-1h3Y", duration: "1:30"),
+        video("DEN-2", "DEN", 16, caption: "Our first-ever signing scoring her first goal for Denver 🤩", videoID: "3okXVjSj5IE", duration: "0:13"),
 
         // Gotham FC
-        item("GFC-1", "GFC", .youtube, 6, "Behind the scenes: a clean sheet on the road", yt["GFC"]!, duration: "5:11"),
-        item("GFC-2", "GFC", .instagram, 19, "Saturday in the city. You coming? 🗽", ig["GFC"]!),
+        video("GFC-1", "GFC", 6, caption: "Our Game: Mandy Freeman ⚽️", videoID: "RPKsT9WS8nU", duration: "1:16"),
+        video("GFC-2", "GFC", 19, caption: "Extended Match Highlights: Gotham FC 1, Houston Dash 0", videoID: "leMYHlckK2I", duration: "10:00"),
 
         // Houston Dash
-        item("HOU-1", "HOU", .instagram, 9, "Sunset training session at Shell Energy 🧡", ig["HOU"]!),
-        item("HOU-2", "HOU", .youtube, 30, "Get to know the new signings — three things you didn't know", yt["HOU"]!, duration: "4:05"),
+        video("HOU-1", "HOU", 9, caption: "All Angles | Kat Rader's precise strike", videoID: "khgdvraSRkY", duration: "0:22"),
+        video("HOU-2", "HOU", 30, caption: "Jane Campbell reflects on 200 appearances", videoID: "1dnzKA8NghA", duration: "2:24"),
 
         // Kansas City Current
-        item("KC-1", "KC", .youtube, 5, "CPKC Stadium walkout — the view that never gets old", yt["KC"]!, duration: "2:54"),
-        item("KC-2", "KC", .instagram, 23, "Teal takeover. Another sellout on the river. 💙", ig["KC"]!),
+        video("KC-1", "KC", 5, caption: "Mic'd Up: Chiefs Rookies at the KC Current Match", videoID: "cJMSF_oajX0", duration: "1:36"),
+        video("KC-2", "KC", 23, caption: "\"I Am Loved\" | Katie Scott", videoID: "U0J32Tl9irA", duration: "1:52"),
 
         // North Carolina Courage
-        item("NC-1", "NC", .youtube, 10, "Tactics cam: breaking down the high press in slow motion", yt["NC"]!, duration: "6:40"),
-        item("NC-2", "NC", .instagram, 28, "Cary, we're home this weekend. Bring the noise. 🐾", ig["NC"]!),
+        video("NC-1", "NC", 10, caption: "The Courage Within with Ally Schlegel", videoID: "j5NcGy3_WQc", duration: "2:39"),
+        video("NC-2", "NC", 28, caption: "Highlights: NC Courage vs. Racing Louisville", videoID: "02r9b1w6fg0", duration: "0:34"),
 
         // Orlando Pride
-        item("ORL-1", "ORL", .instagram, 6, "Pride night at Inter&Co — the city lit up purple 💜", ig["ORL"]!),
-        item("ORL-2", "ORL", .youtube, 22, "Champions mentality: a defender on holding the back line together", yt["ORL"]!, duration: "5:48"),
+        video("ORL-1", "ORL", 6, caption: "Sights & Sounds | Orlando Pride vs Bay FC", videoID: "gxFfPHB0hxU", duration: "1:36"),
+        video("ORL-2", "ORL", 22, caption: "Highlights | Orlando Pride 3, Bay FC 1", videoID: "esVAz-OG1Kw", duration: "9:51"),
 
         // Portland Thorns FC
-        item("POR-1", "POR", .youtube, 7, "The Rose City roar — walking out at Providence Park", yt["POR"]!, duration: "3:12"),
-        item("POR-2", "POR", .instagram, 25, "Thorns 'til I die. Matchday, Rose City. 🌹", ig["POR"]!),
+        video("POR-1", "POR", 7, caption: "The Recap: Thorns avenge loss to San Diego at home", videoID: "_37ruj00IQw", duration: "3:14"),
+        video("POR-2", "POR", 25, caption: "Match Highlights | Thorns vs Utah Royals FC", videoID: "De-4nGTGuqM", duration: "10:01"),
 
         // Racing Louisville FC
-        item("LOU-1", "LOU", .instagram, 11, "Lynn Family Stadium under the lights ⚡️", ig["LOU"]!),
-        item("LOU-2", "LOU", .youtube, 33, "Young core, big dreams: a midfielder on finding her feet", yt["LOU"]!, duration: "4:21"),
+        video("LOU-1", "LOU", 11, caption: "Can you pull your number?", videoID: "mcxIbVmHoVw", duration: "2:03"),
+        video("LOU-2", "LOU", 33, caption: "Highlights: Denver Summit FC 1, Racing Louisville FC 0", videoID: "axHx4nTSHEc", duration: "9:59"),
 
         // San Diego Wave FC
-        item("SD-1", "SD", .youtube, 4, "Beach day with the squad — recovery, SoCal style 🌊", yt["SD"]!, duration: "5:02"),
-        item("SD-2", "SD", .instagram, 20, "Snapdragon sunset. Wave fam, pull up. 💙", ig["SD"]!),
+        video("SD-1", "SD", 4, caption: "Wave Sounds | 2-0 Win at Chicago Stars FC", videoID: "qI3vFXoOEQk", duration: "4:33"),
+        video("SD-2", "SD", 20, caption: "Highlights | San Diego Wave FC at Chicago Stars FC", videoID: "Gr5RS9q3o90", duration: "10:00"),
 
         // Seattle Reign FC
-        item("SEA-1", "SEA", .instagram, 8, "Rain or shine, Seattle shows up ☔️ tap in", ig["SEA"]!),
-        item("SEA-2", "SEA", .youtube, 27, "Mic'd up at Lumen — keeper edition", yt["SEA"]!, duration: "6:55"),
+        video("SEA-1", "SEA", 8, caption: "GOAL: Maddie Mercado forces a Spirit own goal", videoID: "1JwgDxClwPA", duration: "0:59"),
+        video("SEA-2", "SEA", 27, caption: "Highlights: Seattle Reign at Washington Spirit", videoID: "TuC9lhkY9nw", duration: "15:00"),
 
         // Utah Royals
-        item("UTA-1", "UTA", .youtube, 5, "Top of the table: the unbeaten run, told by the players", yt["UTA"]!, duration: "7:09"),
-        item("UTA-2", "UTA", .instagram, 24, "America First Field is rocking 👑 matchday in Utah", ig["UTA"]!),
+        video("UTA-1", "UTA", 5, caption: "Utah Royals vs Utah City Names!", videoID: "CzlPKyGe1eI", duration: "1:45"),
+        video("UTA-2", "UTA", 24, caption: "URFC Match Highlights: May 30, 2026", videoID: "4hsaTOQ1Myo", duration: "3:41"),
 
         // Washington Spirit
-        item("WAS-1", "WAS", .instagram, 3, "Audi Field is sold out again. Spirit til the end. 🔵", ig["WAS"]!),
-        item("WAS-2", "WAS", .youtube, 17, "Get to know the rookie class — rapid-fire Q&A", yt["WAS"]!, duration: "4:38"),
+        video("WAS-1", "WAS", 3, caption: "The fastest brace in NWSL history! 🥳", videoID: "IdSPrFaTxco", duration: "0:29"),
+        video("WAS-2", "WAS", 17, caption: "Spirit vs Reign Match Highlights", videoID: "0jsXURRN0U0", duration: "10:06"),
     ]
 }

@@ -23,6 +23,11 @@ final class FollowingStore {
     /// through `toggle(_:)` so persistence always stays in sync.
     private(set) var followedIDs: Set<String>
 
+    /// Followed international competition IDs (Competition.id slugs). A separate
+    /// set from clubs because they're a different kind of thing with a different
+    /// source (a curated list, not ESPN's /teams). Persisted the same way.
+    private(set) var followedCompetitionIDs: Set<String>
+
     /// Whether the user has been through the first-open onboarding ("Make it
     /// yours" team picker). Drives whether Home shows onboarding or the hub.
     /// Persisted so it survives launches — onboarding is a one-time gate.
@@ -30,6 +35,7 @@ final class FollowingStore {
 
     private let defaults: UserDefaults
     private let storageKey = "followedClubIDs"
+    private let competitionsKey = "followedCompetitionIDs"
     private let onboardedKey = "hasOnboarded"
 
     /// `defaults` is injectable so tests (and previews) can use an isolated
@@ -38,6 +44,7 @@ final class FollowingStore {
         self.defaults = defaults
         let saved = defaults.stringArray(forKey: storageKey) ?? []
         self.followedIDs = Set(saved)
+        self.followedCompetitionIDs = Set(defaults.stringArray(forKey: competitionsKey) ?? [])
         // Treat anyone who already follows a club as onboarded, so existing
         // users (and seeded simulators) don't get sent back through the picker.
         self.hasOnboarded = defaults.bool(forKey: onboardedKey) || !saved.isEmpty
@@ -55,6 +62,21 @@ final class FollowingStore {
             followedIDs.insert(club.id)
         }
         defaults.set(Array(followedIDs), forKey: storageKey)
+    }
+
+    func isFollowing(_ competition: FollowedCompetition) -> Bool {
+        followedCompetitionIDs.contains(competition.id)
+    }
+
+    /// Follow/unfollow a competition; persists either way. Mirrors `toggle(_:)`
+    /// for clubs so the onboarding rows behave identically.
+    func toggle(_ competition: FollowedCompetition) {
+        if followedCompetitionIDs.contains(competition.id) {
+            followedCompetitionIDs.remove(competition.id)
+        } else {
+            followedCompetitionIDs.insert(competition.id)
+        }
+        defaults.set(Array(followedCompetitionIDs), forKey: competitionsKey)
     }
 
     /// Mark onboarding finished (the "Follow N teams" button). One-way: once

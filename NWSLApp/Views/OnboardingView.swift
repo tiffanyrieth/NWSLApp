@@ -96,25 +96,15 @@ struct OnboardingView: View {
     }
 
     // Collapsed-by-default international competitions — invisible to new fans,
-    // zero friction. TEMP (placeholder): the rows are intentional "coming soon"
-    // markers, NOT wired to follow, because FollowingStore tracks club IDs only.
-    // Following competitions needs its own data model (a Competition type + a
-    // follow set) — build that, then make these toggle like the club rows.
+    // zero friction. The rows are real follow toggles (mirroring the club rows),
+    // backed by FollowingStore.followedCompetitionIDs. Following one is remembered
+    // but doesn't change the Schedule yet (it's NWSL-only) — that's the larger
+    // competition-aware-schedule work in CLAUDE.md's What's-Next.
     private var internationalSection: some View {
         Section {
             DisclosureGroup(isExpanded: $showCompetitions) {
-                ForEach(internationalCompetitions, id: \.self) { name in
-                    HStack(spacing: 12) {
-                        Image(systemName: "globe")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 32)
-                        Text(name)
-                            .foregroundStyle(.secondary)
-                        Spacer(minLength: 8)
-                        Text("Coming soon")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
+                ForEach(FollowedCompetition.all) { competition in
+                    competitionRow(competition)
                 }
             } label: {
                 Label("Also follow international competitions", systemImage: "globe")
@@ -122,12 +112,27 @@ struct OnboardingView: View {
         }
     }
 
-    private let internationalCompetitions = [
-        "USWNT",
-        "CONCACAF W Champions League",
-        "Women's World Cup",
-        "Another national team",
-    ]
+    private func competitionRow(_ competition: FollowedCompetition) -> some View {
+        let isFollowing = following.isFollowing(competition)
+        return Button {
+            following.toggle(competition)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: competition.systemImage)
+                    .foregroundStyle(isFollowing ? Color.accentColor : Color.secondary)
+                    .frame(width: 32)
+                Text(competition.name)
+                    .foregroundStyle(.primary)
+                Spacer(minLength: 8)
+                Image(systemName: isFollowing ? "checkmark.circle.fill" : "circle")
+                    .imageScale(.large)
+                    .foregroundStyle(isFollowing ? Color.accentColor : Color.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isFollowing ? "Unfollow \(competition.name)" : "Follow \(competition.name)")
+    }
 
     private var bottomBar: some View {
         VStack(spacing: 6) {

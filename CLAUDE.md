@@ -186,7 +186,7 @@ NWSLApp/
 │   ├── Roster.swift                   — squad + team profile from one roster fetch
 │   ├── Scoreboard.swift               — ESPN scoreboard structs + Event helpers
 │   ├── Standings.swift                — table rows (rank + Club + GP/W/D/L/PTS)
-│   ├── TeamContentItem.swift          — ⚠️ Home Module-1 team-channel post
+│   ├── TeamContentItem.swift          — ⚠️ Home Module-1 video post (+ YT thumbnail URL)
 │   ├── TeamSocialLinks.swift          — ⚠️ per-team social links for TeamDetail
 │   └── TriviaQuestion.swift           — ⚠️ one Daily-Trivia question (4 options)
 ├── Services/                          — ESPNService + ⚠️ curated async seed providers
@@ -196,7 +196,7 @@ NWSLApp/
 │   ├── PlayerSpotlightProvider.swift  — ⚠️ one spotlight player per club (16)
 │   ├── PredictionMatchProvider.swift  — ⚠️ Predict-the-XI seed (open + settled)
 │   ├── StatsProvider.swift            — ⚠️ deterministic simulated per-player stats
-│   ├── TeamContentProvider.swift      — ⚠️ Module-1 team-channel seed (~2/club)
+│   ├── TeamContentProvider.swift      — ⚠️ Module-1 seed: 2 real YouTube videos/club
 │   ├── TeamSocialLinksProvider.swift  — ⚠️ per-team social-account URLs seed
 │   └── TriviaQuestionProvider.swift   — ⚠️ 55 hand-written NWSL trivia questions
 ├── Stores/                            — @Observable shared state → UserDefaults, injected
@@ -238,7 +238,7 @@ NWSLApp/
 │   ├── PlayerCard.swift               — Squad-grid card; team-color monogram + position
 │   ├── PlayerSpotlightCard.swift      — ⚠️ Module-2 player-of-week card
 │   ├── SocialLinkButton.swift         — circular team-tinted social icon; opens account
-│   ├── TeamContentCard.swift          — ⚠️ Module-1 16:9 thumbnail + attribution
+│   ├── TeamContentCard.swift          — ⚠️ Module-1 real YT thumbnail (crest-tile fallback) + attribution
 │   └── TeamLogo.swift                 — AsyncImage crest (no cache yet — What's-Next #1)
 ├── Extensions/
 │   └── Color+Hex.swift                — teamAccent(hex:) → (fill, legible on-color)
@@ -261,7 +261,9 @@ under memory pressure), then removed → gitignored `Reference/Design/*-verifica
 `OnboardingView` in place. Four modules — (1) "From your teams" content, (2) player
 spotlights (one/followed team), (3) "Play" games, (4) "Coming up" fixtures — all
 DERIVED by `HomeViewModel` from `MatchStore` + `FollowingStore`. Modules 1–2 on
-⚠️seeds; no-follows re-presents the picker.
+⚠️seeds; no-follows re-presents the picker. Module 1's ⚠️seed is 2 real, recent
+videos per club from each team's official YouTube — cards load the real frame
+(`img.youtube.com/vi/{id}/…`, crest-tile fallback) and tap straight to the video.
 
 **Play games** (`games-design-spec.md`) — all three built, each with its own color
 + ⚠️seed + session VM + durable `…Store`: **Daily Trivia** (indigo), **Bracket
@@ -333,12 +335,15 @@ here. Original item numbers are kept so existing cross-references stay valid.
 - **(Data/Verify) Team social links** — ⚠️`TeamSocialLinksProvider` curated seed;
   verify before ship. Reddit needs a browser check — **KC** (`r/KCCurrent`, low
   confidence), **CHI** (`r/redstars` vs post-rebrand `r/ChicagoStars`); **BOS/DEN/
-  LOU** have no subreddit yet (no Reddit icon). YT/IG URLs duplicate
-  `TeamContentProvider` — collapse when the real backend lands.
+  LOU** have no subreddit yet (no Reddit icon). YT/IG channel URLs overlap the
+  teams `TeamContentProvider` points at — collapse when the real backend lands.
 - **Follow-confirmation sheet** — first-time "what following buys you" on the
   header star. No Settings screen exists yet (adjusting follows post-onboarding).
-- **Home Module 1** — build the "See all" destination; replace
-  ⚠️`TeamContentProvider` with a real team-channel source (thumbnails + deep links).
+- **Home Module 1** — thumbnails + deep links are now real (⚠️`TeamContentProvider`
+  is a curated seed of real YouTube videos; cards load real frames + tap to the
+  video). Remaining: build the "See all" destination, and swap the static seed for
+  a live team-channel source that refreshes (these specific videos won't rotate or
+  re-fetch on their own — a deleted video falls back to the crest tile).
 - **Home Module 2 spotlight pipeline** — UI done; needs real thumbnails/durations,
   a deeper per-team pool (weekly rotation cycles a full roster), the opt-in weekly
   notification, and a team-colored badge (needs club hex).

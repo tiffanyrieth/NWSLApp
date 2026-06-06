@@ -27,11 +27,14 @@
 //  2026 snapshot; nil where genuinely uncertain. Treat as curated demo content to
 //  be editorially re-verified, not a live source of truth.
 //
+//  Thumbnails are real: each YouTube `videoID` also yields the card/hero frame
+//  (img.youtube.com/vi/{id}/…, via PlayerSpotlight.thumbnailURL).
+//
 //  WHEN REMOVED: replace `spotlights()` with a real source (a curated editorial
 //  feed or the planned proxy / AI-tagging layer — spec §"Content pipeline")
-//  returning the same `[PlayerSpotlight]`, ideally with per-player content links,
-//  real thumbnails + durations, and the club color for a team-colored badge. The
-//  async signature is already shaped for it; the ViewModel/views don't change.
+//  returning the same `[PlayerSpotlight]`, ideally with per-player content links
+//  and the club color for a team-colored badge. The async signature is already
+//  shaped for it; the ViewModel/views don't change.
 //
 
 import Foundation
@@ -55,6 +58,7 @@ struct PlayerSpotlightProvider {
             position: position,
             bioBlurb: bio,
             videoURL: videoID.flatMap { URL(string: "https://www.youtube.com/watch?v=\($0)") },
+            youTubeVideoID: videoID,
             videoTitle: videoTitle,
             videoSource: videoSource,
             nationality: nationality,

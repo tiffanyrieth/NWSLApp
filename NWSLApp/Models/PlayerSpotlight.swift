@@ -44,14 +44,26 @@ struct PlayerSpotlight: Identifiable {
     // page is bio-only.
 
     let videoURL: URL?
+    /// The YouTube video id backing `videoURL` — drives `thumbnailURL`. Nil for a
+    /// written-only profile (no video). The seed's videos are all YouTube, so this
+    /// is set whenever `videoURL` is; a non-YouTube source would leave it nil and
+    /// the card/hero falls back to the designed crest tile.
+    let youTubeVideoID: String?
     /// Real video title, e.g. "Mic'd Up with Messiah Bright".
     let videoTitle: String?
     /// Where the video lives, for honest attribution ("Houston Dash",
     /// "The Women's Game", "Victory+") — shown as "via …".
     let videoSource: String?
-    // NOTE: no duration field — YouTube doesn't expose runtime to our seed's
-    // research path, so a faked badge would be dishonest. Add a real
-    // `videoDuration` when a content backend (or the planned proxy) provides it.
+    // NOTE: no duration field — the spotlight card/hero doesn't show a runtime
+    // badge (unlike Module 1's TeamContentCard), so the seed doesn't carry one.
+
+    /// Public 16:9 thumbnail for the card and the detail hero, built from the
+    /// YouTube video id. `hqdefault.jpg` is the durable frame YouTube serves for a
+    /// valid id. Nil for written-only profiles (then: the designed crest tile).
+    var thumbnailURL: URL? {
+        guard let id = youTubeVideoID else { return nil }
+        return URL(string: "https://img.youtube.com/vi/\(id)/hqdefault.jpg")
+    }
 
     // MARK: Extended profile (spec §Tap-through — the detail page)
 

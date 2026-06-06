@@ -8,12 +8,13 @@
 //  timestamp), the caption, and a "via YouTube/Instagram/…" source tag. The whole
 //  card opens the team's channel/profile (Environment openURL), like FeedCard.
 //
-//  TEMP (no media backend): the thumbnail is a DESIGNED placeholder — the team
-//  crest on a neutral gradient with a play badge / duration / platform glyph — not
-//  a fetched image. The seed (TeamContentProvider) uses durable account-level URLs
-//  that expose no per-post image; when a real content source lands, swap in a real
-//  thumbnail URL here (an AsyncImage over `item.thumbnailURL`) and the rest of the
-//  card is unchanged.
+//  Thumbnail: YouTube items load their real frame via AsyncImage over
+//  `item.thumbnailURL` (built from the video id). While it loads — or for items
+//  with no video id, or if the image fails — the card falls back to a DESIGNED
+//  tile: the team crest on a neutral gradient. The play badge / duration /
+//  platform glyph overlay sits on top of whichever background is shown. When a
+//  real content backend lands, only TeamContentProvider changes; this view does
+//  not.
 //
 
 import SwiftUI
@@ -50,9 +51,37 @@ struct TeamContentCard: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - Thumbnail (designed placeholder — see file note)
+    // MARK: - Thumbnail (real YouTube frame, designed-tile fallback — see file note)
 
     private var thumbnail: some View {
+        ZStack {
+            thumbnailBackground
+            thumbnailOverlay
+        }
+        .frame(height: 168)
+        .frame(maxWidth: .infinity)
+        .clipped()
+    }
+
+    /// The real video frame when available, else the designed crest tile. The
+    /// tile also covers the AsyncImage's loading and failure phases.
+    @ViewBuilder
+    private var thumbnailBackground: some View {
+        if let thumbnailURL = item.thumbnailURL {
+            AsyncImage(url: thumbnailURL) { phase in
+                if let image = phase.image {
+                    image.resizable().scaledToFill()
+                } else {
+                    designedTile
+                }
+            }
+        } else {
+            designedTile
+        }
+    }
+
+    /// Crest on a neutral gradient — the placeholder/fallback look.
+    private var designedTile: some View {
         ZStack {
             LinearGradient(
                 colors: [Color(.systemGray5), Color(.systemGray4)],
@@ -60,13 +89,19 @@ struct TeamContentCard: View {
             )
             TeamLogo(urlString: club?.logoURL, size: 56)
                 .opacity(0.9)
+        }
+    }
+
+    /// Play badge (center) + platform glyph (top-left) + duration (bottom-right),
+    /// drawn over whichever background is shown.
+    private var thumbnailOverlay: some View {
+        ZStack {
             if item.platform.isVideo {
                 Image(systemName: "play.circle.fill")
                     .font(.system(size: 44))
                     .foregroundStyle(.white.opacity(0.9))
                     .shadow(radius: 4)
             }
-            // Platform glyph (top-left) + duration (bottom-right).
             VStack {
                 HStack {
                     platformGlyph
@@ -88,9 +123,6 @@ struct TeamContentCard: View {
             }
             .padding(8)
         }
-        .frame(height: 168)
-        .frame(maxWidth: .infinity)
-        .clipped()
     }
 
     private var platformGlyph: some View {

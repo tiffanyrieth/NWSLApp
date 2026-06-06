@@ -14,11 +14,12 @@
 //  Written-only spotlights (no video) hide the thumbnail and show a "Read full
 //  profile" cue instead.
 //
-//  TEMP (no team-color source on Home): the jersey badge uses the app accent
-//  (Color.teamAccent(hex: nil)) and the thumbnail is a DESIGNED crest tile, not a
-//  fetched image — Home fetches neither rosters (for the club color) nor per-post
-//  media. When a content backend lands, pass the club hex for a true team-colored
-//  badge and swap the tile for a real AsyncImage thumbnail.
+//  Thumbnail: loads the real YouTube frame via AsyncImage over
+//  `spotlight.thumbnailURL`, falling back to a DESIGNED crest tile while it loads,
+//  on failure, or for a written-only profile (no video). The jersey badge is still
+//  TEMP — it uses the app accent (Color.teamAccent(hex: nil)) because Home fetches
+//  no roster/club color; pass the club hex for a true team-colored badge when a
+//  content backend lands.
 //
 
 import SwiftUI
@@ -111,12 +112,7 @@ struct PlayerSpotlightCard: View {
 
     private var thumbnail: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(.systemGray5), Color(.systemGray4)],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-            TeamLogo(urlString: club?.logoURL, size: 56)
-                .opacity(0.9)
+            thumbnailBackground
             Image(systemName: "play.circle.fill")
                 .font(.system(size: 44))
                 .foregroundStyle(.white.opacity(0.9))
@@ -126,6 +122,34 @@ struct PlayerSpotlightCard: View {
         .frame(maxWidth: .infinity)
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    /// Real video frame when available, else the designed crest tile (also covers
+    /// AsyncImage's loading/failure phases).
+    @ViewBuilder
+    private var thumbnailBackground: some View {
+        if let thumbnailURL = spotlight.thumbnailURL {
+            AsyncImage(url: thumbnailURL) { phase in
+                if let image = phase.image {
+                    image.resizable().scaledToFill()
+                } else {
+                    designedTile
+                }
+            }
+        } else {
+            designedTile
+        }
+    }
+
+    private var designedTile: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(.systemGray5), Color(.systemGray4)],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+            TeamLogo(urlString: club?.logoURL, size: 56)
+                .opacity(0.9)
+        }
     }
 
     // MARK: - Written-only cue (no video)

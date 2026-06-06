@@ -2,77 +2,51 @@
 //  FeedSourcesView.swift
 //  NWSLApp
 //
-//  The Feed tab's settings-gear sheet — "reserves the spot for source
-//  management" (design spec). It shows the curated default sources the Feed
-//  pulls from today and marks the not-yet-built management actions (add your own
-//  accounts, mute sources, content-mix preferences) as intentional placeholders.
+//  The Feed tab's settings-gear sheet — content preferences. Two working,
+//  persisted controls (backed by FeedPreferencesStore, shared with the Feed):
+//   • SHOW IN FEED — toggle reporter posts / article links on or off.
+//   • SOURCES — the reporters/outlets powering the Feed today, each with a switch
+//     to hide (mute) it from the list.
 //
-//  INTENTIONAL PLACEHOLDER: the rows are read-only and "Add a source" is disabled
-//  because there's no content backend yet (the Feed runs on a TEMP curated seed —
-//  see FeedContentProvider). When a real source pipeline lands, this becomes the
-//  live source manager. It looks deliberate, not forgotten, per the UI rules.
+//  Both filter the live Feed immediately. The sources list is derived from the
+//  actual Feed items (FeedViewModel.sources()), so muting maps exactly to what's
+//  shown. ("Add your own source" needs a real content backend — the Feed runs on
+//  a TEMP curated seed today — so it isn't offered; see CLAUDE.md What's-Next.)
 //
 
 import SwiftUI
 
 struct FeedSourcesView: View {
-    @Environment(\.dismiss) private var dismiss
+    /// The distinct sources powering the Feed, passed in from FeedViewModel.
+    let sources: [FeedViewModel.Source]
 
-    /// The curated reporters/outlets the seed currently draws from. Keeps this
-    /// screen honest about what's powering the Feed today.
-    private let defaultSources: [(name: String, detail: String, symbol: String)] = [
-        ("The Athletic", "NWSL beat coverage", "newspaper.fill"),
-        ("ESPN", "NWSL news & analysis", "newspaper.fill"),
-        ("The Equalizer", "Women's soccer coverage", "newspaper.fill"),
-        ("Just Women's Sports", "Women's sports news", "newspaper.fill"),
-        ("Meg Linehan", "@meglinehan · The Athletic", "at"),
-        ("Jeff Kassouf", "@jeffkassouf · ESPN / The Equalizer", "at"),
-        ("Steph Yang", "@stephyang · The Athletic", "at"),
-        ("Sandra Herrera", "@sandraherrera · CBS Sports", "at"),
-        ("Jenna Tonelli", "@jennatonelli · Sports Illustrated", "at"),
-        ("Claire Watkins", "@clairewatkins · Just Women's Sports", "at"),
-    ]
+    @Environment(\.dismiss) private var dismiss
+    @Environment(FeedPreferencesStore.self) private var preferences
 
     var body: some View {
-        NavigationStack {
+        @Bindable var prefs = preferences
+        return NavigationStack {
             List {
                 Section {
-                    ForEach(defaultSources, id: \.name) { source in
-                        HStack(spacing: 12) {
-                            Image(systemName: source.symbol)
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 30, height: 30)
-                                .background(source.symbol == "at" ? Color.blue : Color.secondary)
-                                .clipShape(Circle())
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(source.name)
-                                    .font(.subheadline.weight(.semibold))
-                                Text(source.detail)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(.vertical, 2)
-                    }
+                    Toggle("Reporter posts", isOn: $prefs.showReporterPosts)
+                    Toggle("Article links", isOn: $prefs.showArticleLinks)
                 } header: {
-                    Text("Curated sources")
+                    Text("Show in feed")
                 } footer: {
-                    Text("These NWSL reporters and outlets power your Feed today.")
+                    Text("Choose which kinds of content appear in your Feed.")
                 }
 
                 Section {
-                    Label("Add a source", systemImage: "plus.circle")
-                        .foregroundStyle(.secondary)
-                    Label("Content preferences", systemImage: "slider.horizontal.3")
-                        .foregroundStyle(.secondary)
+                    ForEach(sources) { source in
+                        sourceRow(source, prefs: prefs)
+                    }
                 } header: {
-                    Text("Coming soon")
+                    Text("Sources")
                 } footer: {
-                    Text("Soon you'll be able to add your own reporter accounts, mute sources, and tune the mix of posts vs. articles.")
+                    Text("These NWSL reporters and outlets power your Feed. Turn one off to hide it.")
                 }
             }
-            .navigationTitle("Sources")
+            .navigationTitle("Content preferences")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -81,8 +55,30 @@ struct FeedSourcesView: View {
             }
         }
     }
+
+    private func sourceRow(_ source: FeedViewModel.Source, prefs: FeedPreferencesStore) -> some View {
+        // The toggle reads as "shown": on = visible, off = muted. Bridges to the
+        // store's muted set (the inverse) so persistence stays the source of truth.
+        let shown = Binding(
+            get: { !prefs.isMuted(source.name) },
+            set: { prefs.setMuted(source.name, !$0) }
+        )
+        return Toggle(isOn: shown) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(source.name)
+                    .font(.subheadline.weight(.semibold))
+                Text(source.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
 }
 
 #Preview {
-    FeedSourcesView()
+    FeedSourcesView(sources: [
+        FeedViewModel.Source(name: "The Athletic", detail: "The Athletic"),
+        FeedViewModel.Source(name: "Meg Linehan", detail: "@meglinehan"),
+    ])
+    .environment(FeedPreferencesStore())
 }

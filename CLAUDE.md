@@ -249,74 +249,56 @@ NWSLApp/
 
 ## Current State
 
-Root is `RootTabView` — a 5-tab bottom bar (**Home · Schedule · Standings ·
-Teams · Feed**), each tab in its own `NavigationStack`; the app **lands on
-Home**. All five tabs are built (no placeholder; `ComingSoonView` deleted).
-`Feed` (not `News`) signals the social-native direction. Following persists via
-`UserDefaults` (`FollowingStore`); SwiftData is used **nowhere**. Each feature
-below is built per its `Reference/Design/*-spec.md` (approved in Cowork sessions)
-and **verified in-sim** via a temporary launch-env/deep-link scaffold driving
-deterministic screenshots (UI taps flake under memory pressure), then removed;
-screenshots live in gitignored `Reference/Design/*-verification/` folders.
+Root is `RootTabView` — a 5-tab bar (**Home · Schedule · Standings · Teams ·
+Feed**), each tab its own `NavigationStack`; the app **lands on Home**. All five
+tabs built. Following persists via `UserDefaults` (`FollowingStore`); SwiftData is
+used **nowhere**. Each feature is built per its `Reference/Design/*-spec.md`
+(approved in Cowork sessions) and **verified in-sim** via a temporary
+launch-env/deep-link scaffold driving deterministic screenshots (UI taps flake
+under memory pressure), then removed → gitignored `Reference/Design/*-verification/`.
 
-**Home — the your-teams-first hub** (`home-tab-design-spec.md`, content-leads
-order). Pre-onboarding renders `OnboardingView` in place (tab bar stays visible).
-A `ScrollView` of modules: (1) "From your teams" TeamContentCards; (2) "Get to
-know your players" one PlayerSpotlightCard/followed team; (3) "Play" game row; (4)
-"Coming up" ComingUpRow/club. `HomeViewModel` derives every module from the shared
-`MatchStore` + `FollowingStore` after one `loadClubs()` pass. Modules 1–2 run on
-TEMP seeds; no-follows re-presents the picker as a sheet.
+**Home** (`home-tab-design-spec.md`) — your-teams-first hub; pre-onboarding renders
+`OnboardingView` in place. Four modules — (1) "From your teams" content, (2) player
+spotlights (one/followed team), (3) "Play" games, (4) "Coming up" fixtures — all
+DERIVED by `HomeViewModel` from `MatchStore` + `FollowingStore`. Modules 1–2 on
+⚠️seeds; no-follows re-presents the picker.
 
-**Play games** (Module 3 "Play"; `games-design-spec.md`) — all three built, no
-placeholder. Each has its own color, ⚠️seed provider, session VM, and durable
-`…Store`; full mechanics in the File Map view entries. **Daily Trivia** (indigo),
-**Bracket Battle** (teal — deterministic seed-weighted "community" sim), **Predict
-the XI** (pink — kickoff = offset-from-now so the demo always shows OPEN+SETTLED).
-All verified in-sim (scaffolds since removed).
+**Play games** (`games-design-spec.md`) — all three built, each with its own color
++ ⚠️seed + session VM + durable `…Store`: **Daily Trivia** (indigo), **Bracket
+Battle** (teal — deterministic seed-weighted "community" sim), **Predict the XI**
+(pink — kickoff = offset-from-now so the demo always shows OPEN+SETTLED).
 
-**Player Spotlight** (Module 2; `spotlight-design-spec.md`). One Option-B
-mini-profile per followed team → narrative `PlayerSpotlightView`.
-⚠️`PlayerSpotlightProvider` seeds all 16 (bios + oembed-verified videos;
-Mondésir/SEA written-only fallback); `HomeViewModel.spotlights(following:)` rotates
-one player per team weekly.
+**Player Spotlight** (`spotlight-design-spec.md`) — one mini-profile/followed team
+→ narrative `PlayerSpotlightView`; ⚠️`PlayerSpotlightProvider` seeds all 16
+(Mondésir/SEA is the written-only fallback), rotated weekly.
 
-**Feed — the world talking about your teams** (`feed-tab-design-spec.md`).
-Reporters + news filtered to followed teams; distinct from Home Module 1.
-`FeedView`: title + settings gear (→ `FeedSourcesView`), pinned chip bar (All ·
-per team · League), chronological `FeedCard` stream. ⚠️`FeedContentProvider` seeds
-real reporters/outlets across all 16 clubs evenly. The gear opens a real
-**Content Preferences** screen (`FeedSourcesView`): persisted post/article-type
-toggles + per-source mute, all filtering the live Feed (`FeedPreferencesStore`).
+**Feed** (`feed-tab-design-spec.md`) — reporters + news filtered to followed teams
+(the conversation *around* your teams; distinct from Home Module 1). Chip bar
+(All · per team · League) over ⚠️`FeedContentProvider`. The gear opens real
+**Content Preferences** (`FeedSourcesView`): post/article toggles + per-source
+mute, persisted in `FeedPreferencesStore`, filtering the live Feed.
 
-**Teams + Following** (the personalization spine). `TeamsView` lists all 16 clubs
-(`/teams`); each Follow star writes to `FollowingStore`; followed clubs float into
-a "Following" section. Onboarding also offers followable **international
-competitions** (`FollowedCompetition` + a competitions follow set on
-`FollowingStore`) — persisted, though the schedule isn't competition-aware yet
-(What's-Next #13).
+**Teams + Following** — `TeamsView` lists all 16 (`/teams`); Follow stars write to
+`FollowingStore` (followed float to a "Following" section). Onboarding also offers
+followable **international competitions** (`FollowedCompetition` + a follow set) —
+persisted, but the schedule isn't competition-aware yet (#13).
 
-**Team detail** (`teams-tab-design-spec.md`). `TeamDetailView` (pushed from
-Teams/Standings): pinned header (crest + name + standingLine + Follow) + a
-centered **social-links row** (team-accent `SocialLinkButton`s, only platforms a
-club uses; ⚠️`TeamSocialLinksProvider` seed) over **Squad · Stats** sub-tabs.
-Squad = team-colored `PlayerCard` grid (FWD→GK) → `PlayerDetailView` (roster bio +
-a season stat block). **Stats** shows a real season summary (the roster's W-D-L
-record) + Goals/Assists/Clean-Sheets leaders. One `fetchRoster(clubID:)→ClubSquad`
-powers the page; per-player stats are ⚠️simulated (`StatsProvider`, deterministic
-+ position-aware) and the leaders board is derived from them so it matches each
-player page. No formation pitch yet (needs an unmapped lineup feed).
+**Team detail** (`teams-tab-design-spec.md`) — pinned header + centered social row
+(⚠️`TeamSocialLinksProvider`) over **Squad · Stats**. Squad = `PlayerCard` grid
+(FWD→GK) → `PlayerDetailView` (bio + season block). Stats = real season summary
+(roster W-D-L) + Goals/Assists/Clean-Sheets leaders. Per-player stats are
+⚠️simulated (`StatsProvider`, deterministic/position-aware); leaders derive from
+them so they match each player page. No formation pitch yet (needs lineup feed).
+One `fetchRoster(clubID:)→ClubSquad` powers the page.
 
-**Standings** (`standings-tab-design-spec.md`). Full 16-team table, **PTS · GP ·
-W · L · D** only (GF/GA/GD omitted to avoid horizontal scroll). Non-scrolling
-header aligned to scrolling rows; followed teams blue; rows → `TeamDetailView`.
-Endpoint at `apis/v2/…` (not the app `base`).
+**Standings** (`standings-tab-design-spec.md`) — full 16-team table, **PTS · GP ·
+W · L · D** only (no GF/GA/GD → avoids horizontal scroll); followed teams blue;
+rows → `TeamDetailView`. Endpoint at `apis/v2/…` (not the app `base`).
 
-**Schedule** (`schedule-tab-design-spec.md`). Full season in one
-`fetchScoreboard(year:)` call (~240 events for 2026) as a `ScrollView`/`LazyVStack`
-of MatchCards under sticky day headers. Three segmented filters (NWSL / My teams /
-All matches) over one `MatchStore`. Cards carry 📍 venue · 📺 broadcast. Scrolls to
-today/next matchday; re-anchors on filter change. `MatchCard` competition-badge-
-ready (dormant).
+**Schedule** (`schedule-tab-design-spec.md`) — full season in one
+`fetchScoreboard(year:)` (~240 events for 2026); sticky day headers; three filters
+(NWSL / My teams / All matches) over one `MatchStore`; cards carry 📍 venue · 📺
+broadcast; scrolls to today, re-anchors on filter change.
 
 ---
 
@@ -326,87 +308,64 @@ Completed work is documented in **Current State**; only pending work is listed
 here. Original item numbers are kept so existing cross-references stay valid.
 
 **Near-term / cleanup**
-1. **(Perf/TEMP)** `TeamLogo` uses bare `AsyncImage` — no cross-cell cache, so
-   crests re-download on scroll. TEMP-commented; replace with a shared
-   NSCache-backed loader (or route logos through the future proxy).
-3. **(Polish)** Pull-to-refresh flips `state` to `.loading`, swapping the whole
-   list for a centered spinner. Keep the list visible during a refresh
-   (full-screen spinner only on first load).
-4. Capture a real ESPN response into `NWSLAppTests/Fixtures/scoreboard.json` +
-   add a decode-only test for `Scoreboard` / Event helpers (date parsing,
-   `dayKey` time-zone behavior).
-6. Make `MatchCard` tappable → a match detail screen (scorers, lineups, stats,
-   news) via the `NavigationStack` already in place.
+1. **(Perf/TEMP)** `TeamLogo` uses bare `AsyncImage` — no cross-cell cache, crests
+   re-download on scroll. Replace with a shared NSCache loader (or the proxy).
+3. **(Polish)** Pull-to-refresh flips `state` to `.loading` (full-screen spinner);
+   keep the list visible during refresh, spinner only on first load.
+4. Capture a real ESPN response → `NWSLAppTests/Fixtures/scoreboard.json` + a
+   decode-only test for `Scoreboard`/Event helpers (date parsing, `dayKey` TZ).
+6. Make `MatchCard` tappable → a match detail screen (scorers/lineups/stats/news).
 9. **(Fragility)** `MatchStore.matches(for:)` joins club↔game by `abbreviation`
-   (ESPN scoreboard competitors carry no id). Safe today, TEMP-commented; a
-   rename/relocation would silently empty a schedule (empty state, not a crash).
-   Real fix when a backend exists: a normalized club-id map.
-15. **(Cleanup)** The club directory is fetched independently by Teams/Home/
-    Schedule VMs. Consider a shared `@Observable ClubStore` injected via
-    `.environment` (one fetch, many readers; clean ID→Club / ID→abbreviation
-    lookup the My-teams filter and Home both need).
+   (ESPN competitors carry no id). TEMP-commented; a rename silently empties a
+   schedule (empty state, not crash). Real fix: a normalized club-id map.
+15. **(Cleanup)** Club directory is fetched independently by Teams/Home/Schedule
+    VMs → a shared `@Observable ClubStore` (one fetch, many readers; ID→Club /
+    ID→abbreviation lookup the My-teams filter and Home both need).
 16. **(Robustness)** `ScheduleViewModel.loadClubs()` swallows a failed fetch
-    (`(try? …) ?? []`) → the My-teams filter shows an infinite "Loading your
-    teams…" spinner with no error/retry. Give it an error state + retry (or fold
-    into the ClubStore from #15).
+    (`(try? …) ?? []`) → My-teams shows an infinite spinner, no retry. Add an
+    error state + retry (or fold into the ClubStore from #15).
 
 **Feature follow-ups (from shipped redesigns)**
-- **Team-detail Stats + PlayerDetailView** — now show ⚠️simulated per-player
-  stats (`StatsProvider`): a season summary + Goals/Assists/Clean-Sheets leaders,
-  and a per-player season block. Remaining: a real per-player stats source (ESPN's
-  `athletes[].statistics.splits` is sparse — likely the proxy) to replace the
-  simulation, and a most-recent-formation pitch (needs an unmapped lineup endpoint).
-- **(Data/Verify) Team social links** — ⚠️`TeamSocialLinksProvider` is a curated
-  seed; verify before any real ship. Reddit handles were confirmed indirectly (the
-  firehose is unfetchable here): **KC** (`r/KCCurrent`, lowest
-  confidence) and **CHI** (`r/redstars` vs the post-rebrand `r/ChicagoStars`) need
-  a browser check; **BOS/DEN/LOU** have no subreddit yet (BOS/DEN are expansion
-  sides) and so show no Reddit icon. YT/IG URLs duplicate `TeamContentProvider` —
-  collapse into one source when the real backend lands.
+- **Team-detail Stats + PlayerDetailView** — built on ⚠️simulated stats
+  (`StatsProvider`). Remaining: a real per-player stats source (ESPN's
+  `athletes[].statistics.splits` is sparse — likely the proxy), and a
+  most-recent-formation pitch (needs an unmapped lineup endpoint).
+- **(Data/Verify) Team social links** — ⚠️`TeamSocialLinksProvider` curated seed;
+  verify before ship. Reddit needs a browser check — **KC** (`r/KCCurrent`, low
+  confidence), **CHI** (`r/redstars` vs post-rebrand `r/ChicagoStars`); **BOS/DEN/
+  LOU** have no subreddit yet (no Reddit icon). YT/IG URLs duplicate
+  `TeamContentProvider` — collapse when the real backend lands.
 - **Follow-confirmation sheet** — first-time "what following buys you" on the
-  header star (deferred across specs). No Settings screen exists yet ("all
-  onboarding choices adjustable in Settings" still applies).
-- **Home Module 1** — build the per-section "See all" destination; replace
-  ⚠️`TeamContentProvider` with a real team-channel source (→ real per-post
-  thumbnails + deep links).
-- **Home Module 2 spotlight pipeline** — UI done; still need a content pipeline
-  for real thumbnails/durations, a deeper per-team pool (so the weekly rotation
-  cycles a full roster), the opt-in weekly notification, and a team-colored
-  badge (needs the club hex). The optional one-time intro card isn't built.
-- **Home Module 3 games** — all three built; remaining work is swapping each off
-  its TEMP seed and adding social/push layers (all need real multi-user
-  leaderboards via #12, a share-result card, and the kickoff/streak push).
-  Trivia: real question backend (grow pool / add categories). Bracket Battle: real
-  editorial/voting backend so the "community" is real votes (not the simulation);
-  rotate themed editions (Best Forward, Best Kit, …). Predict the XI: real
-  fixtures + lineup feed (so matches/results are live, not the offset clock — needs
-  lineup data); per-category accuracy stats; broaden questions (correct score,
-  MOTM).
+  header star. No Settings screen exists yet (adjusting follows post-onboarding).
+- **Home Module 1** — build the "See all" destination; replace
+  ⚠️`TeamContentProvider` with a real team-channel source (thumbnails + deep links).
+- **Home Module 2 spotlight pipeline** — UI done; needs real thumbnails/durations,
+  a deeper per-team pool (weekly rotation cycles a full roster), the opt-in weekly
+  notification, and a team-colored badge (needs club hex).
+- **Home Module 3 games** — all built; remaining is swapping each off its ⚠️seed +
+  social/push layers (real multi-user leaderboards via #12, share-result card,
+  kickoff/streak push). Trivia: real question backend. Bracket: real voting backend
+  (real "community", not the sim) + rotating editions. Predict: real fixtures +
+  lineup feed (live, not the offset clock) + per-category stats + more questions.
 
 **Longer-term (vision — see `Reference/Sessions/` for full rationale)**
-11. **Feed backend** — UI built on the ⚠️seed. Needs: a real content source
-    (Bluesky/news aggregator or the proxy); the editorial "no culture-war /
-    political / identity hot takes" gate as a real filter
-    (`nwslapp-feed-content-rules.md`); user-added sources (the gear's Content
-    Preferences already does post/article toggles + source muting; adding your own
-    account needs the backend); and per-post **team tagging via a Claude Haiku call**
-    (source/handle alone can't tag reliably) that also drops non-NWSL content.
-12. **Push notifications + the server question.** Scheduled reminders need NO
-    server (kickoff times known ahead → local notifications, free on the sideload
-    tier); **live updates need a server + APNs + the $99 Apple Developer
-    Program**. The server doubles as the **caching proxy** (polls ESPN once, fans
-    out to clients). Much-later; full reasoning in
-    `Reference/Sessions/2026-06-04_server-pulls-and-push.md`.
-13. **Competition-aware schedule.** Groundwork in place: the three Schedule
-    filters, `MatchCard`'s dormant `CompetitionBadge`, and now a
-    `FollowedCompetition` model + a competitions follow set on `FollowingStore`
-    wired to the onboarding rows. Remaining: a competition on `Event` (so NWSL vs
-    All diverge and badges populate) so a followed competition actually filters the
-    schedule, plus a way to change competition follows after onboarding (no
-    Settings surface yet — same gap as the follow-confirmation sheet).
-14. **Engagement / Home hub** — player spotlights (→ a contributor pipeline),
-    community links (subreddits/Discords), prediction games. These live as Home
-    modules first and graduate to their own tab only if earned. (Prediction
-    games reuse the push/#12 backend.)
+11. **Feed backend** — UI on the ⚠️seed. Needs: a real content source (Bluesky/news
+    aggregator or proxy); the editorial "no culture-war/political hot takes" gate as
+    a real filter (`nwslapp-feed-content-rules.md`); user-added sources (Content
+    Preferences already does type toggles + muting; adding accounts needs the
+    backend); per-post **team tagging via a Claude Haiku call** that also drops
+    non-NWSL content.
+12. **Push notifications + the server question.** Scheduled reminders need NO server
+    (kickoff times known → local notifications, free on sideload); **live updates
+    need a server + APNs + the $99 Program**. The server doubles as the caching
+    proxy. Full reasoning: `Reference/Sessions/2026-06-04_server-pulls-and-push.md`.
+13. **Competition-aware schedule.** Groundwork: the three Schedule filters,
+    `MatchCard`'s dormant `CompetitionBadge`, and a `FollowedCompetition` model +
+    follow set wired to onboarding. Remaining: a competition on `Event` (so a
+    followed competition actually filters the schedule + badges populate), plus a
+    surface to change competition follows after onboarding (no Settings yet).
+14. **Engagement / Home hub** — player spotlights (→ contributor pipeline),
+    community links (subreddits/Discords), prediction games. Live as Home modules
+    first, graduate to a tab only if earned. (Reuse the push/#12 backend.)
 ```
 

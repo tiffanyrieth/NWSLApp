@@ -73,7 +73,11 @@ struct TeamDetailView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: Athlete.self) { athlete in
-            PlayerDetailView(athlete: athlete, accentHex: viewModel.accentColorHex)
+            PlayerDetailView(
+                athlete: athlete,
+                accentHex: viewModel.accentColorHex,
+                stats: viewModel.stats(for: athlete)
+            )
         }
         .task {
             // Social links are local seed data (instant) — load them first so the
@@ -196,27 +200,117 @@ struct TeamDetailView: View {
         .padding(.horizontal, 32)
     }
 
-    // MARK: - Stats (intentional placeholder)
+    // MARK: - Stats (season summary + team leaders)
 
-    // Team leaders + most-recent formation per the design spec. The data
-    // (per-player season stats, lineups/formation) isn't in the endpoints we map
-    // yet — so this is a deliberate "coming soon", not a blank tab. Flagged as a
-    // placeholder in the File Map; becomes the real section once stats land.
+    // A real season block — the club's record (real, from the roster payload) plus
+    // team leaders in goals / assists / clean sheets. The leaders come from
+    // ⚠️StatsProvider's simulated per-player stats (no real per-player feed yet), so
+    // they match each player's own page exactly. A formation pitch still needs an
+    // unmapped lineup endpoint and isn't shown (its absence is a missing feature,
+    // not a "coming soon" card — see CLAUDE.md What's-Next).
+    @ViewBuilder
     private var statsSection: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "chart.bar.xaxis")
-                .font(.system(size: 44, weight: .regular))
-                .foregroundStyle(.secondary)
-            Text("Team stats coming soon")
-                .font(.headline)
-            Text("Team leaders and the latest formation will live here as the data comes online.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+        ScrollView {
+            switch viewModel.state {
+            case .idle, .loading:
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 40)
+            case .error(let message):
+                squadError(message)
+            case .loaded:
+                VStack(alignment: .leading, spacing: 24) {
+                    if let season = seasonSummary { seasonCard(season) }
+                    leaderCard("Goals", systemImage: "soccerball",
+                               leaders: viewModel.teamLeaders.topScorers)
+                    leaderCard("Assists", systemImage: "arrow.up.forward",
+                               leaders: viewModel.teamLeaders.topAssists)
+                    leaderCard("Clean Sheets", systemImage: "hand.raised.fill",
+                               leaders: viewModel.teamLeaders.topCleanSheets)
+                }
+                .padding()
+            }
         }
-        .padding(.horizontal, 32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
+    }
+
+    private var accent: Color {
+        Color.teamAccent(hex: viewModel.accentColorHex).fill
+    }
+
+    // Parse the real "W-D-L" record into the season summary numbers.
+    private var seasonSummary: (gp: Int, w: Int, d: Int, l: Int, pts: Int)? {
+        guard let record = viewModel.record else { return nil }
+        let parts = record.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        let (w, d, l) = (parts[0], parts[1], parts[2])
+        return (w + d + l, w, d, l, w * 3 + d)
+    }
+
+    private func seasonCard(_ s: (gp: Int, w: Int, d: Int, l: Int, pts: Int)) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Season")
+                .font(.headline)
+            HStack(spacing: 0) {
+                statCell("GP", s.gp)
+                statCell("W", s.w)
+                statCell("D", s.d)
+                statCell("L", s.l)
+                statCell("PTS", s.pts, emphasized: true)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func statCell(_ label: String, _ value: Int, emphasized: Bool = false) -> some View {
+        VStack(spacing: 4) {
+            Text("\(value)")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(emphasized ? accent : .primary)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // One leaders block (e.g. top scorers). Hidden entirely when nobody qualifies,
+    // so a category with no contributions doesn't leave an empty card.
+    @ViewBuilder
+    private func leaderCard(_ title: String, systemImage: String, leaders: [StatLeader]) -> some View {
+        if !leaders.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Label(title, systemImage: systemImage)
+                    .font(.headline)
+                    .foregroundStyle(accent)
+                VStack(spacing: 0) {
+                    ForEach(Array(leaders.enumerated()), id: \.element.id) { index, leader in
+                        HStack {
+                            Text("\(index + 1)")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 20, alignment: .leading)
+                            Text(leader.name)
+                                .font(.subheadline)
+                            Spacer()
+                            Text("\(leader.value)")
+                                .font(.subheadline.weight(.bold))
+                                .monospacedDigit()
+                        }
+                        .padding(.vertical, 10)
+                        if index < leaders.count - 1 { Divider() }
+                    }
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
     }
 }
 

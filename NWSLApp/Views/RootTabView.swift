@@ -45,6 +45,11 @@ struct RootTabView: View {
     // (see TriviaStore). Like the others, it's a persistent Store, not per-screen.
     @State private var trivia = TriviaStore()
 
+    // Bracket Battle progress (votes / points / locked rounds), created once and
+    // shared app-wide so the game and the Home Play-card badge read the same state
+    // (see BracketStore). A persistent Store, not per-screen, like the others.
+    @State private var bracket = BracketStore()
+
     var body: some View {
         TabView(selection: $selection) {
             HomeView()
@@ -70,6 +75,7 @@ struct RootTabView: View {
         .environment(following)
         .environment(matches)
         .environment(trivia)
+        .environment(bracket)
     }
 }
 

@@ -29,6 +29,7 @@ struct HomeView: View {
     @Environment(FollowingStore.self) private var following
     @Environment(MatchStore.self) private var matchStore
     @Environment(TriviaStore.self) private var trivia
+    @Environment(BracketStore.self) private var bracket
 
     var body: some View {
         NavigationStack {
@@ -159,12 +160,13 @@ struct HomeView: View {
         section("Play", subtitle: "Test your NWSL knowledge and compete with other fans") {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    // Daily Trivia is the one built game — a live entry point.
+                    // Two built games — live entry points.
                     NavigationLink { DailyTriviaView() } label: { dailyTriviaCard }
                         .buttonStyle(.plain)
-                    // The other two remain intentional "coming soon" placeholders.
+                    NavigationLink { BracketBattleView() } label: { bracketBattleCard }
+                        .buttonStyle(.plain)
+                    // Predict the XI remains an intentional "coming soon" placeholder.
                     playCard(icon: "list.number", title: "Predict the XI")
-                    playCard(icon: "trophy", title: "Bracket Battle")
                 }
                 .padding(.horizontal, 2)
             }
@@ -202,6 +204,50 @@ struct HomeView: View {
                 .stroke(Color.indigo.opacity(0.35), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    // The live Bracket-Battle card: teal identity, with a state line that reads
+    // "Play now" → "Round n of N" → "Complete ✓" off the shared BracketStore, and
+    // a points badge once the user has banked any.
+    private var bracketBattleCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: "trophy.fill")
+                    .font(.title2)
+                    .foregroundStyle(.teal)
+                Spacer(minLength: 0)
+                if bracket.points > 0 {
+                    Label("\(bracket.points)", systemImage: "trophy")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.teal)
+                        .labelStyle(.titleAndIcon)
+                }
+            }
+            Spacer(minLength: 0)
+            Text("Bracket Battle")
+                .font(.subheadline.weight(.semibold))
+            Text(bracketStateLine)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(bracket.isComplete ? Color.secondary : .teal)
+        }
+        .padding(16)
+        .frame(width: 150, height: 120, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.teal.opacity(0.35), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    // "Play now" before any voting, "Complete ✓" once the final's closed, else the
+    // current round ("Round 2 of 4"). roundCount falls back to 4 (the current
+    // edition) until the game's been opened and stored it.
+    private var bracketStateLine: String {
+        if bracket.isComplete { return "Complete ✓" }
+        if !bracket.hasStarted { return "Play now" }
+        let total = bracket.roundCount > 0 ? bracket.roundCount : 4
+        return "Round \(bracket.lockedRoundCount + 1) of \(total)"
     }
 
     private func playCard(icon: String, title: String) -> some View {
@@ -294,4 +340,5 @@ struct HomeView: View {
         .environment(FollowingStore())
         .environment(MatchStore())
         .environment(TriviaStore())
+        .environment(BracketStore())
 }

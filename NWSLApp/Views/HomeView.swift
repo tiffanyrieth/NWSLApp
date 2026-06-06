@@ -10,7 +10,7 @@
 //  content leads, schedule demoted):
 //   1. From your teams          — team-channel content (the hook), real seeded.
 //   2. Get to know your players — one weekly player spotlight (seeded).
-//   3. Play                     — games/challenges (intentional placeholder).
+//   3. Play                     — games (Trivia, Bracket Battle, Predict the XI).
 //   4. Coming up                — a compact next-match strip per followed club.
 //  ("Around the league" was removed — it duplicated the Schedule tab.)
 //
@@ -30,6 +30,7 @@ struct HomeView: View {
     @Environment(MatchStore.self) private var matchStore
     @Environment(TriviaStore.self) private var trivia
     @Environment(BracketStore.self) private var bracket
+    @Environment(PredictionStore.self) private var predict
 
     var body: some View {
         NavigationStack {
@@ -154,19 +155,19 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Module 3: Play (placeholder, horizontal slot reserved)
+    // MARK: - Module 3: Play (all three games live)
 
     private var playSection: some View {
         section("Play", subtitle: "Test your NWSL knowledge and compete with other fans") {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    // Two built games — live entry points.
+                    // All three games — live entry points.
                     NavigationLink { DailyTriviaView() } label: { dailyTriviaCard }
                         .buttonStyle(.plain)
                     NavigationLink { BracketBattleView() } label: { bracketBattleCard }
                         .buttonStyle(.plain)
-                    // Predict the XI remains an intentional "coming soon" placeholder.
-                    playCard(icon: "list.number", title: "Predict the XI")
+                    NavigationLink { PredictXIView() } label: { predictXICard }
+                        .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 2)
             }
@@ -250,21 +251,36 @@ struct HomeView: View {
         return "Round \(bracket.lockedRoundCount + 1) of \(total)"
     }
 
-    private func playCard(icon: String, title: String) -> some View {
+    // The live Predict-the-XI card: pink identity, with a points badge once the
+    // user has banked any and a state line that reads "Predict now" until they do.
+    private var predictXICard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(.secondary)
+            HStack {
+                Image(systemName: "sportscourt.fill")
+                    .font(.title2)
+                    .foregroundStyle(.pink)
+                Spacer(minLength: 0)
+                if predict.seasonPoints > 0 {
+                    Label("\(predict.seasonPoints)", systemImage: "sportscourt")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.pink)
+                        .labelStyle(.titleAndIcon)
+                }
+            }
             Spacer(minLength: 0)
-            Text(title)
+            Text("Predict the XI")
                 .font(.subheadline.weight(.semibold))
-            Text("Coming soon")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+            Text(predict.hasPredicted ? "\(predict.seasonPoints) pts" : "Predict now")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.pink)
         }
         .padding(16)
         .frame(width: 150, height: 120, alignment: .leading)
         .background(Color(.secondarySystemGroupedBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.pink.opacity(0.35), lineWidth: 1)
+        )
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -341,4 +357,5 @@ struct HomeView: View {
         .environment(MatchStore())
         .environment(TriviaStore())
         .environment(BracketStore())
+        .environment(PredictionStore())
 }

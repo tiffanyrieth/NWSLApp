@@ -50,6 +50,11 @@ struct RootTabView: View {
     // (see BracketStore). A persistent Store, not per-screen, like the others.
     @State private var bracket = BracketStore()
 
+    // Predict the XI state (per-match predictions + a season-points snapshot),
+    // created once and shared app-wide so the game and the Home Play-card badge read
+    // the same state (see PredictionStore). A persistent Store, like the others.
+    @State private var predict = PredictionStore()
+
     var body: some View {
         TabView(selection: $selection) {
             HomeView()
@@ -76,6 +81,7 @@ struct RootTabView: View {
         .environment(matches)
         .environment(trivia)
         .environment(bracket)
+        .environment(predict)
     }
 }
 

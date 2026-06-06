@@ -28,6 +28,7 @@ struct HomeView: View {
     @State private var showTeamPicker = false
     @Environment(FollowingStore.self) private var following
     @Environment(MatchStore.self) private var matchStore
+    @Environment(TriviaStore.self) private var trivia
 
     var body: some View {
         NavigationStack {
@@ -158,13 +159,49 @@ struct HomeView: View {
         section("Play", subtitle: "Test your NWSL knowledge and compete with other fans") {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    playCard(icon: "brain.head.profile", title: "Daily Trivia")
+                    // Daily Trivia is the one built game — a live entry point.
+                    NavigationLink { DailyTriviaView() } label: { dailyTriviaCard }
+                        .buttonStyle(.plain)
+                    // The other two remain intentional "coming soon" placeholders.
                     playCard(icon: "list.number", title: "Predict the XI")
                     playCard(icon: "trophy", title: "Bracket Battle")
                 }
                 .padding(.horizontal, 2)
             }
         }
+    }
+
+    // The live Daily-Trivia card: indigo identity, with a state line that reads
+    // "Done today" once played (and a streak flame when one's going).
+    private var dailyTriviaCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: "brain.head.profile")
+                    .font(.title2)
+                    .foregroundStyle(.indigo)
+                Spacer(minLength: 0)
+                if trivia.streak > 0 {
+                    Label("\(trivia.streak)", systemImage: "flame.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.orange)
+                        .labelStyle(.titleAndIcon)
+                }
+            }
+            Spacer(minLength: 0)
+            Text("Daily Trivia")
+                .font(.subheadline.weight(.semibold))
+            Text(trivia.hasPlayedToday ? "Done today ✓" : "Play now")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(trivia.hasPlayedToday ? Color.secondary : .indigo)
+        }
+        .padding(16)
+        .frame(width: 150, height: 120, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.indigo.opacity(0.35), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func playCard(icon: String, title: String) -> some View {
@@ -256,4 +293,5 @@ struct HomeView: View {
     HomeView()
         .environment(FollowingStore())
         .environment(MatchStore())
+        .environment(TriviaStore())
 }

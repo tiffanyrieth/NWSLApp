@@ -155,18 +155,23 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Module 3: Play (all three games live)
+    // MARK: - Module 3: Fan Zone (the games)
 
     private var playSection: some View {
-        section("Play", subtitle: "Test your NWSL knowledge and compete with other fans") {
+        section("Fan Zone", subtitle: "Test your NWSL knowledge and compete with other fans") {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    // All three games — live entry points.
-                    NavigationLink { DailyTriviaView() } label: { dailyTriviaCard }
-                        .buttonStyle(.plain)
+                    // Ordered most time-sensitive first. Predict the XI is
+                    // matchday-driven AND inherently personal (you predict YOUR
+                    // team's lineup), so it only appears once the user follows a
+                    // club; Bracket Battle and Daily Trivia show for everyone.
+                    if !following.followedIDs.isEmpty {
+                        NavigationLink { PredictXIView() } label: { predictXICard }
+                            .buttonStyle(.plain)
+                    }
                     NavigationLink { BracketBattleView() } label: { bracketBattleCard }
                         .buttonStyle(.plain)
-                    NavigationLink { PredictXIView() } label: { predictXICard }
+                    NavigationLink { DailyTriviaView() } label: { dailyTriviaCard }
                         .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 2)
@@ -198,7 +203,7 @@ struct HomeView: View {
                 .foregroundStyle(trivia.hasPlayedToday ? Color.secondary : .indigo)
         }
         .padding(16)
-        .frame(width: 150, height: 120, alignment: .leading)
+        .frame(width: 170, height: 138, alignment: .leading)
         .background(Color(.secondarySystemGroupedBackground))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -232,7 +237,7 @@ struct HomeView: View {
                 .foregroundStyle(bracket.isComplete ? Color.secondary : .teal)
         }
         .padding(16)
-        .frame(width: 150, height: 120, alignment: .leading)
+        .frame(width: 170, height: 138, alignment: .leading)
         .background(Color(.secondarySystemGroupedBackground))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -275,7 +280,7 @@ struct HomeView: View {
                 .foregroundStyle(.pink)
         }
         .padding(16)
-        .frame(width: 150, height: 120, alignment: .leading)
+        .frame(width: 170, height: 138, alignment: .leading)
         .background(Color(.secondarySystemGroupedBackground))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)

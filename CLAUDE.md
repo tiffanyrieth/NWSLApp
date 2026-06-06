@@ -227,7 +227,7 @@ NWSLApp/
 │   ├── TeamsView.swift                — all-16 directory; Following floats to top
 │   ├── TeamDetailView.swift           — club page: header + social row + Squad·Stats tabs
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
-│   ├── PlayerSpotlightView.swift      — narrative spotlight tap-through (video hero)
+│   ├── PlayerSpotlightView.swift      — narrative spotlight tap-through (real YT video hero)
 │   ├── StandingsView.swift            — 16-team table (PTS·GP·W·L·D); followed blue
 │   ├── FeedView.swift                 — Feed tab: chip bar + chronological FeedCards
 │   └── FeedSourcesView.swift          — Feed content preferences: toggles + mute sources
@@ -236,7 +236,7 @@ NWSLApp/
 │   ├── FeedCard.swift                 — one Feed item (post or article); opens source
 │   ├── MatchCard.swift                — one game: score + status + venue/📺 (dormant badge)
 │   ├── PlayerCard.swift               — Squad-grid card; team-color monogram + position
-│   ├── PlayerSpotlightCard.swift      — ⚠️ Module-2 player-of-week card
+│   ├── PlayerSpotlightCard.swift      — ⚠️ Module-2 player-of-week card (real YT thumbnail)
 │   ├── SocialLinkButton.swift         — circular team-tinted social icon; opens account
 │   ├── TeamContentCard.swift          — ⚠️ Module-1 real YT thumbnail (crest-tile fallback) + attribution
 │   └── TeamLogo.swift                 — AsyncImage crest (no cache yet — What's-Next #1)
@@ -272,7 +272,9 @@ Battle** (teal — deterministic seed-weighted "community" sim), **Predict the X
 
 **Player Spotlight** (`spotlight-design-spec.md`) — one mini-profile/followed team
 → narrative `PlayerSpotlightView`; ⚠️`PlayerSpotlightProvider` seeds all 16
-(Mondésir/SEA is the written-only fallback), rotated weekly.
+(Mondésir/SEA is the written-only fallback), rotated weekly. Each video is a real,
+verified player-feature on YouTube, so the card and the detail hero load the real
+frame (`img.youtube.com/vi/{id}/…`, crest-tile fallback).
 
 **Feed** (`feed-tab-design-spec.md`) — reporters + news filtered to followed teams
 (the conversation *around* your teams; distinct from Home Module 1). Chip bar
@@ -344,9 +346,10 @@ here. Original item numbers are kept so existing cross-references stay valid.
   video). Remaining: build the "See all" destination, and swap the static seed for
   a live team-channel source that refreshes (these specific videos won't rotate or
   re-fetch on their own — a deleted video falls back to the crest tile).
-- **Home Module 2 spotlight pipeline** — UI done; needs real thumbnails/durations,
-  a deeper per-team pool (weekly rotation cycles a full roster), the opt-in weekly
-  notification, and a team-colored badge (needs club hex).
+- **Home Module 2 spotlight pipeline** — UI done; thumbnails are now real (each
+  YouTube video id drives the card/hero frame). Remaining: a deeper per-team pool
+  (weekly rotation cycles a full roster), the opt-in weekly notification, and a
+  team-colored badge (needs club hex).
 - **Home Module 3 games** — all built; remaining is swapping each off its ⚠️seed +
   social/push layers (real multi-user leaderboards via #12, share-result card,
   kickoff/streak push). Trivia: real question backend. Bracket: real voting backend

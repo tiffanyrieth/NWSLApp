@@ -251,61 +251,32 @@ driving deterministic screenshots (UI taps flake under this machine's memory
 pressure), then removed; screenshots live in gitignored
 `Reference/Design/*-verification/` folders.
 
-**Home — the your-teams-first hub** (`home-tab-design-spec.md`, 2026-06-06
-content-leads order). Pre-onboarding (`hasOnboarded == false`) renders
-`OnboardingView` in place (tab bar stays visible). The hub is a `ScrollView` of
-modules: (1) **"From your teams"** TeamContentCards (the hook); (2) **"Get to
-know your players"** one PlayerSpotlightCard per followed team →
-`PlayerSpotlightView`; (3) **"Play"** game row (all three games live — Daily
-Trivia, Bracket Battle, Predict the XI); (4) **"Coming up"** compact ComingUpRow
-per club. "Around the league" was removed (duplicated Schedule). Home owns no season
-data — `HomeViewModel.loadClubs()` fetches the club directory + both seeds in
-one pass and derives every module from the shared `MatchStore` + `FollowingStore`.
-Modules 1–2 run on TEMP seeds. The no-follows state re-presents the picker as a
-sheet.
+**Home — the your-teams-first hub** (`home-tab-design-spec.md`, content-leads
+order). Pre-onboarding (`hasOnboarded == false`) renders `OnboardingView` in
+place (tab bar stays visible). A `ScrollView` of modules: (1) "From your teams"
+TeamContentCards (the hook); (2) "Get to know your players" one
+PlayerSpotlightCard per followed team; (3) "Play" game row (all three games
+live); (4) "Coming up" ComingUpRow per club. Home owns no season data —
+`HomeViewModel.loadClubs()` fetches the club directory + both seeds in one pass
+and derives every module from the shared `MatchStore` + `FollowingStore`.
+Modules 1–2 run on TEMP seeds; no-follows re-presents the picker as a sheet.
 
-**Daily Trivia** (Module 3 "Play", game 1; `games-design-spec.md`).
-`DailyTriviaView`: 5 MC questions/day, select→submit→reveal→results (today's
-score, streak, all-time accuracy + per-question review). One scored play/day
-(Wordle-style lock — re-open shows the locked summary). Deterministic daily pick
-(SplitMix64 seeded by day number). Indigo identity. Split: `TriviaQuestion` +
-⚠️`TriviaQuestionProvider` (55 questions) + `TriviaViewModel` (session) +
-`TriviaStore` (durable streak/accuracy/day-gate).
-
-**Bracket Battle** (Module 3 "Play", game 2; `games-design-spec.md`). A
-single-elimination "Best Goalkeeper" edition — 16 real GKs (one/club). Vote each
-matchup who the community advances, **lock** a round to reveal the result (winner
-+ vote split) and bank a point per correct pick, then the next round opens below
-(the approved "play through, daily-styled" cadence — no calendar gate). Champion
-banner + simulated leaderboard (you ranked among sample fans) on completion. The
-"community" is a **deterministic, seed-weighted simulation** (stable across
-launches), standing in for real multi-user voting. Teal identity. Split:
-`BracketEdition` + ⚠️`BracketEditionProvider` (16-GK seed + sample leaderboard) +
-`BracketViewModel` (bracket build + simulation + leaderboard) + `BracketStore`
-(durable votes/points/locked rounds). **Verified in-sim** (temporary
-launch-env deep-link + an autoplay hook drove the fresh Round-of-16 voting screen
-and a fully auto-played tournament — locked-round reveals with green ✓/red ✗ and
-vote %s, an upset, the champion banner [Naeher, 67% final] and the climb to rank
-#1 — then removed).
-
-**Predict the XI** (Module 3 "Play", game 3; `games-design-spec.md`). Pre-match
-predictions per match — formation (2 pts), starting GK (1 pt), captain (2 pts),
-first goal scorer (3 pts). `PredictXIView`: a slate of OPEN matches (tappable
-prediction questions that auto-save; picks lock at kickoff — no manual submit,
-the footer states the live status) and SETTLED matches (a results review: your
-pick vs actual, green ✓/red ✗, points earned, final score). A season-points total
-ranks you on a simulated leaderboard (you among sample fans). Pink identity.
-Kickoff is modelled as an **offset from now** so the demo always has both an open
-and a settled match regardless of date; the open/settled split + scoring are
-derived in the VM (the store can't know "now"). Split: `PredictionMatch` +
-⚠️`PredictionMatchProvider` (3 sample matches: 2 settled w/ results + 1 open, 4
-questions each + sample leaderboard) + `PredictXIViewModel` (slate + lock state +
-scoring + leaderboard) + `PredictionStore` (durable picks + season-points
-snapshot). **Verified in-sim** (temporary launch-env deep-link + a seeded store
-drove the fresh slate [0 pts, rank #12], a scored slate [open match "Locked in"
-with selections, settled KC 3–1 ORL review with a green/red mix, You at rank #6
-with 11 pts], and the live pink Play-row card — then removed). All three Play
-games are now built; there is no remaining Play placeholder.
+**Play games** (Module 3 "Play"; `games-design-spec.md`) — all three built, no
+Play placeholder remains. Each has its own identity color, ⚠️seed provider,
+session VM, and durable `…Store`. **Daily Trivia** (indigo) — 5 MC/day,
+select→submit→reveal→results (score/streak/accuracy + review); one scored
+play/day (Wordle-style lock); deterministic daily pick (SplitMix64 by day
+number). **Bracket Battle** (teal) — single-elim "Best Goalkeeper" (16 real GKs,
+one/club); vote each matchup, **lock** a round to reveal winner + vote split +
+bank a point/correct pick, next round opens below (no calendar gate); the
+"community" is a deterministic, seed-weighted simulation (stable across launches)
+standing in for real multi-user voting; champion banner + simulated leaderboard
+on completion. **Predict the XI** (pink) — per-match formation/GK/captain/scorer
+predictions (2/1/2/3 pts) that auto-save and lock at kickoff (no manual submit);
+OPEN (editable, hidden answers) vs SETTLED (read-only results review) split +
+scoring derived in the VM; kickoff modelled as an **offset from now** so the demo
+always has both states; season points → simulated leaderboard. All verified
+in-sim (temporary launch-env deep-link scaffolds, then removed).
 
 **Player Spotlight** (Module 2; `spotlight-design-spec.md`). One Option-B
 mini-profile per followed team (bio blurb + video preview) → narrative
@@ -315,13 +286,11 @@ oembed-verified player videos (Mondésir/SEA is the written-only fallback).
 `HomeViewModel.spotlights(following:)` rotates one player per team weekly.
 
 **Feed — the world talking about your teams** (`feed-tab-design-spec.md`).
-Reporters + news filtered to followed teams; explicitly distinct from Home
-Module 1 (Feed = the conversation *around* your teams). `FeedView`: title +
-settings gear (→ `FeedSourcesView`), a pinned chip bar (All · per team · League),
-a chronological `FeedCard` stream (reporter posts + article links, one
-component). `FeedViewModel` derives chips + the per-filter stream, matching by
-abbreviation. ⚠️`FeedContentProvider` seeds real reporters/outlets across all 16
-clubs evenly.
+Reporters + news filtered to followed teams; distinct from Home Module 1 (Feed =
+the conversation *around* your teams). `FeedView`: title + settings gear (→
+`FeedSourcesView`), pinned chip bar (All · per team · League), chronological
+`FeedCard` stream (reporter posts + article links). ⚠️`FeedContentProvider` seeds
+real reporters/outlets across all 16 clubs evenly.
 
 **Teams + Following** (the personalization spine). `TeamsView` lists all 16
 clubs (`/teams`); each row's Follow star writes to `FollowingStore` (shared via
@@ -400,21 +369,15 @@ here. Original item numbers are kept so existing cross-references stay valid.
   for real thumbnails/durations, a deeper per-team pool (so the weekly rotation
   cycles a full roster), the opt-in weekly notification, and a team-colored
   badge (needs the club hex). The optional one-time intro card isn't built.
-- **Home Module 3 games** — all three games (Daily Trivia, Bracket Battle,
-  Predict the XI) are built; the work below is swapping each off its TEMP seed and
-  adding the social/push layers. Trivia: swap ⚠️`TriviaQuestionProvider` for a real
-  question backend (grow the pool / add categories); add a leaderboard (needs #12),
-  a share-result card, and the streak push (local-notification path). Bracket
-  Battle: swap ⚠️`BracketEditionProvider` for a real editorial/voting backend so the
-  "community" is **real multi-user votes + a real leaderboard** instead of the
-  deterministic simulation (needs #12); rotate themed editions (Best Forward, Best
-  Kit, …); add real crests/durations and the per-round "vote now" push; the
-  share-entry card. Predict the XI: swap ⚠️`PredictionMatchProvider` for a real
-  fixtures + lineup feed (so matches and results are live, not seeded with an
-  offset clock — needs lineup data + #12/#14 backend) so the leaderboard is **real
-  multi-user scoring**; add per-category accuracy stats, the "lock in your
-  predictions" kickoff push, and the share-result card; broaden questions (correct
-  score, MOTM) per the spec's future list.
+- **Home Module 3 games** — all three built; remaining work is swapping each off
+  its TEMP seed and adding social/push layers (all need real multi-user
+  leaderboards via #12, a share-result card, and the kickoff/streak push).
+  Trivia: real question backend (grow pool / add categories). Bracket Battle: real
+  editorial/voting backend so the "community" is real votes (not the simulation);
+  rotate themed editions (Best Forward, Best Kit, …). Predict the XI: real
+  fixtures + lineup feed (so matches/results are live, not the offset clock — needs
+  lineup data); per-category accuracy stats; broaden questions (correct score,
+  MOTM).
 
 **Longer-term (vision — see `Reference/Sessions/` for full rationale)**
 11. **Feed backend** — UI built on the ⚠️seed. Needs: a real content source

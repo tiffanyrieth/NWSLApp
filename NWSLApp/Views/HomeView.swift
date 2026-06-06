@@ -129,12 +129,25 @@ struct HomeView: View {
 
     @ViewBuilder
     private var getToKnowYourPlayers: some View {
-        if let spotlight = viewModel.spotlight(following: following) {
+        let spotlights = viewModel.spotlights(following: following)
+        if !spotlights.isEmpty {
             section("Get to know your players") {
-                PlayerSpotlightCard(
-                    spotlight: spotlight,
-                    club: viewModel.club(forAbbreviation: spotlight.teamAbbreviation)
-                )
+                VStack(spacing: 14) {
+                    ForEach(spotlights) { spotlight in
+                        NavigationLink {
+                            PlayerSpotlightView(
+                                spotlight: spotlight,
+                                club: viewModel.club(forAbbreviation: spotlight.teamAbbreviation)
+                            )
+                        } label: {
+                            PlayerSpotlightCard(
+                                spotlight: spotlight,
+                                club: viewModel.club(forAbbreviation: spotlight.teamAbbreviation)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
         }
     }

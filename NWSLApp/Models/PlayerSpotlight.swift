@@ -3,16 +3,17 @@
 //  NWSLApp
 //
 //  One "Player of the week" for Home's Module 2 ("Get to know your players").
-//  The spec made this module visible by default — a compact card that introduces
-//  the roster one person at a time and differentiates the app (learn the players,
-//  not homework). See Reference/Design/home-tab-design-spec.md.
+//  Per Reference/Design/spotlight-design-spec.md the card is Option B — a mini
+//  profile that sells the player before you tap: a bio blurb (the hook) plus a
+//  video thumbnail. Tapping pushes a dedicated PlayerSpotlightView (video +
+//  extended profile) — deliberately NOT PlayerDetailView (spotlight is narrative,
+//  "meet this person"; PlayerDetail is reference, "what are their stats").
 //
 //  Flat and view-friendly like TeamContentItem/FeedItem: it carries the team's
-//  `abbreviation` as the join key (so the ViewModel can rotate through the user's
-//  followed teams and resolve crest/color from the Club directory) plus the few
-//  fields the card shows. The full rotation mechanics + a real content pipeline
-//  are a future design session (spec: "Full mechanics TBD"); today a curated seed
-//  (PlayerSpotlightProvider) backs it.
+//  `abbreviation` as the join key (so the ViewModel can rotate per-followed-team
+//  and resolve crest/name from the Club directory) plus everything the card and
+//  the detail page render. The model is shaped for the future content pipeline
+//  (spec §"Content pipeline") — a real source fills the same fields.
 //
 
 import Foundation
@@ -29,7 +30,39 @@ struct PlayerSpotlight: Identifiable {
     /// "Forward" / "Midfielder" / "Defender" / "Goalkeeper".
     let position: String
 
-    /// The "Watch spotlight" link — a real team channel where the player's content
-    /// lives (a per-player deep link arrives with a real content source).
-    let watchURL: URL?
+    /// The 2-3 sentence hook (spec §Home card format): what makes this player
+    /// worth caring about, shown right on the Home card so the content sells
+    /// itself on the scroll. Also leads the detail page.
+    let bioBlurb: String
+
+    // MARK: Video (the "watch" content)
+    //
+    // A real, verified player-focused video (a "get to know"/feature/mic'd-up/
+    // interview). `videoURL` is nil for a written-only profile — the spec's
+    // explicit fallback for players without good video (e.g. content that lives
+    // only on Facebook). When nil the card hides the thumbnail and the detail
+    // page is bio-only.
+
+    let videoURL: URL?
+    /// Real video title, e.g. "Mic'd Up with Messiah Bright".
+    let videoTitle: String?
+    /// Where the video lives, for honest attribution ("Houston Dash",
+    /// "The Women's Game", "Victory+") — shown as "via …".
+    let videoSource: String?
+    // NOTE: no duration field — YouTube doesn't expose runtime to our seed's
+    // research path, so a faked badge would be dishonest. Add a real
+    // `videoDuration` when a content backend (or the planned proxy) provides it.
+
+    // MARK: Extended profile (spec §Tap-through — the detail page)
+
+    let nationality: String?
+    /// A 2026 snapshot (age rots yearly — acceptable for the TEMP seed; a real
+    /// source would carry a birth date and compute it). Nil when genuinely
+    /// uncertain, so the detail page omits it rather than asserting a guess.
+    let age: Int?
+    let careerHighlights: [String]
+    let funFacts: [String]
+    /// Current-season form ("4 goals, 2 assists") — optional and volatile, so
+    /// nil in the seed today; a live stats source fills it (spec §Tap-through).
+    let seasonForm: String?
 }

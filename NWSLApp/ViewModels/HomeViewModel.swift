@@ -37,7 +37,9 @@ final class HomeViewModel {
     // Module 1/2 content (TEMP static seeds; see the providers). Loaded in
     // loadClubs() so they're ready by the time clubsState is .loaded.
     private(set) var teamContentItems: [TeamContentItem] = []
-    private(set) var spotlights: [PlayerSpotlight] = []
+    // Named `allSpotlights` (not `spotlights`) so it doesn't collide with the
+    // derived `spotlights(following:)` below.
+    private(set) var allSpotlights: [PlayerSpotlight] = []
 
     // The shared season store, handed in by the view (mirrors ScheduleViewModel):
     // Home derives its modules from the same events Schedule renders, instead of
@@ -71,7 +73,7 @@ final class HomeViewModel {
         clubsState = .loading
         // Seeds resolve immediately today; the async shape is the future source's.
         teamContentItems = await contentProvider.items()
-        spotlights = await spotlightProvider.spotlights()
+        allSpotlights = await spotlightProvider.spotlights()
         do {
             let clubs = try await service.fetchTeams()
             clubsState = .loaded(clubs)
@@ -112,17 +114,23 @@ final class HomeViewModel {
 
     // MARK: - Module 2: Get to know your players
 
-    /// One spotlight from a followed team, rotated weekly. Deterministic (week of
-    /// year over a stably-ordered list) so it's stable within a week and cycles
-    /// across followed teams week to week — no randomness needed.
-    func spotlight(following: FollowingStore) -> PlayerSpotlight? {
-        let followed = followedAbbreviations(following)
-        let available = spotlights
-            .filter { followed.contains($0.teamAbbreviation) }
-            .sorted { $0.teamAbbreviation < $1.teamAbbreviation }
-        guard !available.isEmpty else { return nil }
+    /// One spotlight PER followed team (spec §Multi-team rotation): follow 2
+    /// teams, see 2 cards. Each team rotates independently — a deterministic
+    /// week-of-year pick over that team's spotlight list, so it's stable within a
+    /// week and cycles through the roster as the seed grows (one player per team
+    /// today → the pick is simply that player). Ordered by the followed clubs'
+    /// directory order (alphabetical) for a stable layout.
+    func spotlights(following: FollowingStore) -> [PlayerSpotlight] {
         let week = calendar.component(.weekOfYear, from: now())
-        return available[week % available.count]
+        return clubs
+            .filter { following.followedIDs.contains($0.id) }
+            .compactMap { club in
+                let forTeam = allSpotlights
+                    .filter { $0.teamAbbreviation == club.abbreviation }
+                    .sorted { $0.id < $1.id }   // stable order for the rotation
+                guard !forTeam.isEmpty else { return nil }
+                return forTeam[week % forTeam.count]
+            }
     }
 
     // MARK: - Module 4: Coming up (compact next-match strip)

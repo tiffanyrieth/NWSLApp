@@ -40,6 +40,11 @@ struct RootTabView: View {
     // readers (see MatchStore).
     @State private var matches = MatchStore()
 
+    // Daily-Trivia stats (streak / accuracy / day-gate), created once and shared
+    // app-wide so the game and a future Home Play-card badge read the same state
+    // (see TriviaStore). Like the others, it's a persistent Store, not per-screen.
+    @State private var trivia = TriviaStore()
+
     var body: some View {
         TabView(selection: $selection) {
             HomeView()
@@ -64,6 +69,7 @@ struct RootTabView: View {
         }
         .environment(following)
         .environment(matches)
+        .environment(trivia)
     }
 }
 

@@ -74,7 +74,7 @@ struct RootTabView: View {
                 .tag(Tab.standings)
 
             TeamsView()
-                .tabItem { Label("Teams", systemImage: "shield") }
+                .tabItem { Label("Teams", systemImage: "person.3.fill") }
                 .tag(Tab.teams)
 
             FeedView()

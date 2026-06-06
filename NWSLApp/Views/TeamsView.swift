@@ -64,6 +64,16 @@ struct TeamsView: View {
             Section("All Clubs") {
                 ForEach(viewModel.clubs) { row(for: $0) }
             }
+
+            // A way back into international competitions for anyone who skipped
+            // them during onboarding (the only other place they're offered).
+            Section {
+                NavigationLink {
+                    CompetitionsView()
+                } label: {
+                    Label("Follow competitions", systemImage: "globe")
+                }
+            }
         }
         .listStyle(.insetGrouped)
     }

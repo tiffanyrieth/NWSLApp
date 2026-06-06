@@ -174,7 +174,7 @@ placeholder (looks deliberate per the UI rules). Design specs in
 
 ```
 NWSLApp/
-├── NWSLAppApp.swift                   — app entry point; launches RootTabView
+├── NWSLAppApp.swift                   — app entry point; launches RootTabView; forces dark appearance app-wide
 ├── Models/                            — Codable models (⚠️ = backed by a seed provider)
 │   ├── BracketEdition.swift           — Bracket Battle entrants + edition, seed order
 │   ├── Club.swift                     — flat Club + ESPN /teams decode wrappers
@@ -224,7 +224,8 @@ NWSLApp/
 │   ├── PredictXIView.swift            — Predict the XI game (pink); per-match questions
 │   ├── OnboardingView.swift           — first-open team + competition follow picker
 │   ├── ScheduleView.swift             — full-season cards; 3 filters; sticky day headers
-│   ├── TeamsView.swift                — all-16 directory; Following floats to top
+│   ├── TeamsView.swift                — all-16 directory; Following floats to top; Follow-competitions row at bottom
+│   ├── CompetitionsView.swift         — follow international competitions (reached from TeamsView; reuses onboarding rows)
 │   ├── TeamDetailView.swift           — club page: header + social row + Squad·Stats tabs
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
 │   ├── PlayerSpotlightView.swift      — narrative spotlight tap-through (real YT video hero)
@@ -251,21 +252,25 @@ NWSLApp/
 
 Root is `RootTabView` — a 5-tab bar (**Home · Schedule · Standings · Teams ·
 Feed**), each tab its own `NavigationStack`; the app **lands on Home**. All five
-tabs built. Following persists via `UserDefaults` (`FollowingStore`); SwiftData is
-used **nowhere**. Each feature is built per its `Reference/Design/*-spec.md`
+tabs built. The app forces a **dark appearance app-wide**
+(`.preferredColorScheme(.dark)` on the root, also covering sheets) — there's no
+in-app appearance toggle. Following persists via `UserDefaults` (`FollowingStore`);
+SwiftData is used **nowhere**. Each feature is built per its `Reference/Design/*-spec.md`
 (approved in Cowork sessions) and **verified in-sim** via a temporary
 launch-env/deep-link scaffold driving deterministic screenshots (UI taps flake
 under memory pressure), then removed → gitignored `Reference/Design/*-verification/`.
 
 **Home** (`home-tab-design-spec.md`) — your-teams-first hub; pre-onboarding renders
 `OnboardingView` in place. Four modules — (1) "From your teams" content, (2) player
-spotlights (one/followed team), (3) "Play" games, (4) "Coming up" fixtures — all
-DERIVED by `HomeViewModel` from `MatchStore` + `FollowingStore`. Modules 1–2 on
+spotlights (one/followed team), (3) "Fan Zone" games, (4) "Coming up" fixtures — all
+DERIVED by `HomeViewModel` from `MatchStore` + `FollowingStore`. Fan Zone cards are
+ordered Predict → Bracket → Trivia; **Predict the XI shows only when ≥1 club is
+followed** (it's inherently personal), Bracket + Trivia always show. Modules 1–2 on
 ⚠️seeds; no-follows re-presents the picker. Module 1's ⚠️seed is 2 real, recent
 videos per club from each team's official YouTube — cards load the real frame
 (`img.youtube.com/vi/{id}/…`, crest-tile fallback) and tap straight to the video.
 
-**Play games** (`games-design-spec.md`) — all three built, each with its own color
+**Fan Zone games** (`games-design-spec.md`) — all three built, each with its own color
 + ⚠️seed + session VM + durable `…Store`: **Daily Trivia** (indigo), **Bracket
 Battle** (teal — deterministic seed-weighted "community" sim), **Predict the XI**
 (pink — kickoff = offset-from-now so the demo always shows OPEN+SETTLED).
@@ -284,8 +289,10 @@ mute, persisted in `FeedPreferencesStore`, filtering the live Feed.
 
 **Teams + Following** — `TeamsView` lists all 16 (`/teams`); Follow stars write to
 `FollowingStore` (followed float to a "Following" section). Onboarding also offers
-followable **international competitions** (`FollowedCompetition` + a follow set) —
-persisted, but the schedule isn't competition-aware yet (#13).
+followable **international competitions** (`FollowedCompetition` + a follow set);
+a **Follow-competitions row at the bottom of `TeamsView`** opens `CompetitionsView`
+(same toggle rows) so users who skipped them in onboarding can follow them later.
+Persisted, but the schedule isn't competition-aware yet (#13).
 
 **Team detail** (`teams-tab-design-spec.md`) — pinned header + centered social row
 (⚠️`TeamSocialLinksProvider`) over **Squad · Stats**. Squad = `PlayerCard` grid

@@ -248,74 +248,60 @@ Home**. All five tabs are built (no placeholder; `ComingSoonView` unreferenced).
 `Feed` (not `News`) signals the social-native direction. Following persists via
 `UserDefaults` (`FollowingStore`); SwiftData is used **nowhere**. Each feature
 below is built per its `Reference/Design/*-spec.md` (approved in Cowork sessions)
-and **verified in-sim** — the established pattern is a temporary
-launch-env/deep-link scaffold driving deterministic screenshots (UI taps flake
-under memory pressure), then removed; screenshots live in gitignored
-`Reference/Design/*-verification/` folders.
+and **verified in-sim** via a temporary launch-env/deep-link scaffold driving
+deterministic screenshots (UI taps flake under memory pressure), then removed;
+screenshots live in gitignored `Reference/Design/*-verification/` folders.
 
 **Home — the your-teams-first hub** (`home-tab-design-spec.md`, content-leads
-order). Pre-onboarding (`hasOnboarded == false`) renders `OnboardingView` in
-place (tab bar stays visible). A `ScrollView` of modules: (1) "From your teams"
-TeamContentCards (the hook); (2) "Get to know your players" one
-PlayerSpotlightCard/followed team; (3) "Play" game row (all three live); (4)
-"Coming up" ComingUpRow/club. Home owns no season data — `HomeViewModel`
-derives every module from the shared `MatchStore` + `FollowingStore` after one
-`loadClubs()` pass (club directory + both seeds).
-Modules 1–2 run on TEMP seeds; no-follows re-presents the picker as a sheet.
+order). Pre-onboarding renders `OnboardingView` in place (tab bar stays visible).
+A `ScrollView` of modules: (1) "From your teams" TeamContentCards; (2) "Get to
+know your players" one PlayerSpotlightCard/followed team; (3) "Play" game row; (4)
+"Coming up" ComingUpRow/club. `HomeViewModel` derives every module from the shared
+`MatchStore` + `FollowingStore` after one `loadClubs()` pass. Modules 1–2 run on
+TEMP seeds; no-follows re-presents the picker as a sheet.
 
 **Play games** (Module 3 "Play"; `games-design-spec.md`) — all three built, no
-placeholder remains. Each has its own identity color, ⚠️seed provider, session VM,
-and durable `…Store`. **Daily Trivia** (indigo) — 5 MC/day, select→submit→reveal
-→results; one scored play/day (Wordle-style lock); deterministic daily pick
-(SplitMix64 by day number). **Bracket Battle** (teal) — single-elim "Best
-Goalkeeper" (16 real GKs); vote each matchup, **lock** a round to reveal winner +
-vote split + bank a point/correct pick (no calendar gate); the "community" is a
-deterministic, seed-weighted simulation standing in for real voting; champion
-banner + leaderboard on completion. **Predict the XI** (pink) — per-match
-formation/GK/captain/scorer predictions (2/1/2/3 pts) that auto-save and lock at
-kickoff; OPEN (editable) vs SETTLED (scored results review) split derived in the
-VM; kickoff is an **offset from now** so the demo always has both states; season
-points → simulated leaderboard. All verified in-sim (scaffolds since removed).
+placeholder. Each has its own color, ⚠️seed provider, session VM, and durable
+`…Store`; full mechanics in the File Map view entries. **Daily Trivia** (indigo),
+**Bracket Battle** (teal — deterministic seed-weighted "community" sim), **Predict
+the XI** (pink — kickoff = offset-from-now so the demo always shows OPEN+SETTLED).
+All verified in-sim (scaffolds since removed).
 
 **Player Spotlight** (Module 2; `spotlight-design-spec.md`). One Option-B
-mini-profile per followed team → narrative `PlayerSpotlightView` (distinct from
-the roster's `PlayerDetailView`). ⚠️`PlayerSpotlightProvider` seeds all 16 (bios +
-oembed-verified videos; Mondésir/SEA is the written-only fallback);
-`HomeViewModel.spotlights(following:)` rotates one player per team weekly.
+mini-profile per followed team → narrative `PlayerSpotlightView`.
+⚠️`PlayerSpotlightProvider` seeds all 16 (bios + oembed-verified videos;
+Mondésir/SEA written-only fallback); `HomeViewModel.spotlights(following:)` rotates
+one player per team weekly.
 
 **Feed — the world talking about your teams** (`feed-tab-design-spec.md`).
-Reporters + news filtered to followed teams; distinct from Home Module 1 (Feed =
-the conversation *around* your teams). `FeedView`: title + settings gear (→
-`FeedSourcesView`), pinned chip bar (All · per team · League), chronological
-`FeedCard` stream. ⚠️`FeedContentProvider` seeds real reporters/outlets across all
-16 clubs evenly.
+Reporters + news filtered to followed teams; distinct from Home Module 1.
+`FeedView`: title + settings gear (→ `FeedSourcesView`), pinned chip bar (All ·
+per team · League), chronological `FeedCard` stream. ⚠️`FeedContentProvider` seeds
+real reporters/outlets across all 16 clubs evenly.
 
 **Teams + Following** (the personalization spine). `TeamsView` lists all 16 clubs
 (`/teams`); each Follow star writes to `FollowingStore`; followed clubs float into
 a "Following" section.
 
 **Team detail** (`teams-tab-design-spec.md`). `TeamDetailView` (pushed from
-Teams/Standings): a pinned header (crest + name + standingLine + Follow) + a
-centered **social-links row** (team-accent-tinted `SocialLinkButton`s — Reddit /
-Bluesky / Instagram / YouTube / TikTok, only the platforms a club actually uses,
-opened via `openURL`; curated ⚠️`TeamSocialLinksProvider` seed) over **Squad ·
-Stats** sub-tabs. Squad = team-colored `PlayerCard` grid (FWD→GK) →
-`PlayerDetailView`. Stats + PlayerDetailView are intentional placeholders. One
-`fetchRoster(clubID:)→ClubSquad` powers the page (color/standing/record all ride
-the roster payload); team color via `Color.teamAccent(hex:)`.
+Teams/Standings): pinned header (crest + name + standingLine + Follow) + a
+centered **social-links row** (team-accent `SocialLinkButton`s, only platforms a
+club uses; ⚠️`TeamSocialLinksProvider` seed) over **Squad · Stats** sub-tabs.
+Squad = team-colored `PlayerCard` grid (FWD→GK) → `PlayerDetailView`. Stats +
+PlayerDetailView are intentional placeholders. One `fetchRoster(clubID:)→ClubSquad`
+powers the page (color/standing/record ride the payload).
 
 **Standings** (`standings-tab-design-spec.md`). Full 16-team table, **PTS · GP ·
 W · L · D** only (GF/GA/GD omitted to avoid horizontal scroll). Non-scrolling
 header aligned to scrolling rows; followed teams blue; rows → `TeamDetailView`.
-Endpoint at `apis/v2/…` (not the app `base`); team id matches `/teams`.
+Endpoint at `apis/v2/…` (not the app `base`).
 
 **Schedule** (`schedule-tab-design-spec.md`). Full season in one
 `fetchScoreboard(year:)` call (~240 events for 2026) as a `ScrollView`/`LazyVStack`
-of MatchCards under sticky day headers (abbreviations like WAS/KC/SD). Three
-segmented filters (NWSL / My teams / All matches) = functions over one
-`MatchStore`. Each card carries 📍 venue · 📺 broadcast (same response). Scrolls to
-today/next matchday; re-anchors on filter change. `MatchCard`
-competition-badge-ready (dormant).
+of MatchCards under sticky day headers. Three segmented filters (NWSL / My teams /
+All matches) over one `MatchStore`. Cards carry 📍 venue · 📺 broadcast. Scrolls to
+today/next matchday; re-anchors on filter change. `MatchCard` competition-badge-
+ready (dormant).
 
 ---
 

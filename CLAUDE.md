@@ -174,7 +174,7 @@ placeholder (looks deliberate per the UI rules). Design specs in
 
 ```
 NWSLApp/
-├── NWSLAppApp.swift                   — app entry point; launches RootTabView; forces dark appearance app-wide
+├── NWSLAppApp.swift                   — app entry point; launches RootTabView; forces dark appearance app-wide; DEBUG `-resetOnboarding` launch arg → resets onboarding
 ├── Models/                            — Codable models (⚠️ = backed by a seed provider)
 │   ├── BracketEdition.swift           — Bracket Battle entrants + edition, seed order
 │   ├── Club.swift                     — flat Club + ESPN /teams decode wrappers
@@ -202,7 +202,7 @@ NWSLApp/
 ├── Stores/                            — @Observable shared state → UserDefaults, injected
 │   ├── BracketStore.swift             — Bracket picks / points / locked rounds
 │   ├── FeedPreferencesStore.swift     — Feed content-type toggles + muted sources
-│   ├── FollowingStore.swift           — followed clubs + competitions + onboarding gate
+│   ├── FollowingStore.swift           — followed clubs + competitions + onboarding gate; DEBUG `debugResetState()` re-test helper
 │   ├── MatchStore.swift               — shared season store; one fetch, many readers
 │   ├── PredictionStore.swift          — Predict-the-XI picks + season-points snapshot
 │   └── TriviaStore.swift              — Daily-Trivia streak/accuracy + one-play/day gate

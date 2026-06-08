@@ -136,27 +136,57 @@ struct OnboardingView: View {
 
     private var bottomBar: some View {
         VStack(spacing: 6) {
-            Button {
-                following.completeOnboarding()
-                dismiss()
-            } label: {
-                Text(followCount == 0
-                     ? "Follow your teams"
-                     : "Follow \(followCount) team\(followCount == 1 ? "" : "s")")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .disabled(followCount == 0)
+            followButton
 
             Text("You can always change this later")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal)
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
         .background(.bar)
+    }
+
+    // The follow CTA progresses outline → filled as teams are picked. The empty
+    // state uses an explicit accent *outline* (visible border, no fill) so it
+    // reads as a not-yet-active button — the old disabled `.borderedProminent`
+    // gray capsule with muted centered text looked like a search bar. We draw the
+    // border ourselves rather than leaning on `.bordered` + `.disabled`, whose
+    // system dimming washes the tint back to gray. Filled blue once ≥1 team is
+    // selected; the empty action is a no-op so onboarding still needs a pick.
+    // `.controlSize(.regular)` keeps it tappable without eating a full row.
+    @ViewBuilder
+    private var followButton: some View {
+        let title = followCount == 0
+            ? "Follow your teams"
+            : "Follow \(followCount) team\(followCount == 1 ? "" : "s")"
+
+        if followCount == 0 {
+            Button {} label: {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.accentColor, lineWidth: 1.5)
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Select at least one team to continue")
+        } else {
+            Button {
+                following.completeOnboarding()
+                dismiss()
+            } label: {
+                Text(title)
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.regular)
+        }
     }
 
     private func errorView(_ message: String) -> some View {

@@ -39,14 +39,17 @@ struct StatComparisonBar: View {
                 Text(homeDisplay)
                     .font(.subheadline.weight(.bold))
                     .monospacedDigit()
+                    .foregroundStyle(homeColor)
                 Spacer()
-                Text(label)
+                Text(label.uppercased())
                     .font(.caption)
+                    .tracking(0.5)
                     .foregroundStyle(.secondary)
                 Spacer()
                 Text(awayDisplay)
                     .font(.subheadline.weight(.bold))
                     .monospacedDigit()
+                    .foregroundStyle(awayColor)
             }
 
             GeometryReader { geo in
@@ -58,7 +61,7 @@ struct StatComparisonBar: View {
                         .fill(awayColor)
                 }
             }
-            .frame(height: 6)
+            .frame(height: 4)
         }
     }
 }

@@ -76,11 +76,6 @@ final class MatchDetailViewModel {
 
     /// past / live / future, from the scoreboard status state.
     var temporalState: MatchTemporalState {
-        #if DEBUG
-        // TEMP (match-detail-v2 verification): force the live layout for a
-        // screenshot when no match is actually in progress. DELETE with harness.
-        if ProcessInfo.processInfo.environment["MATCH_DETAIL_FORCE_LIVE"] != nil { return .live }
-        #endif
         switch event.statusState {
         case "in":   return .live
         case "post": return .past

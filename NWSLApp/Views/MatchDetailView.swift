@@ -38,14 +38,6 @@ struct MatchDetailView: View {
     init(event: Event, badge: CompetitionBadge? = nil) {
         _viewModel = State(initialValue: MatchDetailViewModel(event: event))
         self.badge = badge
-        #if DEBUG
-        // TEMP (match-detail-v2 verification): pre-select a tab for deterministic
-        // screenshots via the MATCH_DETAIL_TAB env var. DELETE with the harness.
-        if let raw = ProcessInfo.processInfo.environment["MATCH_DETAIL_TAB"],
-           let preselected = DetailTab(rawValue: raw) {
-            _tab = State(initialValue: preselected)
-        }
-        #endif
     }
 
     private enum DetailTab: String, CaseIterable, Hashable {

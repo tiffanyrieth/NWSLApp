@@ -21,11 +21,17 @@ struct ESPNService {
     // If a future edit makes it invalid, this crashes on first launch in dev — the right time to catch it.
     private let base = URL(string: "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.nwsl/")!
 
+    // Base URL the scoreboard call builds on. As of V2 (0.2.0) this is the
+    // caching proxy (AppConfig.scoreboardBaseURL) rather than `base`; teams,
+    // roster, and standings still use `base`/the explicit standings URL.
+    // Injectable so tests/previews can point it elsewhere.
+    var scoreboardBase: URL = AppConfig.scoreboardBaseURL
+
     // When `year` is provided, requests the full season via
     // `?dates=YYYY0101-YYYY1231&limit=500` — the form the API probe confirmed
     // returns the entire season (the default response caps at 100 events).
     func fetchScoreboard(year: Int? = nil) async throws -> Scoreboard {
-        let endpoint = base.appendingPathComponent("scoreboard")
+        let endpoint = scoreboardBase.appendingPathComponent("scoreboard")
         guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
             throw ESPNServiceError.badURL
         }

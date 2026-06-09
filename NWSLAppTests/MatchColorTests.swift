@@ -56,4 +56,28 @@ struct MatchColorTests {
         )
         #expect(r.separation >= 0.30)   // blue vs orange defaults
     }
+
+    // MARK: - Brand-color overrides
+
+    @Test func angelCityOverridesToSolRosa() {
+        // ESPN id 21422 → Sol Rosa coral, not ESPN's #202121 black.
+        #expect(TeamBrandColors.primary(for: "21422") == "E6447B")
+        #expect(TeamBrandColors.alternate(for: "21422") == "202121")
+    }
+
+    @Test func unknownAndNilTeamsHaveNoOverride() {
+        #expect(TeamBrandColors.primary(for: "15365") == nil)   // WAS — ESPN stands
+        #expect(TeamBrandColors.primary(for: nil) == nil)
+    }
+
+    @Test func solRosaResolvesToCoralFill() {
+        // Used directly (bright enough), reads as coral: red-dominant, low green.
+        let r = Color._resolveMatchRGBForTesting(
+            homePrimary: "E6447B", homeAlt: "202121",
+            awayPrimary: "000000", awayAlt: "99242B"
+        )
+        #expect(r.home.r > 0.8)
+        #expect(r.home.g < 0.4)
+        #expect(r.separation >= 0.30)
+    }
 }

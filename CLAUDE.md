@@ -357,7 +357,8 @@ NWSLApp/
 │   ├── TeamContentCard.swift          — ⚠️ Module-1 real YT thumbnail (crest-tile fallback) + attribution
 │   └── TeamLogo.swift                 — team crest via the shared ImageCache (cached; placeholder fallback)
 ├── Extensions/
-│   └── Color+Hex.swift                — teamAccent(hex:) → (fill, on-color); teamFillOnDark(hex:) lifts dark brand colors; resolveMatchColors(…) → two distinct, dark-legible team colors for a match
+│   ├── Color+Hex.swift                — teamAccent(hex:) → (fill, on-color); teamFillOnDark(hex:) lifts dark brand colors; resolveMatchColors(…) → two distinct, dark-legible team colors for a match
+│   └── TeamBrandColors.swift          — per-team-id brand-color overrides for clubs ESPN gets wrong (e.g. Angel City Sol Rosa coral); consulted before ESPN's hexes
 └── Assets.xcassets/                   — app icons, accent color
 ```
 

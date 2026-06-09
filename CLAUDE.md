@@ -72,8 +72,20 @@ not officially supported).
 - Endpoints are unsupported and undocumented — they can change shape, break, or
   rate-limit without notice. Fail gracefully.
 
-**Future:** Possibly a Vercel serverless proxy in front of ESPN for caching,
-response normalization, and a stable interface.
+**Proxy (V2, 0.2.0):** The full-season **scoreboard** now routes through a tiny
+Cloudflare Worker — `nwslapp-proxy` (sibling repo `~/Projects/nwslapp-proxy`,
+GitHub `tiffanyrieth/nwslapp-proxy`, live at
+`https://nwslapp-proxy.tiffany-rieth.workers.dev`). It fetches ESPN once,
+caches it (Workers Cache API, dynamic TTL — 30s if a game is live, else 300s),
+and fans out to all callers; `GET /scoreboard` forwards the query string and
+returns ESPN's bytes **unchanged**, so the app's `Scoreboard` decoder is
+untouched. Only the scoreboard is proxied — teams, roster, and standings still
+hit ESPN directly. Base URL lives in `Config/AppConfig.swift`; DEBUG
+`-useESPNDirect` falls back to ESPN. See What's-Next #12 and
+`Reference/Sessions/2026-06-08_v2-kickoff-caching-proxy.md`.
+
+**Future:** Expand the proxy to more endpoints + response normalization as
+needed; add the gitignored-secrets pattern with Supabase in 0.3.0.
 
 ---
 
@@ -165,6 +177,46 @@ working in this repo:
 
 ---
 
+## Versioning
+
+Two separate numbering systems — don't conflate them.
+
+- **Phase names ("V1", "V2")** are internal chapters, not release numbers. V1 =
+  the vision prototype (seed data, no backend). V2 = the real-backend era
+  (proxy, accounts, live Feed). Use them in planning/notes only.
+- **Release numbers** follow semver (`MAJOR.MINOR.PATCH`) and the project is
+  **pre-1.0**: `0.x` means "not yet publicly released / still stabilizing."
+  - **A minor bump = a whole new CHAPTER of the app, not a single feature.**
+    0.1 set the grain: the *entire* prototype — all ~22 PRs, whole new tabs and
+    games included — is **0.1.x**, one minor. So the *entire* backend era (proxy
+    + accounts + Feed + push + player photos + every fix and surprise along the
+    way) is likewise **one chapter → 0.2.x**, however many PRs it takes.
+  - **Patch (third digit) = each shipped update inside the chapter.** Pre-1.0
+    this includes new features, not just bug fixes (strict "patch = bugfix only"
+    is a post-1.0 rule). The proxy (**0.2.0**), accounts, Feed, etc. are patch
+    steps climbing under 0.2.x — they do NOT each earn their own minor. *Worked
+    example:* proxy **0.2.0** → accounts ≈ **0.2.3** → live Feed ≈ **0.2.9** →
+    game backends ≈ **0.2.15**, all still inside 0.2.x.
+  - **A chapter's theme is a center of gravity, not a fence.** 0.2.x is *about*
+    the backend, but pre-1.0 it also absorbs the bug fixes and small unrelated
+    improvements that get shipped alongside — they ride the same 0.2.x patch
+    line rather than spawning their own minor. Only a genuinely new *era* (a
+    whole new tab, a major redesign, a distinct pre-launch beta) earns the next
+    minor. Routine fixes and polish do not.
+  - **Reserve 1.0.0 for the first public App Store launch.** Because a chapter
+    is one minor, you arrive at 1.0 from somewhere low (≈0.2–0.3) and never
+    balloon past it. A distinct pre-launch hardening/beta chapter, if one
+    emerges, would be 0.3.x.
+- **Xcode has two fields, both required:** "Marketing Version"
+  (`CFBundleShortVersionString`, the human-facing `0.2.0`) and "Build"
+  (`CFBundleVersion`, a monotonic integer bumped on *every* TestFlight upload —
+  TestFlight rejects a duplicate build number even when the marketing version
+  is unchanged).
+- **Tag releases in git** at each milestone (`git tag v0.2.0`) so repo history
+  tracks the version line alongside the per-PR commits.
+
+---
+
 ## File Map (UPDATE THIS AFTER EVERY FEATURE)
 
 Markers: ⚠️ = TEMP scaffolding (curated static seed; swap for a real backend —
@@ -175,6 +227,8 @@ placeholder (looks deliberate per the UI rules). Design specs in
 ```
 NWSLApp/
 ├── NWSLAppApp.swift                   — app entry point; launches RootTabView; forces dark appearance app-wide; DEBUG `-resetOnboarding` launch arg → resets onboarding
+├── Config/                            — checked-in (non-secret) app configuration
+│   └── AppConfig.swift                — base URLs; scoreboard → Cloudflare proxy by default; DEBUG `-useESPNDirect` → ESPN direct
 ├── Models/                            — Codable models (⚠️ = backed by a seed provider)
 │   ├── BracketEdition.swift           — Bracket Battle entrants + edition, seed order
 │   ├── Club.swift                     — flat Club + ESPN /teams decode wrappers
@@ -191,7 +245,7 @@ NWSLApp/
 │   └── TriviaQuestion.swift           — ⚠️ one Daily-Trivia question (4 options)
 ├── Services/                          — ESPNService + ⚠️ curated async seed providers
 │   ├── BracketEditionProvider.swift   — ⚠️ Bracket seed + simulated leaderboard
-│   ├── ESPNService.swift              — async fetch: scoreboard/teams/roster/standings
+│   ├── ESPNService.swift              — async fetch: scoreboard (via proxy, see AppConfig)/teams/roster/standings
 │   ├── FeedContentProvider.swift      — ⚠️ Feed seed: reporters/outlets, all 16 clubs
 │   ├── PlayerSpotlightProvider.swift  — ⚠️ one spotlight player per club (16)
 │   ├── PredictionMatchProvider.swift  — ⚠️ Predict-the-XI seed (open + settled)
@@ -373,7 +427,10 @@ here. Original item numbers are kept so existing cross-references stay valid.
 12. **Push notifications + the server question.** Scheduled reminders need NO server
     (kickoff times known → local notifications, free on sideload); **live updates
     need a server + APNs + the $99 Program**. The server doubles as the caching
-    proxy. Full reasoning: `Reference/Sessions/2026-06-04_server-pulls-and-push.md`.
+    proxy. The **caching half now exists** — `nwslapp-proxy` (Cloudflare Worker,
+    0.2.0) proxies the scoreboard (see Data Source → Proxy). Remaining here: APNs +
+    the Program for live push. Full reasoning:
+    `Reference/Sessions/2026-06-04_server-pulls-and-push.md`.
 13. **Competition-aware schedule.** Groundwork: the three Schedule filters,
     `MatchCard`'s dormant `CompetitionBadge`, and a `FollowedCompetition` model +
     follow set wired to onboarding. Remaining: a competition on `Event` (so a

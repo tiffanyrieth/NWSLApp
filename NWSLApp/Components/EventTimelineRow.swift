@@ -16,6 +16,12 @@ import SwiftUI
 
 struct EventTimelineRow: View {
     let event: KeyEvent
+    /// The match's two team ids + abbreviations, so the row can label which side
+    /// the event belongs to (KeyEvent.team carries an id + name, not an abbr).
+    var homeTeamID: String? = nil
+    var awayTeamID: String? = nil
+    var homeAbbr: String? = nil
+    var awayAbbr: String? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -41,8 +47,21 @@ struct EventTimelineRow: View {
             }
 
             Spacer(minLength: 0)
+
+            if let abbr = teamAbbreviation {
+                Text(abbr)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.tertiary)
+            }
         }
         .padding(.vertical, 6)
+    }
+
+    private var teamAbbreviation: String? {
+        guard let id = event.team?.id else { return nil }
+        if id == homeTeamID { return homeAbbr }
+        if id == awayTeamID { return awayAbbr }
+        return nil
     }
 
     // MARK: - Derived display

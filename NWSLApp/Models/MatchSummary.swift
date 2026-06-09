@@ -145,6 +145,15 @@ struct KeyEventParticipant: Decodable {
 struct GameInfo: Decodable {
     let venue: GameInfoVenue?
     let attendance: Int?
+    let officials: [GameInfoOfficial]?
+}
+
+/// A match official. ESPN's NWSL feed gives a name + an order index but no
+/// role/position, so we can't distinguish referee from assistant.
+struct GameInfoOfficial: Decodable {
+    let displayName: String?
+    let fullName: String?
+    let order: Int?
 }
 
 struct GameInfoVenue: Decodable {

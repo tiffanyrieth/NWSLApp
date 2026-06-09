@@ -282,6 +282,7 @@ NWSLApp/
 │   ├── TeamsView.swift                — all-16 directory; Following floats to top; Follow-competitions row at bottom
 │   ├── CompetitionsView.swift         — follow international competitions (reached from TeamsView; reuses onboarding rows)
 │   ├── TeamDetailView.swift           — club page: header + social row + Squad·Stats tabs
+│   ├── MatchDetailView.swift          — single match (pre/in/post) from the scoreboard Event; pushed from a tapped MatchCard
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
 │   ├── PlayerSpotlightView.swift      — narrative spotlight tap-through (real YT video hero)
 │   ├── StandingsView.swift            — 16-team table (PTS·GP·W·L·D); followed blue
@@ -290,7 +291,7 @@ NWSLApp/
 ├── Components/                        — reusable view pieces
 │   ├── ComingUpRow.swift              — Module-4 compact next-match row per team
 │   ├── FeedCard.swift                 — one Feed item (post or article); opens source
-│   ├── MatchCard.swift                — one game: score + status + venue/📺 (dormant badge)
+│   ├── MatchCard.swift                — one game: score + status + venue/📺 (dormant badge); taps → MatchDetailView in Schedule
 │   ├── PlayerCard.swift               — Squad-grid card; team-color monogram + position
 │   ├── PlayerSpotlightCard.swift      — ⚠️ Module-2 player-of-week card (real YT thumbnail)
 │   ├── SocialLinkButton.swift         — circular team-tinted social icon; opens account
@@ -367,7 +368,10 @@ rows → `TeamDetailView`. Endpoint at `apis/v2/…` (not the app `base`).
 **Schedule** (`schedule-tab-design-spec.md`) — full season in one
 `fetchScoreboard(year:)` (~240 events for 2026); sticky day headers; three filters
 (NWSL / My teams / All matches) over one `MatchStore`; cards carry 📍 venue · 📺
-broadcast; scrolls to today, re-anchors on filter change.
+broadcast; scrolls to today, re-anchors on filter change. Tapping a card pushes
+`MatchDetailView` — a state-aware (pre/in/post) match screen (full names, crests,
+score or kickoff, venue + broadcast) built entirely from the scoreboard `Event`,
+no extra fetch.
 
 ---
 
@@ -383,7 +387,9 @@ here. Original item numbers are kept so existing cross-references stay valid.
    keep the list visible during refresh, spinner only on first load.
 4. Capture a real ESPN response → `NWSLAppTests/Fixtures/scoreboard.json` + a
    decode-only test for `Scoreboard`/Event helpers (date parsing, `dayKey` TZ).
-6. Make `MatchCard` tappable → a match detail screen (scorers/lineups/stats/news).
+6. **(DONE — see Current State)** `MatchCard` taps → `MatchDetailView`, built from
+   the scoreboard `Event`. Remaining (future): ESPN's per-event `/summary` endpoint
+   for the richer detail — lineups, goal scorers, match stats, news.
 9. **(Fragility)** `MatchStore.matches(for:)` joins club↔game by `abbreviation`
    (ESPN competitors carry no id). TEMP-commented; a rename silently empties a
    schedule (empty state, not crash). Real fix: a normalized club-id map.

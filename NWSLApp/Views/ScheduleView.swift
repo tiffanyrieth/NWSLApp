@@ -143,7 +143,15 @@ struct ScheduleView: View {
                 ForEach(sections) { section in
                     Section {
                         ForEach(section.events) { event in
-                            MatchCard(event: event)
+                            // Closure-based NavigationLink (not value-based): Event
+                            // isn't Hashable, and the card is the link's label so the
+                            // whole card is tappable. `.plain` keeps the card's look.
+                            NavigationLink {
+                                MatchDetailView(event: event)
+                            } label: {
+                                MatchCard(event: event)
+                            }
+                            .buttonStyle(.plain)
                         }
                     } header: {
                         DayHeader(label: section.label)

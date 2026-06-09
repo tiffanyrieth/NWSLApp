@@ -64,3 +64,9 @@ fastlane/test_output
 # Local-only reference material — competitor-app screenshots (MLS, NWSL, MLB,
 # etc.) kept on disk for Claude to look at when discussing features. Not synced.
 Reference/
+
+# App secrets — Supabase project URL + anon key (per-user backend, 0.2.x).
+# The anon key is a public client key (Row-Level Security is the real boundary),
+# but credentials still don't belong in git. Copy Secrets.example → Secrets.swift
+# and fill in the real values from the Supabase dashboard (Settings → API).
+NWSLApp/Config/Secrets.swift

@@ -25,7 +25,16 @@ grow with it.
 - **State:** `@Observable` (modern) over `ObservableObject` where possible
 - **Networking:** `URLSession` + `async/await`. No third-party HTTP libraries
   unless justified.
-- **Persistence:** TBD — start in-memory, add SwiftData if needed.
+- **Persistence:** UserDefaults for small local state (follows, game stats);
+  Supabase (Postgres) as the durable per-user source of truth once signed in.
+  SwiftData still used nowhere.
+- **Auth / per-user backend:** Sign in with Apple → **Supabase**
+  (Postgres + native Apple auth + Row-Level Security). The project's **first and
+  only third-party dependency** is the **Supabase Swift SDK** (`supabase-swift`,
+  SPM) — justified because rolling raw URLSession calls would mean reimplementing
+  JWT refresh, RLS header injection, and session keychain storage. Credentials
+  live in a **gitignored `Config/Secrets.swift`** (template: `Secrets.example`);
+  the anon key is a public client key — RLS is the real boundary.
 - **Testing:** Swift Testing (`@Test` + `#expect()`), not XCTest
 - **Minimum iOS version:** iOS 17 (enables `@Observable`)
 - **Xcode version:** 26.5
@@ -84,8 +93,24 @@ hit ESPN directly. Base URL lives in `Config/AppConfig.swift`; DEBUG
 `-useESPNDirect` falls back to ESPN. See What's-Next #12 and
 `Reference/Sessions/2026-06-08_v2-kickoff-caching-proxy.md`.
 
+**Per-user backend (V2, 0.2.x):** **Supabase** is the stateful/per-user layer
+(boundary: Workers = stateless/global; Supabase = stateful/per-user). **Sign in
+with Apple** creates a Supabase user; a `profiles` row and a `follows` row-set
+(team IDs, Row-Level-Security'd to the owner) persist per account. The app stays
+**offline-first**: UserDefaults is the immediate local cache and the app never
+blocks on the network to show follows; Supabase is the durable truth. On sign-in
+the local and server follow sets are **merged (union — never delete)**, written
+back down locally (covers new-device restore) and pushed up; afterwards each
+follow/unfollow mirrors to Supabase best-effort. Only **clubs** sync (not
+competitions yet). The Supabase client is built from the gitignored `Secrets`
+(see `Config/AppConfig.swift` sibling `Services/SupabaseManager.swift`). The
+Postgres schema (tables + RLS + the required `authenticated` grants) is checked
+in at `supabase/schema.sql` — RLS alone isn't enough; a missing table grant fails
+queries with `42501`. See `Reference/Sessions/2026-06-09_supabase-accounts-setup.md`.
+
 **Future:** Expand the proxy to more endpoints + response normalization as
-needed; add the gitignored-secrets pattern with Supabase in 0.3.0.
+needed; leaderboard tables, competition-follow sync, and Tier-2 push build on
+this account system.
 
 ---
 
@@ -227,8 +252,10 @@ placeholder (looks deliberate per the UI rules). Design specs in
 ```
 NWSLApp/
 ├── NWSLAppApp.swift                   — app entry point; launches RootTabView; forces dark appearance app-wide; DEBUG `-resetOnboarding` launch arg → resets onboarding
-├── Config/                            — checked-in (non-secret) app configuration
-│   └── AppConfig.swift                — base URLs; scoreboard → Cloudflare proxy by default; DEBUG `-useESPNDirect` → ESPN direct
+├── Config/                            — app configuration
+│   ├── AppConfig.swift                — base URLs; scoreboard → Cloudflare proxy by default; DEBUG `-useESPNDirect` → ESPN direct
+│   ├── Secrets.swift                  — 🔒 GITIGNORED Supabase URL + anon key (not committed)
+│   └── Secrets.example                — checked-in template for Secrets.swift (non-`.swift` so it never compiles)
 ├── Models/                            — Codable models (⚠️ = backed by a seed provider)
 │   ├── BracketEdition.swift           — Bracket Battle entrants + edition, seed order
 │   ├── Club.swift                     — flat Club + ESPN /teams decode wrappers
@@ -243,9 +270,11 @@ NWSLApp/
 │   ├── TeamContentItem.swift          — ⚠️ Home Module-1 video post (+ YT thumbnail URL)
 │   ├── TeamSocialLinks.swift          — ⚠️ per-team social links for TeamDetail
 │   └── TriviaQuestion.swift           — ⚠️ one Daily-Trivia question (4 options)
-├── Services/                          — ESPNService + ⚠️ curated async seed providers
+├── Services/                          — ESPNService + Supabase clients + ⚠️ curated async seed providers
 │   ├── BracketEditionProvider.swift   — ⚠️ Bracket seed + simulated leaderboard
 │   ├── ESPNService.swift              — async fetch: scoreboard (via proxy, see AppConfig)/teams/roster/standings
+│   ├── FollowSyncService.swift        — Supabase `follows` table client (fetch/push/add/remove); RLS-scoped per user
+│   ├── SupabaseManager.swift          — the one shared SupabaseClient (built from Secrets)
 │   ├── FeedContentProvider.swift      — ⚠️ Feed seed: reporters/outlets, all 16 clubs
 │   ├── PlayerSpotlightProvider.swift  — ⚠️ one spotlight player per club (16)
 │   ├── PredictionMatchProvider.swift  — ⚠️ Predict-the-XI seed (open + settled)
@@ -254,10 +283,12 @@ NWSLApp/
 │   ├── TeamSocialLinksProvider.swift  — ⚠️ per-team social-account URLs seed
 │   └── TriviaQuestionProvider.swift   — ⚠️ 55 hand-written NWSL trivia questions
 ├── Stores/                            — @Observable shared state → UserDefaults, injected
+│   ├── AuthStore.swift                — @MainActor; Sign in with Apple → Supabase user; profile upsert; nonce flow (knows nothing about follows)
 │   ├── BracketStore.swift             — Bracket picks / points / locked rounds
 │   ├── ClubStore.swift                — shared club directory; one fetch, many readers (ID/abbr lookups)
 │   ├── FeedPreferencesStore.swift     — Feed content-type toggles + muted sources
-│   ├── FollowingStore.swift           — followed clubs + competitions + onboarding gate; DEBUG `debugResetState()` re-test helper
+│   ├── FollowSyncCoordinator.swift    — @MainActor; the ONLY follows↔Supabase bridge (sign-in union-merge + ongoing sync); not env-injected
+│   ├── FollowingStore.swift           — followed clubs + competitions + onboarding gate + one-time sign-in-prompt flag; pure/offline-first with optional `onFollowsChanged` hook + `merge(ids:)` seams; DEBUG `debugResetState()` re-test helper
 │   ├── MatchStore.swift               — shared season store; one fetch, many readers
 │   ├── PredictionStore.swift          — Predict-the-XI picks + season-points snapshot
 │   └── TriviaStore.swift              — Daily-Trivia streak/accuracy + one-play/day gate
@@ -272,12 +303,13 @@ NWSLApp/
 │   ├── TeamDetailViewModel.swift      — roster + social links + simulated stats/leaders
 │   └── TriviaViewModel.swift          — one Daily-Trivia session (deterministic daily 5)
 ├── Views/                             — one screen per file
-│   ├── RootTabView.swift              — app root; 5-tab TabView; lands on Home; injects stores
-│   ├── HomeView.swift                 — your-teams hub: 4 modules; onboarding-in-place
+│   ├── RootTabView.swift              — app root; 5-tab TabView; lands on Home; injects stores (incl. AuthStore); restores session + starts FollowSyncCoordinator
+│   ├── HomeView.swift                 — your-teams hub: 4 modules; onboarding-in-place; presents the one-time sign-in prompt post-onboarding
 │   ├── DailyTriviaView.swift          — Daily Trivia game (indigo); 5/day
 │   ├── BracketBattleView.swift        — Bracket Battle game (teal); vote + lock rounds
 │   ├── PredictXIView.swift            — Predict the XI game (pink); per-match questions
 │   ├── OnboardingView.swift           — first-open team + competition follow picker
+│   ├── SignInPromptView.swift         — one-time post-onboarding "save your picks" sheet (official Sign-in-with-Apple button + skip)
 │   ├── ScheduleView.swift             — full-season cards; 3 filters; sticky day headers
 │   ├── TeamsView.swift                — all-16 directory; Following floats to top; Follow-competitions row at bottom
 │   ├── CompetitionsView.swift         — follow international competitions (reached from TeamsView; reuses onboarding rows)
@@ -319,6 +351,21 @@ retry if the directory fails (no more silent infinite spinner). Each feature is 
 (approved in Cowork sessions) and **verified in-sim** via a temporary
 launch-env/deep-link scaffold driving deterministic screenshots (UI taps flake
 under memory pressure), then removed → gitignored `Reference/Design/*-verification/`.
+
+**Accounts & follow sync** (`Reference/Sessions/2026-06-09_supabase-accounts-setup.md`)
+— Sign in with Apple → a **Supabase** user is live (the app's first per-user
+backend). `AuthStore` (env-injected) runs the Apple flow (nonce → Supabase
+`signInWithIdToken`) and upserts a `profiles` row; `RootTabView` restores any
+saved session on launch and starts a `FollowSyncCoordinator`. Sign-in is
+**optional and offline-first**: a single skippable "save your picks" sheet appears
+once after onboarding (`SignInPromptView`, one-time `hasSeenSignInPrompt` flag) —
+skipping leaves the app fully working on the UserDefaults cache. When signed in,
+the coordinator merges local+server follows (union), restores on a new device,
+and mirrors each toggle to the Supabase `follows` table (RLS-scoped per user).
+`FollowingStore` stays pure/synchronous — all networking lives in the coordinator
+via two optional seams (`onFollowsChanged`, `merge(ids:)`). Only clubs sync
+(competitions are local-only for now). Requires the gitignored
+`Config/Secrets.swift` (Supabase URL + anon key) and the `Supabase` SPM package.
 
 **Home** (`home-tab-design-spec.md`) — your-teams-first hub; pre-onboarding renders
 `OnboardingView` in place. Four modules — (1) "From your teams" content, (2) player
@@ -445,8 +492,11 @@ here. Original item numbers are kept so existing cross-references stay valid.
     (kickoff times known → local notifications, free on sideload); **live updates
     need a server + APNs + the $99 Program**. The server doubles as the caching
     proxy. The **caching half now exists** — `nwslapp-proxy` (Cloudflare Worker,
-    0.2.0) proxies the scoreboard (see Data Source → Proxy). Remaining here: APNs +
-    the Program for live push. Full reasoning:
+    0.2.0) proxies the scoreboard (see Data Source → Proxy). The **account +
+    `follows` half now exists too** — Supabase + Sign in with Apple (see Current
+    State → Accounts & follow sync), so a Tier-2 poller knows who follows which
+    teams. Remaining here: APNs + the Program for live push, plus the Worker
+    poller. Full reasoning:
     `Reference/Sessions/2026-06-04_server-pulls-and-push.md`.
 13. **Competition-aware schedule.** Groundwork: the three Schedule filters,
     `MatchCard`'s dormant `CompetitionBadge`, and a `FollowedCompetition` model +

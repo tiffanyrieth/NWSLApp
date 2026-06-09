@@ -177,7 +177,18 @@ struct MatchDetailView: View {
                 }
             }
 
-            lineupList("Starting XI", players: roster.starters)
+            // Pitch when we can place all 11 by position; the list is the
+            // permanent fallback (never a broken pitch).
+            if FormationPitchView.supports(formation: roster.formation, players: roster.starters) {
+                FormationPitchView(
+                    formation: roster.formation,
+                    players: roster.starters,
+                    teamAccentHex: roster.team?.color
+                )
+            } else {
+                lineupList("Starting XI", players: roster.starters)
+            }
+
             if !roster.substitutes.isEmpty {
                 lineupList("Substitutes", players: roster.substitutes)
             }

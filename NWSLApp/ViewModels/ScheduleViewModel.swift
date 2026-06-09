@@ -12,11 +12,12 @@
 //  view (`store = ...`) before the first load, because a SwiftUI `@State` view
 //  model can't read the environment at init.
 //
-//  It DOES make one small fetch of its own: the club directory, used only to
-//  resolve the user's followed club IDs (FollowingStore holds IDs) into team
-//  abbreviations for the "My teams" filter. (HomeViewModel/TeamsViewModel fetch
-//  the same directory — a future shared ClubStore could consolidate the three;
-//  see CLAUDE.md What's-Next.)
+//  The club directory it needs — to resolve the user's followed club IDs
+//  (FollowingStore holds IDs) into team abbreviations for the "My teams" filter —
+//  comes from the shared ClubStore (also handed in by the view), the same
+//  directory Teams/Home/Feed read. One fetch, many readers (CLAUDE.md
+//  What's-Next #15); a failed directory fetch now surfaces a real error + retry
+//  on the My-teams path instead of an infinite spinner (#16).
 //
 
 import Foundation
@@ -46,26 +47,27 @@ final class ScheduleViewModel {
     // because the view model is constructed before the environment is readable;
     // until it's wired, the screen simply reads as `.idle`.
     var store: MatchStore?
+    // The shared club directory, handed in by the view: used only to map followed
+    // IDs → abbreviations for the "My teams" filter.
+    var clubStore: ClubStore?
     // Also handed in by the view: the personalization lens for the "My teams"
     // filter (which followed clubs are playing).
     var following: FollowingStore?
 
-    private let service: ESPNService
     private let calendar: Calendar
     private let now: () -> Date
 
-    // Club directory, fetched once, used only to map followed IDs → abbreviations.
-    private(set) var clubs: [Club] = []
-
     init(
-        service: ESPNService = ESPNService(),
         calendar: Calendar = .current,
         now: @escaping () -> Date = Date.init
     ) {
-        self.service = service
         self.calendar = calendar
         self.now = now
     }
+
+    /// The shared club directory (empty unless the store is `.loaded`). Used only
+    /// to resolve followed IDs → abbreviations for the "My teams" filter.
+    var clubs: [Club] { clubStore?.clubs ?? [] }
 
     // Proxy the shared store's state so ScheduleView's `switch` over
     // idle/loading/loaded/error is unchanged.
@@ -73,19 +75,7 @@ final class ScheduleViewModel {
 
     func load() async {
         await store?.load()
-        await loadClubs()
-    }
-
-    /// Club directory — fetched once, used only to resolve followed IDs →
-    /// abbreviations for the "My teams" filter. Kept SEPARATE from the season
-    /// load because it must run even when another screen (e.g. Home, the landing
-    /// tab) already loaded the shared MatchStore: that path skips the season
-    /// `.idle` guard, and if the club fetch rode along inside it the "My teams"
-    /// filter would be stuck resolving forever. Idempotent via `clubs.isEmpty`,
-    /// so it's safe to call on every appearance and from pull-to-refresh.
-    func loadClubs() async {
-        guard clubs.isEmpty else { return }
-        clubs = (try? await service.fetchTeams()) ?? []
+        await clubStore?.load()
     }
 
     /// Day-grouped sections for a given filter tab.
@@ -102,10 +92,23 @@ final class ScheduleViewModel {
         )
     }
 
-    /// True when the user follows clubs but the directory hasn't resolved yet —
-    /// lets the view show a spinner instead of a misleading "follow teams" prompt.
+    /// True when the user follows clubs but the directory is still loading — lets
+    /// the view show a spinner instead of a misleading "follow teams" prompt. A
+    /// *failed* directory load is NOT "resolving" (see `clubsError`): it gets a
+    /// real error + retry instead of an endless spinner (#16).
     var isResolvingFollowedTeams: Bool {
-        !(following?.followedIDs.isEmpty ?? true) && clubs.isEmpty
+        guard !(following?.followedIDs.isEmpty ?? true) else { return false }
+        switch clubStore?.state {
+        case .loaded, .error: return false
+        default: return true   // idle / loading / not-yet-wired
+        }
+    }
+
+    /// The directory-load error message, if the club fetch failed — surfaced on
+    /// the "My teams" path so a failed directory shows a retry, not "No matches".
+    var clubsError: String? {
+        if case .error(let message) = clubStore?.state { return message }
+        return nil
     }
 
     // MARK: - Filtering

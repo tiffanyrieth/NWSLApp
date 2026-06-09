@@ -40,6 +40,11 @@ struct RootTabView: View {
     // readers (see MatchStore).
     @State private var matches = MatchStore()
 
+    // The league's club directory (all 16 clubs), created once and shared
+    // app-wide: Teams lists it, Onboarding picks from it, and Home/Schedule/Feed
+    // resolve followed IDs → Clubs — one fetch, many readers (see ClubStore).
+    @State private var clubs = ClubStore()
+
     // Daily-Trivia stats (streak / accuracy / day-gate), created once and shared
     // app-wide so the game and a future Home Play-card badge read the same state
     // (see TriviaStore). Like the others, it's a persistent Store, not per-screen.
@@ -83,6 +88,7 @@ struct RootTabView: View {
         }
         .environment(following)
         .environment(matches)
+        .environment(clubs)
         .environment(trivia)
         .environment(bracket)
         .environment(predict)

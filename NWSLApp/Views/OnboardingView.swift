@@ -27,6 +27,9 @@ struct OnboardingView: View {
     @State private var viewModel = TeamsViewModel()
     @State private var showCompetitions = false
     @Environment(FollowingStore.self) private var following
+    // The shared club directory (injected in RootTabView); the view model reads
+    // its state/clubs through this.
+    @Environment(ClubStore.self) private var clubStore
     @Environment(\.dismiss) private var dismiss
 
     private var followCount: Int { following.followedIDs.count }
@@ -36,7 +39,8 @@ struct OnboardingView: View {
             .navigationTitle("Make it yours")
             .navigationBarTitleDisplayMode(.large)
             .task {
-                if case .idle = viewModel.state { await viewModel.load() }
+                viewModel.clubStore = clubStore
+                if case .idle = clubStore.state { await viewModel.load() }
             }
     }
 
@@ -208,5 +212,6 @@ struct OnboardingView: View {
     NavigationStack {
         OnboardingView()
             .environment(FollowingStore())
+            .environment(ClubStore())
     }
 }

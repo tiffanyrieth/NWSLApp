@@ -510,7 +510,7 @@ struct MatchDetailView: View {
                 infoRow(icon: "mappin.and.ellipse", text: venue, dimmed: false)
             }
             if let channel = event.broadcastName {
-                infoRow(icon: "tv", text: channel, dimmed: event.statusState == "post")
+                broadcastRow(channel)
             }
         }
         .padding(16)
@@ -525,6 +525,25 @@ struct MatchDetailView: View {
             .font(.subheadline)
             .foregroundStyle(dimmed ? .tertiary : .secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // Broadcast row: a tappable "where to watch" link when recognized (no
+    // navigation to compete with here, unlike the card), dimmed/plain once the
+    // match is over.
+    @ViewBuilder
+    private func broadcastRow(_ channel: String) -> some View {
+        let isPast = event.statusState == "post"
+        if !isPast, let url = BroadcastLink.url(for: channel) {
+            Button { openURL(url) } label: {
+                Label(channel, systemImage: "tv")
+                    .font(.subheadline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.tint)
+        } else {
+            infoRow(icon: "tv", text: channel, dimmed: isPast)
+        }
     }
 
     // MARK: - Small shared pieces

@@ -2,22 +2,20 @@
 //  FormationPitchView.swift
 //  NWSLApp
 //
-//  Renders a team's starting XI on a vertical pitch. Each starter is a dot at a
-//  position derived from their ESPN position abbreviation (G / RB / CD-R / AM-L /
-//  CF-R …), which encodes both the line (defence → attack) and the left/center/
-//  right placement.
+//  Renders a team's starting XI on a vertical pitch.
 //
-//  Why not place by formationPlace + the formation string? ESPN's formationPlace
-//  is NOT row-major — for a 4-2-3-1 it interleaves a midfielder among the
-//  fullbacks — so a string→slot table would misplace players. The abbreviation,
-//  by contrast, names each player's role directly, so we classify by it and then
-//  distribute each line's players evenly across the width (which can't collide
-//  and needs no per-formation table — it draws any standard shape, a superset of
-//  the spec's five). The formation string is shown only as a label.
+//  Row structure comes from the FORMATION STRING ("4-2-3-1" → rows [4,2,3,1]),
+//  which is the only reliable source of how many lines there are and how many
+//  players each holds — ESPN's per-player abbreviations are specific in most
+//  matches but generic ("M" for every midfielder) in some, which made a 4-2-3-1
+//  collapse into a 4-5-1 blob. So we slice the 10 outfielders into the formation's
+//  rows after ordering them defence → attack (by abbreviation line, then
+//  formationPlace), and only USE the abbreviation for the left/right ordering
+//  within a row. If the formation string doesn't parse cleanly we fall back to
+//  classifying purely by abbreviation band.
 //
-//  Never a broken pitch: if there aren't 11 startable players, or any lacks a
-//  classifiable position, `supports(...)` returns false and the caller shows the
-//  list lineup instead.
+//  Never a broken pitch: if there aren't 11 startable players (`supports(...)`),
+//  the caller shows the list lineup instead.
 //
 //  TEMP (headshots): dots are jersey-number monograms for now. Branch 2 swaps the
 //  dot fill for a real HeadshotStore photo (see match-detail-v2-spec §7c/§8a) —
@@ -29,7 +27,9 @@ import SwiftUI
 struct FormationPitchView: View {
     let formation: String?
     let players: [MatchPlayer]   // starters
-    let teamAccentHex: String?
+    /// The team's resolved match color (distinct from the opponent's, legible on
+    /// the pitch) — fill for the dot, onText for the jersey number.
+    let accent: ResolvedTeamColor
 
     /// Whether a pitch can be drawn for these starters (else the caller lists them).
     static func supports(formation: String?, players: [MatchPlayer]) -> Bool {
@@ -55,7 +55,7 @@ struct FormationPitchView: View {
                     }
                 }
             }
-            .aspectRatio(0.66, contentMode: .fit)
+            .aspectRatio(0.70, contentMode: .fit)
             .frame(maxWidth: .infinity)
         }
     }
@@ -67,8 +67,8 @@ struct FormationPitchView: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(
                     LinearGradient(
-                        colors: [Color(red: 0.18, green: 0.42, blue: 0.24),
-                                 Color(red: 0.13, green: 0.34, blue: 0.19)],
+                        colors: [Color(red: 0.14, green: 0.36, blue: 0.20),
+                                 Color(red: 0.10, green: 0.28, blue: 0.15)],
                         startPoint: .top, endPoint: .bottom
                     )
                 )
@@ -96,19 +96,18 @@ struct FormationPitchView: View {
     // MARK: - Player dot (TEMP jersey-number monogram)
 
     private func playerDot(_ player: MatchPlayer) -> some View {
-        let accent = Color.teamAccent(hex: teamAccentHex)
-        return VStack(spacing: 3) {
+        VStack(spacing: 3) {
             ZStack {
-                Circle().fill(Color.teamFillOnDark(hex: teamAccentHex))
+                Circle().fill(accent.fill)
                 Circle().stroke(.white.opacity(0.7), lineWidth: 1.5)
                 Text(player.jersey ?? "")
-                    .font(.caption.weight(.bold))
+                    .font(.caption.weight(.heavy))
                     .monospacedDigit()
-                    .foregroundStyle(accent.on)
+                    .foregroundStyle(accent.onText)
             }
-            .frame(width: 30, height: 30)
+            .frame(width: 34, height: 34)
             Text(lastName(player))
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .shadow(radius: 1)
@@ -116,60 +115,127 @@ struct FormationPitchView: View {
         .frame(width: 60)
     }
 
+    /// A short, never-blank pitch label: a real last name (last word of whatever
+    /// name field ESPN gives), else the jersey number, else a dash.
     private func lastName(_ player: MatchPlayer) -> String {
-        player.athlete?.lastName
-            ?? player.athlete?.shortName
-            ?? player.athlete?.displayName
-            ?? ""
+        let candidates = [player.athlete?.lastName, player.athlete?.shortName, player.athlete?.displayName]
+        for name in candidates {
+            if let word = name?.split(separator: " ").last, !word.isEmpty {
+                return String(word)
+            }
+        }
+        if let jersey = player.jersey, !jersey.isEmpty { return jersey }
+        return "—"
     }
 
     // MARK: - Layout
 
-    private struct PlacedPlayer: Identifiable {
+    struct PlacedPlayer: Identifiable {
         let id: String
         let player: MatchPlayer
         let point: CGPoint   // normalized 0…1, y already in screen space (top = attack)
     }
 
-    /// The six vertical bands a player can fall into, own-goal → attack.
+    /// The six vertical bands the abbreviation fallback can use, own-goal → attack.
+    /// (gk/fwd kept off the very edges so dot labels don't clip — #20.)
     private enum Line: Double, CaseIterable {
-        case gk = 0.08, def = 0.26, dm = 0.40, mid = 0.55, am = 0.70, fwd = 0.87
+        case gk = 0.12, def = 0.27, dm = 0.40, mid = 0.55, am = 0.70, fwd = 0.85
     }
 
-    /// Classify each starter into (line, horizontal hint), then spread each line's
-    /// players evenly across the width sorted by that hint. y is flipped so attack
-    /// sits at the top of the screen.
-    private func layout() -> [PlacedPlayer] {
-        let starters = players.filter { ($0.position?.abbreviation?.isEmpty == false) }
-        // Group by line, preserving each player's left→right ordering hint.
-        var byLine: [Line: [(player: MatchPlayer, hint: Double)]] = [:]
-        for player in starters {
-            let (line, hint) = slot(player)
-            byLine[line, default: []].append((player, hint))
-        }
+    /// Placed starters. Prefers the formation string for row structure; falls back
+    /// to abbreviation bands when it doesn't parse. `static` + the typealias below
+    /// so the layout is unit-testable without a live view.
+    func layout() -> [PlacedPlayer] {
+        Self.layout(formation: formation, players: players)
+    }
 
+    static func layout(formation: String?, players: [MatchPlayer]) -> [PlacedPlayer] {
+        let starters = players.filter { ($0.position?.abbreviation?.isEmpty == false) }
+        let goalkeepers = starters.filter { line(forBase: base(of: $0)) == .gk }
+        let outfield = starters.filter { line(forBase: base(of: $0)) != .gk }
+
+        // Preferred: the formation string defines the rows (e.g. "4-2-3-1" → [4,2,3,1]).
+        if let rows = parseFormationRows(formation), rows.reduce(0, +) == outfield.count {
+            return placeByFormation(goalkeepers: goalkeepers, outfield: outfield, rows: rows)
+        }
+        // Fallback: classify purely by abbreviation band.
+        return placeByBands(starters)
+    }
+
+    /// Slice the outfielders (ordered defence → attack) into the formation's rows,
+    /// then place each row across an evenly-spaced height.
+    private static func placeByFormation(goalkeepers: [MatchPlayer], outfield: [MatchPlayer], rows: [Int]) -> [PlacedPlayer] {
         var placed: [PlacedPlayer] = []
-        for line in Line.allCases {
-            guard let group = byLine[line] else { continue }
-            let sorted = group.sorted { $0.hint < $1.hint }
-            let n = sorted.count
-            for (i, entry) in sorted.enumerated() {
-                let x = n == 1 ? 0.5 : 0.15 + 0.70 * Double(i) / Double(n - 1)
-                let y = 1 - line.rawValue   // flip: attack at top
-                placed.append(PlacedPlayer(
-                    id: entry.player.athlete?.id ?? "\(line)-\(i)",
-                    player: entry.player,
-                    point: CGPoint(x: x, y: y)
-                ))
+        if let gk = goalkeepers.first {
+            placed.append(PlacedPlayer(id: gk.athlete?.id ?? "gk", player: gk,
+                                       point: CGPoint(x: 0.5, y: 1 - Line.gk.rawValue)))
+        }
+        // Order defence → attack: by line rank, then formationPlace as a tiebreak.
+        let ordered = outfield.sorted { a, b in
+            let ra = rank(a), rb = rank(b)
+            if ra != rb { return ra < rb }
+            return (a.formationPlaceValue ?? .max) < (b.formationPlaceValue ?? .max)
+        }
+        let n = rows.count
+        var index = 0
+        for (rowIndex, count) in rows.enumerated() {
+            let row = Array(ordered[index ..< min(index + count, ordered.count)])
+            index += count
+            let bandY = n == 1 ? 0.5 : 0.27 + (0.85 - 0.27) * Double(rowIndex) / Double(n - 1)
+            let sorted = row.sorted { hint(of: $0) < hint(of: $1) }
+            let m = sorted.count
+            for (i, player) in sorted.enumerated() {
+                let x = m == 1 ? 0.5 : 0.15 + 0.70 * Double(i) / Double(m - 1)
+                placed.append(PlacedPlayer(id: player.athlete?.id ?? "\(rowIndex)-\(i)",
+                                           player: player, point: CGPoint(x: x, y: 1 - bandY)))
             }
         }
         return placed
     }
 
-    /// Maps a position abbreviation to its vertical band + a horizontal ordering
-    /// hint (−2 wide-left … +2 wide-right; 0 center). Only the relative order
-    /// matters — exact x is assigned by even distribution within the line.
-    private func slot(_ player: MatchPlayer) -> (Line, Double) {
+    /// Abbreviation-band fallback: group by classified line, distribute each evenly.
+    private static func placeByBands(_ starters: [MatchPlayer]) -> [PlacedPlayer] {
+        var byLine: [Line: [MatchPlayer]] = [:]
+        for player in starters {
+            byLine[line(forBase: base(of: player)), default: []].append(player)
+        }
+        var placed: [PlacedPlayer] = []
+        for band in Line.allCases {
+            guard let group = byLine[band] else { continue }
+            let sorted = group.sorted { hint(of: $0) < hint(of: $1) }
+            let n = sorted.count
+            for (i, player) in sorted.enumerated() {
+                let x = n == 1 ? 0.5 : 0.15 + 0.70 * Double(i) / Double(n - 1)
+                placed.append(PlacedPlayer(id: player.athlete?.id ?? "\(band)-\(i)",
+                                           player: player, point: CGPoint(x: x, y: 1 - band.rawValue)))
+            }
+        }
+        return placed
+    }
+
+    /// "4-2-3-1" → [4,2,3,1]; nil unless it's 2–5 positive numbers.
+    private static func parseFormationRows(_ formation: String?) -> [Int]? {
+        guard let formation else { return nil }
+        let rows = formation.split(separator: "-").compactMap { Int($0) }
+        guard (2...5).contains(rows.count), rows.allSatisfy({ $0 > 0 }) else { return nil }
+        return rows
+    }
+
+    private static func rank(_ player: MatchPlayer) -> Int {
+        Line.allCases.firstIndex(of: line(forBase: base(of: player))) ?? 3
+    }
+
+    /// The base of a position abbreviation (before any "-R"/"-L" suffix), e.g.
+    /// "CD-R" → "CD".
+    private static func base(of player: MatchPlayer) -> String {
+        let raw = (player.position?.abbreviation ?? "").uppercased()
+        return raw.split(separator: "-").first.map(String.init) ?? raw
+    }
+
+    /// Horizontal ordering hint within a row (−2 wide-left … +2 wide-right; 0
+    /// center). Only the relative order matters — exact x is assigned by even
+    /// distribution.
+    private static func hint(of player: MatchPlayer) -> Double {
         let raw = (player.position?.abbreviation ?? "").uppercased()
         let parts = raw.split(separator: "-").map(String.init)
         let base = parts.first ?? raw
@@ -182,12 +248,10 @@ struct FormationPitchView: View {
         }()
         let wide: Set<String> = ["RB", "LB", "RM", "LM", "RW", "LW", "RWB", "LWB"]
         let magnitude: Double = wide.contains(base) ? 2 : (sign == 0 ? 0 : 1)
-        let hint = sign * magnitude
-
-        return (line(forBase: base), hint)
+        return sign * magnitude
     }
 
-    private func line(forBase base: String) -> Line {
+    private static func line(forBase base: String) -> Line {
         switch base {
         case "G", "GK":
             return .gk

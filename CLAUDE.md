@@ -389,6 +389,10 @@ here. Original item numbers are kept so existing cross-references stay valid.
 16. **(Robustness)** `ScheduleViewModel.loadClubs()` swallows a failed fetch
     (`(try? …) ?? []`) → My-teams shows an infinite spinner, no retry. Add an
     error state + retry (or fold into the ClubStore from #15).
+17. **(Bug)** `StandingsView` — the large "Standings" nav title overlaps the
+    table's column-header row (#/Team/PTS/GP/W/L/D), which renders on top of /
+    too close to the title. Fix the spacing/z-order so the header sits clear
+    below the title.
 
 **Feature follow-ups (from shipped redesigns)**
 - **Team-detail Stats + PlayerDetailView** — built on ⚠️simulated stats

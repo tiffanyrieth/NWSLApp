@@ -29,6 +29,12 @@
 //  on their own; if a team deletes a video its thumbnail 404s and the card falls
 //  back to the designed crest tile (see TeamContentCard). Re-curate when stale.
 //
+//  CURATION RULE: pick LANDSCAPE (16:9) videos, not vertical Shorts. YouTube bakes
+//  a Short into the 4:3 `hqdefault.jpg` with black pillarbox bars, so it renders as
+//  a narrow, non-filling image in the card's wide thumbnail box. (The card can't
+//  fix this — the bars are part of the image pixels.) All ids below are verified
+//  landscape.
+//
 
 import Foundation
 
@@ -63,16 +69,18 @@ struct TeamContentProvider {
     // 2026 season). ids/titles/durations pulled live from each channel's feed.
     private static let seed: [TeamContentItem] = [
         // Angel City FC
-        video("LA-1", "LA", 5, caption: "Matchday Walkout Experience", videoID: "PJzN7vvV5es", duration: "1:05"),
-        video("LA-2", "LA", 14, caption: "Headphone Challenge with Hina Sugita and Jun Endo", videoID: "6-tUxTJJiZc", duration: "1:41"),
+        video("LA-1", "LA", 5, caption: "Match Highlights | Angel City FC vs North Carolina Courage", videoID: "bs3r9AbiAxk", duration: "10:00"),
+        video("LA-2", "LA", 14, caption: "GOAL: Maiara Niehues vs North Carolina Courage", videoID: "xGDZWan6up4", duration: "1:00"),
 
         // Bay FC
         video("BAY-1", "BAY", 8, caption: "Caroline Conti STRIKES against Orlando Pride", videoID: "FCt8ZY3xocY", duration: "0:34"),
         video("BAY-2", "BAY", 21, caption: "Full Highlights | Bay FC at Orlando Pride", videoID: "iYm5ormS9qA", duration: "9:51"),
 
-        // Boston Legacy FC
-        video("BOS-1", "BOS", 3, caption: "Aly Raisman Joins BLFC for Lunch", videoID: "Z6CPyFCVlJI", duration: "0:44"),
-        video("BOS-2", "BOS", 18, caption: "Cinematic Recap vs. Orlando Pride", videoID: "yQL7aDtSPRI", duration: "1:05"),
+        // Boston Legacy FC — expansion side; its landscape catalog is press
+        // conferences (features/recaps are vertical Shorts that pillarbox in the
+        // 4:3 thumbnail). Pressers fill the 16:9 card cleanly.
+        video("BOS-1", "BOS", 3, caption: "Postgame Press Conference vs. Seattle Reign FC", videoID: "fnwgebaTb9k", duration: "15:30"),
+        video("BOS-2", "BOS", 18, caption: "Postgame Press Conference: May 12, 2026", videoID: "XUKe1GDMDhg", duration: "12:54"),
 
         // Chicago Stars FC
         video("CHI-1", "CHI", 7, caption: "Is it a Star? The squad plays our categories game 🌟", videoID: "dLiMB5XM8U4", duration: "1:05"),
@@ -83,7 +91,7 @@ struct TeamContentProvider {
         video("DEN-2", "DEN", 16, caption: "Our first-ever signing scoring her first goal for Denver 🤩", videoID: "3okXVjSj5IE", duration: "0:13"),
 
         // Gotham FC
-        video("GFC-1", "GFC", 6, caption: "Our Game: Mandy Freeman ⚽️", videoID: "RPKsT9WS8nU", duration: "1:16"),
+        video("GFC-1", "GFC", 6, caption: "A decade of Mandy Freeman 🗽", videoID: "xx8slc-q3s0", duration: "11:01"),
         video("GFC-2", "GFC", 19, caption: "Extended Match Highlights: Gotham FC 1, Houston Dash 0", videoID: "leMYHlckK2I", duration: "10:00"),
 
         // Houston Dash
@@ -107,7 +115,7 @@ struct TeamContentProvider {
         video("POR-2", "POR", 25, caption: "Match Highlights | Thorns vs Utah Royals FC", videoID: "De-4nGTGuqM", duration: "10:01"),
 
         // Racing Louisville FC
-        video("LOU-1", "LOU", 11, caption: "Can you pull your number?", videoID: "mcxIbVmHoVw", duration: "2:03"),
+        video("LOU-1", "LOU", 11, caption: "Racing's 'goldfish mentality' | Emma Sears & Kayla Fischer", videoID: "h_upJQCPFDU", duration: "6:53"),
         video("LOU-2", "LOU", 33, caption: "Highlights: Denver Summit FC 1, Racing Louisville FC 0", videoID: "axHx4nTSHEc", duration: "9:59"),
 
         // San Diego Wave FC

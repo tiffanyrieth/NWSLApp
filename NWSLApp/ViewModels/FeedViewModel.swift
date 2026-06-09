@@ -9,6 +9,11 @@
 //     same pattern Home/Schedule use, because FollowingStore stores IDs only and
 //     the filter chips need each club's short name + color.
 //
+//  The club directory comes from the shared ClubStore (injected app-wide — one
+//  fetch, many readers; see CLAUDE.md What's-Next #15), the same directory
+//  Teams/Home/Schedule read; the view hands it in. The feed items themselves are
+//  owned here (the TEMP seed), loaded independently of the directory.
+//
 //  Everything the view shows is DERIVED here: the filter chips (All + one per
 //  followed team + League) and the items visible for the selected chip. The view
 //  passes in the shared FollowingStore (mirroring HomeViewModel) rather than the
@@ -24,16 +29,6 @@ import Foundation
 
 @Observable
 final class FeedViewModel {
-    /// idle/loading/loaded/error for the CLUB DIRECTORY fetch (used to build the
-    /// per-team chips). The items themselves come from the seed provider and
-    /// don't have a failure path today.
-    enum State {
-        case idle
-        case loading
-        case loaded([Club])
-        case error(String)
-    }
-
     /// Which chip is selected. `.team` carries the club abbreviation, the same
     /// key FeedTeamTag uses, so chip ↔ item matching is a simple string compare.
     enum Filter: Hashable {
@@ -59,41 +54,44 @@ final class FeedViewModel {
         var id: String { name }
     }
 
-    private(set) var clubsState: State = .idle
+    // The shared club directory, handed in by the view (mirrors Home/Schedule):
+    // used to build the per-team chips. Until it's wired, the screen reads `.idle`.
+    var clubStore: ClubStore?
+
     private(set) var allItems: [FeedItem] = []
     var selectedFilter: Filter = .all
 
-    private let service: ESPNService
     private let content: FeedContentProvider
 
-    init(
-        service: ESPNService = ESPNService(),
-        content: FeedContentProvider = FeedContentProvider()
-    ) {
-        self.service = service
+    init(content: FeedContentProvider = FeedContentProvider()) {
         self.content = content
     }
 
-    /// Load the seed items, then the club directory for the chips.
+    /// Proxies the shared club store's state so the view's error/ready checks over
+    /// idle/loading/loaded/error are unchanged.
+    var clubsState: ClubStore.State { clubStore?.state ?? .idle }
+
+    /// Load the seed items, then (re)load the shared directory. Used by
+    /// pull-to-refresh; the first appearance loads items + directory separately
+    /// (see `loadItemsIfNeeded` and the view's `.task`).
     func load() async {
         allItems = (await content.items())
             .sorted { $0.timestamp > $1.timestamp }   // newest first
-        await loadClubs()
+        await clubStore?.load()
     }
 
-    func loadClubs() async {
-        clubsState = .loading
-        do {
-            clubsState = .loaded(try await service.fetchTeams())
-        } catch {
-            clubsState = .error(message(for: error))
-        }
+    /// Loads the (TEMP seed) items if not already loaded — kept SEPARATE from the
+    /// directory load so the Feed still populates when the shared ClubStore was
+    /// already loaded by another tab (Home, the landing tab, usually loads it
+    /// first; if item-loading were gated on the directory's `.idle` it would be
+    /// skipped and the Feed would show empty).
+    func loadItemsIfNeeded() async {
+        guard allItems.isEmpty else { return }
+        allItems = (await content.items())
+            .sorted { $0.timestamp > $1.timestamp }   // newest first
     }
 
-    private var clubs: [Club] {
-        if case .loaded(let clubs) = clubsState { return clubs }
-        return []
-    }
+    private var clubs: [Club] { clubStore?.clubs ?? [] }
 
     /// Followed clubs, in the directory's alphabetical order.
     func followedClubs(_ following: FollowingStore) -> [Club] {
@@ -161,20 +159,5 @@ final class FeedViewModel {
             result.append(Source(name: item.sourceName, detail: item.sourceHandle ?? item.platform))
         }
         return result.sorted { $0.name < $1.name }
-    }
-
-    // MARK: - Helpers
-
-    private func message(for error: Error) -> String {
-        switch error {
-        case ESPNServiceError.badStatus(let code):
-            return "ESPN returned an error (status \(code)). Pull to retry."
-        case ESPNServiceError.decoding:
-            return "Couldn't read the teams response. Pull to retry."
-        case ESPNServiceError.badURL:
-            return "Couldn't build the request. This is a bug — please report it."
-        default:
-            return "Couldn't load the Feed. Check your connection and pull to retry."
-        }
     }
 }

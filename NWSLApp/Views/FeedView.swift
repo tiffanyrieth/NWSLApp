@@ -25,6 +25,8 @@ struct FeedView: View {
     @State private var showSources = false
     @Environment(FollowingStore.self) private var following
     @Environment(FeedPreferencesStore.self) private var feedPreferences
+    // The shared club directory (injected in RootTabView), for the per-team chips.
+    @Environment(ClubStore.self) private var clubStore
 
     var body: some View {
         NavigationStack {
@@ -55,7 +57,14 @@ struct FeedView: View {
             }
         }
         .task {
-            if case .idle = viewModel.clubsState { await viewModel.load() }
+            // Hand the view model the shared directory, load the seed items, then
+            // load the directory once (guarding on .idle so another tab having
+            // loaded it first doesn't refetch). Items load independently of the
+            // directory's state so the Feed populates even when the store was
+            // already loaded elsewhere.
+            viewModel.clubStore = clubStore
+            await viewModel.loadItemsIfNeeded()
+            if case .idle = clubStore.state { await clubStore.load() }
         }
     }
 
@@ -172,4 +181,5 @@ struct FeedView: View {
     FeedView()
         .environment(FollowingStore())
         .environment(FeedPreferencesStore())
+        .environment(ClubStore())
 }

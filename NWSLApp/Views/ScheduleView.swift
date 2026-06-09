@@ -31,6 +31,9 @@ struct ScheduleView: View {
     // The season's events live in the shared store (injected in RootTabView);
     // this screen reads its slice through the view model.
     @Environment(MatchStore.self) private var matchStore
+    // The shared club directory, for the "My teams" filter (resolves followed IDs
+    // → abbreviations) and its error/retry path.
+    @Environment(ClubStore.self) private var clubStore
     // The personalization lens, for the "My teams" filter + its empty prompt.
     @Environment(FollowingStore.self) private var following
 
@@ -64,9 +67,10 @@ struct ScheduleView: View {
         // store was already loaded elsewhere.
         .task {
             viewModel.store = matchStore
+            viewModel.clubStore = clubStore
             viewModel.following = following
             if case .idle = matchStore.state { await matchStore.load() }
-            await viewModel.loadClubs()
+            if case .idle = clubStore.state { await clubStore.load() }
         }
         // First-load scroll-to-today, off the idle/loading -> loaded edge.
         .onChange(of: viewModel.isLoaded) { _, loaded in
@@ -104,7 +108,7 @@ struct ScheduleView: View {
             ProgressView("Loading schedule…")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .error(let message):
-            errorView(message)
+            errorView(message) { await viewModel.load() }
         case .loaded:
             loadedContent
         }
@@ -119,6 +123,10 @@ struct ScheduleView: View {
         } else if selectedFilter == .myTeams && viewModel.isResolvingFollowedTeams {
             ProgressView("Loading your teams…")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if selectedFilter == .myTeams, let clubsError = viewModel.clubsError {
+            // The club directory (needed to resolve My-teams) failed to load.
+            // Show a real error + retry instead of a misleading "No matches" (#16).
+            errorView(clubsError) { await clubStore.load() }
         } else {
             let sections = viewModel.sections(for: selectedFilter)
             if sections.isEmpty {
@@ -135,7 +143,15 @@ struct ScheduleView: View {
                 ForEach(sections) { section in
                     Section {
                         ForEach(section.events) { event in
-                            MatchCard(event: event)
+                            // Closure-based NavigationLink (not value-based): Event
+                            // isn't Hashable, and the card is the link's label so the
+                            // whole card is tappable. `.plain` keeps the card's look.
+                            NavigationLink {
+                                MatchDetailView(event: event)
+                            } label: {
+                                MatchCard(event: event)
+                            }
+                            .buttonStyle(.plain)
                         }
                     } header: {
                         DayHeader(label: section.label)
@@ -184,14 +200,14 @@ struct ScheduleView: View {
         .background(Color(.systemGroupedBackground))
     }
 
-    private func errorView(_ message: String) -> some View {
+    private func errorView(_ message: String, retry: @escaping () async -> Void) -> some View {
         VStack(spacing: 12) {
             Text(message)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)
             Button("Try again") {
-                Task { await viewModel.load() }
+                Task { await retry() }
             }
             .buttonStyle(.borderedProminent)
         }
@@ -243,5 +259,6 @@ private struct DayHeader: View {
 #Preview {
     ScheduleView()
         .environment(MatchStore())
+        .environment(ClubStore())
         .environment(FollowingStore())
 }

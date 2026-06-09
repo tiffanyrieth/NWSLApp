@@ -146,6 +146,12 @@ extension Event {
         competitions?.first?.venue?.fullName
     }
 
+    // Host city, e.g. "Washington" — paired with venueName on the match detail
+    // screen (the card only has room for the venue name).
+    var venueCity: String? {
+        competitions?.first?.venue?.address?.city
+    }
+
     // First broadcast channel name (TV icon), e.g. "Prime Video". ESPN can list
     // several markets; we surface the first available name.
     var broadcastName: String? {

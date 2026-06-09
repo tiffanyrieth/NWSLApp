@@ -10,11 +10,10 @@
 //  logo + fallback behavior is needed by upcoming Standings and Team views —
 //  one source of truth for size, placeholder, and accessibility.
 //
-//  TEMP (caching): AsyncImage has no cross-cell image cache, so logos
-//  re-download every time a card is recycled during scroll. Acceptable for v1
-//  (small PNGs, lazy rows). Remove this note when a shared image cache lands
-//  (NSCache-backed loader or a caching layer) — tracked in CLAUDE.md
-//  "What's Next".
+//  Crests load through the shared in-memory ImageCache (NSCache singleton) rather
+//  than a bare AsyncImage, so they aren't re-downloaded when a cell is recycled
+//  during scroll. A synchronous cache hit paints on the first frame, so a
+//  scrolled-back crest shows instantly with no flash.
 //
 
 import SwiftUI
@@ -26,6 +25,10 @@ struct TeamLogo: View {
     let urlString: String?
     var size: CGFloat = 24
 
+    // The decoded crest, once resolved. Seeded synchronously from the cache (see
+    // body) so a cached image is shown on the first frame.
+    @State private var image: UIImage?
+
     // Guard nil/empty strings here so an absent logo goes straight to the
     // placeholder instead of spinning on an invalid URL.
     private var url: URL? {
@@ -35,27 +38,27 @@ struct TeamLogo: View {
 
     var body: some View {
         Group {
-            if let url {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .empty:
-                        placeholder                 // loading
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFit()
-                    case .failure:
-                        placeholder                 // network / decode failure
-                    @unknown default:
-                        placeholder
-                    }
-                }
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
             } else {
-                placeholder                         // nil / empty URL
+                placeholder                         // loading / failure / nil URL
             }
         }
         .frame(width: size, height: size)           // fixed BEFORE load → no reflow
         .accessibilityHidden(true)                  // abbreviation already names the team
+        // Keyed to the URL so a recycled cell re-targets the right crest. Seed
+        // synchronously from the cache first (no flash on scroll-back), then fetch
+        // only on a miss.
+        .task(id: url) {
+            guard let url else { image = nil; return }
+            if let hit = ImageCache.shared.cached(url) {
+                image = hit
+                return
+            }
+            image = await ImageCache.shared.image(for: url)
+        }
     }
 
     private var placeholder: some View {

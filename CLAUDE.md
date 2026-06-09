@@ -255,6 +255,7 @@ NWSLApp/
 │   └── TriviaQuestionProvider.swift   — ⚠️ 55 hand-written NWSL trivia questions
 ├── Stores/                            — @Observable shared state → UserDefaults, injected
 │   ├── BracketStore.swift             — Bracket picks / points / locked rounds
+│   ├── ClubStore.swift                — shared club directory; one fetch, many readers (ID/abbr lookups)
 │   ├── FeedPreferencesStore.swift     — Feed content-type toggles + muted sources
 │   ├── FollowingStore.swift           — followed clubs + competitions + onboarding gate; DEBUG `debugResetState()` re-test helper
 │   ├── MatchStore.swift               — shared season store; one fetch, many readers
@@ -262,12 +263,12 @@ NWSLApp/
 │   └── TriviaStore.swift              — Daily-Trivia streak/accuracy + one-play/day gate
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
 │   ├── BracketViewModel.swift         — Bracket session; deterministic community sim
-│   ├── FeedViewModel.swift            — chips + filtered items + sources (prefs-aware)
-│   ├── HomeViewModel.swift            — derives Home modules from MatchStore+Following
+│   ├── FeedViewModel.swift            — chips + filtered items + sources (prefs-aware); clubs ← ClubStore
+│   ├── HomeViewModel.swift            — derives Home modules from MatchStore+ClubStore+Following
 │   ├── PredictXIViewModel.swift       — Predict session; open/settled split + scoring
-│   ├── ScheduleViewModel.swift        — day-grouped sections + filters from MatchStore
+│   ├── ScheduleViewModel.swift        — day-grouped sections + filters from MatchStore; My-teams ← ClubStore (error+retry)
 │   ├── StandingsViewModel.swift       — one-shot fetchStandings()
-│   ├── TeamsViewModel.swift           — club directory fetch
+│   ├── TeamsViewModel.swift           — thin reader over the shared ClubStore (also feeds Onboarding)
 │   ├── TeamDetailViewModel.swift      — roster + social links + simulated stats/leaders
 │   └── TriviaViewModel.swift          — one Daily-Trivia session (deterministic daily 5)
 ├── Views/                             — one screen per file
@@ -281,6 +282,7 @@ NWSLApp/
 │   ├── TeamsView.swift                — all-16 directory; Following floats to top; Follow-competitions row at bottom
 │   ├── CompetitionsView.swift         — follow international competitions (reached from TeamsView; reuses onboarding rows)
 │   ├── TeamDetailView.swift           — club page: header + social row + Squad·Stats tabs
+│   ├── MatchDetailView.swift          — single match (pre/in/post) from the scoreboard Event; pushed from a tapped MatchCard
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
 │   ├── PlayerSpotlightView.swift      — narrative spotlight tap-through (real YT video hero)
 │   ├── StandingsView.swift            — 16-team table (PTS·GP·W·L·D); followed blue
@@ -289,12 +291,13 @@ NWSLApp/
 ├── Components/                        — reusable view pieces
 │   ├── ComingUpRow.swift              — Module-4 compact next-match row per team
 │   ├── FeedCard.swift                 — one Feed item (post or article); opens source
-│   ├── MatchCard.swift                — one game: score + status + venue/📺 (dormant badge)
+│   ├── ImageCache.swift               — in-memory NSCache singleton; backs TeamLogo (no re-download on scroll)
+│   ├── MatchCard.swift                — one game: score + status + venue/📺 (dormant badge); taps → MatchDetailView in Schedule
 │   ├── PlayerCard.swift               — Squad-grid card; team-color monogram + position
 │   ├── PlayerSpotlightCard.swift      — ⚠️ Module-2 player-of-week card (real YT thumbnail)
 │   ├── SocialLinkButton.swift         — circular team-tinted social icon; opens account
 │   ├── TeamContentCard.swift          — ⚠️ Module-1 real YT thumbnail (crest-tile fallback) + attribution
-│   └── TeamLogo.swift                 — AsyncImage crest (no cache yet — What's-Next #1)
+│   └── TeamLogo.swift                 — team crest via the shared ImageCache (cached; placeholder fallback)
 ├── Extensions/
 │   └── Color+Hex.swift                — teamAccent(hex:) → (fill, legible on-color)
 └── Assets.xcassets/                   — app icons, accent color
@@ -309,7 +312,10 @@ Feed**), each tab its own `NavigationStack`; the app **lands on Home**. All five
 tabs built. The app forces a **dark appearance app-wide**
 (`.preferredColorScheme(.dark)` on the root, also covering sheets) — there's no
 in-app appearance toggle. Following persists via `UserDefaults` (`FollowingStore`);
-SwiftData is used **nowhere**. Each feature is built per its `Reference/Design/*-spec.md`
+SwiftData is used **nowhere**. The season (`MatchStore`) and the club directory
+(`ClubStore`) are each fetched **once and shared app-wide** via `.environment` —
+one fetch, many readers; the My-teams schedule filter surfaces a real error +
+retry if the directory fails (no more silent infinite spinner). Each feature is built per its `Reference/Design/*-spec.md`
 (approved in Cowork sessions) and **verified in-sim** via a temporary
 launch-env/deep-link scaffold driving deterministic screenshots (UI taps flake
 under memory pressure), then removed → gitignored `Reference/Design/*-verification/`.
@@ -363,7 +369,10 @@ rows → `TeamDetailView`. Endpoint at `apis/v2/…` (not the app `base`).
 **Schedule** (`schedule-tab-design-spec.md`) — full season in one
 `fetchScoreboard(year:)` (~240 events for 2026); sticky day headers; three filters
 (NWSL / My teams / All matches) over one `MatchStore`; cards carry 📍 venue · 📺
-broadcast; scrolls to today, re-anchors on filter change.
+broadcast; scrolls to today, re-anchors on filter change. Tapping a card pushes
+`MatchDetailView` — a state-aware (pre/in/post) match screen (full names, crests,
+score or kickoff, venue + broadcast) built entirely from the scoreboard `Event`,
+no extra fetch.
 
 ---
 
@@ -373,22 +382,26 @@ Completed work is documented in **Current State**; only pending work is listed
 here. Original item numbers are kept so existing cross-references stay valid.
 
 **Near-term / cleanup**
-1. **(Perf/TEMP)** `TeamLogo` uses bare `AsyncImage` — no cross-cell cache, crests
-   re-download on scroll. Replace with a shared NSCache loader (or the proxy).
+1. **(Perf — DONE)** `TeamLogo` now loads through `ImageCache` (a shared in-memory
+   NSCache singleton) instead of bare `AsyncImage`, so crests aren't re-downloaded
+   on scroll. In-memory only (disk caching deliberately out of scope).
 3. **(Polish)** Pull-to-refresh flips `state` to `.loading` (full-screen spinner);
    keep the list visible during refresh, spinner only on first load.
 4. Capture a real ESPN response → `NWSLAppTests/Fixtures/scoreboard.json` + a
    decode-only test for `Scoreboard`/Event helpers (date parsing, `dayKey` TZ).
-6. Make `MatchCard` tappable → a match detail screen (scorers/lineups/stats/news).
+6. **(DONE — see Current State)** `MatchCard` taps → `MatchDetailView`, built from
+   the scoreboard `Event`. Remaining (future): ESPN's per-event `/summary` endpoint
+   for the richer detail — lineups, goal scorers, match stats, news.
 9. **(Fragility)** `MatchStore.matches(for:)` joins club↔game by `abbreviation`
    (ESPN competitors carry no id). TEMP-commented; a rename silently empties a
    schedule (empty state, not crash). Real fix: a normalized club-id map.
-15. **(Cleanup)** Club directory is fetched independently by Teams/Home/Schedule
-    VMs → a shared `@Observable ClubStore` (one fetch, many readers; ID→Club /
-    ID→abbreviation lookup the My-teams filter and Home both need).
-16. **(Robustness)** `ScheduleViewModel.loadClubs()` swallows a failed fetch
-    (`(try? …) ?? []`) → My-teams shows an infinite spinner, no retry. Add an
-    error state + retry (or fold into the ClubStore from #15).
+15. **(Cleanup — DONE, see Current State)** Shared `ClubStore` shipped; Teams,
+    Onboarding, Home, Schedule, and Feed all read it (one fetch, many readers).
+    Remaining: the two *game* VMs (`BracketViewModel`/`PredictXIViewModel`) still
+    `try? fetchTeams()` independently for crests — low priority, fold them in too.
+16. **(Robustness — DONE)** `ScheduleViewModel`'s swallowed club fetch is gone;
+    a failed directory load now surfaces an error + retry on the My-teams path
+    instead of an infinite spinner (via `ClubStore`'s error state).
 17. **(Bug)** `StandingsView` — the large "Standings" nav title overlaps the
     table's column-header row (#/Team/PTS/GP/W/L/D), which renders on top of /
     too close to the title. Fix the spacing/z-order so the header sits clear

@@ -2,56 +2,31 @@
 //  TeamsViewModel.swift
 //  NWSLApp
 //
-//  Owns state for TeamsView: fetches the league's club directory. Uses the
-//  same idle/loading/loaded/error State enum as ScheduleViewModel so both
-//  screens model "async fetch with all its outcomes" the same way.
+//  Owns state for TeamsView (and reused by OnboardingView): exposes the league's
+//  club directory. The directory itself now lives in the shared ClubStore
+//  (injected app-wide — one fetch, many readers; see CLAUDE.md What's-Next #15),
+//  so this view model is a thin reader over it. The view's existing
+//  idle/loading/loaded/error switch and `clubs` accessor are unchanged — they now
+//  proxy the store.
 //
 
 import Foundation
 
 @Observable
 final class TeamsViewModel {
-    enum State {
-        case idle
-        case loading
-        case loaded([Club])
-        case error(String)
-    }
+    // Handed in by the view from the environment before the first load (a SwiftUI
+    // `@State` view model can't read the environment at init). Until it's wired,
+    // the screen reads as `.idle`.
+    var clubStore: ClubStore?
 
-    private(set) var state: State = .idle
+    /// Proxy the shared store's state so the view's switch over
+    /// idle/loading/loaded/error is unchanged.
+    var state: ClubStore.State { clubStore?.state ?? .idle }
 
-    private let service: ESPNService
-
-    init(service: ESPNService = ESPNService()) {
-        self.service = service
-    }
+    /// The loaded clubs (empty unless the store is `.loaded`).
+    var clubs: [Club] { clubStore?.clubs ?? [] }
 
     func load() async {
-        state = .loading
-        do {
-            let clubs = try await service.fetchTeams()
-            state = .loaded(clubs)
-        } catch {
-            state = .error(message(for: error))
-        }
-    }
-
-    /// The loaded clubs (empty unless we're in `.loaded`).
-    var clubs: [Club] {
-        if case .loaded(let clubs) = state { return clubs }
-        return []
-    }
-
-    private func message(for error: Error) -> String {
-        switch error {
-        case ESPNServiceError.badStatus(let code):
-            return "ESPN returned an error (status \(code)). Pull to retry."
-        case ESPNServiceError.decoding:
-            return "Couldn't read the teams response. Pull to retry."
-        case ESPNServiceError.badURL:
-            return "Couldn't build the request. This is a bug — please report it."
-        default:
-            return "Couldn't load teams. Check your connection and pull to retry."
-        }
+        await clubStore?.load()
     }
 }

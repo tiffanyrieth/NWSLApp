@@ -33,12 +33,25 @@ final class FollowingStore {
     /// Persisted so it survives launches — onboarding is a one-time gate.
     private(set) var hasOnboarded: Bool
 
+    /// Whether the one-time post-onboarding "save your picks" sign-in prompt has
+    /// been shown. Persisted so it appears exactly once, ever — skipping is fine,
+    /// the app never nags (see Reference/Sessions/2026-06-09_supabase-accounts-setup §2).
+    private(set) var hasSeenSignInPrompt: Bool
+
+    /// Called after any local follow mutation, with the new full set. Optional and
+    /// nil by default — when nil (signed-out, tests, previews) the store behaves
+    /// exactly as before. FollowSyncCoordinator sets it after sign-in to mirror
+    /// changes up to Supabase. The store stays dependency-free: it knows nothing
+    /// about the network, only that "something" may want to observe changes.
+    var onFollowsChanged: ((Set<String>) -> Void)?
+
     private let defaults: UserDefaults
     // Static so the DEBUG reset helper (which has no instance) shares the exact
     // same key names — one source of truth, no drift.
     private static let storageKey = "followedClubIDs"
     private static let competitionsKey = "followedCompetitionIDs"
     private static let onboardedKey = "hasOnboarded"
+    private static let signInPromptKey = "hasSeenSignInPrompt"
 
     /// `defaults` is injectable so tests (and previews) can use an isolated
     /// store instead of the app's real preferences.
@@ -50,6 +63,7 @@ final class FollowingStore {
         // Treat anyone who already follows a club as onboarded, so existing
         // users (and seeded simulators) don't get sent back through the picker.
         self.hasOnboarded = defaults.bool(forKey: Self.onboardedKey) || !saved.isEmpty
+        self.hasSeenSignInPrompt = defaults.bool(forKey: Self.signInPromptKey)
     }
 
     func isFollowing(_ club: Club) -> Bool {
@@ -63,6 +77,22 @@ final class FollowingStore {
         } else {
             followedIDs.insert(club.id)
         }
+        defaults.set(Array(followedIDs), forKey: Self.storageKey)
+        // Notify the sync coordinator (if armed) so the change mirrors up to
+        // Supabase. No-op when signed out — the closure is nil.
+        onFollowsChanged?(followedIDs)
+    }
+
+    /// Union `ids` into the followed set and persist once. Union-only — never
+    /// removes a follow, matching the sign-in merge policy. Used by
+    /// FollowSyncCoordinator for both the sign-in merge and new-device restore.
+    /// Deliberately does NOT fire `onFollowsChanged`: the coordinator is the
+    /// caller and already knows, so this avoids a sync-down echoing back as a
+    /// sync-up.
+    func merge(ids: Set<String>) {
+        let merged = followedIDs.union(ids)
+        guard merged != followedIDs else { return }
+        followedIDs = merged
         defaults.set(Array(followedIDs), forKey: Self.storageKey)
     }
 
@@ -88,6 +118,14 @@ final class FollowingStore {
         defaults.set(true, forKey: Self.onboardedKey)
     }
 
+    /// Mark the one-time post-onboarding sign-in prompt as shown. One-way: once
+    /// seen, the prompt never appears again (skipping is fine — the app works
+    /// identically without an account).
+    func markSignInPromptSeen() {
+        hasSeenSignInPrompt = true
+        defaults.set(true, forKey: Self.signInPromptKey)
+    }
+
     #if DEBUG
     /// Dev-only: reset following + onboarding state so the next launch shows the
     /// first-open "Make it yours" picker. Triggered by the `-resetOnboarding`
@@ -110,6 +148,9 @@ final class FollowingStore {
         defaults.set([String](), forKey: storageKey)
         defaults.set([String](), forKey: competitionsKey)
         defaults.set(false, forKey: onboardedKey)
+        // Clear the sign-in-prompt flag too, so a reset re-runs the full
+        // post-onboarding flow (prompt included) on the next launch.
+        defaults.set(false, forKey: signInPromptKey)
     }
     #endif
 }

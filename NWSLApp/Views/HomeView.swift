@@ -26,12 +26,15 @@ struct HomeView: View {
     @State private var viewModel = HomeViewModel()
     // Lets Home's empty state re-present the picker after onboarding is done.
     @State private var showTeamPicker = false
+    // Drives the one-time post-onboarding "save your picks" sign-in prompt.
+    @State private var showSignInPrompt = false
     @Environment(FollowingStore.self) private var following
     @Environment(MatchStore.self) private var matchStore
     @Environment(ClubStore.self) private var clubStore
     @Environment(TriviaStore.self) private var trivia
     @Environment(BracketStore.self) private var bracket
     @Environment(PredictionStore.self) private var predict
+    @Environment(AuthStore.self) private var auth
 
     var body: some View {
         NavigationStack {
@@ -60,6 +63,26 @@ struct HomeView: View {
         .sheet(isPresented: $showTeamPicker) {
             NavigationStack { OnboardingView() }
         }
+        // Present the one-time sign-in prompt the first time the hub shows after
+        // onboarding. `initial: true` also catches users who onboarded before this
+        // feature existed. Marking it seen at present-time guarantees once-ever.
+        .onChange(of: following.hasOnboarded, initial: true) { _, _ in
+            presentSignInPromptIfNeeded()
+        }
+        .sheet(isPresented: $showSignInPrompt) {
+            SignInPromptView()
+        }
+    }
+
+    /// Show the post-onboarding sign-in prompt once, ever: only when the user has
+    /// onboarded, hasn't already seen it, and isn't already signed in. Skipping is
+    /// fine — the app works identically without an account.
+    private func presentSignInPromptIfNeeded() {
+        guard following.hasOnboarded,
+              !following.hasSeenSignInPrompt,
+              !auth.isSignedIn else { return }
+        following.markSignInPromptSeen()
+        showSignInPrompt = true
     }
 
     // MARK: - Hub
@@ -370,4 +393,5 @@ struct HomeView: View {
         .environment(TriviaStore())
         .environment(BracketStore())
         .environment(PredictionStore())
+        .environment(AuthStore())
 }

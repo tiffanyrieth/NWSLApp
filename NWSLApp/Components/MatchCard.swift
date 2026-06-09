@@ -33,6 +33,8 @@ struct MatchCard: View {
     /// nil for ordinary NWSL matches (the only kind today). See CompetitionBadge.
     var badge: CompetitionBadge? = nil
 
+    @Environment(\.openURL) private var openURL
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if let badge { badgePill(badge) }
@@ -82,14 +84,34 @@ struct MatchCard: View {
                     .lineLimit(1)
             }
             if event.statusState != "post", let channel = event.broadcastName {
-                Label(channel, systemImage: "tv")
-                    .lineLimit(1)
+                broadcastLabel(channel)
             }
             Spacer(minLength: 0)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
         .labelStyle(.titleAndIcon)
+    }
+
+    // The 📺 channel: a tappable "where to watch" link when we recognize the
+    // broadcaster (opens its streaming page), otherwise a plain label. The whole
+    // card is a NavigationLink, so the button takes hit-test priority for its own
+    // area while taps elsewhere on the card still navigate to the match.
+    @ViewBuilder
+    private func broadcastLabel(_ channel: String) -> some View {
+        if let url = BroadcastLink.url(for: channel) {
+            Button {
+                openURL(url)
+            } label: {
+                Label(channel, systemImage: "tv")
+                    .lineLimit(1)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.tint)
+        } else {
+            Label(channel, systemImage: "tv")
+                .lineLimit(1)
+        }
     }
 
     @ViewBuilder
@@ -102,8 +124,10 @@ struct MatchCard: View {
                 .font(.title3.weight(.medium))
                 .frame(minWidth: 52, alignment: .leading)
             if showScores, let score = competitor?.score {
+                // Rounded, monospaced digits echo the MatchDetailView header score.
                 Text(score)
-                    .font(.title3.weight(.bold))
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .monospacedDigit()
             }
         }
     }

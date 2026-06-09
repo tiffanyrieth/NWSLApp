@@ -64,6 +64,16 @@ struct RootTabView: View {
     // and shared so the Feed list and its Sources sheet read the same settings.
     @State private var feedPreferences = FeedPreferencesStore()
 
+    // The account layer (Sign in with Apple → Supabase user), created once and
+    // shared so the post-onboarding sign-in prompt (and a future Settings screen)
+    // read the same signed-in state (see AuthStore).
+    @State private var auth = AuthStore()
+
+    // Bridges local follows ⟷ Supabase once signed in. Not injected into the
+    // environment — no view needs it; RootTabView just holds it alive and starts
+    // it after the session restores (see FollowSyncCoordinator).
+    @State private var syncCoordinator: FollowSyncCoordinator?
+
     var body: some View {
         TabView(selection: $selection) {
             HomeView()
@@ -93,6 +103,18 @@ struct RootTabView: View {
         .environment(bracket)
         .environment(predict)
         .environment(feedPreferences)
+        .environment(auth)
+        .task {
+            // Restore any saved Supabase session, then start follow sync. Guard so
+            // re-running .task (it can fire again on scene changes) doesn't build a
+            // second coordinator.
+            await auth.restoreSession()
+            if syncCoordinator == nil {
+                let coordinator = FollowSyncCoordinator(following: following, auth: auth)
+                coordinator.start()
+                syncCoordinator = coordinator
+            }
+        }
     }
 }
 

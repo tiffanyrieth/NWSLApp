@@ -14,10 +14,10 @@
 //   4. Coming up                — a compact next-match strip per followed club.
 //  ("Around the league" was removed — it duplicated the Schedule tab.)
 //
-//  Home owns no season data: it reads the shared MatchStore + FollowingStore from
-//  the environment and derives everything through HomeViewModel. The fetches it
-//  triggers are the club directory (followed IDs → Clubs) and two TEMP content
-//  seeds (Modules 1 & 2), both via HomeViewModel.loadClubs().
+//  Home owns no season or directory data: it reads the shared MatchStore,
+//  ClubStore, and FollowingStore from the environment and derives everything
+//  through HomeViewModel. The only thing it loads of its own are two TEMP content
+//  seeds (Modules 1 & 2), via HomeViewModel.loadContent().
 //
 
 import SwiftUI
@@ -28,6 +28,7 @@ struct HomeView: View {
     @State private var showTeamPicker = false
     @Environment(FollowingStore.self) private var following
     @Environment(MatchStore.self) private var matchStore
+    @Environment(ClubStore.self) private var clubStore
     @Environment(TriviaStore.self) private var trivia
     @Environment(BracketStore.self) private var bracket
     @Environment(PredictionStore.self) private var predict
@@ -45,11 +46,16 @@ struct HomeView: View {
             }
         }
         .task {
-            // Hand the view model the shared store, then load both sources once
-            // (guarding on .idle so re-selecting the tab doesn't refetch).
+            // Hand the view model the shared stores, load the (TEMP) content
+            // seeds, then load the shared stores once (guarding on .idle so
+            // re-selecting the tab — or another screen having loaded them first —
+            // doesn't refetch). Seeds load first so they're ready by the time the
+            // stores report .loaded and the hub renders.
             viewModel.store = matchStore
+            viewModel.clubStore = clubStore
+            await viewModel.loadContent()
             if case .idle = matchStore.state { await matchStore.load() }
-            if case .idle = viewModel.clubsState { await viewModel.loadClubs() }
+            if case .idle = clubStore.state { await clubStore.load() }
         }
         .sheet(isPresented: $showTeamPicker) {
             NavigationStack { OnboardingView() }
@@ -340,7 +346,7 @@ struct HomeView: View {
 
     private func reload() async {
         await matchStore.load()
-        await viewModel.loadClubs()
+        await clubStore.load()
     }
 
     private func errorView(_ message: String) -> some View {
@@ -360,6 +366,7 @@ struct HomeView: View {
     HomeView()
         .environment(FollowingStore())
         .environment(MatchStore())
+        .environment(ClubStore())
         .environment(TriviaStore())
         .environment(BracketStore())
         .environment(PredictionStore())

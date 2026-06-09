@@ -23,6 +23,9 @@ struct TeamsView: View {
     @State private var viewModel = TeamsViewModel()
     @State private var path = NavigationPath()
     @Environment(FollowingStore.self) private var following
+    // The shared club directory (injected in RootTabView); the view model reads
+    // its state/clubs through this.
+    @Environment(ClubStore.self) private var clubStore
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -36,7 +39,8 @@ struct TeamsView: View {
         // Load once on first appearance; don't refetch every time the tab is
         // re-selected (pull-to-refresh covers manual reloads).
         .task {
-            if case .idle = viewModel.state { await viewModel.load() }
+            viewModel.clubStore = clubStore
+            if case .idle = clubStore.state { await viewModel.load() }
         }
     }
 
@@ -135,4 +139,5 @@ struct TeamsView: View {
     TeamsView()
         .environment(FollowingStore())
         .environment(MatchStore())
+        .environment(ClubStore())
 }

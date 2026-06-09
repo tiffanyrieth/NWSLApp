@@ -33,6 +33,7 @@ struct MatchDetailView: View {
     @Environment(\.openURL) private var openURL
 
     @State private var tab: DetailTab = .summary
+    @State private var pulse = false
 
     init(event: Event, badge: CompetitionBadge? = nil) {
         _viewModel = State(initialValue: MatchDetailViewModel(event: event))
@@ -66,8 +67,15 @@ struct MatchDetailView: View {
         .navigationTitle(event.shortName ?? "Match")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            // First load only; the live poll (task) re-triggers explicitly.
+            // First load (shows a spinner), then poll silently every 30s while
+            // the match is live so events/score/clock fill in — the proxy's TTL
+            // makes this cheap once /summary is proxied.
             if case .idle = viewModel.summaryState { await viewModel.loadSummary() }
+            while !Task.isCancelled && viewModel.temporalState == .live {
+                try? await Task.sleep(for: .seconds(30))
+                if Task.isCancelled { break }
+                await viewModel.refresh()
+            }
         }
     }
 
@@ -304,18 +312,102 @@ struct MatchDetailView: View {
 
     // MARK: - Future layout (preview)
     //
-    // Minimal for now (header + match info); task #4 adds the Season Comparison
-    // and Recent Form sections derived from the shared MatchStore.
+    // Header + match info, then a season comparison and recent form — both
+    // derived from the shared MatchStore season (no summary endpoint, which is
+    // empty before kickoff). Only the stats we can compute from results are
+    // shown; possession/shots/etc. season averages are intentionally omitted.
 
     private var futureLayout: some View {
-        ScrollView {
+        let preview = viewModel.buildPreview(season: matchStore.events)
+        return ScrollView {
             VStack(spacing: 24) {
                 header
                 if hasInfo { infoCard }
+                if preview.hasData {
+                    seasonComparison(preview)
+                    recentForm(preview)
+                }
             }
             .padding(.bottom, 20)
         }
     }
+
+    private func seasonComparison(_ preview: MatchPreview) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Season Comparison")
+                .font(.headline)
+            comparisonBar("Goals / Match", preview.home.goalsPerMatch, preview.away.goalsPerMatch)
+            comparisonBar("Conceded / Match", preview.home.concededPerMatch, preview.away.concededPerMatch)
+            comparisonBar("Points / Game", preview.home.pointsPerGame, preview.away.pointsPerGame)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.horizontal, 20)
+    }
+
+    private func comparisonBar(_ label: String, _ home: Double, _ away: Double) -> some View {
+        StatComparisonBar(
+            label: label, home: home, away: away,
+            homeDisplay: oneDecimal(home), awayDisplay: oneDecimal(away),
+            homeColor: previewHomeColor, awayColor: previewAwayColor
+        )
+    }
+
+    private func recentForm(_ preview: MatchPreview) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Recent Form")
+                .font(.headline)
+            formRow(name: name(for: event.homeCompetitor), form: preview.home)
+            formRow(name: name(for: event.awayCompetitor), form: preview.away)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.horizontal, 20)
+    }
+
+    private func formRow(name: String, form: TeamSeasonForm) -> some View {
+        HStack(spacing: 10) {
+            Text(name)
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            if form.recent.isEmpty {
+                Text("No matches yet")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 5) {
+                    ForEach(Array(form.recent.enumerated()), id: \.offset) { _, result in
+                        formBadge(result)
+                    }
+                }
+            }
+        }
+    }
+
+    private func formBadge(_ result: MatchResult) -> some View {
+        let (letter, color): (String, Color) = switch result {
+        case .win:  ("W", .green)
+        case .draw: ("D", .gray)
+        case .loss: ("L", .red)
+        }
+        return Text(letter)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(.white)
+            .frame(width: 22, height: 22)
+            .background(color.opacity(0.85), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+    }
+
+    private func oneDecimal(_ v: Double) -> String { String(format: "%.1f", v) }
+
+    /// Future-preview bar colors: the team color when the (pre-match) summary has
+    /// supplied one, else a distinct default pair so home/away stay legible apart.
+    private var previewHomeColor: Color { homeHex != nil ? teamColor(homeHex) : .accentColor }
+    private var previewAwayColor: Color { awayHex != nil ? teamColor(awayHex) : Color(.systemOrange) }
 
     // MARK: - Header (shared across all states)
 
@@ -359,11 +451,16 @@ struct MatchDetailView: View {
 
     private var liveIndicator: some View {
         HStack(spacing: 6) {
-            Circle().fill(.red).frame(width: 8, height: 8)
+            Circle()
+                .fill(.red)
+                .frame(width: 8, height: 8)
+                .opacity(pulse ? 0.3 : 1)
+                .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: pulse)
             Text(liveText)
                 .font(.caption.weight(.bold))
                 .foregroundStyle(.red)
         }
+        .onAppear { pulse = true }
     }
 
     private func teamColumn(_ competitor: Competitor?, hex: String?) -> some View {

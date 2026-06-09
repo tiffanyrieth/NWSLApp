@@ -345,8 +345,9 @@ NWSLApp/
 ├── Components/                        — reusable view pieces
 │   ├── BroadcastLink.swift            — broadcast name → streaming-service watch URL (unknown→nil); backs the tappable 📺
 │   ├── ComingUpRow.swift              — Module-4 compact next-match row per team
-│   ├── EventTimelineRow.swift         — one timeline entry: minute + icon (goal/card/sub) + player(s) + assist
+│   ├── EventTimelineRow.swift         — one timeline entry: minute + icon (goal/card/sub) + player(s) + assist + team abbr
 │   ├── FeedCard.swift                 — one Feed item (post or article); opens source
+│   ├── FlowLayout.swift               — wrapping Layout (iOS16) — backs the Lineups substitute chips
 │   ├── ImageCache.swift               — in-memory NSCache singleton; backs TeamLogo (no re-download on scroll)
 │   ├── MatchCard.swift                — one game: score + status + venue/tappable 📺 (dormant badge); taps → MatchDetailView in Schedule
 │   ├── PlayerCard.swift               — Squad-grid card; team-color monogram + position
@@ -356,7 +357,7 @@ NWSLApp/
 │   ├── TeamContentCard.swift          — ⚠️ Module-1 real YT thumbnail (crest-tile fallback) + attribution
 │   └── TeamLogo.swift                 — team crest via the shared ImageCache (cached; placeholder fallback)
 ├── Extensions/
-│   └── Color+Hex.swift                — teamAccent(hex:) → (fill, legible on-color); teamFillOnDark(hex:) lifts dark brand colors to read on the dark canvas
+│   └── Color+Hex.swift                — teamAccent(hex:) → (fill, on-color); teamFillOnDark(hex:) lifts dark brand colors; resolveMatchColors(…) → two distinct, dark-legible team colors for a match
 └── Assets.xcassets/                   — app icons, accent color
 ```
 
@@ -463,6 +464,16 @@ for now — proxy route deferred) layers on the rest:
 A `/summary` fetch failure degrades to the header alone (never a blank screen).
 Player headshots on the pitch/cards are deferred to a follow-up branch (need the
 Worker name-match map); dots show a jersey monogram with a clear swap-in seam.
+
+A polish pass (`match-detail-v2-polish.md`) refined the visuals: underline tab
+bar, compact venue·broadcast·attendance header row, officials line, stat header
+with team abbreviations, substitute chips (`FlowLayout`), and a centered
+"TEAM — FORMATION" line. Two notable fixes: (1) team colors run through one
+`Color.resolveMatchColors` so the two sides are always distinct + dark-legible
+(black-vs-black clubs like WAS/POR no longer collapse to the same gray — they use
+their alternates); (2) the formation pitch derives its rows from the **formation
+string**, not per-player abbreviations, so a 4-2-3-1 stays 4-2-3-1 even when ESPN
+sends generic "M" positions (the previous build rendered it as a 4-5-1).
 
 ---
 

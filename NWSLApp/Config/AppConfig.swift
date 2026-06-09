@@ -39,4 +39,19 @@ enum AppConfig {
         #endif
         return scoreboardProxyBase
     }
+
+    /// Base URL the per-match `/summary` call builds on. The proxy's `/summary`
+    /// route is not deployed yet (deferred to a later branch — see
+    /// match-detail-v2-spec §2a), so this hits ESPN directly for now. When the
+    /// route ships, flip the `return` below to `scoreboardProxyBase` (the proxy
+    /// host already exists) — a one-line change — and the `-useESPNDirect`
+    /// fallback starts applying, exactly like `scoreboardBaseURL`.
+    static var summaryBaseURL: URL {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-useESPNDirect") {
+            return espnBase
+        }
+        #endif
+        return espnBase   // ← flip to scoreboardProxyBase once /summary ships
+    }
 }

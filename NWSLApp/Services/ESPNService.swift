@@ -27,6 +27,11 @@ struct ESPNService {
     // Injectable so tests/previews can point it elsewhere.
     var scoreboardBase: URL = AppConfig.scoreboardBaseURL
 
+    // Base URL the per-match `/summary` call builds on. ESPN direct for now
+    // (the proxy `/summary` route is deferred — see AppConfig.summaryBaseURL);
+    // injectable so tests/previews can point it elsewhere.
+    var summaryBase: URL = AppConfig.summaryBaseURL
+
     // When `year` is provided, requests the full season via
     // `?dates=YYYY0101-YYYY1231&limit=500` — the form the API probe confirmed
     // returns the entire season (the default response caps at 100 events).
@@ -80,6 +85,23 @@ struct ESPNService {
             .appendingPathComponent(clubID)
             .appendingPathComponent("roster")
         return try await fetch(RosterResponse.self, from: url).squad
+    }
+
+    // Fetches one match's rich detail from `summary?event={id}` — lineups (with
+    // formation), team match stats, and the key-events timeline (see
+    // MatchSummary.swift). Built on `summaryBase` (ESPN direct for now) with the
+    // event id as a query item, mirroring fetchScoreboard's URLComponents shape.
+    func fetchSummary(eventID: String) async throws -> MatchSummary {
+        let endpoint = summaryBase.appendingPathComponent("summary")
+        guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
+            throw ESPNServiceError.badURL
+        }
+        components.queryItems = [URLQueryItem(name: "event", value: eventID)]
+        guard let url = components.url else {
+            throw ESPNServiceError.badURL
+        }
+
+        return try await fetch(MatchSummary.self, from: url)
     }
 
     // Shared GET-and-decode: one place for the status check and typed-error

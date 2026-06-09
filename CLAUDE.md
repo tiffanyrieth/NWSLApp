@@ -195,6 +195,25 @@ working in this repo:
 
 ---
 
+## Navigation Identity
+
+Each tab has a distinct job. When adding or redesigning a feature, check that
+the *lens* matches the section and that adjacent sections stay consistent.
+Full rationale in `Reference/navigation-architecture.md`.
+
+- **Home** — your teams, right now. Personal + temporal. The engagement hub.
+- **Schedule** — when do they play, what happened? Full-season calendar.
+- **Standings** — where does your team sit? League position + competitive context.
+- **Teams** — the club directory + deep dives. Season-level, relational.
+- **Feed** — the conversation around your teams. Reporter/journalist voices.
+
+**Adjacency rule:** when you change a section, check its neighbors. Schedule
+cards and MatchDetailView share visual language. Team Page and MatchDetailView
+share player data through different lenses (season vs. match). Home Module 1
+(team content) and Feed (reporter content) are distinct voices — don't blur them.
+
+---
+
 ## Distribution
 
 - Simulator + Personal Team sideload (free Apple tier). App Store deferred
@@ -253,7 +272,7 @@ placeholder (looks deliberate per the UI rules). Design specs in
 NWSLApp/
 ├── NWSLAppApp.swift                   — app entry point; launches RootTabView; forces dark appearance app-wide; DEBUG `-resetOnboarding` launch arg → resets onboarding
 ├── Config/                            — app configuration
-│   ├── AppConfig.swift                — base URLs; scoreboard → Cloudflare proxy by default; DEBUG `-useESPNDirect` → ESPN direct
+│   ├── AppConfig.swift                — base URLs; scoreboard → Cloudflare proxy by default; summary → ESPN direct (proxy route deferred); DEBUG `-useESPNDirect` → ESPN direct
 │   ├── Secrets.swift                  — 🔒 GITIGNORED Supabase URL + anon key (not committed)
 │   └── Secrets.example                — checked-in template for Secrets.swift (non-`.swift` so it never compiles)
 ├── Models/                            — Codable models (⚠️ = backed by a seed provider)
@@ -261,6 +280,7 @@ NWSLApp/
 │   ├── Club.swift                     — flat Club + ESPN /teams decode wrappers
 │   ├── FeedItem.swift                 — one Feed item (post|article) + team tag
 │   ├── FollowedCompetition.swift      — international competitions list + follow model
+│   ├── MatchSummary.swift             — ESPN /summary decode: lineups+formation, boxscore stats, key-events timeline (defensive)
 │   ├── PlayerSpotlight.swift          — ⚠️ Home Module-2 player-of-week mini-profile
 │   ├── PlayerStats.swift              — per-player season stats + team-leaders models
 │   ├── PredictionMatch.swift          — ⚠️ Predict-the-XI match, questions, answer key
@@ -272,7 +292,7 @@ NWSLApp/
 │   └── TriviaQuestion.swift           — ⚠️ one Daily-Trivia question (4 options)
 ├── Services/                          — ESPNService + Supabase clients + ⚠️ curated async seed providers
 │   ├── BracketEditionProvider.swift   — ⚠️ Bracket seed + simulated leaderboard
-│   ├── ESPNService.swift              — async fetch: scoreboard (via proxy, see AppConfig)/teams/roster/standings
+│   ├── ESPNService.swift              — async fetch: scoreboard (via proxy, see AppConfig)/teams/roster/standings/summary (per-match, ESPN direct)
 │   ├── FollowSyncService.swift        — Supabase `follows` table client (fetch/push/add/remove); RLS-scoped per user
 │   ├── SupabaseManager.swift          — the one shared SupabaseClient (built from Secrets)
 │   ├── FeedContentProvider.swift      — ⚠️ Feed seed: reporters/outlets, all 16 clubs
@@ -296,6 +316,7 @@ NWSLApp/
 │   ├── BracketViewModel.swift         — Bracket session; deterministic community sim
 │   ├── FeedViewModel.swift            — chips + filtered items + sources (prefs-aware); clubs ← ClubStore
 │   ├── HomeViewModel.swift            — derives Home modules from MatchStore+ClubStore+Following
+│   ├── MatchDetailViewModel.swift     — one match: temporalState (past/live/future) + /summary fetch + live refresh + future preview (from MatchStore)
 │   ├── PredictXIViewModel.swift       — Predict session; open/settled split + scoring
 │   ├── ScheduleViewModel.swift        — day-grouped sections + filters from MatchStore; My-teams ← ClubStore (error+retry)
 │   ├── StandingsViewModel.swift       — one-shot fetchStandings()
@@ -314,24 +335,30 @@ NWSLApp/
 │   ├── TeamsView.swift                — all-16 directory; Following floats to top; Follow-competitions row at bottom
 │   ├── CompetitionsView.swift         — follow international competitions (reached from TeamsView; reuses onboarding rows)
 │   ├── TeamDetailView.swift           — club page: header + social row + Squad·Stats tabs
-│   ├── MatchDetailView.swift          — single match (pre/in/post) from the scoreboard Event; pushed from a tapped MatchCard
+│   ├── MatchDetailView.swift          — state-aware match: past = Summary/Lineups/Stats tabs (from /summary), live = +30s poll & LIVE pill, future = preview (season comparison + recent form); header-only graceful fallback
+│   ├── FormationPitchView.swift       — starting XI on a pitch, placed by position abbreviation (any standard shape); list fallback when the 11 can't be placed; TEMP jersey monogram (headshot seam)
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
 │   ├── PlayerSpotlightView.swift      — narrative spotlight tap-through (real YT video hero)
 │   ├── StandingsView.swift            — 16-team table (PTS·GP·W·L·D); followed blue
 │   ├── FeedView.swift                 — Feed tab: chip bar + chronological FeedCards
 │   └── FeedSourcesView.swift          — Feed content preferences: toggles + mute sources
 ├── Components/                        — reusable view pieces
+│   ├── BroadcastLink.swift            — broadcast name → streaming-service watch URL (unknown→nil); backs the tappable 📺
 │   ├── ComingUpRow.swift              — Module-4 compact next-match row per team
+│   ├── EventTimelineRow.swift         — one timeline entry: minute + icon (goal/card/sub) + player(s) + assist + team abbr
 │   ├── FeedCard.swift                 — one Feed item (post or article); opens source
+│   ├── FlowLayout.swift               — wrapping Layout (iOS16) — backs the Lineups substitute chips
 │   ├── ImageCache.swift               — in-memory NSCache singleton; backs TeamLogo (no re-download on scroll)
-│   ├── MatchCard.swift                — one game: score + status + venue/📺 (dormant badge); taps → MatchDetailView in Schedule
+│   ├── MatchCard.swift                — one game: score + status + venue/tappable 📺 (dormant badge); taps → MatchDetailView in Schedule
 │   ├── PlayerCard.swift               — Squad-grid card; team-color monogram + position
+│   ├── StatComparisonBar.swift        — head-to-head split bar (home value | label | away value); past Stats + future preview
 │   ├── PlayerSpotlightCard.swift      — ⚠️ Module-2 player-of-week card (real YT thumbnail)
 │   ├── SocialLinkButton.swift         — circular team-tinted social icon; opens account
 │   ├── TeamContentCard.swift          — ⚠️ Module-1 real YT thumbnail (crest-tile fallback) + attribution
 │   └── TeamLogo.swift                 — team crest via the shared ImageCache (cached; placeholder fallback)
 ├── Extensions/
-│   └── Color+Hex.swift                — teamAccent(hex:) → (fill, legible on-color)
+│   ├── Color+Hex.swift                — teamAccent(hex:) → (fill, on-color); teamFillOnDark(hex:) lifts dark brand colors; resolveMatchColors(…) → two distinct, dark-legible team colors for a match
+│   └── TeamBrandColors.swift          — per-team-id brand-color overrides for clubs ESPN gets wrong (e.g. Angel City Sol Rosa coral); consulted before ESPN's hexes
 └── Assets.xcassets/                   — app icons, accent color
 ```
 
@@ -416,10 +443,38 @@ rows → `TeamDetailView`. Endpoint at `apis/v2/…` (not the app `base`).
 **Schedule** (`schedule-tab-design-spec.md`) — full season in one
 `fetchScoreboard(year:)` (~240 events for 2026); sticky day headers; three filters
 (NWSL / My teams / All matches) over one `MatchStore`; cards carry 📍 venue · 📺
-broadcast; scrolls to today, re-anchors on filter change. Tapping a card pushes
-`MatchDetailView` — a state-aware (pre/in/post) match screen (full names, crests,
-score or kickoff, venue + broadcast) built entirely from the scoreboard `Event`,
-no extra fetch.
+broadcast (the broadcast is a tappable "where to watch" link via `BroadcastLink`
+when the partner is recognized); scrolls to today, re-anchors on filter change.
+Tapping a card pushes `MatchDetailView`.
+
+**Match detail V2** (`match-detail-v2-spec.md`) — `MatchDetailView` +
+`MatchDetailViewModel` adapt to a temporal state (past/live/future). The header
+(crests, bold score/kickoff, venue, tappable broadcast) always renders from the
+scoreboard `Event`; ESPN's per-event `/summary` (via `fetchSummary`, ESPN direct
+for now — proxy route deferred) layers on the rest:
+- **Past** — tabbed recap: **Summary** (events timeline — goals/cards/subs with
+  minute + assist), **Lineups** (`FormationPitchView` — the XI on a pitch, placed
+  by position abbreviation, with a list fallback + substitutes), **Stats**
+  (`StatComparisonBar` head-to-head over the boxscore).
+- **Live** — same tabs (labelled EVENTS) with a pulsing LIVE pill + clock and a
+  30s silent refresh.
+- **Future** — preview derived from the shared `MatchStore` (no summary): Season
+  Comparison (goals/match, conceded/match, points/game) + Recent Form (last-5
+  W/D/L). Possession/shots/SOT season averages are intentionally omitted (need
+  per-match aggregation — see What's-Next).
+A `/summary` fetch failure degrades to the header alone (never a blank screen).
+Player headshots on the pitch/cards are deferred to a follow-up branch (need the
+Worker name-match map); dots show a jersey monogram with a clear swap-in seam.
+
+A polish pass (`match-detail-v2-polish.md`) refined the visuals: underline tab
+bar, compact venue·broadcast·attendance header row, officials line, stat header
+with team abbreviations, substitute chips (`FlowLayout`), and a centered
+"TEAM — FORMATION" line. Two notable fixes: (1) team colors run through one
+`Color.resolveMatchColors` so the two sides are always distinct + dark-legible
+(black-vs-black clubs like WAS/POR no longer collapse to the same gray — they use
+their alternates); (2) the formation pitch derives its rows from the **formation
+string**, not per-player abbreviations, so a 4-2-3-1 stays 4-2-3-1 even when ESPN
+sends generic "M" positions (the previous build rendered it as a 4-5-1).
 
 ---
 
@@ -436,9 +491,21 @@ here. Original item numbers are kept so existing cross-references stay valid.
    keep the list visible during refresh, spinner only on first load.
 4. Capture a real ESPN response → `NWSLAppTests/Fixtures/scoreboard.json` + a
    decode-only test for `Scoreboard`/Event helpers (date parsing, `dayKey` TZ).
-6. **(DONE — see Current State)** `MatchCard` taps → `MatchDetailView`, built from
-   the scoreboard `Event`. Remaining (future): ESPN's per-event `/summary` endpoint
-   for the richer detail — lineups, goal scorers, match stats, news.
+6. **(DONE — see Current State)** `MatchDetailView` is now the full V2 screen
+   (past/live/future, ESPN `/summary` for lineups·timeline·stats). Remaining
+   (deferred to follow-up branches, all part of the same V2 chapter):
+   - **Worker routes** — `/summary` smart-TTL proxy route + `/headshots` endpoint
+     + the name-match cron/KV (app fetches `/summary` ESPN-direct until then;
+     flip `AppConfig.summaryBaseURL` to the proxy when it ships).
+   - **Player headshots** — real photos on the pitch dots, `PlayerCard`, etc.
+     (need the Worker's NWSL-GUID↔ESPN-id map); a jersey monogram + seam are in
+     place now.
+   - **Future-preview season averages** — possession/shots/SOT/pass-accuracy
+     aren't derivable from the scoreboard; need per-match `/summary` aggregation
+     (or a proxy-computed team-season endpoint).
+   - **`StatsProvider` → real season stats** — swap simulated per-player stats
+     for ESPN's Core API (`…/athletes/{id}/statistics`) in TeamDetail/PlayerDetail.
+   - Richer summary extras still unused: commentary, news, per-player match stats.
 9. **(Fragility)** `MatchStore.matches(for:)` joins club↔game by `abbreviation`
    (ESPN competitors carry no id). TEMP-commented; a rename silently empties a
    schedule (empty state, not crash). Real fix: a normalized club-id map.

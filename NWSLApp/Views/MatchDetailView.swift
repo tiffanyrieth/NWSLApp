@@ -56,7 +56,9 @@ struct MatchDetailView: View {
             }
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle(event.shortName ?? "Match")
+        // Empty inline title: the header already shows both crests + names, so
+        // the nav bar stays just the back chevron (matches TeamDetailView).
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             // First load (shows a spinner), then poll silently every 30s while

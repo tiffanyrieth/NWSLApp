@@ -291,12 +291,13 @@ NWSLApp/
 ├── Components/                        — reusable view pieces
 │   ├── ComingUpRow.swift              — Module-4 compact next-match row per team
 │   ├── FeedCard.swift                 — one Feed item (post or article); opens source
+│   ├── ImageCache.swift               — in-memory NSCache singleton; backs TeamLogo (no re-download on scroll)
 │   ├── MatchCard.swift                — one game: score + status + venue/📺 (dormant badge); taps → MatchDetailView in Schedule
 │   ├── PlayerCard.swift               — Squad-grid card; team-color monogram + position
 │   ├── PlayerSpotlightCard.swift      — ⚠️ Module-2 player-of-week card (real YT thumbnail)
 │   ├── SocialLinkButton.swift         — circular team-tinted social icon; opens account
 │   ├── TeamContentCard.swift          — ⚠️ Module-1 real YT thumbnail (crest-tile fallback) + attribution
-│   └── TeamLogo.swift                 — AsyncImage crest (no cache yet — What's-Next #1)
+│   └── TeamLogo.swift                 — team crest via the shared ImageCache (cached; placeholder fallback)
 ├── Extensions/
 │   └── Color+Hex.swift                — teamAccent(hex:) → (fill, legible on-color)
 └── Assets.xcassets/                   — app icons, accent color
@@ -381,8 +382,9 @@ Completed work is documented in **Current State**; only pending work is listed
 here. Original item numbers are kept so existing cross-references stay valid.
 
 **Near-term / cleanup**
-1. **(Perf/TEMP)** `TeamLogo` uses bare `AsyncImage` — no cross-cell cache, crests
-   re-download on scroll. Replace with a shared NSCache loader (or the proxy).
+1. **(Perf — DONE)** `TeamLogo` now loads through `ImageCache` (a shared in-memory
+   NSCache singleton) instead of bare `AsyncImage`, so crests aren't re-downloaded
+   on scroll. In-memory only (disk caching deliberately out of scope).
 3. **(Polish)** Pull-to-refresh flips `state` to `.loading` (full-screen spinner);
    keep the list visible during refresh, spinner only on first load.
 4. Capture a real ESPN response → `NWSLAppTests/Fixtures/scoreboard.json` + a

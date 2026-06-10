@@ -52,17 +52,14 @@ struct ScheduleView: View {
 
     var body: some View {
         NavigationStack {
-            // The scroll content must be the NavigationStack's DIRECT child for the
-            // large title to render — wrapping it in a VStack (with the filter bar
-            // above) makes "Schedule" silently disappear. So the filter bar is
-            // pinned via safeAreaInset instead (the standard title + sticky-filter
-            // pattern): the title shows, the chips stay put above the scroll.
+            // A custom large-title header (title + filter chips) pinned via
+            // safeAreaInset, with the system nav bar hidden. The system large title
+            // can't be used here: the screen auto-scrolls to today on open, which
+            // immediately collapses it to the small inline title. The custom header
+            // stays at full size and keeps the chips sticky above the scroll.
             content
-                .navigationTitle("Schedule")
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    filterPicker
-                        .background(Color.dsBgGrouped)
-                }
+                .toolbar(.hidden, for: .navigationBar)
+                .safeAreaInset(edge: .top, spacing: 0) { scheduleHeader }
         }
         // Hand the view model the shared store + following lens, then load on
         // first appearance. Gate ONLY the season on `.idle` (so re-selecting the
@@ -93,6 +90,20 @@ struct ScheduleView: View {
         .onChange(of: selectedFilter) { _, _ in
             anchor(to: viewModel.initialScrollSectionID(for: selectedFilter))
         }
+    }
+
+    // Large "Schedule" title + the filter chips, drawn as one pinned header.
+    private var scheduleHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Schedule")
+                .font(.system(size: 34, weight: .bold))
+                .foregroundStyle(Color.dsFgPrimary)
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+            filterPicker
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgGrouped)
     }
 
     // Three filter chips (design: NWSL · My teams · All matches), active = accent.

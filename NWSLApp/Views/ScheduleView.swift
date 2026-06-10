@@ -52,11 +52,17 @@ struct ScheduleView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                filterPicker
-                content
-            }
-            .navigationTitle("Schedule")
+            // The scroll content must be the NavigationStack's DIRECT child for the
+            // large title to render — wrapping it in a VStack (with the filter bar
+            // above) makes "Schedule" silently disappear. So the filter bar is
+            // pinned via safeAreaInset instead (the standard title + sticky-filter
+            // pattern): the title shows, the chips stay put above the scroll.
+            content
+                .navigationTitle("Schedule")
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    filterPicker
+                        .background(Color.dsBgGrouped)
+                }
         }
         // Hand the view model the shared store + following lens, then load on
         // first appearance. Gate ONLY the season on `.idle` (so re-selecting the

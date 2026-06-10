@@ -14,6 +14,22 @@
 
 import Foundation
 
+/// A plain value snapshot of all nine toggles — the shape that mirrors up to the
+/// Supabase `notification_preferences` row so the match-watcher Worker can honor
+/// "goals: off" without asking the device. Kept SDK-free (no Supabase import) so
+/// the store stays pure; NotificationPrefsSyncService maps it to/from the row.
+struct NotificationPreferencesSnapshot: Equatable {
+    var dayBefore: Bool
+    var lineupPosted: Bool
+    var kickoff: Bool
+    var goals: Bool
+    var halftime: Bool
+    var fullTime: Bool
+    var substitutions: Bool
+    var fanZoneRounds: Bool
+    var playerSpotlight: Bool
+}
+
 @Observable
 final class NotificationPreferencesStore {
     // MARK: Match Day
@@ -28,6 +44,23 @@ final class NotificationPreferencesStore {
     // MARK: Activity
     var fanZoneRounds: Bool  { didSet { persist(fanZoneRounds, "fanZoneRounds"); onPreferenceChanged?() } }
     var playerSpotlight: Bool { didSet { persist(playerSpotlight, "playerSpotlight"); onPreferenceChanged?() } }
+
+    /// All nine toggles as a value snapshot. Reading it touches every flag, so it
+    /// also doubles as the single property NotificationSyncCoordinator observes via
+    /// withObservationTracking to mirror any change up to Supabase.
+    var snapshot: NotificationPreferencesSnapshot {
+        NotificationPreferencesSnapshot(
+            dayBefore: dayBefore,
+            lineupPosted: lineupPosted,
+            kickoff: kickoff,
+            goals: goals,
+            halftime: halftime,
+            fullTime: fullTime,
+            substitutions: substitutions,
+            fanZoneRounds: fanZoneRounds,
+            playerSpotlight: playerSpotlight
+        )
+    }
 
     /// Fired after any toggle changes, so the NotificationScheduler can rebuild
     /// local notifications. Optional and nil by default — when nil (no scheduler

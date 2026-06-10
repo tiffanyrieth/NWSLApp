@@ -33,6 +33,15 @@ struct Athlete: Identifiable, Hashable {
     let age: Int?
     let displayHeight: String?     // e.g. "5' 10\""
     let citizenship: String?       // e.g. "USA"
+
+    /// Whether this player is a goalkeeper, by position. Drives which season-stat
+    /// set the player pages show (saves/clean-sheets vs. goals/assists). Position
+    /// abbreviation is the reliable signal ("G"); the display name is a fallback
+    /// for the rare case ESPN omits it.
+    var isGoalkeeper: Bool {
+        if positionAbbreviation?.uppercased() == "G" { return true }
+        return positionName?.lowercased().contains("goal") ?? false
+    }
 }
 
 /// The result of a roster fetch: the squad plus the lightweight team profile that

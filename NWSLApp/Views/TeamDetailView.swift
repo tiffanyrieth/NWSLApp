@@ -75,7 +75,8 @@ struct TeamDetailView: View {
             PlayerDetailView(
                 athlete: athlete,
                 accentHex: accentHex,
-                stats: viewModel.stats(for: athlete)
+                stats: viewModel.stats(for: athlete),
+                seasonLabel: viewModel.seasonLabel
             )
         }
         .task {
@@ -202,9 +203,9 @@ struct TeamDetailView: View {
     // MARK: - Stats (season summary + team leaders)
 
     // A real season block — the club's record (real, from the roster payload) plus
-    // team leaders in goals / assists / clean sheets. The leaders come from
-    // ⚠️StatsProvider's simulated per-player stats (no real per-player feed yet), so
-    // they match each player's own page exactly. A formation pitch still needs an
+    // team leaders in goals / assists / clean sheets. The leaders come from real
+    // ESPN Core API per-player season stats (ESPNService.seasonStats), so they
+    // match each player's own page exactly. A formation pitch still needs an
     // unmapped lineup endpoint and isn't shown (its absence is a missing feature,
     // not a "coming soon" card — see CLAUDE.md What's-Next).
     @ViewBuilder

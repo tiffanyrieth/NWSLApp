@@ -21,6 +21,21 @@ enum AppConfig {
     /// Force-unwrap is safe: a compile-time constant, valid URL.
     static let espnBase = URL(string: "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.nwsl/")!
 
+    /// ESPN's "Core" API root (a *different* host from `espnBase`), which serves
+    /// per-athlete season statistics at
+    /// `seasons/{year}/types/1/athletes/{id}/statistics`. Hit directly for now,
+    /// like teams/roster/standings; a caching proxy `statsBaseURL` route is a
+    /// future follow-up (CLAUDE.md What's-Next #6).
+    /// Force-unwrap is safe: a compile-time constant, valid URL.
+    static let espnCoreBase = URL(string: "https://sports.core.api.espn.com/v2/sports/soccer/leagues/usa.nwsl/")!
+
+    /// The season the app reads player stats for. Hardcoded to the current season;
+    /// a stale value silently returns empty stats league-wide (no crash). Centralized
+    /// here so the yearly fix is one line.
+    /// TODO (#6): resolve dynamically from the league root's `season.year`
+    /// (`GET …/leagues/usa.nwsl` → `season.year`).
+    static let currentSeasonYear = 2026
+
     /// The deployed caching proxy. `GET /scoreboard` here forwards the query
     /// string to ESPN's scoreboard endpoint and returns the bytes unchanged,
     /// so the app's `Scoreboard` decoder needs no changes.

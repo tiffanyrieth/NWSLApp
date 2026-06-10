@@ -345,7 +345,7 @@ NWSLApp/
 │   ├── FormationPitchView.swift       — single-team XI on a pitch (placed by formation string); the per-team list fallback when a side can't be placed
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
 │   ├── PlayerSpotlightView.swift      — narrative spotlight tap-through (real YT video hero)
-│   ├── StandingsView.swift            — 16-team table (PTS·GP·W·L·D); followed blue
+│   ├── StandingsView.swift            — 16-team table (abbr · PTS·GP·W·L·D); pinned column header (no title overlap); followed-row tint
 │   ├── FeedView.swift                 — Feed tab: chip bar + chronological FeedCards
 │   └── FeedSourcesView.swift          — Feed content preferences: toggles + mute sources
 ├── Components/                        — reusable view pieces
@@ -410,8 +410,12 @@ Competition) + `HowToWatchCard` (the BROADCAST_INFO device guide) + token-ized
 season comparison & `FormBadge` form. Lineups is now a single **combined pitch**
 (both teams, home top / away bottom — `CombinedPitchView`). Team colors now come
 from the design palette (`DesignTeamColors`, by abbreviation) so ESPN near-black
-primaries (Spirit, Thorns) no longer read as gray. Remaining (each its own PR):
-core tabs, the real **Profile** screen, Team Detail + Spotlight.
+primaries (Spirit, Thorns) no longer read as gray. **Phase 4 (core tabs)**:
+Standings → abbreviations + pinned column header (fixes the title-overlap bug) +
+followed-row tint; Teams → followed-row tint + accent names + yellow stars (full
+names kept — it's the directory); Schedule filter → `Chip`s; Feed chips → `Chip`
++ tokenized `FeedCard` (@/📰 avatars). Remaining (each its own PR): the real
+**Profile** screen, Team Detail + Spotlight.
 
 **Accounts & follow sync** (`…/2026-06-09_supabase-accounts-setup.md`) — Sign in
 with Apple → a **Supabase** user (first per-user backend). `AuthStore`
@@ -503,9 +507,6 @@ numbers are kept so existing cross-references stay valid.
 9. **(Fragility)** `MatchStore.matches(for:)` joins club↔game by `abbreviation`
    (no id on ESPN competitors). TEMP-commented; a rename silently empties a
    schedule (empty state, not crash). Fix: a normalized club-id map.
-17. **(Bug)** `StandingsView` — the large "Standings" nav title overlaps the
-    column-header row (#/Team/PTS/GP/W/L/D). Fix the spacing/z-order so the header
-    sits clear below the title.
 18. **Weather API + kickoff-temp header slot** — its own feature push (API key in
     Secrets, venue→coords, fetch-at-kickoff). The match-detail header info row
     already renders fields conditionally, so re-adding the 🌡 slot is a one-line

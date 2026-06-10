@@ -32,8 +32,8 @@ struct FeedCard: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(Color.dsBgCard)
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -45,11 +45,12 @@ struct FeedCard: View {
             avatar
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.sourceName)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.dsFgPrimary)
                     .lineLimit(1)
                 Text(metaLine)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
             Spacer(minLength: 0)
         }
@@ -58,11 +59,11 @@ struct FeedCard: View {
     private var avatar: some View {
         ZStack {
             Circle().fill(avatarColor)
-            Image(systemName: avatarSymbol)
+            Text(avatarGlyph)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.white)
         }
-        .frame(width: 36, height: 36)
+        .frame(width: DS.feedAvatar, height: DS.feedAvatar)
     }
 
     // MARK: - Content (body, or headline + summary)
@@ -73,22 +74,22 @@ struct FeedCard: View {
         case .reporterPost:
             if let body = item.body {
                 Text(body)
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
+                    .font(.system(size: 15))
+                    .foregroundStyle(Color.dsFgPrimary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         case .articleLink:
             VStack(alignment: .leading, spacing: 4) {
                 if let headline = item.headline {
                     Text(headline)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Color.dsFgPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if let summary = item.summary {
                     Text(summary)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.dsFgSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -100,26 +101,26 @@ struct FeedCard: View {
     private var linkRow: some View {
         HStack(spacing: 4) {
             Text(item.linkLabel)
-                .font(.subheadline.weight(.semibold))
+                .font(.system(size: 15, weight: .semibold))
             Image(systemName: "arrow.up.right")
                 .font(.caption.weight(.semibold))
         }
-        .foregroundStyle(Color.accentColor)
+        .foregroundStyle(Color.dsAccent)
     }
 
     // MARK: - Per-kind styling
 
-    private var avatarSymbol: String {
+    private var avatarGlyph: String {
         switch item.kind {
-        case .reporterPost: return "at"
-        case .articleLink:  return "newspaper.fill"
+        case .reporterPost: return "@"
+        case .articleLink:  return "📰"
         }
     }
 
     private var avatarColor: Color {
         switch item.kind {
-        case .reporterPost: return .blue
-        case .articleLink:  return .secondary
+        case .reporterPost: return .dsAccent       // reporter post
+        case .articleLink:  return .dsFgTertiary   // article
         }
     }
 

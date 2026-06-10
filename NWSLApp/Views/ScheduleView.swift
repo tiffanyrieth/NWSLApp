@@ -89,13 +89,16 @@ struct ScheduleView: View {
         }
     }
 
+    // Three filter chips (design: NWSL · My teams · All matches), active = accent.
     private var filterPicker: some View {
-        Picker("Filter", selection: $selectedFilter) {
+        HStack(spacing: 8) {
             ForEach(ScheduleViewModel.Filter.allCases) { filter in
-                Text(filter.title).tag(filter)
+                Chip(label: filter.title, isActive: selectedFilter == filter) {
+                    selectedFilter = filter
+                }
             }
+            Spacer(minLength: 0)
         }
-        .pickerStyle(.segmented)
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 12)
@@ -163,7 +166,7 @@ struct ScheduleView: View {
         }
         .scrollPosition(id: $scrollTarget, anchor: .top)
         .contentMargins(.horizontal, 16, for: .scrollContent)
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgGrouped)
         .refreshable { await viewModel.load() }
     }
 

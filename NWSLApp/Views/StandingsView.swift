@@ -68,17 +68,21 @@ struct StandingsView: View {
         }
     }
 
+    // The column header is a PINNED section header inside the scroll (not a
+    // separate band above it): it collapses cleanly under the large nav title and
+    // then sticks below the bar as rows scroll — fixing the old title/header
+    // overlap (#17) while still "staying put" over the rows.
     private var table: some View {
-        VStack(spacing: 0) {
-            columnHeader
-            Divider()
-            ScrollView {
-                LazyVStack(spacing: 0) {
+        ScrollView {
+            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                Section {
                     ForEach(viewModel.rows) { row in
                         rowButton(for: row)
                         Divider().padding(.leading)
                     }
                     legend
+                } header: {
+                    columnHeader
                 }
             }
         }
@@ -100,9 +104,11 @@ struct StandingsView: View {
             statHeader("D")
         }
         .font(.caption.weight(.semibold))
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Color.dsFgSecondary)
         .padding(.horizontal)
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
+        // Opaque so scrolling rows don't bleed through when this header pins.
+        .background(Color.dsBgGrouped)
     }
 
     private func statHeader(_ title: String) -> some View {
@@ -114,9 +120,9 @@ struct StandingsView: View {
 
     private func rowButton(for row: StandingsRow) -> some View {
         let isFollowing = following.isFollowing(row.club)
-        // Followed teams: blue text + a soft blue-tinted row so the eye finds
+        // Followed teams: accent text + a soft blue-tinted row so the eye finds
         // your teams instantly on open (spec: highlight the Following lens).
-        let tint: Color = isFollowing ? .blue : .primary
+        let tint: Color = isFollowing ? .dsAccent : .dsFgPrimary
 
         return Button {
             path.append(row.club)
@@ -128,8 +134,10 @@ struct StandingsView: View {
 
                 HStack(spacing: 8) {
                     TeamLogo(urlString: row.club.logoURL, size: 24)
-                    Text(row.club.displayName)
-                        .font(.subheadline)
+                    // Abbreviation, not the full name — full names get truncated on
+                    // a phone (matches the app-wide abbreviation convention).
+                    Text(row.club.abbreviation)
+                        .font(.subheadline.weight(.medium))
                         .lineLimit(1)
                     Spacer(minLength: 4)
                 }
@@ -146,7 +154,7 @@ struct StandingsView: View {
             .foregroundStyle(tint)
             .padding(.horizontal)
             .padding(.vertical, 10)
-            .background(isFollowing ? Color.blue.opacity(0.10) : .clear)
+            .background(isFollowing ? Color.dsFollowTint : .clear)
             .contentShape(Rectangle())   // whole row is tappable, incl. padding
         }
         .buttonStyle(.plain)

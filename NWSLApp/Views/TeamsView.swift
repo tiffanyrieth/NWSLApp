@@ -88,14 +88,16 @@ struct TeamsView: View {
         // (the star toggles, the rest of the row goes dead). So the row body is
         // its own button that pushes the club via the navigation path, and the
         // star is a separate button beside it — each owns its own taps.
-        HStack(spacing: 12) {
+        let isFollowing = following.isFollowing(club)
+        return HStack(spacing: 12) {
             Button {
                 path.append(club)
             } label: {
                 HStack(spacing: 12) {
                     TeamLogo(urlString: club.logoURL, size: 32)
+                    // Full name — the directory is the one place full names show.
                     Text(club.displayName)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(isFollowing ? Color.dsAccent : Color.dsFgPrimary)
                     Spacer(minLength: 8)
                 }
                 .contentShape(Rectangle())   // whole left area is tappable
@@ -104,6 +106,8 @@ struct TeamsView: View {
 
             followButton(for: club)
         }
+        // Followed rows get a soft blue tint so the Following lens is visible.
+        .listRowBackground(isFollowing ? Color.dsFollowTint : nil)
     }
 
     private func followButton(for club: Club) -> some View {
@@ -112,7 +116,7 @@ struct TeamsView: View {
             following.toggle(club)
         } label: {
             Image(systemName: isFollowing ? "star.fill" : "star")
-                .foregroundStyle(isFollowing ? .yellow : .secondary)
+                .foregroundStyle(isFollowing ? Color.dsFollowStar : Color.dsFgSecondary)
                 .imageScale(.large)
         }
         // .borderless so only the star toggles — not the whole row.

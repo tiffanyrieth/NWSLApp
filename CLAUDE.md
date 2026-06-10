@@ -491,14 +491,18 @@ while signed out, present `NotificationAuthPromptView` (honest "why", skippable)
 A tapped push routes via `AppRouter.openMatch` (TEMP seam: lands on the Schedule tab —
 the stacks aren't path-bound yet). **Schema:** `device_tokens` +
 `notification_preferences` (RLS + `authenticated` grants) in `supabase/schema.sql`.
-**Worker:** sibling repo `~/Projects/nwslapp-match-watcher` — 1-min cron diffs live
-scores (KV) via the proxy `/scoreboard`, finds followers of either team with `goals`
-on (Supabase service-role), and sends APNs (`.p8` ES256 JWT); a secret-guarded
-`POST /test-push` covers on-device testing during the World Cup break. Verified in-sim:
-builds, launches, handles a canned `simctl push` without crashing (banner + tap need
-granted auth + a real device). **Blocked on owner infra** (Apple `.p8`, Supabase SQL +
-service-role key, Cloudflare KV/secrets/deploy, GitHub repo) before TestFlight E2E.
-Stages C (kickoff/HT/FT/subs) + D (lineup) build on the same pipeline — see #12.
+**Worker:** sibling repo `~/Projects/nwslapp-match-watcher` (private GitHub
+`tiffanyrieth/nwslapp-match-watcher`) — 1-min cron diffs each live-window match (KV)
+via the proxy `/scoreboard` and detects **kickoff · goal · halftime · full-time**
+(all from the scoreboard `status`), finds followers of either team with THAT alert on
+(Supabase service-role, per-event pref column), and sends APNs (`.p8` ES256 JWT); a
+secret-guarded `POST /test-push` covers on-device testing during the World Cup break.
+Goal+lifecycle detection unit-tested (21 tests). Verified in-sim (app): builds,
+launches, handles a canned `simctl push` without crashing (banner + tap need granted
+auth + a real device). **Blocked on owner infra** (Apple `.p8`, Supabase SQL +
+service-role key, Cloudflare KV/secrets/deploy) before TestFlight E2E. **Stage D**
+(subs + lineup) is next — both need the per-match `/summary` endpoint (the scoreboard
+has no subs and no lineups), not the scoreboard diff — see #12.
 
 **Home** (`home-tab-design-spec.md`; redesigned — see the redesign note above) —
 your-teams hub; pre-onboarding renders `OnboardingView` in place. Four modules —
@@ -609,25 +613,29 @@ numbers are kept so existing cross-references stay valid.
     (`nwslapp-feed-content-rules.md`); user-added sources; per-post **team tagging
     via a Claude Haiku call** that also drops non-NWSL content.
 12. **Push notifications + the server question.** **Tier 1 (LOCAL) shipped 0.3.2.**
-    **Tier 2 / Stage B (SERVER push — GOALS) is code-complete** (this chapter, ≈0.4.x;
-    not yet deployed/verified E2E). App side: `AppDelegate` + `aps-environment`
+    **Tier 2 (SERVER push) is code-complete through Stage C** (this chapter, ≈0.4.x;
+    *not yet deployed/verified E2E*). App side (PR #32, branch
+    `feature/notifications-server-goals`): `AppDelegate` + `aps-environment`
     entitlement, `PushBridge`, `DeviceTokenService` + `NotificationPrefsSyncService`,
     `NotificationSyncCoordinator` (mirrors token + prefs to Supabase once signed in),
     `NotificationAuthPromptView` (Tier 2 requires sign-in; the 6 live toggles lost the
     Stage-A "coming soon" subtext). Schema: `device_tokens` +
-    `notification_preferences` (RLS + grants) in `supabase/schema.sql`. **Worker:** new
-    sibling repo `~/Projects/nwslapp-match-watcher` (GitHub TBD) — 1-min cron, KV
-    score-diff via the proxy `/scoreboard`, goal detection, Supabase service-role
-    follower lookup, APNs `.p8` JWT, + a secret-guarded `POST /test-push`; goal-diff
-    unit-tested. **Blocked on owner infra:** APNs `.p8`/Key ID/Team ID, run the schema
-    SQL + service-role key, Cloudflare KV + `wrangler secret`s + deploy, decide the
-    GitHub repo — then on-device E2E via TestFlight (see the Worker's README).
-    **Remaining stages:** C = kickoff/halftime/full-time + subs (more cases on the same
-    pipeline; `KICKOFF — WAS vs ORL` / `Halftime — WAS 1–0 ORL`); D = lineup-posted
-    (pre-match `/summary` poll, detection-research). Adjacent: proxy `secondsUntil3amET`
-    → UTC tidy (sibling repo). Naming rule: two teams → abbreviations (`WAS 1–0 ORL`),
-    one team → full club name. Fan Zone notifs deferred. v2: VAR-disallowed-goal
-    "Correction" follow-up push. (`…/2026-06-04_server-pulls-and-push.md`,
+    `notification_preferences` (RLS + grants) in `supabase/schema.sql`. **Worker:**
+    private sibling repo `~/Projects/nwslapp-match-watcher` — 1-min cron, KV state-diff
+    via the proxy `/scoreboard`, Supabase service-role follower lookup, APNs `.p8` JWT,
+    + a secret-guarded `POST /test-push`; 21 unit tests. Detects **kickoff · goal ·
+    halftime · full-time** (Stages B+C, all from the scoreboard `status`).
+    **Blocked on owner infra:** APNs `.p8`/Key ID/Team ID, run the schema SQL +
+    service-role key, Cloudflare KV + `wrangler secret`s + deploy — then on-device E2E
+    via TestFlight (see the Worker's README). Live-game E2E waits on the July
+    World-Cup-break end; the synthetic `/test-push` bridges it.
+    **Stage D (next): substitutions + lineup-posted** — both need the per-match
+    `/summary` endpoint (the scoreboard `details` carry goals + cards but no subs, and
+    no lineups), so they're a distinct detection path, not the scoreboard diff.
+    Adjacent: proxy `secondsUntil3amET` → UTC tidy (sibling repo). Naming rule: two
+    teams → abbreviations (`WAS 1–0 ORL`), one team → full club name. Fan Zone notifs
+    deferred. v2: VAR-disallowed-goal "Correction" follow-up push.
+    (`…/2026-06-04_server-pulls-and-push.md`,
     `Reference/Design/local-notifications-spec.md`, plan
     `~/.claude/plans/thanks-i-ve-been-planning-enchanted-kurzweil.md`.)
 13. **Competition-aware schedule.** Groundwork: the 3 Schedule filters,

@@ -469,7 +469,9 @@ the two alerts the phone schedules itself: the **day-before match reminder**
 (followed teams, kickoff −24h) and the **weekly Player Spotlight** (Mon 10am local).
 Cancel-all + rebuild on any change (deterministic ids). `ProfileView` requests
 permission on the first toggle-on of a deliverable alert (never cold launch).
-**Tier 2 / SERVER push** is code-complete but not yet deployed — see What's-Next #12.
+**Tier 2 / SERVER push** is code-complete and its **infra is now provisioned + APNs
+verified** (the Worker is deployed; all secrets set; the Supabase schema is run). Only
+the on-device TestFlight E2E remains — see What's-Next #12.
 
 Per-screen behavior (design specs in `Reference/Design/*-spec.md`; file-level detail
 in the File Map above):
@@ -569,22 +571,27 @@ numbers are kept so existing cross-references stay valid.
     (`nwslapp-feed-content-rules.md`); user-added sources; per-post **team tagging
     via a Claude Haiku call** that also drops non-NWSL content.
 12. **Push notifications.** **Tier 1 (LOCAL) shipped 0.3.2.** **Tier 2 (SERVER push)
-    code-complete through Stage C** (≈0.4.x; *not deployed/verified E2E*; PR #32,
-    branch `feature/notifications-server-goals`). App side: `AppDelegate` +
-    `aps-environment`, `PushBridge`, `DeviceTokenService`/`NotificationPrefsSyncService`,
+    code-complete through Stage C** (≈0.4.x; PR #32, branch
+    `feature/notifications-server-goals`). App side: `AppDelegate` + `aps-environment`,
+    `PushBridge`, `DeviceTokenService`/`NotificationPrefsSyncService`,
     `NotificationSyncCoordinator` (mirrors token + 9-flag prefs to Supabase once signed
     in; Tier 2 requires sign-in). Schema: `device_tokens` + `notification_preferences`
     (RLS + grants) in `supabase/schema.sql`. **Worker:** private sibling
-    `~/Projects/nwslapp-match-watcher` — 1-min cron, KV state-diff via proxy
-    `/scoreboard`, Supabase service-role follower lookup, APNs `.p8` JWT, secret-guarded
-    `POST /test-push`; 21 tests; detects **kickoff · goal · halftime · full-time**.
-    **Blocked on owner infra:** APNs `.p8`/Key ID/Team ID, run schema SQL +
-    service-role key, Cloudflare KV + secrets + deploy → on-device E2E via TestFlight
-    (Worker README). Live-game E2E waits on the July World-Cup-break end; `/test-push`
-    bridges it. **Stage D (next): subs + lineup-posted** — need the per-match `/summary`
-    feed (scoreboard has no subs/lineups), a distinct detection path. Naming: two teams
-    → abbreviations (`WAS 1–0 ORL`), one team → full club name. v2: VAR-disallowed-goal
-    "Correction" push. (`…/2026-06-04_server-pulls-and-push.md`,
+    `~/Projects/nwslapp-match-watcher` (live at `nwslapp-match-watcher.tiffany-rieth.workers.dev`)
+    — 1-min cron, KV state-diff via proxy `/scoreboard`, Supabase service-role follower
+    lookup, APNs `.p8` JWT, secret-guarded `POST /test-push`; 21 tests; detects
+    **kickoff · goal · halftime · full-time**. **Infra provisioned + APNs verified
+    (2026-06-10):** all 6 Worker secrets set (APNs Key ID `6779B32AYJ`, Team ID
+    `24BGA36VVW` = the app's `DEVELOPMENT_TEAM`, `.p8`, Supabase URL + service-role,
+    trigger secret); Tier-2 schema run; `/test-push` w/ a dummy token → `BadDeviceToken`
+    (Apple authenticated the JWT). **Remaining:** flip `APNS_HOST` sandbox→production in
+    `wrangler.jsonc` + redeploy when cutting the TestFlight build (the `.p8` works for
+    both envs — no new creds); then on-device E2E (real signed-in device registers a token
+    → `/test-push` lands it). Live-game E2E waits on the July World-Cup-break end;
+    `/test-push` bridges it. **Stage D (next): subs + lineup-posted** — need the per-match
+    `/summary` feed (scoreboard has no subs/lineups), a distinct detection path. Naming:
+    two teams → abbreviations (`WAS 1–0 ORL`), one team → full club name. v2:
+    VAR-disallowed-goal "Correction" push. (`…/2026-06-04_server-pulls-and-push.md`,
     `local-notifications-spec.md`, plan `…/thanks-i-ve-been-planning-enchanted-kurzweil.md`.)
 13. **Competition-aware schedule.** Groundwork: the 3 Schedule filters,
     `MatchCard`'s dormant `CompetitionBadge`, `FollowedCompetition` + follow set.

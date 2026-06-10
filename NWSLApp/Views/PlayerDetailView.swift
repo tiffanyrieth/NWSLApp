@@ -6,11 +6,9 @@
 //  roster bio (jersey, position, age, height, nationality) and a season stat block
 //  (appearances, goals/assists or, for keepers, clean sheets/saves).
 //
-//  The stat *numbers* come from ⚠️StatsProvider — a TEMP deterministic simulation,
-//  not a real per-player feed (ESPN's are sparse). They're stable per player and
-//  match the team-leaders board on TeamDetailView, which is derived from the same
-//  lines. When a real player-stats endpoint is mapped, pass real values in here;
-//  the layout doesn't change.
+//  The stat numbers are real ESPN Core API season totals (ESPNService.seasonStats),
+//  passed in from TeamDetailView. They match the team-leaders board on
+//  TeamDetailView, which is derived from the same lines.
 //
 
 import SwiftUI
@@ -20,9 +18,12 @@ struct PlayerDetailView: View {
     /// The club's ESPN color hex, threaded down from TeamDetailView so the
     /// monogram matches the squad card the user tapped.
     let accentHex: String?
-    /// The player's season stats (⚠️TEMP simulated), threaded from TeamDetailView.
-    /// nil only in the brief window before the roster/stats finish loading.
+    /// The player's real season stats, threaded from TeamDetailView. nil only in
+    /// the brief window before the roster/stats finish loading, or if the stats
+    /// fetch couldn't reach this athlete (best-effort).
     let stats: PlayerSeasonStats?
+    /// The season the stats are for, e.g. "SEASON 2026", from TeamDetailViewModel.
+    let seasonLabel: String
 
     var body: some View {
         let accent = Color.teamAccent(hex: accentHex)
@@ -95,7 +96,7 @@ struct PlayerDetailView: View {
     // Styled to match the bio table directly above it.
     private func statsCard(_ stats: PlayerSeasonStats) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("SEASON 2026")
+            Text(seasonLabel)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
             VStack(spacing: 0) {
@@ -159,6 +160,6 @@ struct PlayerDetailView: View {
             athleteID: "1", appearances: 18, minutes: 1540,
             goals: 9, assists: 4, shots: 41,
             saves: 0, cleanSheets: 0, goalsAgainst: 0, isGoalkeeper: false
-        ))
+        ), seasonLabel: "SEASON 2026")
     }
 }

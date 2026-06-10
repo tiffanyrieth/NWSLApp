@@ -19,6 +19,8 @@
 //
 
 import SwiftUI
+import UIKit
+import UserNotifications
 
 struct RootTabView: View {
     // Tab selection lives in a shared AppRouter (injected below) so screens can
@@ -82,6 +84,12 @@ struct RootTabView: View {
     // NotificationScheduler).
     @State private var notificationScheduler: NotificationScheduler?
 
+    // Bridges the device's APNs token + the 9 notification toggles to Supabase once
+    // signed in — the Tier 2 (server push) twin of syncCoordinator. Held alive here,
+    // not injected; the match-watcher Worker reads what it writes (see
+    // NotificationSyncCoordinator).
+    @State private var notificationSyncCoordinator: NotificationSyncCoordinator?
+
     var body: some View {
         @Bindable var router = router
         TabView(selection: $router.selectedTab) {
@@ -134,6 +142,26 @@ struct RootTabView: View {
                 )
                 scheduler.start()
                 notificationScheduler = scheduler
+            }
+            if notificationSyncCoordinator == nil {
+                let coordinator = NotificationSyncCoordinator(auth: auth, preferences: notifications)
+                coordinator.start()
+                notificationSyncCoordinator = coordinator
+            }
+            // If the user already granted notification permission in a prior launch,
+            // re-register for remote notifications so APNs hands us a fresh device
+            // token (tokens can rotate). No-op in the Simulator. New grants register
+            // from ProfileView's permission flow.
+            if await UNUserNotificationCenter.current().notificationSettings()
+                .authorizationStatus == .authorized {
+                UIApplication.shared.registerForRemoteNotifications()
+            }
+        }
+        // A tapped live push routes to its match (see PushBridge / AppRouter).
+        .onChange(of: PushBridge.shared.tappedEventID) { _, eventID in
+            if let eventID {
+                router.openMatch(eventID: eventID)
+                PushBridge.shared.tappedEventID = nil
             }
         }
     }

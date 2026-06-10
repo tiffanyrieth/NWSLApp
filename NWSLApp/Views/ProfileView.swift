@@ -8,9 +8,16 @@
 //
 //  Offline-first like the rest of the app: it renders fully signed-out too (an
 //  identity sign-in CTA instead of the account block; the stat strip + follows +
-//  toggles are all local, so they work without an account). Notification toggles
-//  persist intent only — actual delivery (APNs / local scheduling) is 0.3 backend
-//  work (#12); see NotificationPreferencesStore.
+//  toggles are all local, so they work without an account).
+//
+//  Notification toggles span both tiers. Tier 1 (local) — day-before reminder +
+//  Player Spotlight — delivers signed-out via NotificationScheduler. Tier 2
+//  (server push) — lineup / kickoff / goals / halftime / full-time / subs — is
+//  delivered by the match-watcher Worker and requires sign-in (the device token +
+//  prefs must live server-side, keyed to a Supabase user). Flipping a Tier-2
+//  toggle on while signed out persists the intent locally and presents
+//  NotificationAuthPromptView (honest "why", skippable). Fan Zone rounds stay a
+//  deferred placeholder. See NotificationSyncCoordinator + CLAUDE.md What's-Next #12.
 //
 
 import AuthenticationServices
@@ -33,6 +40,9 @@ struct ProfileView: View {
 
     @State private var signInError: String?
     @State private var showDeleteConfirm = false
+    // Presented when a Tier-2 (server push) toggle is flipped on while signed out —
+    // the contextual "live alerts need an account" nudge (see NotificationAuthPromptView).
+    @State private var showAuthPrompt = false
     // The system notification authorization status, used to show the "off in
     // Settings" banner. Refreshed on appear and whenever we return to the app.
     @State private var notificationAuthStatus: UNAuthorizationStatus = .notDetermined
@@ -73,6 +83,9 @@ struct ProfileView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("This signs you out on this device. Your Fan Zone points and follows are kept locally.")
+            }
+            .sheet(isPresented: $showAuthPrompt) {
+                NotificationAuthPromptView()
             }
         }
     }
@@ -185,24 +198,24 @@ struct ProfileView: View {
 
     private var matchDaySection: some View {
         @Bindable var notif = notifications
-        // Day-before is the one true local (Tier 1) match-day alert that delivers
-        // today. The live events (lineup/kickoff/goals/halftime/full-time/subs) are
-        // Tier 2 server push — the toggles persist intent now and light up when the
-        // match-watcher ships; the note is a promise, not an apology.
+        // Day-before is the local (Tier 1) match-day alert that delivers signed-out.
+        // The live events (lineup/kickoff/goals/halftime/full-time/subs) are Tier 2
+        // server push: real, but server-delivered, so they require sign-in — flipping
+        // one on while signed out persists the intent and nudges sign-in.
         return settingsGroup("Match Day") {
             toggleRow("Day-before reminder", "24 hours before your teams play", $notif.dayBefore)
             rowDivider
-            toggleRow("Lineup posted", "When the starting XI is announced", $notif.lineupPosted, comingSoonNote: "Live alerts coming soon")
+            toggleRow("Lineup posted", "When the starting XI is announced", $notif.lineupPosted, requiresSignIn: true)
             rowDivider
-            toggleRow("Kickoff", "When the match starts", $notif.kickoff, comingSoonNote: "Live alerts coming soon")
+            toggleRow("Kickoff", "When the match starts", $notif.kickoff, requiresSignIn: true)
             rowDivider
-            toggleRow("Goals", "When any team scores", $notif.goals, comingSoonNote: "Live alerts coming soon")
+            toggleRow("Goals", "When any team scores", $notif.goals, requiresSignIn: true)
             rowDivider
-            toggleRow("Halftime", "Halftime score update", $notif.halftime, comingSoonNote: "Live alerts coming soon")
+            toggleRow("Halftime", "Halftime score update", $notif.halftime, requiresSignIn: true)
             rowDivider
-            toggleRow("Full time", "Final score when the match ends", $notif.fullTime, comingSoonNote: "Live alerts coming soon")
+            toggleRow("Full time", "Final score when the match ends", $notif.fullTime, requiresSignIn: true)
             rowDivider
-            toggleRow("Substitutions", "When subs are made during the match", $notif.substitutions, comingSoonNote: "Live alerts coming soon")
+            toggleRow("Substitutions", "When subs are made during the match", $notif.substitutions, requiresSignIn: true)
         }
     }
 
@@ -217,22 +230,29 @@ struct ProfileView: View {
         }
     }
 
-    /// A toggle row. When `comingSoonNote` is nil the alert is deliverable now, so
-    /// switching it ON requests notification permission (on the gesture — never at
-    /// cold launch). A non-nil note marks an alert that persists intent but doesn't
-    /// deliver yet, so it shows the note and skips the permission prompt.
+    /// A toggle row. Behavior on switching ON depends on the alert's tier:
+    ///  - `comingSoonNote` non-nil → a deferred placeholder (Fan Zone): persists
+    ///    intent, shows the note, no permission prompt.
+    ///  - `requiresSignIn` true → a Tier-2 (server push) alert: requests permission
+    ///    AND, if signed out, presents the sign-in nudge (the toggle still persists
+    ///    intent locally regardless of the choice).
+    ///  - otherwise → a Tier-1 (local) alert: just requests permission.
+    /// Permission is requested on the gesture, never at cold launch.
     private func toggleRow(
         _ title: String,
         _ subtitle: String,
         _ isOn: Binding<Bool>,
+        requiresSignIn: Bool = false,
         comingSoonNote: String? = nil
     ) -> some View {
         let binding = Binding<Bool>(
             get: { isOn.wrappedValue },
             set: { newValue in
                 isOn.wrappedValue = newValue
-                if newValue && comingSoonNote == nil {
-                    Task { await requestNotificationPermission() }
+                guard newValue, comingSoonNote == nil else { return }
+                Task { await requestNotificationPermission() }
+                if requiresSignIn && !auth.isSignedIn {
+                    showAuthPrompt = true
                 }
             }
         )
@@ -263,10 +283,18 @@ struct ProfileView: View {
 
     /// Shown when the user has a deliverable alert on but the system switch is off.
     /// Taps out to the app's Settings page. A promise-not-broken nudge, not a nag.
+    /// Any alert that actually delivers (everything except the deferred Fan Zone
+    /// rounds) — Tier 1 local + the Tier 2 server-push events. If one is on but the
+    /// system switch is off, the alert can't arrive, so the banner nudges Settings.
+    private var hasDeliverableAlertOn: Bool {
+        let p = notifications
+        return p.dayBefore || p.playerSpotlight || p.lineupPosted || p.kickoff
+            || p.goals || p.halftime || p.fullTime || p.substitutions
+    }
+
     @ViewBuilder
     private var notificationPermissionBanner: some View {
-        if notificationAuthStatus == .denied,
-           notifications.dayBefore || notifications.playerSpotlight {
+        if notificationAuthStatus == .denied, hasDeliverableAlertOn {
             Button {
                 if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
             } label: {
@@ -298,11 +326,16 @@ struct ProfileView: View {
     }
 
     /// Prompt on first toggle-on of a deliverable alert; iOS only shows the system
-    /// dialog once (when status is `.notDetermined`). Then refresh the banner state.
+    /// dialog once (when status is `.notDetermined`). Once authorized, register for
+    /// remote notifications so APNs hands us a device token (Tier 2) — harmless for
+    /// Tier-1-only users, and a no-op in the Simulator. Then refresh the banner.
     private func requestNotificationPermission() async {
         let center = UNUserNotificationCenter.current()
         if await center.notificationSettings().authorizationStatus == .notDetermined {
             _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+        }
+        if await center.notificationSettings().authorizationStatus == .authorized {
+            UIApplication.shared.registerForRemoteNotifications()
         }
         await refreshNotificationStatus()
     }

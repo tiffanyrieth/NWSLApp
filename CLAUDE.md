@@ -282,7 +282,8 @@ placeholder (looks deliberate per the UI rules). Design specs in
 
 ```
 NWSLApp/
-├── NWSLAppApp.swift                   — app entry point; launches RootTabView; forces dark appearance app-wide; DEBUG `-resetOnboarding` launch arg → resets onboarding
+├── NWSLAppApp.swift                   — app entry point; launches RootTabView; forces dark appearance app-wide; DEBUG `-resetOnboarding` launch arg → resets onboarding; `AppDelegate` (@UIApplicationDelegateAdaptor) captures the APNs token + handles foreground-present/tap → PushBridge (Tier 2)
+├── NWSLApp.entitlements               — Sign in with Apple + `aps-environment` (development; Xcode flips to production on archive) for Tier-2 push
 ├── Config/                            — app configuration
 │   ├── AppConfig.swift                — base URLs; scoreboard + summary → Cloudflare proxy by default (0.3.1); DEBUG `-useESPNDirect`
 │   ├── Secrets.swift                  — 🔒 GITIGNORED Supabase URL + anon key (not committed)
@@ -310,7 +311,10 @@ NWSLApp/
 │   ├── BracketEditionProvider.swift   — ⚠️ Bracket seed + simulated leaderboard
 │   ├── ESPNService.swift              — async fetch: scoreboard + summary (via proxy)/teams/roster/standings
 │   ├── FollowSyncService.swift        — Supabase `follows` table client (fetch/push/add/remove); RLS-scoped per user
+│   ├── DeviceTokenService.swift       — Supabase `device_tokens` client (register/remove APNs token); RLS-scoped; modeled on FollowSyncService (Tier 2)
+│   ├── NotificationPrefsSyncService.swift — Supabase `notification_preferences` client; whole-row upsert of the 9-flag snapshot so the watcher Worker can honor "goals: off" (Tier 2)
 │   ├── NotificationScheduler.swift    — @MainActor; owns LOCAL (Tier 1) notif scheduling: day-before reminder + weekly spotlight; cancel-all/rebuild, deterministic ids; observes matches/clubs/follows/prefs; not env-injected (permission prompt lives in ProfileView)
+│   ├── PushBridge.swift               — @MainActor @Observable `.shared` sink bridging UIKit AppDelegate (APNs token, notification tap) → the observable world (deliberate singleton; the delegate can't be env-injected) (Tier 2)
 │   ├── SupabaseManager.swift          — the one shared SupabaseClient (built from Secrets)
 │   ├── FeedContentProvider.swift      — ⚠️ Feed seed: reporters/outlets, all 16 clubs
 │   ├── PlayerSpotlightProvider.swift  — ⚠️ one spotlight player per club (16)
@@ -320,15 +324,16 @@ NWSLApp/
 │   ├── TeamSocialLinksProvider.swift  — ⚠️ per-team social-account URLs seed
 │   └── TriviaQuestionProvider.swift   — ⚠️ 55 hand-written NWSL trivia questions
 ├── Stores/                            — @Observable shared state → UserDefaults, injected
-│   ├── AppRouter.swift                — tab selection (AppTab); RootTabView binds the TabView; lets Home's "Full schedule →" jump tabs
+│   ├── AppRouter.swift                — tab selection (AppTab); RootTabView binds the TabView; lets Home's "Full schedule →" jump tabs; `openMatch(eventID:)` + `pendingMatchEventID` for a live-push tap (TEMP seam: lands on Schedule, no path-bound push yet)
 │   ├── AuthStore.swift                — @MainActor; Sign in with Apple → Supabase user; profile upsert; cached displayName; deleteAccount (⚠️ TEMP — real auth-user deletion needs a server fn); knows nothing about follows
 │   ├── BracketStore.swift             — Bracket picks / points / locked rounds
 │   ├── ClubStore.swift                — shared club directory; one fetch, many readers (ID/abbr lookups)
 │   ├── FeedPreferencesStore.swift     — Feed content-type toggles + muted sources
 │   ├── FollowSyncCoordinator.swift    — @MainActor; the ONLY follows↔Supabase bridge (sign-in union-merge + ongoing sync); not env-injected
+│   ├── NotificationSyncCoordinator.swift — @MainActor; the Tier-2 twin: the ONLY device-token + notif-prefs↔Supabase bridge; observes auth/prefs-snapshot/PushBridge.deviceToken; pushes best-effort once signed in; not env-injected
 │   ├── FollowingStore.swift           — followed clubs + competitions + onboarding gate + sign-in-prompt flag; pure/offline-first; `onFollowsChanged`/`merge(ids:)` seams; DEBUG `debugResetState()`
 │   ├── MatchStore.swift               — shared season store; one fetch, many readers
-│   ├── NotificationPreferencesStore.swift — Profile's 9 notif toggles; `onPreferenceChanged` seam → NotificationScheduler. LOCAL (Tier 1) delivers (day-before, spotlight); the 6 live-event toggles + Fan Zone persist intent only (Tier 2 server push, #12)
+│   ├── NotificationPreferencesStore.swift — Profile's 9 notif toggles; `onPreferenceChanged` seam → NotificationScheduler; `snapshot` (9-flag value) → NotificationSyncCoordinator mirror. LOCAL (Tier 1) delivers (day-before, spotlight); the 6 live-event toggles mirror to Supabase for the watcher Worker once signed in; Fan Zone persists intent only (#12)
 │   ├── PredictionStore.swift          — Predict-the-XI picks + season-points snapshot
 │   └── TriviaStore.swift              — Daily-Trivia streak/accuracy + one-play/day gate
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
@@ -343,14 +348,15 @@ NWSLApp/
 │   ├── TeamDetailViewModel.swift      — roster + social links + simulated stats/leaders
 │   └── TriviaViewModel.swift          — one Daily-Trivia session (deterministic daily 5)
 ├── Views/                             — one screen per file
-│   ├── RootTabView.swift              — app root; 5-tab TabView (selection ← AppRouter); injects stores; restores session + FollowSyncCoordinator
+│   ├── RootTabView.swift              — app root; 5-tab TabView (selection ← AppRouter); injects stores; restores session + FollowSyncCoordinator + NotificationSyncCoordinator; registers for remote notifications if authorized; routes a tapped live-push (PushBridge.tappedEventID → AppRouter.openMatch)
 │   ├── HomeView.swift                 — your-teams hub: 4 modules + profile-avatar button (→ ProfileView sheet); spotlight carousel; onboarding-in-place
-│   ├── ProfileView.swift              — account & settings sheet (from Home avatar): identity / Fan Zone stats / 9 notif toggles / My Teams / Account; offline-first (signed-out CTA)
+│   ├── ProfileView.swift              — account & settings sheet (from Home avatar): identity / Fan Zone stats / 9 notif toggles / My Teams / Account; offline-first (signed-out CTA); Tier-2 toggles `requiresSignIn` → present NotificationAuthPromptView when signed out; permission grant → registerForRemoteNotifications
 │   ├── DailyTriviaView.swift          — Daily Trivia game (indigo); 5/day
 │   ├── BracketBattleView.swift        — Bracket Battle game (teal); vote + lock rounds
 │   ├── PredictXIView.swift            — Predict the XI game (pink); per-match questions
 │   ├── OnboardingView.swift           — first-open team + competition follow picker
 │   ├── SignInPromptView.swift         — one-time post-onboarding "save your picks" sheet (official Sign-in-with-Apple button + skip)
+│   ├── NotificationAuthPromptView.swift — contextual "sign in for live alerts" half-sheet (Tier 2 requires sign-in); shown when a live-event toggle flips on while signed out; honest why-copy + skip
 │   ├── ScheduleView.swift             — full-season cards; 3 filters; sticky day headers
 │   ├── TeamsView.swift                — all-16 directory; Following floats to top; Follow-competitions row at bottom
 │   ├── CompetitionsView.swift         — follow international competitions (reached from TeamsView; reuses onboarding rows)
@@ -467,10 +473,32 @@ local-time body) and the **weekly Player Spotlight** (Mon 10am local). Cancel-al
 rebuild on any change (deterministic ids), observing matches/clubs/`followedIDs` +
 the new `NotificationPreferencesStore.onPreferenceChanged`. `ProfileView` requests
 permission on the first toggle-on of a deliverable alert (never cold launch) and
-shows a "notifications off → Settings" banner; the 6 live-event toggles + Fan Zone
-show a "coming soon" note (Tier 2 / server push, still #12). Timezone audit done
-(all user-facing times already local). **Tier 2 (live kickoff/goals/HT/FT/subs/
-lineup) is the next stage** — see #12.
+shows a "notifications off → Settings" banner. Timezone audit done (all
+user-facing times already local).
+
+**Notifications — Tier 2 / SERVER push, Stage B = Goals** (≈0.4.x; *code-complete,
+not yet deployed/verified E2E*; plan
+`~/.claude/plans/thanks-i-ve-been-planning-enchanted-kurzweil.md`) — live goal
+pushes from a server. **App side:** an `AppDelegate` (`@UIApplicationDelegateAdaptor`)
+captures the APNs token + handles foreground-present/tap, surfacing both through the
+`PushBridge` singleton (the delegate can't be env-injected). `NotificationSyncCoordinator`
+(held alive by `RootTabView`, the Tier-2 twin of `FollowSyncCoordinator`) mirrors the
+device token (`DeviceTokenService`) + the 9-flag prefs `snapshot`
+(`NotificationPrefsSyncService`) to Supabase once signed in — Tier 2 **requires
+sign-in**, so the 6 live-event toggles now drop the "coming soon" note and, flipped on
+while signed out, present `NotificationAuthPromptView` (honest "why", skippable). The
+`aps-environment` entitlement is added (development; Xcode → production on archive).
+A tapped push routes via `AppRouter.openMatch` (TEMP seam: lands on the Schedule tab —
+the stacks aren't path-bound yet). **Schema:** `device_tokens` +
+`notification_preferences` (RLS + `authenticated` grants) in `supabase/schema.sql`.
+**Worker:** sibling repo `~/Projects/nwslapp-match-watcher` — 1-min cron diffs live
+scores (KV) via the proxy `/scoreboard`, finds followers of either team with `goals`
+on (Supabase service-role), and sends APNs (`.p8` ES256 JWT); a secret-guarded
+`POST /test-push` covers on-device testing during the World Cup break. Verified in-sim:
+builds, launches, handles a canned `simctl push` without crashing (banner + tap need
+granted auth + a real device). **Blocked on owner infra** (Apple `.p8`, Supabase SQL +
+service-role key, Cloudflare KV/secrets/deploy, GitHub repo) before TestFlight E2E.
+Stages C (kickoff/HT/FT/subs) + D (lineup) build on the same pipeline — see #12.
 
 **Home** (`home-tab-design-spec.md`; redesigned — see the redesign note above) —
 your-teams hub; pre-onboarding renders `OnboardingView` in place. Four modules —
@@ -580,20 +608,28 @@ numbers are kept so existing cross-references stay valid.
     culture-war/political hot takes" gate as a real filter
     (`nwslapp-feed-content-rules.md`); user-added sources; per-post **team tagging
     via a Claude Haiku call** that also drops non-NWSL content.
-12. **Push notifications + the server question.** **Tier 1 (LOCAL) shipped 0.3.2**
-    — `NotificationScheduler` delivers the day-before match reminder + weekly
-    spotlight (`UNUserNotificationCenter`, permission prompted on first toggle-on in
-    ProfileView, never cold launch). The Program is active; the caching half
-    (`nwslapp-proxy`) + account/`follows` half (Supabase) exist. **Remaining =
-    Tier 2 (SERVER push):** kickoff/goals/halftime/full-time (must-have) + subs/
-    lineup (nice-to-have) — a cron Worker (1-min; ESPN state-diff in KV) → APNs
-    (.p8 JWT), Supabase `device_tokens` + synced `notification_preferences`
-    (RLS-scoped; mirrors FollowSync), and a contextual "live alerts need an account"
-    sign-in nudge (Tier 2 requires sign-in; Tier 1 works signed-out). Naming rule:
-    two teams → abbreviations (`WAS 1–0 ORL`), one team → full club name. Fan Zone
-    notifs deferred (need real game backends). v2: VAR-disallowed-goal "Correction"
-    follow-up push. (`…/2026-06-04_server-pulls-and-push.md`,
-    `Reference/Design/local-notifications-spec.md`.)
+12. **Push notifications + the server question.** **Tier 1 (LOCAL) shipped 0.3.2.**
+    **Tier 2 / Stage B (SERVER push — GOALS) is code-complete** (this chapter, ≈0.4.x;
+    not yet deployed/verified E2E). App side: `AppDelegate` + `aps-environment`
+    entitlement, `PushBridge`, `DeviceTokenService` + `NotificationPrefsSyncService`,
+    `NotificationSyncCoordinator` (mirrors token + prefs to Supabase once signed in),
+    `NotificationAuthPromptView` (Tier 2 requires sign-in; the 6 live toggles lost the
+    Stage-A "coming soon" subtext). Schema: `device_tokens` +
+    `notification_preferences` (RLS + grants) in `supabase/schema.sql`. **Worker:** new
+    sibling repo `~/Projects/nwslapp-match-watcher` (GitHub TBD) — 1-min cron, KV
+    score-diff via the proxy `/scoreboard`, goal detection, Supabase service-role
+    follower lookup, APNs `.p8` JWT, + a secret-guarded `POST /test-push`; goal-diff
+    unit-tested. **Blocked on owner infra:** APNs `.p8`/Key ID/Team ID, run the schema
+    SQL + service-role key, Cloudflare KV + `wrangler secret`s + deploy, decide the
+    GitHub repo — then on-device E2E via TestFlight (see the Worker's README).
+    **Remaining stages:** C = kickoff/halftime/full-time + subs (more cases on the same
+    pipeline; `KICKOFF — WAS vs ORL` / `Halftime — WAS 1–0 ORL`); D = lineup-posted
+    (pre-match `/summary` poll, detection-research). Adjacent: proxy `secondsUntil3amET`
+    → UTC tidy (sibling repo). Naming rule: two teams → abbreviations (`WAS 1–0 ORL`),
+    one team → full club name. Fan Zone notifs deferred. v2: VAR-disallowed-goal
+    "Correction" follow-up push. (`…/2026-06-04_server-pulls-and-push.md`,
+    `Reference/Design/local-notifications-spec.md`, plan
+    `~/.claude/plans/thanks-i-ve-been-planning-enchanted-kurzweil.md`.)
 13. **Competition-aware schedule.** Groundwork: the 3 Schedule filters,
     `MatchCard`'s dormant `CompetitionBadge`, `FollowedCompetition` + follow set.
     Remaining: a competition on `Event` (so it actually filters + badges populate)

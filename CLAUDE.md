@@ -341,12 +341,12 @@ NWSLApp/
 │   ├── ScheduleView.swift             — full-season cards; 3 filters; sticky day headers
 │   ├── TeamsView.swift                — all-16 directory; Following floats to top; Follow-competitions row at bottom
 │   ├── CompetitionsView.swift         — follow international competitions (reached from TeamsView; reuses onboarding rows)
-│   ├── TeamDetailView.swift           — club page: header + social row + Squad·Stats tabs
+│   ├── TeamDetailView.swift           — club page: header + social row + Squad·Stats tabs; accent ← design palette (legible for dark teams)
 │   ├── MatchDetailView.swift          — state-aware match (navy header + cyan/orange tab underline): past=Summary/Lineups/Stats, live=+30s poll & LIVE pill, future=info grid + How-to-Watch + season comparison + recent form
 │   ├── CombinedPitchView.swift        — BOTH teams' XIs on ONE pitch (home top / away bottom), reuses FormationPitchView placement; the Lineups default
 │   ├── FormationPitchView.swift       — single-team XI on a pitch (placed by formation string); the per-team list fallback when a side can't be placed
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
-│   ├── PlayerSpotlightView.swift      — narrative spotlight tap-through (real YT video hero)
+│   ├── PlayerSpotlightView.swift      — editorial spotlight: ghosted jersey # + split-name hero, This Season grid, Story, Fast Facts, Watch (design-palette team color)
 │   ├── StandingsView.swift            — 16-team table (abbr · PTS·GP·W·L·D); pinned column header (no title overlap); followed-row tint
 │   ├── FeedView.swift                 — Feed tab: chip bar + chronological FeedCards
 │   └── FeedSourcesView.swift          — Feed content preferences: toggles + mute sources
@@ -420,7 +420,14 @@ names kept — it's the directory); Schedule filter → `Chip`s; Feed chips → 
 `ProfileView` (identity / Fan Zone stat strip / 9 notification toggles via
 `NotificationPreferencesStore` / My Teams / Account) replaces the Home 🔧
 placeholder; offline-first (signed-out CTA; toggles persist intent only — push is
-#12). Remaining (each its own PR): Team Detail + Spotlight fidelity.
+#12). **Phase 6 (Team Detail + Spotlight)**: TeamDetail + PlayerCard/PlayerDetail/
+SocialLinkButton on tokens with a **design-palette accent** (`accentHex` via
+`DesignTeamColors` — fixes dark ESPN primaries reading as an invisible accent);
+`PlayerSpotlightView` redesigned to the editorial layout (ghosted jersey number,
+split-name hero, This Season grid, Story card, Fast Facts, Watch). **All six
+phases shipped.** Pending polish circle-back: a few screens still surface the
+small/auto nav title under auto-scroll (Schedule fixed via a custom large header;
+audit the others).
 
 **Accounts & follow sync** (`…/2026-06-09_supabase-accounts-setup.md`) — Sign in
 with Apple → a **Supabase** user (first per-user backend). `AuthStore`

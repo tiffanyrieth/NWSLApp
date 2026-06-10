@@ -75,7 +75,7 @@ struct TeamDetailView: View {
         .navigationDestination(for: Athlete.self) { athlete in
             PlayerDetailView(
                 athlete: athlete,
-                accentHex: viewModel.accentColorHex,
+                accentHex: accentHex,
                 stats: viewModel.stats(for: athlete)
             )
         }
@@ -127,7 +127,7 @@ struct TeamDetailView: View {
         if !viewModel.socialLinks.isEmpty {
             HStack(spacing: 28) {
                 ForEach(viewModel.socialLinks) { link in
-                    SocialLinkButton(link: link, accentHex: viewModel.accentColorHex)
+                    SocialLinkButton(link: link, accentHex: accentHex)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -141,7 +141,7 @@ struct TeamDetailView: View {
             following.toggle(club)
         } label: {
             Image(systemName: isFollowing ? "star.fill" : "star")
-                .foregroundStyle(isFollowing ? .yellow : .secondary)
+                .foregroundStyle(isFollowing ? Color.dsFollowStar : Color.dsFgSecondary)
                 .imageScale(.large)
         }
         .buttonStyle(.borderless)
@@ -169,7 +169,7 @@ struct TeamDetailView: View {
                             LazyVGrid(columns: columns, spacing: 12) {
                                 ForEach(group.athletes) { athlete in
                                     NavigationLink(value: athlete) {
-                                        PlayerCard(athlete: athlete, accentHex: viewModel.accentColorHex)
+                                        PlayerCard(athlete: athlete, accentHex: accentHex)
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -181,7 +181,7 @@ struct TeamDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgGrouped)
     }
 
     private func squadError(_ message: String) -> some View {
@@ -232,11 +232,19 @@ struct TeamDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgGrouped)
+    }
+
+    /// The club's accent hex: the design palette (by abbreviation) wins, then the
+    /// roster's ESPN color — so dark ESPN primaries (Spirit navy, etc.) don't read
+    /// as an invisible-on-dark accent. Threaded to the squad cards, player detail,
+    /// and social icons so they all share the club's color.
+    private var accentHex: String? {
+        DesignTeamColors.hex(for: club.abbreviation) ?? viewModel.accentColorHex
     }
 
     private var accent: Color {
-        Color.teamAccent(hex: viewModel.accentColorHex).fill
+        Color.teamAccent(hex: accentHex).fill
     }
 
     // Parse the real "W-D-L" record into the season summary numbers.
@@ -262,7 +270,7 @@ struct TeamDetailView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -308,7 +316,7 @@ struct TeamDetailView: View {
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }

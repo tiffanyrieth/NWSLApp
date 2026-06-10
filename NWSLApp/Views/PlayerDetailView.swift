@@ -64,7 +64,7 @@ struct PlayerDetailView: View {
                             if index < bioRows.count - 1 { Divider() }
                         }
                     }
-                    .background(Color(.secondarySystemGroupedBackground))
+                    .background(Color.dsBgCard)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
 
@@ -75,7 +75,7 @@ struct PlayerDetailView: View {
             .padding()
         }
         .frame(maxWidth: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgGrouped)
         .navigationTitle(athlete.shortName ?? athlete.name)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -113,7 +113,7 @@ struct PlayerDetailView: View {
                     if index < rows.count - 1 { Divider() }
                 }
             }
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .frame(maxWidth: .infinity, alignment: .leading)

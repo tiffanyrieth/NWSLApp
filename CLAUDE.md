@@ -164,6 +164,14 @@ are local guardrails, not policy: bypass with `--no-verify`, and a fresh clone
 must run `git config core.hooksPath hooks` to enable them. (GitHub server-side
 protection needs Pro on a private repo.) See `hooks/README.md`.
 
+**Known gotcha — `gh` auth expires mid-session.** The `gh` keyring token can go
+stale partway through a session: `git push` keeps working (separate credential
+helper) and `gh auth status` still reports "Logged in", but every `gh` API call
+(`gh pr create`/`merge`/`view`, `gh api`) fails with `HTTP 401: Requires
+authentication`. Fix: re-run `gh auth refresh -h github.com` (interactive —
+the user runs it), then retry. So when a push succeeds but the follow-up PR
+merge 401s, it's this, not a permissions problem.
+
 ---
 
 ## Collaboration Preferences

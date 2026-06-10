@@ -24,8 +24,7 @@ enum DesignTeamColors {
         "BOS": "5AC8FA",  // Boston
         "CHI": "6BA4FF",  // Chicago Stars
         "DEN": "FF6B4A",  // Denver
-        "NJ": "7FD4C1",   // Gotham FC (design table key)
-        "GFC": "7FD4C1",  // Gotham FC (ESPN's abbreviation)
+        "GFC": "7FD4C1",  // Gotham FC (ESPN's abbr; the design table's "NJ" was the pre-2021 NY/NJ Sky Blue mark)
         "HOU": "FF8A3D",  // Houston Dash
         "KC": "30C7E8",   // Kansas City Current
         "NC": "B79B5B",   // North Carolina Courage

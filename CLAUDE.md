@@ -340,7 +340,7 @@ NWSLApp/
 │   ├── TeamsView.swift                — all-16 directory; Following floats to top; Follow-competitions row at bottom
 │   ├── CompetitionsView.swift         — follow international competitions (reached from TeamsView; reuses onboarding rows)
 │   ├── TeamDetailView.swift           — club page: header + social row + Squad·Stats tabs
-│   ├── MatchDetailView.swift          — state-aware match: past = Summary/Lineups/Stats (from /summary), live = +30s poll & LIVE pill, future = preview; header-only fallback
+│   ├── MatchDetailView.swift          — state-aware match (navy header + cyan/orange tab underline): past=Summary/Lineups/Stats, live=+30s poll & LIVE pill, future=info grid + How-to-Watch + season comparison + recent form
 │   ├── FormationPitchView.swift       — starting XI on a pitch (placed by formation string); list fallback; TEMP jersey monogram (headshot seam)
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
 │   ├── PlayerSpotlightView.swift      — narrative spotlight tap-through (real YT video hero)
@@ -348,9 +348,13 @@ NWSLApp/
 │   ├── FeedView.swift                 — Feed tab: chip bar + chronological FeedCards
 │   └── FeedSourcesView.swift          — Feed content preferences: toggles + mute sources
 ├── Components/                        — reusable view pieces
+│   ├── BroadcastInfo.swift            — "How to Watch" database (per-partner note + per-device steps), ported from the handoff BROADCAST_INFO
 │   ├── BroadcastLink.swift            — broadcast name → streaming-service watch URL (unknown→nil); backs the tappable 📺
 │   ├── Chip.swift                     — pill filter chip (active=accent / inactive=card); for Schedule + Feed chip bars
+│   ├── FormBadge.swift                — W/D/L recent-form badge (token-colored)
 │   ├── GameCard.swift                 — Fan Zone game tile (170×138, game-accent border + emoji + status + badge)
+│   ├── HowToWatchCard.swift           — future-match expandable broadcast guide (service tile + "Find it" → device rows) over BroadcastInfo
+│   ├── MDInfoCard.swift               — future-match info tile (emoji + tracked label + value) for Venue/Broadcast/Competition
 │   ├── ComingUpRow.swift              — Module-4 row: crest-vs-crest + team-colored abbrs (ClubStore) + time/result
 │   ├── EventTimelineRow.swift         — one timeline entry: minute + icon (goal/card/sub) + player(s) + assist + team abbr
 │   ├── FeedCard.swift                 — one Feed item (post or article); opens source
@@ -396,8 +400,12 @@ get one. **Phase 2 (Home)**:
 avatar button (→ 🔧 Profile placeholder); Module 2 = equal-weight spotlight
 carousel (85% cards + dots) with a Goals/Assists/Apps strip (⚠️`demoSeasonStats`);
 Fan Zone `GameCard`s + "N active" dot; Coming Up crest-vs-crest rows; `AppRouter`
-powers "Full schedule →". Remaining (each its own PR): Match Detail, core tabs,
-the real **Profile** screen, Team Detail + Spotlight.
+powers "Full schedule →". **Phase 3 (Match Detail)**: navy header panel + state
+lines (FT green / LIVE+orange clock / KICKOFF cyan), 📍/📺/👥 emoji info row, cyan
+(past) / orange (live) tab underline; future-state info grid (Venue/Broadcast/
+Competition) + `HowToWatchCard` (the BROADCAST_INFO device guide) + token-ized
+season comparison & `FormBadge` form; pitch on token colors. Remaining (each its
+own PR): core tabs, the real **Profile** screen, Team Detail + Spotlight.
 
 **Accounts & follow sync** (`…/2026-06-09_supabase-accounts-setup.md`) — Sign in
 with Apple → a **Supabase** user (first per-user backend). `AuthStore`

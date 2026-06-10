@@ -37,8 +37,8 @@ struct FormationPitchView: View {
         return startable.count == 11
     }
 
-    /// Pitch lines: faint white over green.
-    private let line = Color.white.opacity(0.35)
+    /// Pitch lines: faint white over green (design token).
+    private let line = Color.dsPitchLine
 
     var body: some View {
         let placed = layout()
@@ -67,8 +67,7 @@ struct FormationPitchView: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(
                     LinearGradient(
-                        colors: [Color(red: 0.14, green: 0.36, blue: 0.20),
-                                 Color(red: 0.10, green: 0.28, blue: 0.15)],
+                        colors: [.dsPitch, .dsPitchBottom],
                         startPoint: .top, endPoint: .bottom
                     )
                 )

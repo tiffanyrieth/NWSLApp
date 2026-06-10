@@ -335,6 +335,7 @@ struct PredictXIView: View {
     private func kickoffLabel(_ match: PredictionMatch) -> String {
         let formatter = DateFormatter()
         formatter.locale = .current
+        formatter.timeZone = .current   // explicit: kickoff labels always in the user's local zone
         formatter.dateFormat = "EEE, MMM d · h:mm a"
         return formatter.string(from: viewModel.kickoff(for: match))
     }

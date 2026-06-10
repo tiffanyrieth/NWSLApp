@@ -310,6 +310,7 @@ NWSLApp/
 │   ├── BracketEditionProvider.swift   — ⚠️ Bracket seed + simulated leaderboard
 │   ├── ESPNService.swift              — async fetch: scoreboard + summary (via proxy)/teams/roster/standings
 │   ├── FollowSyncService.swift        — Supabase `follows` table client (fetch/push/add/remove); RLS-scoped per user
+│   ├── NotificationScheduler.swift    — @MainActor; owns LOCAL (Tier 1) notif scheduling: day-before reminder + weekly spotlight; cancel-all/rebuild, deterministic ids; observes matches/clubs/follows/prefs; not env-injected (permission prompt lives in ProfileView)
 │   ├── SupabaseManager.swift          — the one shared SupabaseClient (built from Secrets)
 │   ├── FeedContentProvider.swift      — ⚠️ Feed seed: reporters/outlets, all 16 clubs
 │   ├── PlayerSpotlightProvider.swift  — ⚠️ one spotlight player per club (16)
@@ -327,7 +328,7 @@ NWSLApp/
 │   ├── FollowSyncCoordinator.swift    — @MainActor; the ONLY follows↔Supabase bridge (sign-in union-merge + ongoing sync); not env-injected
 │   ├── FollowingStore.swift           — followed clubs + competitions + onboarding gate + sign-in-prompt flag; pure/offline-first; `onFollowsChanged`/`merge(ids:)` seams; DEBUG `debugResetState()`
 │   ├── MatchStore.swift               — shared season store; one fetch, many readers
-│   ├── NotificationPreferencesStore.swift — Profile's 9 notif toggles (persisted intent; ⚠️ no delivery yet — APNs/local scheduling is #12)
+│   ├── NotificationPreferencesStore.swift — Profile's 9 notif toggles; `onPreferenceChanged` seam → NotificationScheduler. LOCAL (Tier 1) delivers (day-before, spotlight); the 6 live-event toggles + Fan Zone persist intent only (Tier 2 server push, #12)
 │   ├── PredictionStore.swift          — Predict-the-XI picks + season-points snapshot
 │   └── TriviaStore.swift              — Daily-Trivia streak/accuracy + one-play/day gate
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
@@ -458,6 +459,19 @@ pure/sync — networking lives in the coordinator via `onFollowsChanged` +
 `merge(ids:)` seams. Only clubs sync. Needs gitignored `Config/Secrets.swift` +
 the `Supabase` SPM package.
 
+**Notifications — Tier 1 / LOCAL** (0.3.2; `Reference/Design/local-notifications-spec.md`)
+— `NotificationScheduler` (held alive by `RootTabView`, not env-injected, like
+`FollowSyncCoordinator`) delivers the two alerts the phone can schedule itself:
+the **day-before match reminder** (for followed teams' upcoming games, kickoff −24h,
+local-time body) and the **weekly Player Spotlight** (Mon 10am local). Cancel-all +
+rebuild on any change (deterministic ids), observing matches/clubs/`followedIDs` +
+the new `NotificationPreferencesStore.onPreferenceChanged`. `ProfileView` requests
+permission on the first toggle-on of a deliverable alert (never cold launch) and
+shows a "notifications off → Settings" banner; the 6 live-event toggles + Fan Zone
+show a "coming soon" note (Tier 2 / server push, still #12). Timezone audit done
+(all user-facing times already local). **Tier 2 (live kickoff/goals/HT/FT/subs/
+lineup) is the next stage** — see #12.
+
 **Home** (`home-tab-design-spec.md`; redesigned — see the redesign note above) —
 your-teams hub; pre-onboarding renders `OnboardingView` in place. Four modules —
 (1) "From your teams" content, (2) player spotlights, (3) "Fan Zone" games, (4)
@@ -566,12 +580,20 @@ numbers are kept so existing cross-references stay valid.
     culture-war/political hot takes" gate as a real filter
     (`nwslapp-feed-content-rules.md`); user-added sources; per-post **team tagging
     via a Claude Haiku call** that also drops non-NWSL content.
-12. **Push notifications + the server question.** Scheduled reminders need no
-    server (local notifications, free on sideload); live updates need a server +
-    APNs + the $99 Program. The caching half exists (`nwslapp-proxy`, 0.2.0); the
-    account + `follows` half exists (Supabase), so a Tier-2 poller knows who
-    follows whom. Remaining: APNs + the Program + the Worker poller.
-    (`…/2026-06-04_server-pulls-and-push.md`.)
+12. **Push notifications + the server question.** **Tier 1 (LOCAL) shipped 0.3.2**
+    — `NotificationScheduler` delivers the day-before match reminder + weekly
+    spotlight (`UNUserNotificationCenter`, permission prompted on first toggle-on in
+    ProfileView, never cold launch). The Program is active; the caching half
+    (`nwslapp-proxy`) + account/`follows` half (Supabase) exist. **Remaining =
+    Tier 2 (SERVER push):** kickoff/goals/halftime/full-time (must-have) + subs/
+    lineup (nice-to-have) — a cron Worker (1-min; ESPN state-diff in KV) → APNs
+    (.p8 JWT), Supabase `device_tokens` + synced `notification_preferences`
+    (RLS-scoped; mirrors FollowSync), and a contextual "live alerts need an account"
+    sign-in nudge (Tier 2 requires sign-in; Tier 1 works signed-out). Naming rule:
+    two teams → abbreviations (`WAS 1–0 ORL`), one team → full club name. Fan Zone
+    notifs deferred (need real game backends). v2: VAR-disallowed-goal "Correction"
+    follow-up push. (`…/2026-06-04_server-pulls-and-push.md`,
+    `Reference/Design/local-notifications-spec.md`.)
 13. **Competition-aware schedule.** Groundwork: the 3 Schedule filters,
     `MatchCard`'s dormant `CompetitionBadge`, `FollowedCompetition` + follow set.
     Remaining: a competition on `Event` (so it actually filters + badges populate)

@@ -15,6 +15,8 @@
 
 import AuthenticationServices
 import SwiftUI
+import UIKit
+import UserNotifications
 
 struct ProfileView: View {
     @Environment(\.dismiss) private var dismiss
@@ -26,9 +28,14 @@ struct ProfileView: View {
     @Environment(PredictionStore.self) private var predict
     @Environment(NotificationPreferencesStore.self) private var notifications
     @Environment(AppRouter.self) private var router
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var signInError: String?
     @State private var showDeleteConfirm = false
+    // The system notification authorization status, used to show the "off in
+    // Settings" banner. Refreshed on appear and whenever we return to the app.
+    @State private var notificationAuthStatus: UNAuthorizationStatus = .notDetermined
 
     var body: some View {
         NavigationStack {
@@ -36,6 +43,7 @@ struct ProfileView: View {
                 VStack(spacing: 24) {
                     identity
                     fanZoneStrip
+                    notificationPermissionBanner
                     matchDaySection
                     activitySection
                     myTeamsSection
@@ -47,6 +55,12 @@ struct ProfileView: View {
                 .padding(.bottom, 24)
             }
             .background(Color.dsBgGrouped)
+            .task { await refreshNotificationStatus() }
+            .onChange(of: scenePhase) { _, phase in
+                // Re-check after the user may have flipped the system switch in
+                // Settings (the banner taps out to Settings).
+                if phase == .active { Task { await refreshNotificationStatus() } }
+            }
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -171,34 +185,58 @@ struct ProfileView: View {
 
     private var matchDaySection: some View {
         @Bindable var notif = notifications
+        // Day-before is the one true local (Tier 1) match-day alert that delivers
+        // today. The live events (lineup/kickoff/goals/halftime/full-time/subs) are
+        // Tier 2 server push — the toggles persist intent now and light up when the
+        // match-watcher ships; the note is a promise, not an apology.
         return settingsGroup("Match Day") {
             toggleRow("Day-before reminder", "24 hours before your teams play", $notif.dayBefore)
             rowDivider
-            toggleRow("Lineup posted", "When the starting XI is announced", $notif.lineupPosted)
+            toggleRow("Lineup posted", "When the starting XI is announced", $notif.lineupPosted, comingSoonNote: "Live alerts coming soon")
             rowDivider
-            toggleRow("Kickoff", "When the match starts", $notif.kickoff)
+            toggleRow("Kickoff", "When the match starts", $notif.kickoff, comingSoonNote: "Live alerts coming soon")
             rowDivider
-            toggleRow("Goals", "When any team scores", $notif.goals)
+            toggleRow("Goals", "When any team scores", $notif.goals, comingSoonNote: "Live alerts coming soon")
             rowDivider
-            toggleRow("Halftime", "Halftime score update", $notif.halftime)
+            toggleRow("Halftime", "Halftime score update", $notif.halftime, comingSoonNote: "Live alerts coming soon")
             rowDivider
-            toggleRow("Full time", "Final score when the match ends", $notif.fullTime)
+            toggleRow("Full time", "Final score when the match ends", $notif.fullTime, comingSoonNote: "Live alerts coming soon")
             rowDivider
-            toggleRow("Substitutions", "When subs are made during the match", $notif.substitutions)
+            toggleRow("Substitutions", "When subs are made during the match", $notif.substitutions, comingSoonNote: "Live alerts coming soon")
         }
     }
 
     private var activitySection: some View {
         @Bindable var notif = notifications
+        // Player Spotlight is a local weekly reminder (delivers today). Fan Zone
+        // alerts wait on the real game backends (deferred), so they show the note.
         return settingsGroup("Activity") {
-            toggleRow("Fan Zone rounds", "When a new bracket round or trivia opens", $notif.fanZoneRounds)
+            toggleRow("Fan Zone rounds", "When a new bracket round or trivia opens", $notif.fanZoneRounds, comingSoonNote: "Coming soon")
             rowDivider
             toggleRow("Player Spotlight", "When a new weekly spotlight is posted", $notif.playerSpotlight)
         }
     }
 
-    private func toggleRow(_ title: String, _ subtitle: String, _ isOn: Binding<Bool>) -> some View {
-        HStack(spacing: 12) {
+    /// A toggle row. When `comingSoonNote` is nil the alert is deliverable now, so
+    /// switching it ON requests notification permission (on the gesture — never at
+    /// cold launch). A non-nil note marks an alert that persists intent but doesn't
+    /// deliver yet, so it shows the note and skips the permission prompt.
+    private func toggleRow(
+        _ title: String,
+        _ subtitle: String,
+        _ isOn: Binding<Bool>,
+        comingSoonNote: String? = nil
+    ) -> some View {
+        let binding = Binding<Bool>(
+            get: { isOn.wrappedValue },
+            set: { newValue in
+                isOn.wrappedValue = newValue
+                if newValue && comingSoonNote == nil {
+                    Task { await requestNotificationPermission() }
+                }
+            }
+        )
+        return HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 15))
@@ -206,14 +244,72 @@ struct ProfileView: View {
                 Text(subtitle)
                     .font(.system(size: 12))
                     .foregroundStyle(Color.dsFgSecondary)
+                if let comingSoonNote {
+                    Text(comingSoonNote)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.dsFgTertiary)
+                }
             }
             Spacer(minLength: 8)
-            Toggle("", isOn: isOn)
+            Toggle("", isOn: binding)
                 .labelsHidden()
                 .tint(Color.dsSuccess)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 11)
+    }
+
+    // MARK: - Notification permission
+
+    /// Shown when the user has a deliverable alert on but the system switch is off.
+    /// Taps out to the app's Settings page. A promise-not-broken nudge, not a nag.
+    @ViewBuilder
+    private var notificationPermissionBanner: some View {
+        if notificationAuthStatus == .denied,
+           notifications.dayBefore || notifications.playerSpotlight {
+            Button {
+                if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "bell.slash.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Color.dsError)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Notifications are off")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Color.dsFgPrimary)
+                        Text("Turn them on in Settings to get match reminders")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color.dsFgSecondary)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.dsFgTertiary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 13)
+                .background(Color.dsBgCard)
+                .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    /// Prompt on first toggle-on of a deliverable alert; iOS only shows the system
+    /// dialog once (when status is `.notDetermined`). Then refresh the banner state.
+    private func requestNotificationPermission() async {
+        let center = UNUserNotificationCenter.current()
+        if await center.notificationSettings().authorizationStatus == .notDetermined {
+            _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+        }
+        await refreshNotificationStatus()
+    }
+
+    private func refreshNotificationStatus() async {
+        notificationAuthStatus = await UNUserNotificationCenter.current()
+            .notificationSettings().authorizationStatus
     }
 
     // MARK: - My Teams

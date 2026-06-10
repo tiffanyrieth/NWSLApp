@@ -56,10 +56,9 @@ struct MatchDetailView: View {
             }
         }
         .background(Color.dsBgPrimary)
-        // Empty inline title: the header already shows both crests + names, so
-        // the nav bar stays just the back chevron (matches TeamDetailView).
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
+        // Left-aligned "‹ Match Details" context label (the header below shows the
+        // crests + score, so the nav bar is just a where-am-I reminder).
+        .navigationContextLabel("Match Details")
         .task {
             // First load (shows a spinner), then poll silently every 30s while
             // the match is live so events/score/clock fill in — the proxy's TTL

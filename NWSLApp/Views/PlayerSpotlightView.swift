@@ -41,8 +41,7 @@ struct PlayerSpotlightView: View {
             .padding(20)
         }
         .background(Color.dsBgGrouped)
-        .navigationTitle("Player Spotlight")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationContextLabel("Player Spotlight")
     }
 
     // MARK: - Hero (ghosted number + eyebrow + split name + meta)

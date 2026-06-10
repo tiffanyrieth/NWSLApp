@@ -76,8 +76,7 @@ struct PlayerDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .background(Color.dsBgGrouped)
-        .navigationTitle(athlete.shortName ?? athlete.name)
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationContextLabel("Players")
     }
 
     // Jersey number when present, otherwise initials — mirrors the squad card.

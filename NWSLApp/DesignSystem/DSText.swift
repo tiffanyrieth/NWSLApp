@@ -40,3 +40,28 @@ extension Font {
     /// never jitters as digits change on a live refresh.
     static let dsScore = Font.system(size: 44, weight: .heavy).monospacedDigit()
 }
+
+extension View {
+    /// A left-aligned context label right next to the back chevron on a PUSHED
+    /// screen — a "where am I" navigation reminder ("‹ Teams", "‹ Match Details"),
+    /// not a centered title. Suppresses the inherited parent-title text on the back
+    /// button (just the chevron) so the label reads cleanly. Tab roots keep their
+    /// large left-aligned titles; this is only for drilled-in screens.
+    func navigationContextLabel(_ label: String) -> some View {
+        self
+            .navigationBarTitleDisplayMode(.inline)
+            // `.editor` role renders the back button as a bare chevron (no inherited
+            // parent-title text), so the label below reads "‹ Label" cleanly while
+            // the edge-swipe-back gesture still works.
+            .toolbarRole(.editor)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Text(label)
+                        .font(.headline)
+                        .foregroundStyle(Color.dsFgPrimary)
+                        .lineLimit(1)
+                        .fixedSize()   // render at full width — toolbar text truncates otherwise
+                }
+            }
+    }
+}

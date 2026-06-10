@@ -68,10 +68,9 @@ struct TeamDetailView: View {
             case .stats: statsSection
             }
         }
-        // Empty inline title: the pinned header already shows the club name big,
-        // so we leave the nav bar as just the back chevron (no duplicate name).
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
+        // Left-aligned "‹ Teams" context label (the pinned header below shows the
+        // club name big, so the nav bar is just a where-am-I reminder).
+        .navigationContextLabel("Teams")
         .navigationDestination(for: Athlete.self) { athlete in
             PlayerDetailView(
                 athlete: athlete,

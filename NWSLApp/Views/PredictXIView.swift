@@ -48,8 +48,7 @@ struct PredictXIView: View {
                 loadedContent
             }
         }
-        .navigationTitle("Predict the XI")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationContextLabel("Predict the XI")
         .background(Color(.systemGroupedBackground))
         .task {
             if case .idle = viewModel.state { await viewModel.load(store: store) }

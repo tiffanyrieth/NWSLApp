@@ -278,7 +278,7 @@ NWSLApp/
 ├── DesignSystem/                      — token layer mirroring the Claude Design handoff; the app-chrome palette (team colors stay dynamic via Color+Hex)
 │   ├── DSColor.swift                  — `Color.ds*` tokens (bg/fg/accent/status/game/match-state); dark-only literal hex
 │   ├── DSMetrics.swift                — `enum DS` spacing, radii, avatar/crest sizes, game-card dims
-│   └── DSText.swift                   — modifiers: `.trackedCaps()`, `.sectionTitle()`, `Font.dsScore`
+│   └── DSText.swift                   — modifiers: `.trackedCaps()`, `.sectionTitle()`, `.navigationContextLabel("…")` (left "‹ Label" on pushed screens), `Font.dsScore`
 ├── Models/                            — Codable models (⚠️ = backed by a seed provider)
 │   ├── BracketEdition.swift           — Bracket Battle entrants + edition, seed order
 │   ├── Club.swift                     — flat Club + ESPN /teams decode wrappers (now decodes brand color/alternateColor → ring crests)
@@ -425,9 +425,13 @@ SocialLinkButton on tokens with a **design-palette accent** (`accentHex` via
 `DesignTeamColors` — fixes dark ESPN primaries reading as an invisible accent);
 `PlayerSpotlightView` redesigned to the editorial layout (ghosted jersey number,
 split-name hero, This Season grid, Story card, Fast Facts, Watch). **All six
-phases shipped.** Pending polish circle-back: a few screens still surface the
-small/auto nav title under auto-scroll (Schedule fixed via a custom large header;
-audit the others).
+phases shipped.** **Nav-title convention** (audited): tab roots keep large
+left-aligned titles (Schedule = a custom 34pt header since its auto-scroll
+collapses the system one); every *pushed* screen shows a left-aligned "‹ Label"
+context reminder via `.navigationContextLabel(…)` (`.toolbarRole(.editor)` bare
+chevron + a leading label) — Match Detail "Match Details", Team Detail "Teams",
+Player Detail "Players", games, etc. (Fan Zone in-screen text sizes are pending an
+on-device review.)
 
 **Accounts & follow sync** (`…/2026-06-09_supabase-accounts-setup.md`) — Sign in
 with Apple → a **Supabase** user (first per-user backend). `AuthStore`

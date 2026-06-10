@@ -39,8 +39,7 @@ struct CompetitionsView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle("Competitions")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationContextLabel("Competitions")
     }
 
     // Mirrors OnboardingView.competitionRow so the two follow surfaces look and

@@ -88,8 +88,12 @@ GitHub `tiffanyrieth/nwslapp-proxy`, live at
 caches it (Workers Cache API, dynamic TTL — 30s if a game is live, else 300s),
 and fans out to all callers; `GET /scoreboard` forwards the query string and
 returns ESPN's bytes **unchanged**, so the app's `Scoreboard` decoder is
-untouched. Only the scoreboard is proxied — teams, roster, and standings still
-hit ESPN directly. Base URL lives in `Config/AppConfig.swift`; DEBUG
+untouched. **`GET /summary?event={id}`** (0.3.1) does the same for the per-match
+summary, with a match-state-aware TTL (`chooseSummaryTTL` reads
+`header.competitions[0].status.type.state`): finished → 1yr immutable, live →
+30s, future → next 3am ET (once-daily, season-average preview), parse-fail → 1hr.
+Both routes share one `proxyAndCache` helper. Teams, roster, and standings still
+hit ESPN directly. Base URLs live in `Config/AppConfig.swift`; DEBUG
 `-useESPNDirect` falls back to ESPN. See What's-Next #12 and
 `Reference/Sessions/2026-06-08_v2-kickoff-caching-proxy.md`.
 
@@ -159,6 +163,14 @@ branch rule on this machine — `pre-commit` blocks commits onto `main`, and
 are local guardrails, not policy: bypass with `--no-verify`, and a fresh clone
 must run `git config core.hooksPath hooks` to enable them. (GitHub server-side
 protection needs Pro on a private repo.) See `hooks/README.md`.
+
+**Known gotcha — `gh` auth expires mid-session.** The `gh` keyring token can go
+stale partway through a session: `git push` keeps working (separate credential
+helper) and `gh auth status` still reports "Logged in", but every `gh` API call
+(`gh pr create`/`merge`/`view`, `gh api`) fails with `HTTP 401: Requires
+authentication`. Fix: re-run `gh auth refresh -h github.com` (interactive —
+the user runs it), then retry. So when a push succeeds but the follow-up PR
+merge 401s, it's this, not a permissions problem.
 
 ---
 
@@ -272,7 +284,7 @@ placeholder (looks deliberate per the UI rules). Design specs in
 NWSLApp/
 ├── NWSLAppApp.swift                   — app entry point; launches RootTabView; forces dark appearance app-wide; DEBUG `-resetOnboarding` launch arg → resets onboarding
 ├── Config/                            — app configuration
-│   ├── AppConfig.swift                — base URLs; scoreboard → Cloudflare proxy by default; summary → ESPN direct; DEBUG `-useESPNDirect`
+│   ├── AppConfig.swift                — base URLs; scoreboard + summary → Cloudflare proxy by default (0.3.1); DEBUG `-useESPNDirect`
 │   ├── Secrets.swift                  — 🔒 GITIGNORED Supabase URL + anon key (not committed)
 │   └── Secrets.example                — checked-in template for Secrets.swift (non-`.swift` so it never compiles)
 ├── DesignSystem/                      — token layer mirroring the Claude Design handoff; the app-chrome palette (team colors stay dynamic via Color+Hex)
@@ -296,7 +308,7 @@ NWSLApp/
 │   └── TriviaQuestion.swift           — ⚠️ one Daily-Trivia question (4 options)
 ├── Services/                          — ESPNService + Supabase clients + ⚠️ curated async seed providers
 │   ├── BracketEditionProvider.swift   — ⚠️ Bracket seed + simulated leaderboard
-│   ├── ESPNService.swift              — async fetch: scoreboard (via proxy)/teams/roster/standings/summary (per-match, ESPN direct)
+│   ├── ESPNService.swift              — async fetch: scoreboard + summary (via proxy)/teams/roster/standings
 │   ├── FollowSyncService.swift        — Supabase `follows` table client (fetch/push/add/remove); RLS-scoped per user
 │   ├── SupabaseManager.swift          — the one shared SupabaseClient (built from Secrets)
 │   ├── FeedContentProvider.swift      — ⚠️ Feed seed: reporters/outlets, all 16 clubs
@@ -490,7 +502,7 @@ taps push `MatchDetailView`.
 
 **Match detail V2** (`match-detail-v2-spec.md`, `match-detail-v2-polish.md`) —
 `MatchDetailView` + VM adapt to temporal state. The header always renders from the
-`Event`; ESPN `/summary` (`fetchSummary`, ESPN-direct) layers the rest. **Past** —
+`Event`; ESPN `/summary` (`fetchSummary`, via the proxy as of 0.3.1) layers the rest. **Past** —
 Summary (timeline) / Lineups (`FormationPitchView`, list fallback + subs) / Stats
 (`StatComparisonBar`). **Live** — same tabs (EVENTS) + LIVE pill + clock + 30s
 refresh. **Future** — `MatchStore` preview: Season Comparison (goals/match,
@@ -513,8 +525,8 @@ numbers are kept so existing cross-references stay valid.
 4. Capture a real ESPN response → `NWSLAppTests/Fixtures/scoreboard.json` + a
    decode-only test for `Scoreboard`/Event helpers (date parsing, `dayKey` TZ).
 6. **Match-detail V2 follow-ups** (same chapter): **Worker routes** — `/summary`
-   smart-TTL + `/headshots` + name-match cron/KV (flip `AppConfig.summaryBaseURL`
-   when shipped); **Player headshots** on pitch dots / `PlayerCard` (need the
+   smart-TTL ✅ shipped 0.3.1; remaining `/headshots` + name-match cron/KV;
+   **Player headshots** on pitch dots / `PlayerCard` (need the
    NWSL-GUID↔ESPN-id map; monogram + seam now); **Future-preview season averages**
    (possession/shots/SOT/pass-accuracy — need per-match `/summary` aggregation);
    **`StatsProvider` → real season stats** (ESPN Core API

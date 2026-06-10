@@ -81,9 +81,14 @@ struct PlayerSpotlight: Identifiable {
     /// ⚠️ TEMP demo season stats for the Module-2 card's stat strip, derived
     /// deterministically from the number + position. The model deliberately
     /// carries no *real* season stats (they rot — see `seasonForm`); this keeps
-    /// the redesigned card's Goals/Assists/Apps strip populated for the demo,
-    /// consistent with the app's existing simulated `StatsProvider`. Swap for a
-    /// real per-player source when one lands (then this computed value retires).
+    /// the redesigned card's Goals/Assists/Apps strip populated for the demo.
+    ///
+    /// Real season stats now exist for the Teams pages (ESPNService.seasonStats),
+    /// but they key off an ESPN athlete id, which this curated seed doesn't carry.
+    /// TODO: when the spotlight backend ships, add `espnAthleteId: String?` here and
+    /// have it supply the id; the strip can then pull real Goals/Assists/Apps via
+    /// `ESPNService.seasonStats` and this computed value retires — no fuzzy
+    /// name→id matching needed.
     var demoSeasonStats: (goals: Int, assists: Int, apps: Int) {
         let base = abs(jerseyNumber * 7 + playerName.count * 3)
         let apps = 8 + base % 8                  // 8–15 appearances

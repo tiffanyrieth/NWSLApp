@@ -297,9 +297,10 @@ NWSLApp/
 │   ├── Club.swift                     — flat Club + ESPN /teams decode wrappers (now decodes brand color/alternateColor → ring crests)
 │   ├── FeedItem.swift                 — one Feed item (post|article) + team tag
 │   ├── FollowedCompetition.swift      — international competitions list + follow model
+│   ├── AthleteStatistics.swift        — ESPN Core API /statistics decode: category→field flatten → PlayerSeasonStats
 │   ├── MatchSummary.swift             — ESPN /summary decode: lineups+formation, boxscore stats, key-events timeline
-│   ├── PlayerSpotlight.swift          — ⚠️ Home Module-2 player-of-week mini-profile
-│   ├── PlayerStats.swift              — per-player season stats + team-leaders models
+│   ├── PlayerSpotlight.swift          — ⚠️ Home Module-2 player-of-week mini-profile (TODO: espnAthleteId seam → real strip stats)
+│   ├── PlayerStats.swift              — per-player season stats + team-leaders models (view-facing; real ESPN Core API data)
 │   ├── PredictionMatch.swift          — ⚠️ Predict-the-XI match, questions, answer key
 │   ├── Roster.swift                   — squad + team profile from one roster fetch
 │   ├── Scoreboard.swift               — ESPN scoreboard structs + Event helpers
@@ -309,7 +310,8 @@ NWSLApp/
 │   └── TriviaQuestion.swift           — ⚠️ one Daily-Trivia question (4 options)
 ├── Services/                          — ESPNService + Supabase clients + ⚠️ curated async seed providers
 │   ├── BracketEditionProvider.swift   — ⚠️ Bracket seed + simulated leaderboard
-│   ├── ESPNService.swift              — async fetch: scoreboard + summary (via proxy)/teams/roster/standings
+│   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats by athlete+year (backs seasonStats)
+│   ├── ESPNService.swift              — async fetch: scoreboard + summary (via proxy)/teams/roster/standings + seasonStats (Core API, parallel per-athlete, best-effort)
 │   ├── FollowSyncService.swift        — Supabase `follows` table client (fetch/push/add/remove); RLS-scoped per user
 │   ├── DeviceTokenService.swift       — Supabase `device_tokens` client (register/remove APNs token); RLS-scoped; modeled on FollowSyncService (Tier 2)
 │   ├── NotificationPrefsSyncService.swift — Supabase `notification_preferences` client; whole-row upsert of the 9-flag snapshot so the watcher Worker can honor "goals: off" (Tier 2)
@@ -319,7 +321,6 @@ NWSLApp/
 │   ├── FeedContentProvider.swift      — ⚠️ Feed seed: reporters/outlets, all 16 clubs
 │   ├── PlayerSpotlightProvider.swift  — ⚠️ one spotlight player per club (16)
 │   ├── PredictionMatchProvider.swift  — ⚠️ Predict-the-XI seed (open + settled)
-│   ├── StatsProvider.swift            — ⚠️ deterministic simulated per-player stats
 │   ├── TeamContentProvider.swift      — ⚠️ Module-1 seed: 2 real YouTube videos/club
 │   ├── TeamSocialLinksProvider.swift  — ⚠️ per-team social-account URLs seed
 │   └── TriviaQuestionProvider.swift   — ⚠️ 55 hand-written NWSL trivia questions
@@ -345,7 +346,7 @@ NWSLApp/
 │   ├── ScheduleViewModel.swift        — day-grouped sections + filters from MatchStore; My-teams ← ClubStore (error+retry)
 │   ├── StandingsViewModel.swift       — one-shot fetchStandings()
 │   ├── TeamsViewModel.swift           — thin reader over the shared ClubStore (also feeds Onboarding)
-│   ├── TeamDetailViewModel.swift      — roster + social links + simulated stats/leaders
+│   ├── TeamDetailViewModel.swift      — roster + social links + real season stats/leaders (ESPNService.seasonStats)
 │   └── TriviaViewModel.swift          — one Daily-Trivia session (deterministic daily 5)
 ├── Views/                             — one screen per file
 │   ├── RootTabView.swift              — app root; 5-tab TabView (selection ← AppRouter); injects stores; restores session + FollowSyncCoordinator + NotificationSyncCoordinator; registers for remote notifications if authorized; routes a tapped live-push (PushBridge.tappedEventID → AppRouter.openMatch)
@@ -536,8 +537,11 @@ Persisted, but the schedule isn't competition-aware yet (#13).
 **Team detail** (`teams-tab-design-spec.md`) — pinned header + social row
 (⚠️`TeamSocialLinksProvider`) over **Squad · Stats**. Squad = `PlayerCard` grid
 (FWD→GK) → `PlayerDetailView`. Stats = season summary (W-D-L) + Goals/Assists/
-Clean-Sheets leaders from ⚠️simulated stats (`StatsProvider`). One
-`fetchRoster(clubID:)→ClubSquad`.
+Clean-Sheets leaders from **real ESPN Core API per-player season stats**
+(`ESPNService.seasonStats` — one parallel call/athlete to
+`…/seasons/{year}/types/1/athletes/{id}/statistics`, best-effort + actor-cached;
+decoded via `AthleteStatistics`). One `fetchRoster(clubID:)→ClubSquad`. Same lines
+feed `PlayerDetailView`'s season block (#8 — verified vs. live API).
 
 **Standings** (`standings-tab-design-spec.md`) — full 16-team table, **PTS · GP ·
 W · L · D** only (no GF/GA/GD); followed teams blue; rows → `TeamDetailView`.
@@ -578,9 +582,12 @@ numbers are kept so existing cross-references stay valid.
    **Player headshots** on pitch dots / `PlayerCard` (need the
    NWSL-GUID↔ESPN-id map; monogram + seam now); **Future-preview season averages**
    (possession/shots/SOT/pass-accuracy — need per-match `/summary` aggregation);
-   **`StatsProvider` → real season stats** (ESPN Core API
-   `…/athletes/{id}/statistics`); richer summary extras unused (commentary, news,
-   per-player match stats).
+   **`StatsProvider` → real season stats** ✅ shipped (#8 — ESPN Core API
+   `…/seasons/{year}/types/1/athletes/{id}/statistics`, `ESPNService.seasonStats`);
+   remaining: a proxy `statsBaseURL` route for shared caching, dynamic
+   `currentSeasonYear` from the league root (`season.year`), and season type
+   (`types/1` = Regular Season only — playoffs/preseason sparse); richer summary
+   extras unused (commentary, news, per-player match stats).
 9. **(Fragility)** `MatchStore.matches(for:)` joins club↔game by `abbreviation`
    (no id on ESPN competitors). TEMP-commented; a rename silently empties a
    schedule (empty state, not crash). Fix: a normalized club-id map.
@@ -590,9 +597,10 @@ numbers are kept so existing cross-references stay valid.
     change.
 
 **Feature follow-ups (from shipped redesigns)**
-- **Team-detail Stats + PlayerDetailView** — on ⚠️simulated stats (`StatsProvider`).
-  Need a real per-player source (ESPN `splits` is sparse — likely the proxy) + a
-  most-recent-formation pitch (unmapped lineup endpoint).
+- **Team-detail Stats + PlayerDetailView** — now on **real** ESPN Core API season
+  stats (#8). Remaining: a most-recent-formation pitch (unmapped lineup endpoint);
+  the Home Module-2 spotlight strip still uses `demoSeasonStats` (needs an
+  `espnAthleteId` on `PlayerSpotlight` — TODO seam noted in the model).
 - **(Data/Verify) Team social links** — ⚠️`TeamSocialLinksProvider` seed; verify
   before ship. Reddit unsure: **KC** (`r/KCCurrent`), **CHI** (`r/redstars` vs
   `r/ChicagoStars`); **BOS/DEN/LOU** none yet. YT/IG overlap `TeamContentProvider`

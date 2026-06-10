@@ -26,21 +26,22 @@ final class TeamDetailViewModel {
     /// for a club with none). Drives the header's social row.
     private(set) var socialLinks: [SocialLink] = []
 
-    /// Per-player season stats keyed by athlete id (⚠️TEMP simulated, see
-    /// StatsProvider). Powers the player pages' season block and the team-leaders
-    /// board, which is derived from these same lines so the two always agree.
+    /// Per-player season stats keyed by athlete id (real ESPN Core API data, via
+    /// ESPNService.seasonStats). Powers the player pages' season block and the
+    /// team-leaders board, which is derived from these same lines so the two agree.
     private(set) var seasonStats: [String: PlayerSeasonStats] = [:]
+
+    /// The season the stats are for; surfaced to the player pages' "SEASON …" label.
+    let seasonYear = AppConfig.currentSeasonYear
+    var seasonLabel: String { "SEASON \(seasonYear)" }
 
     private let service: ESPNService
     private let socialLinksProvider: TeamSocialLinksProvider
-    private let statsProvider: StatsProvider
 
     init(service: ESPNService = ESPNService(),
-         socialLinksProvider: TeamSocialLinksProvider = TeamSocialLinksProvider(),
-         statsProvider: StatsProvider = StatsProvider()) {
+         socialLinksProvider: TeamSocialLinksProvider = TeamSocialLinksProvider()) {
         self.service = service
         self.socialLinksProvider = socialLinksProvider
-        self.statsProvider = statsProvider
     }
 
     func load(clubID: String) async {
@@ -48,9 +49,11 @@ final class TeamDetailViewModel {
         do {
             let squad = try await service.fetchRoster(clubID: clubID)
             state = .loaded(squad)
-            // Stats ride a second (local, instant) pass once the squad is known —
-            // they're derived from the roster, so they can't load before it.
-            let stats = await statsProvider.seasonStats(for: squad.athletes)
+            // Stats ride a best-effort second pass once the squad is known (they're
+            // keyed by athlete id, so the roster must load first). The fetch is
+            // non-throwing — a stats outage leaves the leaders empty but never
+            // errors the page.
+            let stats = await service.seasonStats(for: squad.athletes, year: seasonYear)
             seasonStats = Dictionary(uniqueKeysWithValues: stats.map { ($0.athleteID, $0) })
         } catch {
             state = .error(message(for: error))

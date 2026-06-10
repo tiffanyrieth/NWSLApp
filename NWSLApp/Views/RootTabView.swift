@@ -21,13 +21,9 @@
 import SwiftUI
 
 struct RootTabView: View {
-    /// Identifies each tab so we can set (and later restore) the selected one.
-    private enum Tab: Hashable {
-        case home, schedule, standings, teams, feed
-    }
-
-    // Land on Home — the your-teams-first hub (now built).
-    @State private var selection: Tab = .home
+    // Tab selection lives in a shared AppRouter (injected below) so screens can
+    // jump across tabs — e.g. Home's "Full schedule →". Lands on Home.
+    @State private var router = AppRouter()
 
     // The personalization lens, created once at the root and shared with every
     // tab via the environment so Teams (now) and Home/Feed (later) read the
@@ -75,27 +71,29 @@ struct RootTabView: View {
     @State private var syncCoordinator: FollowSyncCoordinator?
 
     var body: some View {
-        TabView(selection: $selection) {
+        @Bindable var router = router
+        TabView(selection: $router.selectedTab) {
             HomeView()
                 .tabItem { Label("Home", systemImage: "house") }
-                .tag(Tab.home)
+                .tag(AppTab.home)
 
             ScheduleView()
                 .tabItem { Label("Schedule", systemImage: "calendar") }
-                .tag(Tab.schedule)
+                .tag(AppTab.schedule)
 
             StandingsView()
                 .tabItem { Label("Standings", systemImage: "list.number") }
-                .tag(Tab.standings)
+                .tag(AppTab.standings)
 
             TeamsView()
                 .tabItem { Label("Teams", systemImage: "person.3.fill") }
-                .tag(Tab.teams)
+                .tag(AppTab.teams)
 
             FeedView()
                 .tabItem { Label("Feed", systemImage: "dot.radiowaves.left.and.right") }
-                .tag(Tab.feed)
+                .tag(AppTab.feed)
         }
+        .environment(router)
         .environment(following)
         .environment(matches)
         .environment(clubs)

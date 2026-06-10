@@ -2,170 +2,129 @@
 //  PlayerSpotlightCard.swift
 //  NWSLApp
 //
-//  Home's Module 2 ("Get to know your players") — the Option B "mini profile"
-//  card from Reference/Design/spotlight-design-spec.md. One per followed team:
-//  a "Player of the week" label, jersey badge, name, "Position · Team", a 2-3
-//  sentence bio blurb (the hook that sells the player before you tap), and a
-//  video thumbnail with a play icon + source attribution.
+//  Home's Module 2 ("Get to know your players") card — design-handoff refresh
+//  (`HomeScreen.jsx`). A compact, equal-weight profile card shown one-per-followed
+//  team in a horizontal carousel: a 3px team-color accent line, a "PLAYER OF THE
+//  WEEK" eyebrow, the jersey-number badge, name + "position · ABBR", the 2-3
+//  sentence hook (the sell), a Goals/Assists/Apps stat strip, and a "Read
+//  spotlight →" CTA. The video moved to the detail page (PlayerSpotlightView) —
+//  this card is the teaser, wrapped in a NavigationLink by HomeView.
 //
-//  This is a plain label view — the WHOLE card is wrapped in a NavigationLink in
-//  HomeView that pushes PlayerSpotlightView (where the video opens). So the
-//  thumbnail's play badge signals "there's a video inside," not a direct link.
-//  Written-only spotlights (no video) hide the thumbnail and show a "Read full
-//  profile" cue instead.
-//
-//  Thumbnail: loads the real YouTube frame via AsyncImage over
-//  `spotlight.thumbnailURL`, falling back to a DESIGNED crest tile while it loads,
-//  on failure, or for a written-only profile (no video). The jersey badge is still
-//  TEMP — it uses the app accent (Color.teamAccent(hex: nil)) because Home fetches
-//  no roster/club color; pass the club hex for a true team-colored badge when a
-//  content backend lands.
+//  Team color: the jersey badge uses the club's brand fill + a legible on-color
+//  (Color.teamAccent); the eyebrow, abbreviation, first stat, and CTA use the
+//  club's dark-legible accent (Club.accentColor). Falls back to the app accent
+//  when the club isn't resolved.
 //
 
 import SwiftUI
 
 struct PlayerSpotlightCard: View {
     let spotlight: PlayerSpotlight
-    /// Resolved from the followed Club directory by abbreviation (crest + name).
+    /// Resolved from the followed Club directory by abbreviation (crest + colors).
     let club: Club?
 
+    /// Dark-legible team accent for the eyebrow / abbr / CTA / first stat.
+    private var accent: Color { club?.accentColor ?? .dsAccent }
+    /// Team-brand fill + on-color for the jersey badge.
+    private var jersey: (fill: Color, on: Color) { Color.teamAccent(hex: club?.brandHex) }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Player of the week")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-
-            HStack(spacing: 14) {
-                jerseyBadge
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(spotlight.playerName)
-                        .font(.title3.weight(.bold))
-                        .lineLimit(1)
-                    Text("\(spotlight.position) · \(teamName)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: 0) {
+            Rectangle().fill(accent).frame(height: 3)   // team-color accent line
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Player of the week")
+                    .trackedCaps(size: 10, tracking: 1.5, color: accent)
+                header
+                Text(spotlight.bioBlurb)
+                    .font(.system(size: 13))
+                    .lineSpacing(3)
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                statStrip
+                readCTA
             }
-
-            // The hook — sells the player on the scroll, like an IG caption.
-            Text(spotlight.bioBlurb)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.leading)
-                .lineLimit(4)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if spotlight.videoURL != nil {
-                videoPreview
-            } else {
-                readProfileCue
-            }
+            .padding(.horizontal, 14)
+            .padding(.top, 16)
+            .padding(.bottom, 14)
         }
-        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
     }
 
-    // MARK: - Jersey badge
+    // MARK: - Header (jersey badge + name + position · ABBR)
 
-    private var jerseyBadge: some View {
-        let accent = Color.teamAccent(hex: nil)   // TEMP: no Club hex — app accent
-        return ZStack {
-            Circle().fill(accent.fill)
-            Text("\(spotlight.jerseyNumber)")
-                .font(.title2.weight(.heavy))
-                .monospacedDigit()
-                .foregroundStyle(accent.on)
-        }
-        .frame(width: 52, height: 52)
-    }
-
-    // MARK: - Video preview (designed tile — see file note)
-
-    private var videoPreview: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            thumbnail
-            HStack(spacing: 6) {
-                Image(systemName: "play.circle.fill")
-                    .foregroundStyle(Color.accentColor)
-                VStack(alignment: .leading, spacing: 1) {
-                    if let title = spotlight.videoTitle {
-                        Text(title)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                    }
-                    if let source = spotlight.videoSource {
-                        Text("via \(source)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Spacer(minLength: 0)
+    private var header: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(jersey.fill)
+                Text("\(spotlight.jerseyNumber)")
+                    .font(.system(size: 18, weight: .heavy))
+                    .monospacedDigit()
+                    .foregroundStyle(jersey.on)
             }
+            .frame(width: 48, height: 48)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(spotlight.playerName)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(Color.dsFgPrimary)
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(spotlight.position)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.dsFgSecondary)
+                    Circle().fill(Color.dsFgQuaternary).frame(width: 3, height: 3)
+                    Text(spotlight.teamAbbreviation)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(accent)
+                }
+            }
+            Spacer(minLength: 0)
         }
     }
 
-    private var thumbnail: some View {
-        ZStack {
-            thumbnailBackground
-            Image(systemName: "play.circle.fill")
-                .font(.system(size: 44))
-                .foregroundStyle(.white.opacity(0.9))
-                .shadow(radius: 4)
+    // MARK: - Stat strip (Goals / Assists / Apps)
+
+    private var statStrip: some View {
+        let s = spotlight.demoSeasonStats
+        return HStack(spacing: 0) {
+            statCell("\(s.goals)", "Goals", highlight: true)
+            statDivider
+            statCell("\(s.assists)", "Assists")
+            statDivider
+            statCell("\(s.apps)", "Apps")
         }
-        .frame(height: 168)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
-        .clipped()
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(Color.dsBgTertiary)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusSm, style: .continuous))
     }
 
-    /// Real video frame when available, else the designed crest tile (also covers
-    /// AsyncImage's loading/failure phases).
-    @ViewBuilder
-    private var thumbnailBackground: some View {
-        if let thumbnailURL = spotlight.thumbnailURL {
-            AsyncImage(url: thumbnailURL) { phase in
-                if let image = phase.image {
-                    image.resizable().scaledToFill()
-                } else {
-                    designedTile
-                }
-            }
-        } else {
-            designedTile
+    private func statCell(_ value: String, _ label: String, highlight: Bool = false) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(size: 16, weight: .bold))
+                .monospacedDigit()
+                .foregroundStyle(highlight ? accent : Color.dsFgPrimary)
+            Text(label)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Color.dsFgTertiary)
         }
+        .frame(maxWidth: .infinity)
     }
 
-    private var designedTile: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color(.systemGray5), Color(.systemGray4)],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-            TeamLogo(urlString: club?.logoURL, size: 56)
-                .opacity(0.9)
+    private var statDivider: some View {
+        Rectangle().fill(Color.dsSeparator).frame(width: 1, height: 24)
+    }
+
+    private var readCTA: some View {
+        HStack(spacing: 6) {
+            Text("Read spotlight").font(.system(size: 13, weight: .semibold))
+            Text("→").font(.system(size: 13, weight: .semibold))
         }
-    }
-
-    // MARK: - Written-only cue (no video)
-
-    private var readProfileCue: some View {
-        HStack(spacing: 4) {
-            Text("Read full profile")
-                .fontWeight(.semibold)
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-        }
-        .font(.subheadline)
-        .foregroundStyle(Color.accentColor)
-    }
-
-    private var teamName: String {
-        club?.shortName ?? club?.displayName ?? spotlight.teamAbbreviation
+        .foregroundStyle(accent)
+        .frame(maxWidth: .infinity)
     }
 }

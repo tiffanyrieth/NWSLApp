@@ -307,6 +307,7 @@ NWSLApp/
 │   ├── TeamSocialLinksProvider.swift  — ⚠️ per-team social-account URLs seed
 │   └── TriviaQuestionProvider.swift   — ⚠️ 55 hand-written NWSL trivia questions
 ├── Stores/                            — @Observable shared state → UserDefaults, injected
+│   ├── AppRouter.swift                — tab selection (AppTab); RootTabView binds the TabView; lets Home's "Full schedule →" jump tabs
 │   ├── AuthStore.swift                — @MainActor; Sign in with Apple → Supabase user; profile upsert; nonce flow (knows nothing about follows)
 │   ├── BracketStore.swift             — Bracket picks / points / locked rounds
 │   ├── ClubStore.swift                — shared club directory; one fetch, many readers (ID/abbr lookups)
@@ -328,8 +329,8 @@ NWSLApp/
 │   ├── TeamDetailViewModel.swift      — roster + social links + simulated stats/leaders
 │   └── TriviaViewModel.swift          — one Daily-Trivia session (deterministic daily 5)
 ├── Views/                             — one screen per file
-│   ├── RootTabView.swift              — app root; 5-tab TabView; lands on Home; injects stores; restores session + starts FollowSyncCoordinator
-│   ├── HomeView.swift                 — your-teams hub: 4 modules; onboarding-in-place; presents the one-time sign-in prompt post-onboarding
+│   ├── RootTabView.swift              — app root; 5-tab TabView (selection ← AppRouter); injects stores; restores session + FollowSyncCoordinator
+│   ├── HomeView.swift                 — your-teams hub: 4 modules + profile-avatar button (🔧 placeholder); spotlight carousel; onboarding-in-place
 │   ├── DailyTriviaView.swift          — Daily Trivia game (indigo); 5/day
 │   ├── BracketBattleView.swift        — Bracket Battle game (teal); vote + lock rounds
 │   ├── PredictXIView.swift            — Predict the XI game (pink); per-match questions
@@ -349,7 +350,8 @@ NWSLApp/
 ├── Components/                        — reusable view pieces
 │   ├── BroadcastLink.swift            — broadcast name → streaming-service watch URL (unknown→nil); backs the tappable 📺
 │   ├── Chip.swift                     — pill filter chip (active=accent / inactive=card); for Schedule + Feed chip bars
-│   ├── ComingUpRow.swift              — Module-4 compact next-match row per team
+│   ├── GameCard.swift                 — Fan Zone game tile (170×138, game-accent border + emoji + status + badge)
+│   ├── ComingUpRow.swift              — Module-4 row: crest-vs-crest + team-colored abbrs (ClubStore) + time/result
 │   ├── EventTimelineRow.swift         — one timeline entry: minute + icon (goal/card/sub) + player(s) + assist + team abbr
 │   ├── FeedCard.swift                 — one Feed item (post or article); opens source
 │   ├── FlowLayout.swift               — wrapping Layout (iOS16) — backs the Lineups substitute chips
@@ -357,9 +359,9 @@ NWSLApp/
 │   ├── MatchCard.swift                — V2: bare TeamLogo crests + hairline status column + orange live clock + venue/📺; taps → MatchDetailView
 │   ├── PlayerCard.swift               — Squad-grid card; team-color monogram + position
 │   ├── StatComparisonBar.swift        — head-to-head split bar (team-colored values | tracked-caps label | split track); past Stats + future preview
-│   ├── PlayerSpotlightCard.swift      — ⚠️ Module-2 player-of-week card (real YT thumbnail)
+│   ├── PlayerSpotlightCard.swift      — ⚠️ Module-2 profile card: PLAYER OF THE WEEK + jersey + hook + stat strip + Read-spotlight
 │   ├── SocialLinkButton.swift         — circular team-tinted social icon; opens account
-│   ├── TeamContentCard.swift          — ⚠️ Module-1 real YT thumbnail (crest-tile fallback) + attribution
+│   ├── TeamContentCard.swift          — ⚠️ Module-1 YT card: 3px team-accent line + thumbnail + ABBR·platform
 │   └── TeamLogo.swift                 — team crest via the shared ImageCache (cached; placeholder fallback)
 ├── Extensions/
 │   ├── Color+Hex.swift                — Color(hex:) init (for DSColor); teamAccent/teamFillOnDark (lifts dark brands); resolveMatchColors → two distinct, dark-legible team colors
@@ -385,14 +387,17 @@ pressure), then removed → gitignored `Reference/Design/*-verification/`.
 
 **Design-system redesign (0.3.x — its own chapter)** — a fidelity pass against
 the Claude Design handoff (`Reference/nwslapp-design-system/`); a distinct minor
-from the 0.2.x backend era (version-string bump at ship/tag time). **Phase 1
-landed**: the `DesignSystem/` token layer (dark-only hex, a step lighter than iOS
-— page `#1C1C1E`, cards `#2C2C2E`), `MatchCard` V2, a refreshed `StatComparisonBar`,
-a `Chip`; `Club` decodes ESPN brand colors (`Club.accentColor`). **Crest rule:**
-team crests render bare via `TeamLogo` (the shape is its own container) — never a
-ring; only player monograms (PlayerCard, pitch dots) get one. Remaining (each its
-own PR): Home, Match Detail, core tabs, **Profile** + Home avatar, Team Detail +
-Spotlight.
+from the 0.2.x backend era (version bump at ship). **Phase 1**:
+the `DesignSystem/` token layer (dark-only hex, a step lighter than iOS — page
+`#1C1C1E`, cards `#2C2C2E`), `MatchCard` V2, `StatComparisonBar`, `Chip`; `Club`
+decodes ESPN brand colors (`Club.accentColor`). **Crest rule:** team crests render
+bare via `TeamLogo` — never a ring; only player monograms (PlayerCard, pitch dots)
+get one. **Phase 2 (Home)**:
+avatar button (→ 🔧 Profile placeholder); Module 2 = equal-weight spotlight
+carousel (85% cards + dots) with a Goals/Assists/Apps strip (⚠️`demoSeasonStats`);
+Fan Zone `GameCard`s + "N active" dot; Coming Up crest-vs-crest rows; `AppRouter`
+powers "Full schedule →". Remaining (each its own PR): Match Detail, core tabs,
+the real **Profile** screen, Team Detail + Spotlight.
 
 **Accounts & follow sync** (`…/2026-06-09_supabase-accounts-setup.md`) — Sign in
 with Apple → a **Supabase** user (first per-user backend). `AuthStore`
@@ -407,65 +412,59 @@ pure/sync — networking lives in the coordinator via `onFollowsChanged` +
 `merge(ids:)` seams. Only clubs sync. Needs gitignored `Config/Secrets.swift` +
 the `Supabase` SPM package.
 
-**Home** (`home-tab-design-spec.md`) — your-teams hub; pre-onboarding renders
-`OnboardingView` in place. Four modules — (1) "From your teams" content, (2)
-player spotlights, (3) "Fan Zone" games, (4) "Coming up" — all derived by
-`HomeViewModel` from `MatchStore` + `FollowingStore`. Games ordered Predict →
-Bracket → Trivia; **Predict shows only when ≥1 club followed**, Bracket + Trivia
-always. Modules 1–2 on ⚠️seeds; no-follows re-presents the picker. Module 1 = 2
-real YouTube videos/club (real frame, crest-tile fallback, taps to video).
+**Home** (`home-tab-design-spec.md`; redesigned — see the redesign note above) —
+your-teams hub; pre-onboarding renders `OnboardingView` in place. Four modules —
+(1) "From your teams" content, (2) player spotlights, (3) "Fan Zone" games, (4)
+"Coming up" — all derived by `HomeViewModel` from `MatchStore` + `FollowingStore`.
+Games ordered Predict → Bracket → Trivia; **Predict shows only when ≥1 club
+followed**. Modules 1–2 on ⚠️seeds; no-follows re-presents the picker.
 
 **Fan Zone games** (`games-design-spec.md`) — all three built, each its own color
 + ⚠️seed + session VM + durable `…Store`: **Daily Trivia** (indigo), **Bracket
-Battle** (teal — deterministic seed-weighted "community" sim), **Predict the XI**
-(pink — kickoff offset-from-now so the demo always shows OPEN+SETTLED).
+Battle** (teal — deterministic "community" sim), **Predict the XI** (pink — kickoff
+offset-from-now so the demo always shows OPEN+SETTLED).
 
-**Player Spotlight** (`spotlight-design-spec.md`) — one mini-profile/followed
-team → narrative `PlayerSpotlightView`; ⚠️`PlayerSpotlightProvider` seeds all 16
-(Mondésir/SEA written-only fallback), weekly rotation. Real YouTube frames.
+**Player Spotlight** (`spotlight-design-spec.md`) — one mini-profile/followed team
+→ narrative `PlayerSpotlightView`; ⚠️`PlayerSpotlightProvider` seeds 16, weekly
+rotation. Real YouTube frames.
 
 **Feed** (`feed-tab-design-spec.md`) — reporters + news filtered to followed
 teams (distinct from Home Module 1). Chip bar (All · per team · League) over
 ⚠️`FeedContentProvider`. The gear → **Content Preferences** (`FeedSourcesView`):
-post/article toggles + per-source mute, persisted in `FeedPreferencesStore`.
+post/article toggles + per-source mute in `FeedPreferencesStore`.
 
 **Teams + Following** — `TeamsView` lists all 16; Follow stars write to
-`FollowingStore` (followed float to a "Following" section). Onboarding also
-offers **international competitions** (`FollowedCompetition` + follow set); a
-Follow-competitions row at the bottom of `TeamsView` opens `CompetitionsView`.
+`FollowingStore` (followed float up). Onboarding + a bottom `TeamsView` row offer
+**international competitions** (`FollowedCompetition` → `CompetitionsView`).
 Persisted, but the schedule isn't competition-aware yet (#13).
 
-**Team detail** (`teams-tab-design-spec.md`) — pinned header + centered social
-row (⚠️`TeamSocialLinksProvider`) over **Squad · Stats**. Squad = `PlayerCard`
-grid (FWD→GK) → `PlayerDetailView`. Stats = real season summary (W-D-L) +
-Goals/Assists/Clean-Sheets leaders, derived from ⚠️simulated per-player stats
-(`StatsProvider`). No formation pitch yet. One `fetchRoster(clubID:)→ClubSquad`.
+**Team detail** (`teams-tab-design-spec.md`) — pinned header + social row
+(⚠️`TeamSocialLinksProvider`) over **Squad · Stats**. Squad = `PlayerCard` grid
+(FWD→GK) → `PlayerDetailView`. Stats = season summary (W-D-L) + Goals/Assists/
+Clean-Sheets leaders from ⚠️simulated stats (`StatsProvider`). One
+`fetchRoster(clubID:)→ClubSquad`.
 
 **Standings** (`standings-tab-design-spec.md`) — full 16-team table, **PTS · GP ·
 W · L · D** only (no GF/GA/GD); followed teams blue; rows → `TeamDetailView`.
-Endpoint at `apis/v2/…` (not the app `base`).
+Endpoint at `apis/v2/…`.
 
 **Schedule** (`schedule-tab-design-spec.md`) — full season in one
 `fetchScoreboard(year:)` (~240 events); sticky day headers; three filters (NWSL /
 My teams / All) over one `MatchStore`; cards carry 📍 venue · 📺 broadcast
-(tappable watch link via `BroadcastLink`); scrolls to today, re-anchors on filter
-change; taps push `MatchDetailView`.
+(tappable via `BroadcastLink`); scrolls to today, re-anchors on filter change;
+taps push `MatchDetailView`.
 
 **Match detail V2** (`match-detail-v2-spec.md`, `match-detail-v2-polish.md`) —
-`MatchDetailView` + VM adapt to temporal state. The header (crests, score/kickoff,
-venue, broadcast) always renders from the `Event`; ESPN `/summary` (`fetchSummary`,
-ESPN-direct) layers the rest. **Past** — Summary (timeline) / Lineups
-(`FormationPitchView`, list fallback + subs) / Stats (`StatComparisonBar`).
-**Live** — same tabs (EVENTS) + pulsing LIVE pill + clock + 30s refresh.
-**Future** — preview from `MatchStore`: Season Comparison (goals/match,
-conceded/match, points/game) + Recent Form (last-5); possession/shots/SOT omitted
-(need per-match aggregation). A `/summary` failure degrades to header-only. Polish
-pass: underline tabs, compact venue·broadcast·attendance row, officials line,
-substitute chips (`FlowLayout`), centered "TEAM — FORMATION". Two fixes: (1)
-`Color.resolveMatchColors` keeps the two sides distinct + dark-legible (WAS/POR no
-longer collapse to the same gray); (2) the pitch derives rows from the **formation
-string**, not per-player abbreviations (a 4-2-3-1 stays 4-2-3-1). Player headshots
-deferred (jersey monogram + swap-in seam now).
+`MatchDetailView` + VM adapt to temporal state. The header always renders from the
+`Event`; ESPN `/summary` (`fetchSummary`, ESPN-direct) layers the rest. **Past** —
+Summary (timeline) / Lineups (`FormationPitchView`, list fallback + subs) / Stats
+(`StatComparisonBar`). **Live** — same tabs (EVENTS) + LIVE pill + clock + 30s
+refresh. **Future** — `MatchStore` preview: Season Comparison (goals/match,
+conceded/match, points/game) + Recent Form; possession/shots/SOT omitted (need
+per-match aggregation). A `/summary` failure degrades to header-only. Notable:
+`Color.resolveMatchColors` keeps the two sides distinct + dark-legible; the pitch
+derives rows from the **formation string** (a 4-2-3-1 stays 4-2-3-1). Player
+headshots deferred (monogram + seam). Crests render bare (no ring, Phase-1 rule).
 
 ---
 

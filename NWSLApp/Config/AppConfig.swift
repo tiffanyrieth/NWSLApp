@@ -40,18 +40,19 @@ enum AppConfig {
         return scoreboardProxyBase
     }
 
-    /// Base URL the per-match `/summary` call builds on. The proxy's `/summary`
-    /// route is not deployed yet (deferred to a later branch — see
-    /// match-detail-v2-spec §2a), so this hits ESPN directly for now. When the
-    /// route ships, flip the `return` below to `scoreboardProxyBase` (the proxy
-    /// host already exists) — a one-line change — and the `-useESPNDirect`
-    /// fallback starts applying, exactly like `scoreboardBaseURL`.
+    /// Base URL the per-match `/summary` call builds on. As of 0.3.1 the proxy's
+    /// `GET /summary` route is live — it forwards `?event={id}` to ESPN and
+    /// caches with a match-state-aware TTL (a finished match is immutable, a live
+    /// one 30s, a future one until the next 3am ET), so popular past matches no
+    /// longer re-hit ESPN on every tap. The bytes are returned unchanged, so the
+    /// `MatchSummary` decoder is untouched. In DEBUG, `-useESPNDirect` falls back
+    /// to hitting ESPN directly, exactly like `scoreboardBaseURL`.
     static var summaryBaseURL: URL {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-useESPNDirect") {
             return espnBase
         }
         #endif
-        return espnBase   // ← flip to scoreboardProxyBase once /summary ships
+        return scoreboardProxyBase
     }
 }

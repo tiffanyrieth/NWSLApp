@@ -6,5 +6,16 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<!--
+	  Push notifications (Tier 2 / server push, 0.4.x). `development` selects the
+	  sandbox APNs environment for builds run from Xcode; Xcode automatically
+	  swaps this to `production` when it archives a distribution build (TestFlight
+	  / App Store), so this single value is correct for both. The match-watcher
+	  Worker must send to the matching APNs host (api.sandbox.push.apple.com for a
+	  dev build's token, api.push.apple.com for a TestFlight build's) — it picks
+	  the host from a secret so we can flip without a code change.
+	-->
+	<key>aps-environment</key>
+	<string>development</string>
 </dict>
 </plist>

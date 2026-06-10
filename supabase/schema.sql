@@ -57,3 +57,69 @@ create policy "Users can delete own follows"
 
 grant select, insert, update, delete on public.follows  to authenticated;
 grant select, insert, update          on public.profiles to authenticated;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- Notifications — Tier 2 / server push (0.4.x)
+-- ═════════════════════════════════════════════════════════════════════════════
+--
+-- Two tables back live match-event push. The app keeps them in sync per signed-in
+-- user (RLS-scoped, like `follows`); the match-watcher Worker reads them with the
+-- SERVICE-ROLE key (which bypasses RLS) to fan a goal out to every follower of a
+-- team — a cross-user read no single user is allowed to do, by design.
+--
+--  * `device_tokens` — the APNs tokens for a user's devices (one row per device).
+--    A user can have several (phone + iPad); a token can move between users (a
+--    shared device), so the natural key is (user_id, token). The Worker selects
+--    `token` for the matching followers.
+--  * `notification_preferences` — the 9 toggles from the Profile screen, mirrored
+--    server-side so the Worker can honor "goals: off" without asking the device.
+--    1:1 with the user (like `profiles`), so user_id is the primary key.
+
+-- APNs device tokens (one row per user per device)
+create table public.device_tokens (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users(id) not null,
+  token text not null,                 -- APNs device token (hex string)
+  platform text not null default 'ios',
+  updated_at timestamptz default now(),
+  unique(user_id, token)               -- backs the app's upsert onConflict
+);
+
+-- Notification preferences (1:1 with the user; the 9 Profile toggles)
+create table public.notification_preferences (
+  user_id uuid references auth.users(id) primary key,
+  day_before       boolean not null default true,
+  lineup_posted    boolean not null default true,
+  kickoff          boolean not null default true,
+  goals            boolean not null default true,
+  halftime         boolean not null default false,
+  full_time        boolean not null default true,
+  substitutions    boolean not null default false,
+  fan_zone_rounds  boolean not null default true,
+  player_spotlight boolean not null default true,
+  updated_at timestamptz default now()
+);
+
+alter table public.device_tokens            enable row level security;
+alter table public.notification_preferences enable row level security;
+
+create policy "Users can read own device tokens"
+  on public.device_tokens for select using (auth.uid() = user_id);
+create policy "Users can insert own device tokens"
+  on public.device_tokens for insert with check (auth.uid() = user_id);
+create policy "Users can update own device tokens"
+  on public.device_tokens for update using (auth.uid() = user_id);
+create policy "Users can delete own device tokens"
+  on public.device_tokens for delete using (auth.uid() = user_id);
+
+create policy "Users can read own notification prefs"
+  on public.notification_preferences for select using (auth.uid() = user_id);
+create policy "Users can insert own notification prefs"
+  on public.notification_preferences for insert with check (auth.uid() = user_id);
+create policy "Users can update own notification prefs"
+  on public.notification_preferences for update using (auth.uid() = user_id);
+
+-- Grants (the 42501 gotcha again — RLS does not imply privilege).
+grant select, insert, update, delete on public.device_tokens            to authenticated;
+grant select, insert, update          on public.notification_preferences to authenticated;

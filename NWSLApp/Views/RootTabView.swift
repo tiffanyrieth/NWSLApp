@@ -74,6 +74,14 @@ struct RootTabView: View {
     // it after the session restores (see FollowSyncCoordinator).
     @State private var syncCoordinator: FollowSyncCoordinator?
 
+    // Owns local (Tier 1) notification scheduling — day-before match reminders +
+    // the weekly Player Spotlight. Like syncCoordinator, held alive here and not
+    // injected (no view reads it); it reschedules when the season, the club
+    // directory, the followed set, or the notification toggles change. Permission
+    // prompting lives in ProfileView, tied to the toggle gesture (see
+    // NotificationScheduler).
+    @State private var notificationScheduler: NotificationScheduler?
+
     var body: some View {
         @Bindable var router = router
         TabView(selection: $router.selectedTab) {
@@ -116,6 +124,16 @@ struct RootTabView: View {
                 let coordinator = FollowSyncCoordinator(following: following, auth: auth)
                 coordinator.start()
                 syncCoordinator = coordinator
+            }
+            if notificationScheduler == nil {
+                let scheduler = NotificationScheduler(
+                    matches: matches,
+                    following: following,
+                    clubs: clubs,
+                    preferences: notifications
+                )
+                scheduler.start()
+                notificationScheduler = scheduler
             }
         }
     }

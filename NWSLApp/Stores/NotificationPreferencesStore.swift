@@ -17,17 +17,24 @@ import Foundation
 @Observable
 final class NotificationPreferencesStore {
     // MARK: Match Day
-    var dayBefore: Bool      { didSet { persist(dayBefore, "dayBefore") } }
-    var lineupPosted: Bool   { didSet { persist(lineupPosted, "lineupPosted") } }
-    var kickoff: Bool        { didSet { persist(kickoff, "kickoff") } }
-    var goals: Bool          { didSet { persist(goals, "goals") } }
-    var halftime: Bool       { didSet { persist(halftime, "halftime") } }
-    var fullTime: Bool       { didSet { persist(fullTime, "fullTime") } }
-    var substitutions: Bool  { didSet { persist(substitutions, "substitutions") } }
+    var dayBefore: Bool      { didSet { persist(dayBefore, "dayBefore"); onPreferenceChanged?() } }
+    var lineupPosted: Bool   { didSet { persist(lineupPosted, "lineupPosted"); onPreferenceChanged?() } }
+    var kickoff: Bool        { didSet { persist(kickoff, "kickoff"); onPreferenceChanged?() } }
+    var goals: Bool          { didSet { persist(goals, "goals"); onPreferenceChanged?() } }
+    var halftime: Bool       { didSet { persist(halftime, "halftime"); onPreferenceChanged?() } }
+    var fullTime: Bool       { didSet { persist(fullTime, "fullTime"); onPreferenceChanged?() } }
+    var substitutions: Bool  { didSet { persist(substitutions, "substitutions"); onPreferenceChanged?() } }
 
     // MARK: Activity
-    var fanZoneRounds: Bool  { didSet { persist(fanZoneRounds, "fanZoneRounds") } }
-    var playerSpotlight: Bool { didSet { persist(playerSpotlight, "playerSpotlight") } }
+    var fanZoneRounds: Bool  { didSet { persist(fanZoneRounds, "fanZoneRounds"); onPreferenceChanged?() } }
+    var playerSpotlight: Bool { didSet { persist(playerSpotlight, "playerSpotlight"); onPreferenceChanged?() } }
+
+    /// Fired after any toggle changes, so the NotificationScheduler can rebuild
+    /// local notifications. Optional and nil by default — when nil (no scheduler
+    /// wired, tests, previews) the store behaves exactly as before. Mirrors
+    /// FollowingStore.onFollowsChanged. Property observers don't run during `init`,
+    /// so loading persisted defaults never fires this.
+    var onPreferenceChanged: (() -> Void)?
 
     private let defaults: UserDefaults
     private static let prefix = "notif."

@@ -341,7 +341,8 @@ NWSLApp/
 │   ├── CompetitionsView.swift         — follow international competitions (reached from TeamsView; reuses onboarding rows)
 │   ├── TeamDetailView.swift           — club page: header + social row + Squad·Stats tabs
 │   ├── MatchDetailView.swift          — state-aware match (navy header + cyan/orange tab underline): past=Summary/Lineups/Stats, live=+30s poll & LIVE pill, future=info grid + How-to-Watch + season comparison + recent form
-│   ├── FormationPitchView.swift       — starting XI on a pitch (placed by formation string); list fallback; TEMP jersey monogram (headshot seam)
+│   ├── CombinedPitchView.swift        — BOTH teams' XIs on ONE pitch (home top / away bottom), reuses FormationPitchView placement; the Lineups default
+│   ├── FormationPitchView.swift       — single-team XI on a pitch (placed by formation string); the per-team list fallback when a side can't be placed
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
 │   ├── PlayerSpotlightView.swift      — narrative spotlight tap-through (real YT video hero)
 │   ├── StandingsView.swift            — 16-team table (PTS·GP·W·L·D); followed blue
@@ -355,6 +356,7 @@ NWSLApp/
 │   ├── GameCard.swift                 — Fan Zone game tile (170×138, game-accent border + emoji + status + badge)
 │   ├── HowToWatchCard.swift           — future-match expandable broadcast guide (service tile + "Find it" → device rows) over BroadcastInfo
 │   ├── MDInfoCard.swift               — future-match info tile (emoji + tracked label + value) for Venue/Broadcast/Competition
+│   ├── PitchDot.swift                 — one player marker (team-colored disc + jersey + last name); shared by Formation/Combined pitch
 │   ├── ComingUpRow.swift              — Module-4 row: crest-vs-crest + team-colored abbrs (ClubStore) + time/result
 │   ├── EventTimelineRow.swift         — one timeline entry: minute + icon (goal/card/sub) + player(s) + assist + team abbr
 │   ├── FeedCard.swift                 — one Feed item (post or article); opens source
@@ -369,7 +371,8 @@ NWSLApp/
 │   └── TeamLogo.swift                 — team crest via the shared ImageCache (cached; placeholder fallback)
 ├── Extensions/
 │   ├── Color+Hex.swift                — Color(hex:) init (for DSColor); teamAccent/teamFillOnDark (lifts dark brands); resolveMatchColors → two distinct, dark-legible team colors
-│   ├── Club+BrandColor.swift          — Club → brandHex/accentColor (TeamBrandColors override + legible-on-dark); team-color accents for Home/ComingUp
+│   ├── Club+BrandColor.swift          — Club → brandHex/accentColor (design palette → id-override → ESPN); team-color accents for Home/ComingUp
+│   ├── DesignTeamColors.swift         — the handoff's curated 16-team palette by abbreviation (authoritative; fixes ESPN near-black primaries → gray)
 │   └── TeamBrandColors.swift          — per-team-id brand-color overrides for clubs ESPN gets wrong (e.g. Angel City Sol Rosa coral); consulted before ESPN's hexes
 └── Assets.xcassets/                   — app icons, accent color
 ```
@@ -404,8 +407,11 @@ powers "Full schedule →". **Phase 3 (Match Detail)**: navy header panel + stat
 lines (FT green / LIVE+orange clock / KICKOFF cyan), 📍/📺/👥 emoji info row, cyan
 (past) / orange (live) tab underline; future-state info grid (Venue/Broadcast/
 Competition) + `HowToWatchCard` (the BROADCAST_INFO device guide) + token-ized
-season comparison & `FormBadge` form; pitch on token colors. Remaining (each its
-own PR): core tabs, the real **Profile** screen, Team Detail + Spotlight.
+season comparison & `FormBadge` form. Lineups is now a single **combined pitch**
+(both teams, home top / away bottom — `CombinedPitchView`). Team colors now come
+from the design palette (`DesignTeamColors`, by abbreviation) so ESPN near-black
+primaries (Spirit, Thorns) no longer read as gray. Remaining (each its own PR):
+core tabs, the real **Profile** screen, Team Detail + Spotlight.
 
 **Accounts & follow sync** (`…/2026-06-09_supabase-accounts-setup.md`) — Sign in
 with Apple → a **Supabase** user (first per-user backend). `AuthStore`

@@ -220,13 +220,59 @@ struct MatchDetailView: View {
     private func lineupsTab(_ summary: MatchSummary) -> some View {
         if summary.homeRoster == nil && summary.awayRoster == nil {
             emptyState("Lineups aren't available for this match.")
+        } else if let homeR = summary.homeRoster, let awayR = summary.awayRoster,
+                  CombinedPitchView.supports(home: side(homeR, matchColors.home),
+                                             away: side(awayR, matchColors.away)) {
+            // Both XIs on ONE pitch (home top / away bottom), then each bench.
+            VStack(spacing: 16) {
+                combinedPitchCard(homeR, awayR)
+                if !homeR.substitutes.isEmpty { substitutesCard(homeR) }
+                if !awayR.substitutes.isEmpty { substitutesCard(awayR) }
+            }
+            .padding()
         } else {
+            // Fallback: per-team blocks (a single pitch where placeable, else a list).
             VStack(spacing: 24) {
                 if let home = summary.homeRoster { rosterBlock(home) }
                 if let away = summary.awayRoster { rosterBlock(away) }
             }
             .padding()
         }
+    }
+
+    private func side(_ roster: MatchRoster, _ accent: ResolvedTeamColor) -> CombinedPitchView.Side {
+        CombinedPitchView.Side(
+            abbr: roster.team?.abbreviation ?? "—",
+            formation: roster.formation,
+            players: roster.starters,
+            accent: accent
+        )
+    }
+
+    private func combinedPitchCard(_ home: MatchRoster, _ away: MatchRoster) -> some View {
+        CombinedPitchView(home: side(home, matchColors.home), away: side(away, matchColors.away))
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(Color.dsMdCard)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private func substitutesCard(_ roster: MatchRoster) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("\(roster.team?.abbreviation ?? "—") SUBSTITUTES")
+                .font(.caption.weight(.semibold))
+                .tracking(0.5)
+                .foregroundStyle(.secondary)
+            FlowLayout(spacing: 6) {
+                ForEach(Array(roster.substitutes.enumerated()), id: \.offset) { _, player in
+                    substituteChip(player)
+                }
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsMdCard)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func rosterBlock(_ roster: MatchRoster) -> some View {
@@ -746,11 +792,14 @@ struct MatchDetailView: View {
     private var homeTeamColorID: String? { viewModel.summary?.homeRoster?.team?.id ?? viewModel.summary?.homeBoxscore?.team?.id }
     private var awayTeamColorID: String? { viewModel.summary?.awayRoster?.team?.id ?? viewModel.summary?.awayBoxscore?.team?.id }
 
-    /// Team color hexes from the loaded summary (nil until it arrives / pre-match),
-    /// with a brand-color override applied first for clubs ESPN gets wrong (see
-    /// TeamBrandColors — e.g. Angel City's Sol Rosa coral).
-    private var homeHex: String? { TeamBrandColors.primary(for: homeTeamColorID) ?? viewModel.summary?.homeRoster?.team?.color ?? viewModel.summary?.homeBoxscore?.team?.color }
-    private var awayHex: String? { TeamBrandColors.primary(for: awayTeamColorID) ?? viewModel.summary?.awayRoster?.team?.color ?? viewModel.summary?.awayBoxscore?.team?.color }
+    private var homeColorAbbr: String? { viewModel.summary?.homeRoster?.team?.abbreviation ?? viewModel.summary?.homeBoxscore?.team?.abbreviation }
+    private var awayColorAbbr: String? { viewModel.summary?.awayRoster?.team?.abbreviation ?? viewModel.summary?.awayBoxscore?.team?.abbreviation }
+
+    /// Team color hexes: the design palette (by abbreviation) wins, then a
+    /// TeamBrandColors id-override, then ESPN's summary color. Keeps a club the
+    /// same color here as in Home/Coming Up (e.g. the Spirit's red, not gray).
+    private var homeHex: String? { DesignTeamColors.hex(for: homeColorAbbr) ?? TeamBrandColors.primary(for: homeTeamColorID) ?? viewModel.summary?.homeRoster?.team?.color ?? viewModel.summary?.homeBoxscore?.team?.color }
+    private var awayHex: String? { DesignTeamColors.hex(for: awayColorAbbr) ?? TeamBrandColors.primary(for: awayTeamColorID) ?? viewModel.summary?.awayRoster?.team?.color ?? viewModel.summary?.awayBoxscore?.team?.color }
     private var homeAltHex: String? { TeamBrandColors.alternate(for: homeTeamColorID) ?? viewModel.summary?.homeRoster?.team?.alternateColor ?? viewModel.summary?.homeBoxscore?.team?.alternateColor }
     private var awayAltHex: String? { TeamBrandColors.alternate(for: awayTeamColorID) ?? viewModel.summary?.awayRoster?.team?.alternateColor ?? viewModel.summary?.awayBoxscore?.team?.alternateColor }
 

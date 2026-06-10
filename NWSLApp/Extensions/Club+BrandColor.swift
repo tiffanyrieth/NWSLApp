@@ -12,8 +12,13 @@
 import SwiftUI
 
 extension Club {
-    /// The club's primary brand hex with the TeamBrandColors override applied.
-    var brandHex: String? { TeamBrandColors.primary(for: id) ?? color }
+    /// The club's primary brand hex: the design palette (by abbreviation) wins,
+    /// then the TeamBrandColors id-override, then ESPN's raw color. The design
+    /// palette is authoritative so near-black ESPN primaries (Spirit, Thorns)
+    /// don't lift to gray.
+    var brandHex: String? {
+        DesignTeamColors.hex(for: abbreviation) ?? TeamBrandColors.primary(for: id) ?? color
+    }
     /// The club's alternate brand hex with the override applied.
     var brandAltHex: String? { TeamBrandColors.alternate(for: id) ?? alternateColor }
 

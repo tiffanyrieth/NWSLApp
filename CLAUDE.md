@@ -350,7 +350,7 @@ NWSLApp/
 ├── Views/                             — one screen per file
 │   ├── RootTabView.swift              — app root; 5-tab TabView (selection ← AppRouter); injects stores; restores session + FollowSyncCoordinator + NotificationSyncCoordinator; registers for remote notifications if authorized; routes a tapped live-push (PushBridge.tappedEventID → AppRouter.openMatch)
 │   ├── HomeView.swift                 — your-teams hub: 4 modules + profile-avatar button (→ ProfileView sheet); spotlight carousel; onboarding-in-place
-│   ├── ProfileView.swift              — account & settings sheet (from Home avatar): identity / Fan Zone stats / 9 notif toggles / My Teams / Account; offline-first (signed-out CTA); Tier-2 toggles `requiresSignIn` → present NotificationAuthPromptView when signed out; permission grant → registerForRemoteNotifications
+│   ├── ProfileView.swift              — account & settings sheet (from Home avatar): identity / Fan Zone stats / notif toggles (7 shown: day-before + kickoff/goals/HT/FT + spotlight + Fan Zone; lineup/subs hidden until Stage D) / My Teams / Account; offline-first (signed-out CTA); Tier-2 toggles `requiresSignIn` → present NotificationAuthPromptView when signed out; permission grant → registerForRemoteNotifications
 │   ├── DailyTriviaView.swift          — Daily Trivia game (indigo); 5/day
 │   ├── BracketBattleView.swift        — Bracket Battle game (teal); vote + lock rounds
 │   ├── PredictXIView.swift            — Predict the XI game (pink); per-match questions
@@ -485,8 +485,11 @@ captures the APNs token + handles foreground-present/tap, surfacing both through
 (held alive by `RootTabView`, the Tier-2 twin of `FollowSyncCoordinator`) mirrors the
 device token (`DeviceTokenService`) + the 9-flag prefs `snapshot`
 (`NotificationPrefsSyncService`) to Supabase once signed in — Tier 2 **requires
-sign-in**, so the 6 live-event toggles now drop the "coming soon" note and, flipped on
-while signed out, present `NotificationAuthPromptView` (honest "why", skippable). The
+sign-in**, so the live-event toggles (kickoff/goals/halftime/full-time) drop the
+"coming soon" note and, flipped on while signed out, present `NotificationAuthPromptView`
+(honest "why", skippable). **Lineup-posted + Substitutions are hidden** from the menu
+(their store fields/schema columns kept) — they need the `/summary` feed (Stage D /
+~2.0) and the project doesn't ship inert toggles. The
 `aps-environment` entitlement is added (development; Xcode → production on archive).
 A tapped push routes via `AppRouter.openMatch` (TEMP seam: lands on the Schedule tab —
 the stacks aren't path-bound yet). **Schema:** `device_tokens` +

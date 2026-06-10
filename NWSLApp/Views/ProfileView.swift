@@ -12,12 +12,13 @@
 //
 //  Notification toggles span both tiers. Tier 1 (local) — day-before reminder +
 //  Player Spotlight — delivers signed-out via NotificationScheduler. Tier 2
-//  (server push) — lineup / kickoff / goals / halftime / full-time / subs — is
-//  delivered by the match-watcher Worker and requires sign-in (the device token +
-//  prefs must live server-side, keyed to a Supabase user). Flipping a Tier-2
-//  toggle on while signed out persists the intent locally and presents
-//  NotificationAuthPromptView (honest "why", skippable). Fan Zone rounds stay a
-//  deferred placeholder. See NotificationSyncCoordinator + CLAUDE.md What's-Next #12.
+//  (server push) — kickoff / goals / halftime / full-time — is delivered by the
+//  match-watcher Worker and requires sign-in (the device token + prefs must live
+//  server-side, keyed to a Supabase user). Flipping a Tier-2 toggle on while signed
+//  out persists the intent locally and presents NotificationAuthPromptView (honest
+//  "why", skippable). Lineup-posted + Substitutions are not shown — they need the
+//  /summary feed (Stage D / ~2.0); their store fields are kept. Fan Zone rounds stay
+//  a deferred placeholder. See NotificationSyncCoordinator + CLAUDE.md What's-Next #12.
 //
 
 import AuthenticationServices
@@ -199,13 +200,17 @@ struct ProfileView: View {
     private var matchDaySection: some View {
         @Bindable var notif = notifications
         // Day-before is the local (Tier 1) match-day alert that delivers signed-out.
-        // The live events (lineup/kickoff/goals/halftime/full-time/subs) are Tier 2
-        // server push: real, but server-delivered, so they require sign-in — flipping
-        // one on while signed out persists the intent and nudges sign-in.
+        // Kickoff/goals/halftime/full-time are Tier 2 server push: real, but
+        // server-delivered, so they require sign-in — flipping one on while signed
+        // out persists the intent and nudges sign-in.
+        //
+        // "Lineup posted" + "Substitutions" are intentionally NOT shown: the
+        // match-watcher detects them from the per-match /summary feed, which is a
+        // future stage (Stage D / ~2.0). The store fields + schema columns are kept
+        // so re-adding the rows is trivial when detection lands — we just don't ship
+        // inert toggles (see the project's no-forgotten-placeholders UI rule).
         return settingsGroup("Match Day") {
             toggleRow("Day-before reminder", "24 hours before your teams play", $notif.dayBefore)
-            rowDivider
-            toggleRow("Lineup posted", "When the starting XI is announced", $notif.lineupPosted, requiresSignIn: true)
             rowDivider
             toggleRow("Kickoff", "When the match starts", $notif.kickoff, requiresSignIn: true)
             rowDivider
@@ -214,8 +219,6 @@ struct ProfileView: View {
             toggleRow("Halftime", "Halftime score update", $notif.halftime, requiresSignIn: true)
             rowDivider
             toggleRow("Full time", "Final score when the match ends", $notif.fullTime, requiresSignIn: true)
-            rowDivider
-            toggleRow("Substitutions", "When subs are made during the match", $notif.substitutions, requiresSignIn: true)
         }
     }
 
@@ -283,13 +286,15 @@ struct ProfileView: View {
 
     /// Shown when the user has a deliverable alert on but the system switch is off.
     /// Taps out to the app's Settings page. A promise-not-broken nudge, not a nag.
-    /// Any alert that actually delivers (everything except the deferred Fan Zone
-    /// rounds) — Tier 1 local + the Tier 2 server-push events. If one is on but the
-    /// system switch is off, the alert can't arrive, so the banner nudges Settings.
+    /// Any alert that actually delivers — Tier 1 local (day-before, spotlight) + the
+    /// shipped Tier 2 server-push events (kickoff/goals/halftime/full-time). Excludes
+    /// the deferred ones (Fan Zone, and lineup/subs which aren't shown yet). If one is
+    /// on but the system switch is off, the alert can't arrive, so the banner nudges
+    /// Settings.
     private var hasDeliverableAlertOn: Bool {
         let p = notifications
-        return p.dayBefore || p.playerSpotlight || p.lineupPosted || p.kickoff
-            || p.goals || p.halftime || p.fullTime || p.substitutions
+        return p.dayBefore || p.playerSpotlight || p.kickoff
+            || p.goals || p.halftime || p.fullTime
     }
 
     @ViewBuilder

@@ -41,8 +41,7 @@ struct DailyTriviaView: View {
                 loadedContent
             }
         }
-        .navigationTitle("Daily Trivia")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationContextLabel("Daily Trivia")
         .background(Color(.systemGroupedBackground))
         .task {
             if case .idle = viewModel.state { await viewModel.loadDaily() }

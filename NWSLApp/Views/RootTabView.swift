@@ -21,13 +21,9 @@
 import SwiftUI
 
 struct RootTabView: View {
-    /// Identifies each tab so we can set (and later restore) the selected one.
-    private enum Tab: Hashable {
-        case home, schedule, standings, teams, feed
-    }
-
-    // Land on Home — the your-teams-first hub (now built).
-    @State private var selection: Tab = .home
+    // Tab selection lives in a shared AppRouter (injected below) so screens can
+    // jump across tabs — e.g. Home's "Full schedule →". Lands on Home.
+    @State private var router = AppRouter()
 
     // The personalization lens, created once at the root and shared with every
     // tab via the environment so Teams (now) and Home/Feed (later) read the
@@ -65,9 +61,13 @@ struct RootTabView: View {
     @State private var feedPreferences = FeedPreferencesStore()
 
     // The account layer (Sign in with Apple → Supabase user), created once and
-    // shared so the post-onboarding sign-in prompt (and a future Settings screen)
-    // read the same signed-in state (see AuthStore).
+    // shared so the post-onboarding sign-in prompt and the Profile screen read the
+    // same signed-in state (see AuthStore).
     @State private var auth = AuthStore()
+
+    // Notification preferences (the Profile screen's 9 toggles), shared so the
+    // Profile reads/writes the same persisted intent (see NotificationPreferencesStore).
+    @State private var notifications = NotificationPreferencesStore()
 
     // Bridges local follows ⟷ Supabase once signed in. Not injected into the
     // environment — no view needs it; RootTabView just holds it alive and starts
@@ -75,27 +75,29 @@ struct RootTabView: View {
     @State private var syncCoordinator: FollowSyncCoordinator?
 
     var body: some View {
-        TabView(selection: $selection) {
+        @Bindable var router = router
+        TabView(selection: $router.selectedTab) {
             HomeView()
                 .tabItem { Label("Home", systemImage: "house") }
-                .tag(Tab.home)
+                .tag(AppTab.home)
 
             ScheduleView()
                 .tabItem { Label("Schedule", systemImage: "calendar") }
-                .tag(Tab.schedule)
+                .tag(AppTab.schedule)
 
             StandingsView()
                 .tabItem { Label("Standings", systemImage: "list.number") }
-                .tag(Tab.standings)
+                .tag(AppTab.standings)
 
             TeamsView()
                 .tabItem { Label("Teams", systemImage: "person.3.fill") }
-                .tag(Tab.teams)
+                .tag(AppTab.teams)
 
             FeedView()
                 .tabItem { Label("Feed", systemImage: "dot.radiowaves.left.and.right") }
-                .tag(Tab.feed)
+                .tag(AppTab.feed)
         }
+        .environment(router)
         .environment(following)
         .environment(matches)
         .environment(clubs)
@@ -104,6 +106,7 @@ struct RootTabView: View {
         .environment(predict)
         .environment(feedPreferences)
         .environment(auth)
+        .environment(notifications)
         .task {
             // Restore any saved Supabase session, then start follow sync. Guard so
             // re-running .task (it can fire again on scene changes) doesn't build a

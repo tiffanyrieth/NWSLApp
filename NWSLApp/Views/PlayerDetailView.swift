@@ -64,7 +64,7 @@ struct PlayerDetailView: View {
                             if index < bioRows.count - 1 { Divider() }
                         }
                     }
-                    .background(Color(.secondarySystemGroupedBackground))
+                    .background(Color.dsBgCard)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
 
@@ -75,9 +75,8 @@ struct PlayerDetailView: View {
             .padding()
         }
         .frame(maxWidth: .infinity)
-        .background(Color(.systemGroupedBackground))
-        .navigationTitle(athlete.shortName ?? athlete.name)
-        .navigationBarTitleDisplayMode(.inline)
+        .background(Color.dsBgGrouped)
+        .navigationContextLabel("Players")
     }
 
     // Jersey number when present, otherwise initials — mirrors the squad card.
@@ -113,7 +112,7 @@ struct PlayerDetailView: View {
                     if index < rows.count - 1 { Divider() }
                 }
             }
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .frame(maxWidth: .infinity, alignment: .leading)

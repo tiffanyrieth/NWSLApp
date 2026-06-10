@@ -26,6 +26,13 @@ struct Club: Identifiable, Hashable {
     /// `displayName` ("Kansas City Current") would be too long. Defaulted so
     /// existing call sites that don't set it fall back to `displayName`.
     var shortName: String? = nil
+    /// ESPN's primary/alternate brand hex (6 digits, no "#"). Drives the team-
+    /// color ring crests and accents across the app's ClubStore readers (match
+    /// cards, standings, teams, coming-up). Defaulted so older call sites that
+    /// build a Club by hand still compile. Resolve via `brandHex`/`ringColor`
+    /// below, which apply the TeamBrandColors override first.
+    var color: String? = nil
+    var alternateColor: String? = nil
 }
 
 // MARK: - ESPN teams endpoint decoding
@@ -57,7 +64,9 @@ struct TeamsResponse: Decodable {
                     displayName: team.displayName ?? team.shortDisplayName ?? team.abbreviation ?? "—",
                     abbreviation: team.abbreviation ?? "",
                     logoURL: team.logos?.first?.href,
-                    shortName: team.shortDisplayName
+                    shortName: team.shortDisplayName,
+                    color: team.color,
+                    alternateColor: team.alternateColor
                 )
             }
             .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
@@ -74,6 +83,9 @@ struct TeamsResponse: Decodable {
         let shortDisplayName: String?
         let isActive: Bool?
         let logos: [Logo]?
+        // ESPN's brand colors, present on the /teams payload (6-hex, no "#").
+        let color: String?
+        let alternateColor: String?
     }
 
     struct Logo: Decodable { let href: String? }

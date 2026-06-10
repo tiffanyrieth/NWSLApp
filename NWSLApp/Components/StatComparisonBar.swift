@@ -22,8 +22,8 @@ struct StatComparisonBar: View {
     /// What the user reads — pre-formatted by the caller ("61", "0.9" → "90%", …).
     let homeDisplay: String
     let awayDisplay: String
-    var homeColor: Color = .accentColor
-    var awayColor: Color = .secondary
+    var homeColor: Color = .dsAccent
+    var awayColor: Color = .dsFgSecondary
 
     /// Home's share of the track. Equal split when both are zero (no data) so the
     /// bar never collapses to one side or divides by zero.
@@ -34,34 +34,35 @@ struct StatComparisonBar: View {
     }
 
     var body: some View {
-        VStack(spacing: 6) {
-            HStack {
+        VStack(spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
                 Text(homeDisplay)
-                    .font(.subheadline.weight(.bold))
+                    .font(.system(size: 15, weight: .bold))
                     .monospacedDigit()
                     .foregroundStyle(homeColor)
-                Spacer()
-                Text(label.uppercased())
-                    .font(.caption)
-                    .tracking(0.5)
-                    .foregroundStyle(.secondary)
-                Spacer()
+                    .frame(width: 52, alignment: .leading)
+                Text(label)
+                    .trackedCaps(size: 10, tracking: 1, weight: .semibold)
+                    .frame(maxWidth: .infinity)
                 Text(awayDisplay)
-                    .font(.subheadline.weight(.bold))
+                    .font(.system(size: 15, weight: .bold))
                     .monospacedDigit()
                     .foregroundStyle(awayColor)
+                    .frame(width: 52, alignment: .trailing)
             }
 
+            // Split track: home fill | away fill (away slightly dimmed, per spec).
             GeometryReader { geo in
-                HStack(spacing: 2) {
-                    Capsule()
+                let homeWidth = max(0, geo.size.width * homeFraction - 2)
+                HStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 2.5, style: .continuous)
                         .fill(homeColor)
-                        .frame(width: max(0, geo.size.width * homeFraction - 1))
-                    Capsule()
-                        .fill(awayColor)
+                        .frame(width: homeWidth)
+                    RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                        .fill(awayColor.opacity(0.85))
                 }
             }
-            .frame(height: 4)
+            .frame(height: 5)
         }
     }
 }

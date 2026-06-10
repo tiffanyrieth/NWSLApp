@@ -529,9 +529,9 @@ struct MatchDetailView: View {
             stateLine
 
             HStack(alignment: .top, spacing: 8) {
-                teamColumn(event.homeCompetitor, border: crestBorder(matchColors.home))
+                teamColumn(event.homeCompetitor)
                 centerColumn
-                teamColumn(event.awayCompetitor, border: crestBorder(matchColors.away))
+                teamColumn(event.awayCompetitor)
             }
 
             // Past/live show venue · broadcast · attendance inline here (future
@@ -628,13 +628,12 @@ struct MatchDetailView: View {
         return parts.isEmpty ? nil : parts.joined(separator: " — ")
     }
 
-    private func teamColumn(_ competitor: Competitor?, border: Color) -> some View {
+    private func teamColumn(_ competitor: Competitor?) -> some View {
         VStack(spacing: 12) {
+            // Real crest shown bare on the dark panel — no ring. A team crest is a
+            // self-contained shape, so it never gets a ring bubble (unlike a player
+            // monogram); the header's team-color wash carries the team identity.
             TeamLogo(urlString: competitor?.team?.logo, size: 64)
-                .padding(4)
-                .overlay(
-                    Circle().stroke(border, lineWidth: 2)
-                )
             Text(name(for: competitor))
                 .font(.headline)
                 .multilineTextAlignment(.center)
@@ -781,9 +780,8 @@ struct MatchDetailView: View {
         )
     }
 
-    /// Crest border / header wash respect "no tint until the summary's colors
-    /// arrive" (the resolver always returns a fallback, so gate on hasTeamColors).
-    private func crestBorder(_ resolved: ResolvedTeamColor) -> Color { hasTeamColors ? resolved.fill : Color(.separator) }
+    /// Header wash respects "no tint until the summary's colors arrive" (the
+    /// resolver always returns a fallback, so gate on hasTeamColors).
     private func wash(_ resolved: ResolvedTeamColor) -> Color { hasTeamColors ? resolved.fill.opacity(0.30) : .clear }
 
     private func name(for competitor: Competitor?) -> String {

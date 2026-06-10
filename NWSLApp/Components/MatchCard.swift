@@ -2,15 +2,17 @@
 //  MatchCard.swift
 //  NWSLApp
 //
-//  One game as a self-contained card in ScheduleView (MLS-app style). Left:
-//  stacked home/away rows, each a team crest + abbreviation, with scores once
-//  the match is in progress or final. Right: status badge — kickoff time for
-//  upcoming matches, "LIVE" + clock for in-progress, or the short status
-//  detail ("FT") for finished matches.
+//  One game as a self-contained card in ScheduleView (MLS-app style). V2 design
+//  refresh (design handoff `UIComponents.jsx` → `UIMatchCard`): team-color RING
+//  CRESTS echo the MatchDetail header at card scale, the status column is set off
+//  by a full-height hairline, and the live clock burns orange.
+//
+//  Left: stacked home/away rows, each the club crest (shown bare via TeamLogo —
+//  a team crest is a self-contained shape, no ring) + abbreviation, plus scores
+//  once the match is in progress or final. Right (hairline-separated): kickoff
+//  time for upcoming, "LIVE" + clock for in-progress, or "FT" for finished.
 //
 //  Honors design rule #1: lives entirely inside its card, no overlays.
-//  Clarity over density: a solid rounded card surface with breathing room so
-//  ~4–5 games read cleanly per screen.
 //
 
 import SwiftUI
@@ -36,21 +38,27 @@ struct MatchCard: View {
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: DS.space6) {
             if let badge { badgePill(badge) }
-            HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: DS.space6) {
+                VStack(alignment: .leading, spacing: DS.space7) {
                     teamRow(event.homeCompetitor)
                     teamRow(event.awayCompetitor)
                 }
-                Spacer(minLength: 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                // Full-height hairline divider, then the fixed status column.
+                Rectangle()
+                    .fill(Color.dsSeparator)
+                    .frame(width: DS.hairline)
                 statusView
+                    .frame(width: 52)
+                    .frame(maxHeight: .infinity)
             }
+            .fixedSize(horizontal: false, vertical: true)
             if hasInfoLine { infoLine }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 20)
-        .background(Color(.secondarySystemGroupedBackground))
+        .padding(DS.cardPadding)
+        .background(Color.dsBgCard)
         // 3px competition-color left accent, clipped to the rounded corners.
         // Dormant until a badge is supplied (see CompetitionBadge).
         .overlay(alignment: .leading) {
@@ -58,75 +66,31 @@ struct MatchCard: View {
                 badge.color.frame(width: 3)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
     }
 
     private func badgePill(_ badge: CompetitionBadge) -> some View {
         Text(badge.label)
             .font(.caption2.weight(.semibold))
-            .padding(.horizontal, 8)
+            .padding(.horizontal, DS.space4)
             .padding(.vertical, 3)
             .background(badge.color.opacity(0.18), in: Capsule())
             .foregroundStyle(badge.color)
     }
 
-    // Venue (always, when known) + broadcast (upcoming/live only — a finished
-    // game's channel is moot). Mirrors how the NWSL/MLS apps surface per-game
-    // stadium + TV info.
-    private var hasInfoLine: Bool {
-        event.venueName != nil || (event.statusState != "post" && event.broadcastName != nil)
-    }
-
-    private var infoLine: some View {
-        HStack(spacing: 14) {
-            if let venue = event.venueName {
-                Label(venue, systemImage: "mappin.and.ellipse")
-                    .lineLimit(1)
-            }
-            if event.statusState != "post", let channel = event.broadcastName {
-                broadcastLabel(channel)
-            }
-            Spacer(minLength: 0)
-        }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .labelStyle(.titleAndIcon)
-    }
-
-    // The 📺 channel: a tappable "where to watch" link when we recognize the
-    // broadcaster (opens its streaming page), otherwise a plain label. The whole
-    // card is a NavigationLink, so the button takes hit-test priority for its own
-    // area while taps elsewhere on the card still navigate to the match.
-    @ViewBuilder
-    private func broadcastLabel(_ channel: String) -> some View {
-        if let url = BroadcastLink.url(for: channel) {
-            Button {
-                openURL(url)
-            } label: {
-                Label(channel, systemImage: "tv")
-                    .lineLimit(1)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.tint)
-        } else {
-            Label(channel, systemImage: "tv")
-                .lineLimit(1)
-        }
-    }
-
     @ViewBuilder
     private func teamRow(_ competitor: Competitor?) -> some View {
-        HStack(spacing: 12) {
+        let abbr = competitor?.team?.abbreviation ?? competitor?.team?.shortDisplayName ?? "—"
+        HStack(spacing: DS.space5) {
             TeamLogo(urlString: competitor?.team?.logo, size: 34)
-            // Fixed minWidth keeps home/away abbreviations aligned regardless
-            // of logo load state — no horizontal shift as crests resolve.
-            Text(competitor?.team?.abbreviation ?? competitor?.team?.shortDisplayName ?? "—")
-                .font(.title3.weight(.medium))
-                .frame(minWidth: 52, alignment: .leading)
+            // Fixed minWidth keeps home/away abbreviations aligned regardless of
+            // crest load state — no horizontal shift as logos resolve.
+            Text(abbr)
+                .font(.system(size: 20, weight: .medium))
+                .frame(minWidth: 44, alignment: .leading)
             if showScores, let score = competitor?.score {
-                // Rounded, monospaced digits echo the MatchDetailView header score.
                 Text(score)
-                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .font(.system(size: 17, weight: .bold))
                     .monospacedDigit()
             }
         }
@@ -140,24 +104,67 @@ struct MatchCard: View {
     private var statusView: some View {
         switch event.statusState {
         case "in":
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(spacing: 2) {
                 Text("LIVE")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.red)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(Color.dsLive)
                 if let clock = event.status?.displayClock {
                     Text(clock)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.dsStateClock)   // orange live clock
+                        .monospacedDigit()
                 }
             }
         case "post":
             Text(event.status?.type?.shortDetail ?? "FT")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.dsFgSecondary)
         default:
             Text(kickoffTimeText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.dsFgPrimary)
+        }
+    }
+
+    // Venue (always, when known) + broadcast (upcoming/live only — a finished
+    // game's channel is moot). 📍/📺 emoji match the design mockups.
+    private var hasInfoLine: Bool {
+        event.venueName != nil || (event.statusState != "post" && event.broadcastName != nil)
+    }
+
+    private var infoLine: some View {
+        HStack(spacing: DS.space7) {
+            if let venue = event.venueName {
+                Text("📍 \(venue)")
+                    .lineLimit(1)
+                    .foregroundStyle(Color.dsFgSecondary)
+            }
+            if event.statusState != "post", let channel = event.broadcastName {
+                broadcastLabel(channel)
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 12))
+    }
+
+    // The 📺 channel: a tappable "where to watch" link when we recognize the
+    // broadcaster (opens its streaming page), otherwise a plain label. The whole
+    // card is a NavigationLink, so the button takes hit-test priority for its own
+    // area while taps elsewhere on the card still navigate to the match.
+    @ViewBuilder
+    private func broadcastLabel(_ channel: String) -> some View {
+        if let url = BroadcastLink.url(for: channel) {
+            Button {
+                openURL(url)
+            } label: {
+                Text("📺 \(channel)").lineLimit(1)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.dsAccent)
+        } else {
+            Text("📺 \(channel)")
+                .lineLimit(1)
+                .foregroundStyle(Color.dsFgSecondary)
         }
     }
 

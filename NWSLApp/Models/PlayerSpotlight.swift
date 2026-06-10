@@ -77,4 +77,20 @@ struct PlayerSpotlight: Identifiable {
     /// Current-season form ("4 goals, 2 assists") — optional and volatile, so
     /// nil in the seed today; a live stats source fills it (spec §Tap-through).
     let seasonForm: String?
+
+    /// ⚠️ TEMP demo season stats for the Module-2 card's stat strip, derived
+    /// deterministically from the number + position. The model deliberately
+    /// carries no *real* season stats (they rot — see `seasonForm`); this keeps
+    /// the redesigned card's Goals/Assists/Apps strip populated for the demo,
+    /// consistent with the app's existing simulated `StatsProvider`. Swap for a
+    /// real per-player source when one lands (then this computed value retires).
+    var demoSeasonStats: (goals: Int, assists: Int, apps: Int) {
+        let base = abs(jerseyNumber * 7 + playerName.count * 3)
+        let apps = 8 + base % 8                  // 8–15 appearances
+        let p = position.lowercased()
+        if p.contains("forward")      { return (3 + base % 9, 1 + base % 5, apps) }
+        if p.contains("midfield")     { return (1 + base % 5, 3 + base % 7, apps) }
+        if p.contains("defend")       { return (base % 3,     1 + base % 4, apps) }
+        return (0, base % 2, apps)               // goalkeeper
+    }
 }

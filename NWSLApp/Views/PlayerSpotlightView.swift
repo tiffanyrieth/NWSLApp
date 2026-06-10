@@ -2,95 +2,234 @@
 //  PlayerSpotlightView.swift
 //  NWSLApp
 //
-//  The spotlight tap-through (Reference/Design/spotlight-design-spec.md §Tap-
-//  through) — pushed from a Home Module 2 card. Its own narrative experience:
-//  the video up top (opens the source), then an extended profile (nationality /
-//  age / position, career highlights, fun facts, and season form when a live
-//  stats source exists). Deliberately NOT PlayerDetailView — spotlight is "meet
-//  this person," PlayerDetail is "what are their stats." They can be linked once
-//  PlayerDetail has real content.
+//  The spotlight tap-through (design handoff `SpotlightScreen.jsx`), pushed from a
+//  Home Module 2 card — an "Olympics-style" weekly player feature. A hero (ghosted
+//  jersey number, "PLAYER OF THE WEEK", split-name typography, meta), a This-Season
+//  stat grid, a Story card, Fast Facts, and a Watch video card.
 //
-//  Rides the pushing tab's NavigationStack (no own stack), so the nav bar back
-//  button is the explicit back affordance. The video hero loads the real YouTube
-//  thumbnail (spotlight.thumbnailURL, designed-crest-tile fallback), matching the
-//  card. The jersey badge is still TEMP (app accent — Home fetches no club color);
-//  a content backend brings the team color.
+//  Deliberately NOT PlayerDetailView — the spotlight is narrative ("meet this
+//  person"); PlayerDetail is reference ("what are their stats"). Rides the pushing
+//  tab's NavigationStack, so the nav bar back button is the back affordance.
+//
+//  Team color comes from the design palette via the resolved Club (Club.accentColor
+//  for the dark-legible accent; Color.teamAccent(hex: brandHex) for the jersey
+//  badge fill + on-color). The video hero loads the real YouTube frame with a
+//  crest-tile fallback. Stats use ⚠️demoSeasonStats pending a real per-player feed.
 //
 
 import SwiftUI
 
 struct PlayerSpotlightView: View {
     let spotlight: PlayerSpotlight
-    /// Resolved from the followed Club directory (crest + name). Optional so a
+    /// Resolved from the followed Club directory (crest + colors). Optional so a
     /// missing match still renders the written profile.
     let club: Club?
     @Environment(\.openURL) private var openURL
 
+    private var accent: Color { club?.accentColor ?? .dsAccent }
+    private var jersey: (fill: Color, on: Color) { Color.teamAccent(hex: club?.brandHex) }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                if spotlight.videoURL != nil {
-                    videoHero
-                }
-                header
-                Text(spotlight.bioBlurb)
-                    .font(.body)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if !spotlight.careerHighlights.isEmpty {
-                    bulletSection("Career highlights", spotlight.careerHighlights)
-                }
-                if !spotlight.funFacts.isEmpty {
-                    bulletSection("Did you know", spotlight.funFacts)
-                }
-                if let form = spotlight.seasonForm {
-                    bulletSection("This season", [form])
-                }
+                hero
+                thisSeason
+                story
+                fastFacts
+                watch
             }
             .padding(20)
         }
-        .background(Color(.systemGroupedBackground))
-        .navigationTitle(spotlight.playerName)
-        .navigationBarTitleDisplayMode(.inline)
+        .background(Color.dsBgGrouped)
+        .navigationContextLabel("Player Spotlight")
     }
 
-    // MARK: - Video hero (designed tile — opens the source)
+    // MARK: - Hero (ghosted number + eyebrow + split name + meta)
 
-    private var videoHero: some View {
-        Button {
-            if let url = spotlight.videoURL { openURL(url) }
-        } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                ZStack {
-                    heroBackground
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 56))
-                        .foregroundStyle(.white.opacity(0.95))
-                        .shadow(radius: 6)
-                }
-                .frame(height: 200)
-                .frame(maxWidth: .infinity)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    private var hero: some View {
+        ZStack(alignment: .topTrailing) {
+            Text("\(spotlight.jerseyNumber)")
+                .font(.system(size: 120, weight: .heavy))
+                .monospacedDigit()
+                .foregroundStyle(.white.opacity(0.06))
+                .offset(x: 8, y: -18)
+                .allowsHitTesting(false)
 
-                if let title = spotlight.videoTitle {
-                    Text(title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.leading)
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Player of the week")
+                    .trackedCaps(size: 11, tracking: 1.5, color: accent)
+
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle().fill(jersey.fill)
+                        Text("\(spotlight.jerseyNumber)")
+                            .font(.system(size: 20, weight: .heavy))
+                            .monospacedDigit()
+                            .foregroundStyle(jersey.on)
+                    }
+                    .frame(width: 52, height: 52)
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        if !nameParts.first.isEmpty {
+                            Text(nameParts.first)
+                                .font(.system(size: 22, weight: .medium))
+                                .foregroundStyle(Color.dsFgSecondary)
+                        }
+                        Text(nameParts.last)
+                            .font(.system(size: 30, weight: .bold))
+                            .foregroundStyle(Color.dsFgPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                if let source = spotlight.videoSource {
-                    Text("Watch on \(source)")
-                        .font(.caption)
-                        .foregroundStyle(Color.accentColor)
-                }
+
+                metaRow
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var metaRow: some View {
+        HStack(spacing: 6) {
+            Text(spotlight.position)
+            dot
+            Text(spotlight.teamAbbreviation).foregroundStyle(accent)
+            if let age = spotlight.age {
+                dot
+                Text("Age \(age)")
             }
         }
-        .buttonStyle(.plain)
+        .font(.system(size: 13, weight: .medium))
+        .foregroundStyle(Color.dsFgSecondary)
     }
 
-    /// Real video frame when available, else the designed crest tile (also covers
-    /// AsyncImage's loading/failure phases).
+    private var dot: some View {
+        Circle().fill(Color.dsFgQuaternary).frame(width: 3, height: 3)
+    }
+
+    // MARK: - This Season (3-col stat grid)
+
+    private var thisSeason: some View {
+        let s = spotlight.demoSeasonStats
+        return VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("This Season")
+            HStack(spacing: 12) {
+                seasonStat("\(s.goals)", "Goals", highlight: true)
+                seasonStat("\(s.assists)", "Assists")
+                seasonStat("\(s.apps)", "Apps")
+            }
+        }
+    }
+
+    private func seasonStat(_ value: String, _ label: String, highlight: Bool = false) -> some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(.system(size: 28, weight: .bold))
+                .monospacedDigit()
+                .foregroundStyle(highlight ? accent : Color.dsFgPrimary)
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.dsFgSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
+    }
+
+    // MARK: - The Story
+
+    private var story: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("The Story")
+            Text(spotlight.bioBlurb)
+                .font(.system(size: 15))
+                .lineSpacing(4)
+                .foregroundStyle(Color.dsFgPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
+    }
+
+    // MARK: - Fast Facts
+
+    @ViewBuilder
+    private var fastFacts: some View {
+        let facts = spotlight.careerHighlights + spotlight.funFacts
+        if !facts.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("Fast Facts")
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(facts, id: \.self) { fact in
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text("★")
+                                .font(.system(size: 11))
+                                .foregroundStyle(accent)
+                            Text(fact)
+                                .font(.system(size: 14))
+                                .foregroundStyle(Color.dsFgPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
+                        }
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.dsBgCard)
+                .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
+            }
+        }
+    }
+
+    // MARK: - Watch (video card)
+
+    @ViewBuilder
+    private var watch: some View {
+        if spotlight.videoURL != nil {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("Watch")
+                Button {
+                    if let url = spotlight.videoURL { openURL(url) }
+                } label: {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ZStack {
+                            heroBackground
+                            Image(systemName: "play.circle.fill")
+                                .font(.system(size: 52))
+                                .foregroundStyle(.white.opacity(0.95))
+                                .shadow(radius: 6)
+                        }
+                        .frame(height: 190)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            if let title = spotlight.videoTitle {
+                                Text(title)
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(Color.dsFgPrimary)
+                                    .multilineTextAlignment(.leading)
+                            }
+                            if let source = spotlight.videoSource {
+                                Text("Watch on \(source)")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(accent)
+                            }
+                        }
+                        .padding(14)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.dsBgCard)
+                    .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    /// Real video frame when available, else the designed crest tile.
     @ViewBuilder
     private var heroBackground: some View {
         if let thumbnailURL = spotlight.thumbnailURL {
@@ -108,83 +247,23 @@ struct PlayerSpotlightView: View {
 
     private var heroTile: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(.systemGray5), Color(.systemGray4)],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-            TeamLogo(urlString: club?.logoURL, size: 72)
-                .opacity(0.9)
+            LinearGradient(colors: [Color.dsBgTertiary, Color.dsBgCard],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+            TeamLogo(urlString: club?.logoURL, size: 72).opacity(0.9)
         }
     }
 
-    // MARK: - Header (jersey badge + identity line)
+    // MARK: - Helpers
 
-    private var header: some View {
-        HStack(spacing: 16) {
-            jerseyBadge
-            VStack(alignment: .leading, spacing: 4) {
-                Text(spotlight.playerName)
-                    .font(.title2.weight(.bold))
-                Text("\(spotlight.position) · \(teamName)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                if let identity = identityLine {
-                    Text(identity)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Spacer(minLength: 0)
-        }
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title).font(.system(size: 17, weight: .bold)).foregroundStyle(Color.dsFgPrimary)
     }
 
-    private var jerseyBadge: some View {
-        let accent = Color.teamAccent(hex: nil)   // TEMP: no Club hex — app accent
-        return ZStack {
-            Circle().fill(accent.fill)
-            Text("\(spotlight.jerseyNumber)")
-                .font(.title.weight(.heavy))
-                .monospacedDigit()
-                .foregroundStyle(accent.on)
-        }
-        .frame(width: 64, height: 64)
-    }
-
-    /// "Iceland · Age 25" — joins whichever of nationality/age we have.
-    private var identityLine: String? {
-        var parts: [String] = []
-        if let nationality = spotlight.nationality { parts.append(nationality) }
-        if let age = spotlight.age { parts.append("Age \(age)") }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
-    }
-
-    // MARK: - Bulleted profile section
-
-    private func bulletSection(_ title: String, _ items: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.headline)
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(items, id: \.self) { item in
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Image(systemName: "circle.fill")
-                            .font(.system(size: 5))
-                            .foregroundStyle(.secondary)
-                        Text(item)
-                            .font(.subheadline)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 0)
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
-    private var teamName: String {
-        club?.shortName ?? club?.displayName ?? spotlight.teamAbbreviation
+    /// Split the name into a first line + a bold last line. A single-word name
+    /// goes entirely on the bold line.
+    private var nameParts: (first: String, last: String) {
+        let words = spotlight.playerName.split(separator: " ").map(String.init)
+        guard words.count > 1 else { return ("", spotlight.playerName) }
+        return (words[0], words.dropFirst().joined(separator: " "))
     }
 }

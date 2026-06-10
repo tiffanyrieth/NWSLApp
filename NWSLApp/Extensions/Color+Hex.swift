@@ -25,6 +25,18 @@ struct ResolvedTeamColor {
 }
 
 extension Color {
+    /// Build a Color from a 6-digit hex string ("#RRGGBB" or "RRGGBB"). Used by
+    /// the design-token layer (`DSColor`), which passes known-good constants;
+    /// a malformed string degrades to `.clear` rather than crashing. Reuses the
+    /// same parser as the team-color helpers below (no second hex parser).
+    init(hex: String) {
+        if let rgb = Color.rgbComponents(hex) {
+            self = Color(red: rgb.r, green: rgb.g, blue: rgb.b)
+        } else {
+            self = .clear
+        }
+    }
+
     /// A team's accent color plus a legible foreground to draw on top of it.
     /// Falls back to `(.accentColor, .white)` for missing/malformed hex.
     static func teamAccent(hex: String?) -> (fill: Color, on: Color) {

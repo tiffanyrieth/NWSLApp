@@ -42,14 +42,14 @@ struct PlayerCard: View {
 
                 Text(athlete.shortName ?? athlete.name)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.dsFgPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
 
                 if let position = athlete.positionName {
                     Text(position)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.dsFgSecondary)
                         .lineLimit(1)
                 }
             }
@@ -57,11 +57,11 @@ struct PlayerCard: View {
             .padding(.horizontal, 8)
             .frame(maxWidth: .infinity)
         }
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color(.separator).opacity(0.4), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: DS.radiusMd)
+                .stroke(Color.dsSeparator.opacity(0.6), lineWidth: 0.5)
         )
     }
 

@@ -76,36 +76,22 @@ struct FeedView: View {
             Divider()
             content
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgGrouped)
     }
 
     private var chipsBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(viewModel.chips(following)) { chip in
-                    chipButton(chip)
+                    Chip(label: chip.label, isActive: viewModel.selectedFilter == chip.filter) {
+                        viewModel.selectedFilter = chip.filter
+                    }
                 }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
         }
-        .background(Color(.systemGroupedBackground))
-    }
-
-    private func chipButton(_ chip: FeedViewModel.Chip) -> some View {
-        let selected = viewModel.selectedFilter == chip.filter
-        return Button {
-            viewModel.selectedFilter = chip.filter
-        } label: {
-            Text(chip.label)
-                .font(.subheadline.weight(.medium))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(selected ? Color.accentColor : Color(.secondarySystemGroupedBackground))
-                .foregroundStyle(selected ? Color.white : Color.primary)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
+        .background(Color.dsBgGrouped)
     }
 
     @ViewBuilder

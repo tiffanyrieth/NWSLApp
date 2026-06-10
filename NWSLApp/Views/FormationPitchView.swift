@@ -37,8 +37,8 @@ struct FormationPitchView: View {
         return startable.count == 11
     }
 
-    /// Pitch lines: faint white over green.
-    private let line = Color.white.opacity(0.35)
+    /// Pitch lines: faint white over green (design token).
+    private let line = Color.dsPitchLine
 
     var body: some View {
         let placed = layout()
@@ -47,7 +47,7 @@ struct FormationPitchView: View {
                 ZStack {
                     pitch
                     ForEach(placed) { dot in
-                        playerDot(dot.player)
+                        PitchDot(player: dot.player, accent: accent)
                             .position(
                                 x: dot.point.x * geo.size.width,
                                 y: dot.point.y * geo.size.height
@@ -67,8 +67,7 @@ struct FormationPitchView: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(
                     LinearGradient(
-                        colors: [Color(red: 0.14, green: 0.36, blue: 0.20),
-                                 Color(red: 0.10, green: 0.28, blue: 0.15)],
+                        colors: [.dsPitch, .dsPitchBottom],
                         startPoint: .top, endPoint: .bottom
                     )
                 )
@@ -91,41 +90,6 @@ struct FormationPitchView: View {
             }
         }
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(line, lineWidth: 1))
-    }
-
-    // MARK: - Player dot (TEMP jersey-number monogram)
-
-    private func playerDot(_ player: MatchPlayer) -> some View {
-        VStack(spacing: 3) {
-            ZStack {
-                Circle().fill(accent.fill)
-                Circle().stroke(.white.opacity(0.7), lineWidth: 1.5)
-                Text(player.jersey ?? "")
-                    .font(.caption.weight(.heavy))
-                    .monospacedDigit()
-                    .foregroundStyle(accent.onText)
-            }
-            .frame(width: 34, height: 34)
-            Text(lastName(player))
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .shadow(radius: 1)
-        }
-        .frame(width: 60)
-    }
-
-    /// A short, never-blank pitch label: a real last name (last word of whatever
-    /// name field ESPN gives), else the jersey number, else a dash.
-    private func lastName(_ player: MatchPlayer) -> String {
-        let candidates = [player.athlete?.lastName, player.athlete?.shortName, player.athlete?.displayName]
-        for name in candidates {
-            if let word = name?.split(separator: " ").last, !word.isEmpty {
-                return String(word)
-            }
-        }
-        if let jersey = player.jersey, !jersey.isEmpty { return jersey }
-        return "—"
     }
 
     // MARK: - Layout

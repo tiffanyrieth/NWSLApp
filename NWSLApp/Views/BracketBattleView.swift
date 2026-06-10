@@ -45,8 +45,7 @@ struct BracketBattleView: View {
                 loadedContent
             }
         }
-        .navigationTitle("Bracket Battle")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationContextLabel("Bracket Battle")
         .background(Color(.systemGroupedBackground))
         .task {
             if case .idle = viewModel.state { await viewModel.load(store: store) }

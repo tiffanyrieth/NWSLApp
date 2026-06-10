@@ -26,29 +26,53 @@ struct TeamContentCard: View {
     let club: Club?
     @Environment(\.openURL) private var openURL
 
+    /// The team's accent color (legible on dark) — drives the 3px top accent line
+    /// and the colored abbreviation in the source row.
+    private var accentColor: Color { club?.accentColor ?? .dsAccent }
+
     var body: some View {
         Button {
             if let url = item.url { openURL(url) }
         } label: {
             VStack(alignment: .leading, spacing: 0) {
-                thumbnail
-                VStack(alignment: .leading, spacing: 8) {
-                    attribution
+                // 3px team-color accent line along the top edge (design motif),
+                // then the thumbnail.
+                ZStack(alignment: .top) {
+                    thumbnail
+                    Rectangle()
+                        .fill(accentColor)
+                        .frame(height: 3)
+                }
+                VStack(alignment: .leading, spacing: 6) {
                     Text(item.caption)
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.dsFgPrimary)
                         .multilineTextAlignment(.leading)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
-                    sourceTag
+                    sourceRow
                 }
-                .padding(14)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(Color.dsBgCard)
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+
+    /// "WAS · YouTube" — abbreviation in team color, platform secondary.
+    private var sourceRow: some View {
+        HStack(spacing: 6) {
+            Text(item.teamAbbreviation)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(accentColor)
+            Text("·").foregroundStyle(Color.dsFgQuaternary)
+            Text(item.platform.rawValue)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.dsFgSecondary)
+        }
     }
 
     // MARK: - Thumbnail (real YouTube frame, designed-tile fallback — see file note)
@@ -92,79 +116,15 @@ struct TeamContentCard: View {
         }
     }
 
-    /// Play badge (center) + platform glyph (top-left) + duration (bottom-right),
-    /// drawn over whichever background is shown.
+    /// Centered play badge over the thumbnail (video items only). The platform +
+    /// team now read from the source row below, so the thumbnail stays clean.
+    @ViewBuilder
     private var thumbnailOverlay: some View {
-        ZStack {
-            if item.platform.isVideo {
-                Image(systemName: "play.circle.fill")
-                    .font(.system(size: 44))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .shadow(radius: 4)
-            }
-            VStack {
-                HStack {
-                    platformGlyph
-                    Spacer()
-                }
-                Spacer()
-                HStack {
-                    Spacer()
-                    if let duration = item.durationLabel {
-                        Text(duration)
-                            .font(.caption2.weight(.semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 5))
-                    }
-                }
-            }
-            .padding(8)
+        if item.platform.isVideo {
+            Image(systemName: "play.circle.fill")
+                .font(.system(size: 44))
+                .foregroundStyle(.white.opacity(0.9))
+                .shadow(radius: 4)
         }
     }
-
-    private var platformGlyph: some View {
-        Image(systemName: item.platform.symbol)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.white)
-            .padding(6)
-            .background(.black.opacity(0.55), in: Circle())
-    }
-
-    // MARK: - Attribution + source tag
-
-    private var attribution: some View {
-        HStack(spacing: 8) {
-            TeamLogo(urlString: club?.logoURL, size: 20)
-            Text(teamName)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(1)
-            Text("· \(relativeTimestamp)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 0)
-        }
-    }
-
-    private var sourceTag: some View {
-        Text(item.sourceTag)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(.secondary)
-    }
-
-    private var teamName: String {
-        club?.shortName ?? club?.displayName ?? item.teamAbbreviation
-    }
-
-    private var relativeTimestamp: String {
-        Self.relativeFormatter.localizedString(for: item.timestamp, relativeTo: Date())
-    }
-
-    private static let relativeFormatter: RelativeDateTimeFormatter = {
-        let f = RelativeDateTimeFormatter()
-        f.unitsStyle = .abbreviated   // "2h ago"
-        return f
-    }()
 }

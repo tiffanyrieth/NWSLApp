@@ -3,74 +3,87 @@
 //  NWSLApp
 //
 //  Home's Module 4 ("Coming up") — a COMPACT schedule row, one per followed team
-//  (per Reference/Design/home-tab-design-spec.md, which shrank the old big match
-//  cards down to a strip that just answers "when do my teams play next?"; the full
-//  detail lives in the Schedule tab). A followed team's crest + the matchup + a
-//  time-aware line ("Tomorrow · 7:30 PM"), with a live indicator or a compact
-//  result line when relevant.
+//  (Reference/Design/home-tab-design-spec.md + the design-handoff refresh): mini
+//  home-v-away crests (bare logos), the matchup as team-colored abbreviations
+//  ("WAS vs POR"), and a time-aware line ("Tomorrow · 7:30 PM"), with a live
+//  indicator or a compact result line when relevant. The full detail lives in the
+//  Schedule tab.
 //
-//  Reuses HomeViewModel.FollowedFixture (the same derivation that fed the old
-//  NextMatchCard) so Module 4 is a lighter rendering of data Home already has —
-//  no extra fetch.
+//  Reuses HomeViewModel.FollowedFixture so Module 4 is a lighter rendering of data
+//  Home already has — no extra fetch. Team colors come from the shared ClubStore
+//  (scoreboard competitors carry none), resolved distinct + dark-legible.
 //
 
 import SwiftUI
 
 struct ComingUpRow: View {
     let fixture: HomeViewModel.FollowedFixture
+    @Environment(ClubStore.self) private var clubStore
 
     private var event: Event { fixture.event }
     private var isLive: Bool { event.statusState == "in" }
+    private var homeAbbr: String { event.homeCompetitor?.team?.abbreviation ?? "—" }
+    private var awayAbbr: String { event.awayCompetitor?.team?.abbreviation ?? "—" }
+
+    // Each abbreviation in its own club's true brand accent (dark-legible). Used
+    // independently — not resolveMatchColors — so a team keeps its real color
+    // here rather than being shifted for pair-distinctness (the crests already
+    // disambiguate the two sides).
+    private var homeColor: Color { clubStore.club(forAbbreviation: homeAbbr)?.accentColor ?? .dsFgPrimary }
+    private var awayColor: Color { clubStore.club(forAbbreviation: awayAbbr)?.accentColor ?? .dsFgPrimary }
 
     var body: some View {
         HStack(spacing: 12) {
-            TeamLogo(urlString: fixture.club.logoURL, size: 26)
+            crests
             VStack(alignment: .leading, spacing: 2) {
-                Text(matchup)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
+                matchupLine
                 Text(detailLine)
-                    .font(.caption)
+                    .font(.system(size: 12))
                     .foregroundStyle(detailColor)
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
-            if isLive {
-                liveBadge
-            }
+            if isLive { liveBadge }
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
         .padding(.horizontal, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
+    }
+
+    // Mini home-v-away crests (bare logos — a team crest never gets a ring).
+    private var crests: some View {
+        HStack(spacing: 6) {
+            TeamLogo(urlString: event.homeCompetitor?.team?.logo, size: 28)
+            Text("v")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Color.dsFgQuaternary)
+            TeamLogo(urlString: event.awayCompetitor?.team?.logo, size: 28)
+        }
+    }
+
+    // "WAS vs POR" — abbreviations in each team's color.
+    private var matchupLine: some View {
+        HStack(spacing: 4) {
+            Text(homeAbbr).foregroundStyle(homeColor)
+            Text("vs").foregroundStyle(Color.dsFgTertiary)
+            Text(awayAbbr).foregroundStyle(awayColor)
+        }
+        .font(.system(size: 14, weight: .semibold))
+        .lineLimit(1)
     }
 
     private var liveBadge: some View {
         HStack(spacing: 5) {
-            Circle().fill(.red).frame(width: 7, height: 7)
+            Circle().fill(Color.dsLive).frame(width: 7, height: 7)
             Text("LIVE")
                 .font(.caption.weight(.bold))
-                .foregroundStyle(.red)
+                .foregroundStyle(Color.dsLive)
         }
     }
 
     // MARK: - Text
-
-    /// "Washington vs Portland" — short names where available (no invented
-    /// nicknames; abbreviations are the fallback, matching the app convention).
-    private var matchup: String {
-        let home = teamLabel(event.homeCompetitor)
-        let away = teamLabel(event.awayCompetitor)
-        return "\(home) vs \(away)"
-    }
-
-    private func teamLabel(_ competitor: Competitor?) -> String {
-        competitor?.team?.shortDisplayName
-            ?? competitor?.team?.abbreviation
-            ?? competitor?.team?.displayName
-            ?? "—"
-    }
 
     /// Live: "45' · 1–0". Result: "FT · 2–1". Upcoming: "Tomorrow · 7:30 PM".
     private var detailLine: String {
@@ -87,9 +100,9 @@ struct ComingUpRow: View {
     }
 
     private var detailColor: Color {
-        if isLive { return .red }
-        if !fixture.isResult, fixture.label == "TODAY" { return .accentColor }
-        return .secondary
+        if isLive { return .dsLive }
+        if !fixture.isResult, fixture.label == "TODAY" { return .dsAccent }
+        return .dsFgSecondary
     }
 
     private var scoreText: String? {

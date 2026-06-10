@@ -52,11 +52,14 @@ struct ScheduleView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                filterPicker
-                content
-            }
-            .navigationTitle("Schedule")
+            // A custom large-title header (title + filter chips) pinned via
+            // safeAreaInset, with the system nav bar hidden. The system large title
+            // can't be used here: the screen auto-scrolls to today on open, which
+            // immediately collapses it to the small inline title. The custom header
+            // stays at full size and keeps the chips sticky above the scroll.
+            content
+                .toolbar(.hidden, for: .navigationBar)
+                .safeAreaInset(edge: .top, spacing: 0) { scheduleHeader }
         }
         // Hand the view model the shared store + following lens, then load on
         // first appearance. Gate ONLY the season on `.idle` (so re-selecting the
@@ -89,13 +92,30 @@ struct ScheduleView: View {
         }
     }
 
-    private var filterPicker: some View {
-        Picker("Filter", selection: $selectedFilter) {
-            ForEach(ScheduleViewModel.Filter.allCases) { filter in
-                Text(filter.title).tag(filter)
-            }
+    // Large "Schedule" title + the filter chips, drawn as one pinned header.
+    private var scheduleHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Schedule")
+                .font(.system(size: 34, weight: .bold))
+                .foregroundStyle(Color.dsFgPrimary)
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+            filterPicker
         }
-        .pickerStyle(.segmented)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgGrouped)
+    }
+
+    // Three filter chips (design: NWSL · My teams · All matches), active = accent.
+    private var filterPicker: some View {
+        HStack(spacing: 8) {
+            ForEach(ScheduleViewModel.Filter.allCases) { filter in
+                Chip(label: filter.title, isActive: selectedFilter == filter) {
+                    selectedFilter = filter
+                }
+            }
+            Spacer(minLength: 0)
+        }
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 12)
@@ -163,7 +183,7 @@ struct ScheduleView: View {
         }
         .scrollPosition(id: $scrollTarget, anchor: .top)
         .contentMargins(.horizontal, 16, for: .scrollContent)
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgGrouped)
         .refreshable { await viewModel.load() }
     }
 

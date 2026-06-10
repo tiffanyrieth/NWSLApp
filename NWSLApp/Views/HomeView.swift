@@ -28,6 +28,11 @@ struct HomeView: View {
     @State private var showTeamPicker = false
     // Drives the one-time post-onboarding "save your picks" sign-in prompt.
     @State private var showSignInPrompt = false
+    // The profile avatar button's destination (a placeholder until the Profile
+    // screen ships in its own phase).
+    @State private var showProfile = false
+    // Tracks the Module-2 spotlight carousel's current card, for the scroll dots.
+    @State private var activeSpotlightID: String?
     @Environment(FollowingStore.self) private var following
     @Environment(MatchStore.self) private var matchStore
     @Environment(ClubStore.self) private var clubStore
@@ -35,6 +40,8 @@ struct HomeView: View {
     @Environment(BracketStore.self) private var bracket
     @Environment(PredictionStore.self) private var predict
     @Environment(AuthStore.self) private var auth
+    // Cross-tab navigation (Module 4's "Full schedule →" jumps to Schedule).
+    @Environment(AppRouter.self) private var router
 
     var body: some View {
         NavigationStack {
@@ -100,7 +107,26 @@ struct HomeView: View {
             }
         }
         .navigationTitle("Home")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { profileAvatarButton }
+        }
+        .sheet(isPresented: $showProfile) { ProfileView() }
         .refreshable { await reload() }
+    }
+
+    // Top-right avatar button → the Profile screen (account, notifications, follows).
+    private var profileAvatarButton: some View {
+        Button { showProfile = true } label: {
+            ZStack {
+                Circle().fill(Color.dsBgCard)
+                Image(systemName: "person.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.dsFgSecondary)
+            }
+            .frame(width: 32, height: 32)
+            .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
+        }
+        .accessibilityLabel("Profile")
     }
 
     private var hub: some View {
@@ -114,7 +140,7 @@ struct HomeView: View {
             .padding(.vertical, 8)
         }
         .contentMargins(.horizontal, 16, for: .scrollContent)
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgGrouped)
     }
 
     // MARK: - Module 1: From your teams (the hook)
@@ -143,18 +169,18 @@ struct HomeView: View {
         VStack(spacing: 12) {
             Image(systemName: "star")
                 .font(.system(size: 32))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             Text("Follow your teams to fill your home feed with their latest content.")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
             Button("Choose your teams") { showTeamPicker = true }
                 .buttonStyle(.borderedProminent)
         }
         .padding(28)
         .frame(maxWidth: .infinity)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
     }
 
     // MARK: - Module 2: Get to know your players (spotlight)
@@ -163,21 +189,42 @@ struct HomeView: View {
     private var getToKnowYourPlayers: some View {
         let spotlights = viewModel.spotlights(following: following)
         if !spotlights.isEmpty {
-            section("Get to know your players") {
-                VStack(spacing: 14) {
-                    ForEach(spotlights) { spotlight in
-                        NavigationLink {
-                            PlayerSpotlightView(
-                                spotlight: spotlight,
-                                club: viewModel.club(forAbbreviation: spotlight.teamAbbreviation)
-                            )
-                        } label: {
-                            PlayerSpotlightCard(
-                                spotlight: spotlight,
-                                club: viewModel.club(forAbbreviation: spotlight.teamAbbreviation)
-                            )
+            section(
+                "Get to know your players",
+                subtitle: "A new spotlight every week for each team you follow"
+            ) {
+                VStack(spacing: 10) {
+                    // Equal-weight cards in a snapping horizontal carousel (one per
+                    // followed team) — same visual weight, no full-size-vs-tap split.
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(spotlights) { spotlight in
+                                NavigationLink {
+                                    PlayerSpotlightView(
+                                        spotlight: spotlight,
+                                        club: viewModel.club(forAbbreviation: spotlight.teamAbbreviation)
+                                    )
+                                } label: {
+                                    PlayerSpotlightCard(
+                                        spotlight: spotlight,
+                                        club: viewModel.club(forAbbreviation: spotlight.teamAbbreviation)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                // 85% of the carousel width so the next card peeks.
+                                .containerRelativeFrame(.horizontal, count: 100, span: 85, spacing: 0)
+                                .id(spotlight.id)
+                            }
                         }
-                        .buttonStyle(.plain)
+                        .scrollTargetLayout()
+                    }
+                    .scrollTargetBehavior(.viewAligned)
+                    .scrollPosition(id: $activeSpotlightID)
+                    .onAppear { if activeSpotlightID == nil { activeSpotlightID = spotlights.first?.id } }
+
+                    if spotlights.count > 1 {
+                        let active = spotlights.firstIndex { $0.id == activeSpotlightID } ?? 0
+                        scrollDots(count: spotlights.count, activeIndex: active)
                     }
                 }
             }
@@ -187,7 +234,11 @@ struct HomeView: View {
     // MARK: - Module 3: Fan Zone (the games)
 
     private var playSection: some View {
-        section("Fan Zone", subtitle: "Test your NWSL knowledge and compete with other fans") {
+        section(
+            "Fan Zone",
+            subtitle: "Test your NWSL knowledge and compete with other fans",
+            accessory: { activeGamesIndicator }
+        ) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     // Ordered most time-sensitive first. Predict the XI is
@@ -195,12 +246,12 @@ struct HomeView: View {
                     // team's lineup), so it only appears once the user follows a
                     // club; Bracket Battle and Daily Trivia show for everyone.
                     if !following.followedIDs.isEmpty {
-                        NavigationLink { PredictXIView() } label: { predictXICard }
+                        NavigationLink { PredictXIView() } label: { predictGameCard }
                             .buttonStyle(.plain)
                     }
-                    NavigationLink { BracketBattleView() } label: { bracketBattleCard }
+                    NavigationLink { BracketBattleView() } label: { bracketGameCard }
                         .buttonStyle(.plain)
-                    NavigationLink { DailyTriviaView() } label: { dailyTriviaCard }
+                    NavigationLink { DailyTriviaView() } label: { triviaGameCard }
                         .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 2)
@@ -208,71 +259,53 @@ struct HomeView: View {
         }
     }
 
-    // The live Daily-Trivia card: indigo identity, with a state line that reads
-    // "Done today" once played (and a streak flame when one's going).
-    private var dailyTriviaCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: "brain.head.profile")
-                    .font(.title2)
-                    .foregroundStyle(.indigo)
-                Spacer(minLength: 0)
-                if trivia.streak > 0 {
-                    Label("\(trivia.streak)", systemImage: "flame.fill")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.orange)
-                        .labelStyle(.titleAndIcon)
-                }
+    // "● 2 active" — a teal dot + count of games with something to do right now.
+    @ViewBuilder
+    private var activeGamesIndicator: some View {
+        let n = activeGameCount
+        if n > 0 {
+            HStack(spacing: 5) {
+                Circle().fill(Color.dsGameBracket).frame(width: 6, height: 6)
+                Text("\(n) active")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.dsFgSecondary)
             }
-            Spacer(minLength: 0)
-            Text("Daily Trivia")
-                .font(.subheadline.weight(.semibold))
-            Text(trivia.hasPlayedToday ? "Done today ✓" : "Play now")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(trivia.hasPlayedToday ? Color.secondary : .indigo)
         }
-        .padding(16)
-        .frame(width: 170, height: 138, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.indigo.opacity(0.35), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
-    // The live Bracket-Battle card: teal identity, with a state line that reads
-    // "Play now" → "Round n of N" → "Complete ✓" off the shared BracketStore, and
-    // a points badge once the user has banked any.
-    private var bracketBattleCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: "trophy.fill")
-                    .font(.title2)
-                    .foregroundStyle(.teal)
-                Spacer(minLength: 0)
-                if bracket.points > 0 {
-                    Label("\(bracket.points)", systemImage: "trophy")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.teal)
-                        .labelStyle(.titleAndIcon)
-                }
-            }
-            Spacer(minLength: 0)
-            Text("Bracket Battle")
-                .font(.subheadline.weight(.semibold))
-            Text(bracketStateLine)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(bracket.isComplete ? Color.secondary : .teal)
-        }
-        .padding(16)
-        .frame(width: 170, height: 138, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.teal.opacity(0.35), lineWidth: 1)
+    private var activeGameCount: Int {
+        var n = 0
+        if !following.followedIDs.isEmpty { n += 1 }   // Predict is shown + playable
+        if !bracket.isComplete { n += 1 }
+        if !trivia.hasPlayedToday { n += 1 }
+        return n
+    }
+
+    private var triviaGameCard: some View {
+        GameCard(
+            emoji: "🧠", title: "Daily Trivia",
+            statusLine: trivia.hasPlayedToday ? "Done today ✓" : "Play now",
+            accent: .dsGameTrivia, completed: trivia.hasPlayedToday,
+            badge: trivia.streak > 0 ? "\(trivia.streak)" : nil, badgeIcon: "🔥"
         )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private var bracketGameCard: some View {
+        GameCard(
+            emoji: "🏆", title: "Bracket Battle",
+            statusLine: bracketStateLine,
+            accent: .dsGameBracket, completed: bracket.isComplete,
+            badge: bracket.points > 0 ? "\(bracket.points)" : nil, badgeIcon: "🏆"
+        )
+    }
+
+    private var predictGameCard: some View {
+        GameCard(
+            emoji: "⚽", title: "Predict the XI",
+            statusLine: predict.hasPredicted ? "\(predict.seasonPoints) pts" : "Predict now",
+            accent: .dsGamePredict,
+            badge: predict.seasonPoints > 0 ? "\(predict.seasonPoints)" : nil, badgeIcon: "⚽"
+        )
     }
 
     // "Play now" before any voting, "Complete ✓" once the final's closed, else the
@@ -285,46 +318,13 @@ struct HomeView: View {
         return "Round \(bracket.lockedRoundCount + 1) of \(total)"
     }
 
-    // The live Predict-the-XI card: pink identity, with a points badge once the
-    // user has banked any and a state line that reads "Predict now" until they do.
-    private var predictXICard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: "sportscourt.fill")
-                    .font(.title2)
-                    .foregroundStyle(.pink)
-                Spacer(minLength: 0)
-                if predict.seasonPoints > 0 {
-                    Label("\(predict.seasonPoints)", systemImage: "sportscourt")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.pink)
-                        .labelStyle(.titleAndIcon)
-                }
-            }
-            Spacer(minLength: 0)
-            Text("Predict the XI")
-                .font(.subheadline.weight(.semibold))
-            Text(predict.hasPredicted ? "\(predict.seasonPoints) pts" : "Predict now")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.pink)
-        }
-        .padding(16)
-        .frame(width: 170, height: 138, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.pink.opacity(0.35), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-    }
-
     // MARK: - Module 4: Coming up (compact schedule strip)
 
     @ViewBuilder
     private var comingUp: some View {
         let fixtures = viewModel.nextMatches(following: following)
         if !fixtures.isEmpty {
-            section("Coming up") {
+            section("Coming up", accessory: { fullScheduleLink }) {
                 VStack(spacing: 8) {
                     ForEach(fixtures) { ComingUpRow(fixture: $0) }
                 }
@@ -332,26 +332,54 @@ struct HomeView: View {
         }
     }
 
+    // Jumps to the Schedule tab (via the shared AppRouter).
+    private var fullScheduleLink: some View {
+        Button { router.selectedTab = .schedule } label: {
+            Text("Full schedule →")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.dsAccent)
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Shared building blocks
 
     @ViewBuilder
-    private func section<Content: View>(
+    private func section<Content: View, Accessory: View>(
         _ title: String,
         subtitle: String? = nil,
+        @ViewBuilder accessory: () -> Accessory = { EmptyView() },
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.title3.weight(.bold))
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(Color.dsFgPrimary)
+                    Spacer(minLength: 8)
+                    accessory()
+                }
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.dsFgSecondary)
                 }
             }
             content()
         }
+    }
+
+    /// Module-2 carousel scroll-position dots: one per spotlight, current filled.
+    private func scrollDots(count: Int, activeIndex: Int) -> some View {
+        HStack(spacing: 6) {
+            ForEach(0..<count, id: \.self) { i in
+                Circle()
+                    .fill(i == activeIndex ? Color.dsFgSecondary : Color.dsFgQuaternary)
+                    .frame(width: 6, height: 6)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - State plumbing
@@ -387,6 +415,7 @@ struct HomeView: View {
 
 #Preview {
     HomeView()
+        .environment(AppRouter())
         .environment(FollowingStore())
         .environment(MatchStore())
         .environment(ClubStore())
@@ -394,4 +423,5 @@ struct HomeView: View {
         .environment(BracketStore())
         .environment(PredictionStore())
         .environment(AuthStore())
+        .environment(NotificationPreferencesStore())
 }

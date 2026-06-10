@@ -39,7 +39,7 @@ struct SocialLinkButton: View {
                     .background(accent.fill, in: Circle())
                 Text(link.platform.label)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
         }
         .buttonStyle(.plain)

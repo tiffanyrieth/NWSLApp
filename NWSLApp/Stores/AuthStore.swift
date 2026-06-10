@@ -47,6 +47,16 @@ final class AuthStore {
     /// Supabase `User` type — keeps the follow path SDK-free.
     var userID: UUID? { currentUser?.id }
 
+    /// The user's display name, captured at sign-in (Apple returns it only on the
+    /// FIRST authorization, ever) and cached locally so the Profile screen can show
+    /// it without a round-trip to the `profiles` table. Nil if never captured.
+    private(set) var displayName: String?
+    private static let nameKey = "auth.displayName"
+
+    init() {
+        displayName = UserDefaults.standard.string(forKey: Self.nameKey)
+    }
+
     private let client = SupabaseManager.client
 
     /// Raw nonce stashed between request-config and completion (the request
@@ -99,6 +109,10 @@ final class AuthStore {
             // Apple returns the user's name only on the FIRST authorization, ever —
             // capture it now or never. Upsert keyed on the user id (= auth.uid()).
             let name = Self.displayName(from: credential.fullName)
+            if let name {
+                displayName = name
+                UserDefaults.standard.set(name, forKey: Self.nameKey)
+            }
             await upsertProfile(userID: session.user.id, displayName: name)
         }
     }
@@ -108,6 +122,19 @@ final class AuthStore {
     func signOut() async {
         try? await client.auth.signOut()
         currentUser = nil
+    }
+
+    /// Delete the account from the Profile screen.
+    ///
+    /// TEMP: truly removing the Supabase auth user (and its profile/follows rows)
+    /// requires a server-side admin call — a Supabase Edge Function — which is
+    /// 0.3 backend work (#12; the auth admin API can't run from the client). For
+    /// now this signs out and forgets the cached identity; wire the real deletion
+    /// when that function exists.
+    func deleteAccount() async {
+        await signOut()
+        displayName = nil
+        UserDefaults.standard.removeObject(forKey: Self.nameKey)
     }
 
     // MARK: - Profile

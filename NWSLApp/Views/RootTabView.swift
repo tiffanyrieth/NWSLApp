@@ -61,9 +61,13 @@ struct RootTabView: View {
     @State private var feedPreferences = FeedPreferencesStore()
 
     // The account layer (Sign in with Apple → Supabase user), created once and
-    // shared so the post-onboarding sign-in prompt (and a future Settings screen)
-    // read the same signed-in state (see AuthStore).
+    // shared so the post-onboarding sign-in prompt and the Profile screen read the
+    // same signed-in state (see AuthStore).
     @State private var auth = AuthStore()
+
+    // Notification preferences (the Profile screen's 9 toggles), shared so the
+    // Profile reads/writes the same persisted intent (see NotificationPreferencesStore).
+    @State private var notifications = NotificationPreferencesStore()
 
     // Bridges local follows ⟷ Supabase once signed in. Not injected into the
     // environment — no view needs it; RootTabView just holds it alive and starts
@@ -102,6 +106,7 @@ struct RootTabView: View {
         .environment(predict)
         .environment(feedPreferences)
         .environment(auth)
+        .environment(notifications)
         .task {
             // Restore any saved Supabase session, then start follow sync. Guard so
             // re-running .task (it can fire again on scene changes) doesn't build a

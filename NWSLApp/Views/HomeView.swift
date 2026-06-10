@@ -110,12 +110,11 @@ struct HomeView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) { profileAvatarButton }
         }
-        .sheet(isPresented: $showProfile) { profilePlaceholder }
+        .sheet(isPresented: $showProfile) { ProfileView() }
         .refreshable { await reload() }
     }
 
-    // Top-right avatar button → Profile. The Profile screen ships in its own
-    // phase; until then this presents a deliberate "coming soon" placeholder.
+    // Top-right avatar button → the Profile screen (account, notifications, follows).
     private var profileAvatarButton: some View {
         Button { showProfile = true } label: {
             ZStack {
@@ -128,34 +127,6 @@ struct HomeView: View {
             .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
         }
         .accessibilityLabel("Profile")
-    }
-
-    // 🔧 Placeholder for the Profile screen (account, notifications, follows),
-    // built in a later phase. Looks deliberate per the UI rules, not broken.
-    private var profilePlaceholder: some View {
-        NavigationStack {
-            VStack(spacing: 12) {
-                Image(systemName: "person.crop.circle")
-                    .font(.system(size: 44))
-                    .foregroundStyle(Color.dsFgSecondary)
-                Text("Profile & settings")
-                    .font(.title3.weight(.semibold))
-                Text("Account, notifications, and your follows are coming soon.")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.dsFgSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.dsBgGrouped)
-            .navigationTitle("Profile")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { showProfile = false }
-                }
-            }
-        }
     }
 
     private var hub: some View {
@@ -452,4 +423,5 @@ struct HomeView: View {
         .environment(BracketStore())
         .environment(PredictionStore())
         .environment(AuthStore())
+        .environment(NotificationPreferencesStore())
 }

@@ -308,13 +308,14 @@ NWSLApp/
 │   └── TriviaQuestionProvider.swift   — ⚠️ 55 hand-written NWSL trivia questions
 ├── Stores/                            — @Observable shared state → UserDefaults, injected
 │   ├── AppRouter.swift                — tab selection (AppTab); RootTabView binds the TabView; lets Home's "Full schedule →" jump tabs
-│   ├── AuthStore.swift                — @MainActor; Sign in with Apple → Supabase user; profile upsert; nonce flow (knows nothing about follows)
+│   ├── AuthStore.swift                — @MainActor; Sign in with Apple → Supabase user; profile upsert; cached displayName; deleteAccount (⚠️ TEMP — real auth-user deletion needs a server fn); knows nothing about follows
 │   ├── BracketStore.swift             — Bracket picks / points / locked rounds
 │   ├── ClubStore.swift                — shared club directory; one fetch, many readers (ID/abbr lookups)
 │   ├── FeedPreferencesStore.swift     — Feed content-type toggles + muted sources
 │   ├── FollowSyncCoordinator.swift    — @MainActor; the ONLY follows↔Supabase bridge (sign-in union-merge + ongoing sync); not env-injected
 │   ├── FollowingStore.swift           — followed clubs + competitions + onboarding gate + sign-in-prompt flag; pure/offline-first; `onFollowsChanged`/`merge(ids:)` seams; DEBUG `debugResetState()`
 │   ├── MatchStore.swift               — shared season store; one fetch, many readers
+│   ├── NotificationPreferencesStore.swift — Profile's 9 notif toggles (persisted intent; ⚠️ no delivery yet — APNs/local scheduling is #12)
 │   ├── PredictionStore.swift          — Predict-the-XI picks + season-points snapshot
 │   └── TriviaStore.swift              — Daily-Trivia streak/accuracy + one-play/day gate
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
@@ -330,7 +331,8 @@ NWSLApp/
 │   └── TriviaViewModel.swift          — one Daily-Trivia session (deterministic daily 5)
 ├── Views/                             — one screen per file
 │   ├── RootTabView.swift              — app root; 5-tab TabView (selection ← AppRouter); injects stores; restores session + FollowSyncCoordinator
-│   ├── HomeView.swift                 — your-teams hub: 4 modules + profile-avatar button (🔧 placeholder); spotlight carousel; onboarding-in-place
+│   ├── HomeView.swift                 — your-teams hub: 4 modules + profile-avatar button (→ ProfileView sheet); spotlight carousel; onboarding-in-place
+│   ├── ProfileView.swift              — account & settings sheet (from Home avatar): identity / Fan Zone stats / 9 notif toggles / My Teams / Account; offline-first (signed-out CTA)
 │   ├── DailyTriviaView.swift          — Daily Trivia game (indigo); 5/day
 │   ├── BracketBattleView.swift        — Bracket Battle game (teal); vote + lock rounds
 │   ├── PredictXIView.swift            — Predict the XI game (pink); per-match questions
@@ -414,8 +416,11 @@ primaries (Spirit, Thorns) no longer read as gray. **Phase 4 (core tabs)**:
 Standings → abbreviations + pinned column header (fixes the title-overlap bug) +
 followed-row tint; Teams → followed-row tint + accent names + yellow stars (full
 names kept — it's the directory); Schedule filter → `Chip`s; Feed chips → `Chip`
-+ tokenized `FeedCard` (@/📰 avatars). Remaining (each its own PR): the real
-**Profile** screen, Team Detail + Spotlight.
++ tokenized `FeedCard` (@/📰 avatars). **Phase 5 (Profile)**: the real
+`ProfileView` (identity / Fan Zone stat strip / 9 notification toggles via
+`NotificationPreferencesStore` / My Teams / Account) replaces the Home 🔧
+placeholder; offline-first (signed-out CTA; toggles persist intent only — push is
+#12). Remaining (each its own PR): Team Detail + Spotlight fidelity.
 
 **Accounts & follow sync** (`…/2026-06-09_supabase-accounts-setup.md`) — Sign in
 with Apple → a **Supabase** user (first per-user backend). `AuthStore`

@@ -471,22 +471,19 @@ left-aligned titles (Schedule = a custom 34pt header); every *pushed* screen sho
 left "‹ Label" via `.navigationContextLabel(…)`.
 
 **Accounts & follow sync** (`…/2026-06-09_supabase-accounts-setup.md`) — Sign in
-with Apple → a **Supabase** user (first per-user backend). `AuthStore` runs the Apple
-flow + upserts a `profiles` row; `RootTabView` restores the session + starts
-`FollowSyncCoordinator`. **Optional/offline-first**: a skippable post-onboarding "save
-your picks" sheet (`SignInPromptView`); skipping leaves the app fully working on the
-UserDefaults cache. Signed in, the coordinator union-merges local+server follows (never
-deletes), restores on new devices, mirrors each toggle to the `follows` table
-(RLS-scoped); only **clubs** sync. `FollowingStore` stays pure — networking lives in the
-coordinator via `onFollowsChanged`/`merge(ids:)`. Needs gitignored `Config/Secrets.swift`
-+ the `Supabase` SPM package.
+with Apple → a **Supabase** user; `AuthStore` runs the flow + upserts `profiles`,
+`RootTabView` restores the session + starts `FollowSyncCoordinator`.
+**Optional/offline-first**: a skippable post-onboarding `SignInPromptView`; skipping
+leaves the app fully working on the UserDefaults cache. Sync mechanics (union-merge,
+never-delete, RLS, clubs-only; `FollowingStore` stays pure via
+`onFollowsChanged`/`merge(ids:)`) are in Architecture → Per-user backend. Needs
+gitignored `Config/Secrets.swift` + the `Supabase` SPM package.
 
 **Notifications — Tier 1 / LOCAL** (0.3.2; `local-notifications-spec.md`) —
 `NotificationScheduler` (held alive by `RootTabView`) delivers the two phone-scheduled
 alerts: the **day-before match reminder** (kickoff −24h) and the **weekly Player
 Spotlight** (Mon 10am); cancel-all + rebuild on change, permission on first toggle-on.
-**Tier 2 / SERVER push** is code-complete + infra provisioned + APNs verified; only
-on-device TestFlight E2E remains — see What's-Next #12.
+**Tier 2 / SERVER push** — see What's-Next #12.
 
 Per-screen behavior (design specs in `Reference/Design/*-spec.md`; file detail in the
 File Map above):
@@ -511,9 +508,8 @@ File Map above):
   = wider convo; `.both` either) + staleness (Home 72h-OR-6-card floor, Feed 7d). **Home
   Module 1 is LIVE (A1, 0.3.4)** — `ContentService` pulls real YouTube uploads from the
   proxy `/team-videos` route (seed is now only the offline-first fallback). **Home also
-  shows live club-site NEWS (0.3.5)** — the same route OG-scrapes each club's own
-  website articles (WordPress `/feed`+`/wp-json` make club sites the easy source;
-  nwslsoccer.com was trialed + dropped) into `newsArticle` cards (club crest source,
+  shows live club-site NEWS (0.3.5)** — the same route OG-scrapes each club's own website
+  articles (WordPress `/feed`+`/wp-json`) into `newsArticle` cards (club crest source,
   team-color stripe), merged with the videos by recency. The Feed is still ⚠️seed; A2
   (Bluesky) / A3 (Reddit) wire its live routes next.
 - **Teams + Following** — `TeamsView` lists all 16 (followed float up). Onboarding + a
@@ -529,11 +525,9 @@ File Map above):
 - **Schedule** (`schedule-tab-design-spec.md`) — full season in one
   `fetchScoreboard(year:)` (~240 events); sticky day headers; 3 filters over one
   `MatchStore`; cards carry 📍 venue · 📺 broadcast (`BroadcastLink`); scrolls to today.
-- **Match detail V2** (`match-detail-v2-spec.md`, `-polish.md`) — `MatchDetailView` +
-  VM adapt to temporal state; header from the `Event`, `/summary` (via proxy) layers
-  the rest. **Past:** Summary / Lineups (`CombinedPitchView`, list fallback) / Stats
-  (`StatComparisonBar`). **Live:** + LIVE pill + 30s refresh. **Future:** `MatchStore`
-  preview (Season Comparison + Recent Form). `/summary` failure → header-only; pitch
+- **Match detail V2** (`match-detail-v2-spec.md`, `-polish.md`) — `MatchDetailView` + VM
+  adapt to temporal state (Past/Live/Future tabs per the File Map); header from the
+  `Event`, `/summary` (via proxy) layers the rest. `/summary` failure → header-only; pitch
   derives from the formation string; `resolveMatchColors` keeps sides distinct.
 
 ---
@@ -546,25 +540,21 @@ Category 1 (ALIVE) always outranks 2/3.
 
 **Category 1 — ALIVE features (TOP PRIORITY). These ARE the app; do these before any
 Category 2/3 work, and before any TestFlight ship. "Would I open it today if I opened
-it yesterday?"** Today the answer is no — the content is static v0.1 seed. That is the
-#1 bug. **Content Card UI layer (Part 1) built on seed** (see Current State); A1–A3 are
-now **Part 2** — swap the seed for live proxy routes (`content-cards-part2-live-data.md`),
-Steps 1→2→2b→3. **A1 SHIPPED 0.3.4** (Home live); A2/A3/Haiku next — see
-`Reference/Design/live-feed-plan.md`.
-- **A1. YouTube → Home "From your teams" live.** ✅ **SHIPPED 0.3.4.** `/team-videos`
-  route deployed (YouTube Data API key set as a Worker secret; channel IDs → uploads →
-  `[ContentCard]`, ~1h cache); `liveContentEnabled` flipped ON; verified in-sim (real
-  Angel City uploads on Home). Staleness is **72h-OR-6-card floor** so the break's
-  slow stretch doesn't empty Module 1. Remaining polish: a refetch-on-follows-change seam.
+it yesterday?"** Content Card UI layer (Part 1) is built; A1–A3 (**Part 2**) swap the
+seed for live proxy routes (`content-cards-part2-live-data.md`, Steps 1→2→2b→3). A1
+shipped (Home live); A2/A3/Haiku next — see `Reference/Design/live-feed-plan.md`.
+- **A1. YouTube → Home "From your teams" live.** ✅ **SHIPPED 0.3.4** (`/team-videos`
+  route: YouTube Data API key as a Worker secret, channel IDs → uploads → `[ContentCard]`,
+  ~1h cache; `liveContentEnabled` ON; staleness = **72h-OR-6-card floor**). Remaining
+  polish: a refetch-on-follows-change seam.
 - **A2. Bluesky → Feed tab live.** Real reporter/player/team posts via the open AT
   Protocol (no key); replaces ⚠️`FeedContentProvider`. **← current highest incomplete
-  ALIVE item.** (folds into #11; plan: `Reference/Design/live-feed-plan.md`.)
+  ALIVE item.** (folds into #11; plan: `live-feed-plan.md`.)
 - **A3. Reddit → Feed enrichment.** Each team's subreddit (OAuth key in the proxy) —
-  surfaces cross-platform virals (IG/TikTok reposts) **legally**. IG/TikTok have NO
-  content API, but **OG-tag link-preview scraping** (the iMessage/Slack/Discord model —
-  fetch the post URL, read `og:image`/`og:description`) is fair game for a card preview
-  that taps OUT to the native app; a spike (#A3-spike) tests whether OG tags alone
-  suffice or Meta App registration is needed. (folds into #11.)
+  surfaces cross-platform virals (IG/TikTok reposts) **legally** via **OG-tag
+  link-preview scraping** (see `content_acquisition_playbook` memory); cards tap OUT to
+  the native app. Spike (#A3-spike): do OG tags alone suffice, or is Meta App
+  registration needed? (folds into #11.)
 - **A4. Player Spotlight weekly rotation** — real per-team pool + rotation, not the static demo.
 - **A5. Fan Zone live rounds** — rotating bracket editions / fresh predictions / trivia backend.
 - Per-post **Haiku tagging + NWSL/no-hot-takes filter** (#11) backs A2/A3.
@@ -605,18 +595,16 @@ Steps 1→2→2b→3. **A1 SHIPPED 0.3.4** (Home live); A2/A3/Haiku next — see
     real filter (`nwslapp-feed-content-rules.md`); user-added sources; per-post **team
     tagging via a Claude Haiku call** that drops non-NWSL content. (Part-2 A2/A3.)
 12. **Push notifications.** **Tier 1 (LOCAL) shipped 0.3.2.** **Tier 2 (SERVER push)
-    code-complete through Stage C** (≈0.4.x; PR #32). App side: `AppDelegate` +
-    `aps-environment`, `PushBridge`, `DeviceTokenService`/`NotificationPrefsSyncService`,
-    `NotificationSyncCoordinator` (mirrors token + 9-flag prefs to Supabase; Tier 2
-    requires sign-in); schema `device_tokens` + `notification_preferences` (RLS+grants).
-    **Worker:** private sibling `~/Projects/nwslapp-match-watcher` — 1-min cron, KV
-    state-diff via proxy `/scoreboard`, APNs `.p8` JWT, secret-guarded `POST /test-push`;
+    code-complete through Stage C** (≈0.4.x; PR #32) — app side
+    (AppDelegate/PushBridge/sync coordinator/schema, Tier 2 requires sign-in) per the
+    File Map. **Worker:** private sibling `~/Projects/nwslapp-match-watcher` — 1-min cron,
+    KV state-diff via proxy `/scoreboard`, APNs `.p8` JWT, secret-guarded `POST /test-push`;
     detects **kickoff · goal · halftime · full-time**.
-    **Infra provisioned + APNs verified 2026-06-10** (see `push_infra_provisioned` memory).
+    **Infra provisioned + APNs verified 2026-06-10** (`push_infra_provisioned` memory).
     **Remaining:** flip `APNS_HOST` sandbox→production + redeploy when cutting the
-    TestFlight build; on-device E2E (live-game E2E waits on the July break end; `/test-push`
-    bridges it). **Stage D (next): subs + lineup-posted** — need the per-match `/summary`
-    feed (a distinct detection path). v2: VAR-disallowed-goal "Correction" push.
+    TestFlight build; on-device E2E (live-game waits on the July break end; `/test-push`
+    bridges it). **Stage D (next): subs + lineup-posted** — needs the per-match `/summary`
+    feed. v2: VAR-disallowed "Correction" push.
     (`…/2026-06-04_server-pulls-and-push.md`, `…/enchanted-kurzweil.md`.)
 13. **Competition-aware schedule.** Groundwork: 3 Schedule filters, `MatchCard`'s
     dormant `CompetitionBadge`, `FollowedCompetition` + follow set. Remaining: a

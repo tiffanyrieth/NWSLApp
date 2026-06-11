@@ -63,8 +63,8 @@ struct FeedView: View {
             // directory's state so the Feed populates even when the store was
             // already loaded elsewhere.
             viewModel.clubStore = clubStore
-            await viewModel.loadItemsIfNeeded()
             if case .idle = clubStore.state { await clubStore.load() }
+            await viewModel.loadItemsIfNeeded(following: following)
         }
     }
 
@@ -108,7 +108,7 @@ struct FeedView: View {
                 }
                 .padding(16)
             }
-            .refreshable { await viewModel.load() }
+            .refreshable { await viewModel.load(following: following) }
         }
     }
 
@@ -166,7 +166,7 @@ struct FeedView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)
-            Button("Try again") { Task { await viewModel.load() } }
+            Button("Try again") { Task { await viewModel.load(following: following) } }
                 .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

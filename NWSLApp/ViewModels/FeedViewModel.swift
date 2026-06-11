@@ -3,8 +3,9 @@
 //  NWSLApp
 //
 //  Owns the Feed tab's state. Two inputs come together here:
-//   • the feed cards (today a TEMP curated seed from FeedContentProvider; later a
-//     real Bluesky/Reddit/news backend), and
+//   • the feed cards (LIVE as of A2 — real Bluesky reporter/league/team posts via
+//     `ContentService.feedCards` → the proxy `/feed` route; the curated seed is the
+//     offline-first fallback. Reddit + news RSS extend the same route later), and
 //   • the user's followed clubs (from the shared ClubStore), which scope the base
 //     set — the Feed only ever shows content about teams the user follows plus
 //     league-wide items.
@@ -57,29 +58,42 @@ final class FeedViewModel {
     private(set) var allItems: [ContentCard] = []
     var selectedFilter: ContentFilter = .all
 
-    private let content: FeedContentProvider
+    private let contentService: ContentService
 
-    init(content: FeedContentProvider = FeedContentProvider()) {
-        self.content = content
+    init(contentService: ContentService = ContentService()) {
+        self.contentService = contentService
     }
 
     /// Proxies the shared club store's state so the view's error/ready checks over
     /// idle/loading/loaded/error are unchanged.
     var clubsState: ClubStore.State { clubStore?.state ?? .idle }
 
-    /// Load the seed cards, then (re)load the shared directory. Used by
-    /// pull-to-refresh; first appearance loads cards + directory separately.
-    func load() async {
-        allItems = (await content.items()).sorted { $0.timestamp > $1.timestamp }
+    /// (Re)load the shared directory, then the Feed cards. Used by pull-to-refresh.
+    /// The directory loads first so `followedAbbreviations` is current (it scopes
+    /// the live `/feed` query to the followed clubs' team posts).
+    func load(following: FollowingStore) async {
         await clubStore?.load()
+        allItems = (await contentService.feedCards(
+            followedAbbreviations: followedAbbreviations(following)
+        )).sorted { $0.timestamp > $1.timestamp }
     }
 
-    /// Loads the (TEMP seed) cards if not already loaded — kept SEPARATE from the
-    /// directory load so the Feed still populates when the shared ClubStore was
-    /// already loaded by another tab (Home, the landing tab, usually loads it first).
-    func loadItemsIfNeeded() async {
+    /// Loads the Feed cards if not already loaded. Callers load the shared ClubStore
+    /// first (so `followedAbbreviations` resolves) — kept separate from the directory
+    /// load so the Feed still populates when another tab (Home, the landing tab)
+    /// already loaded the directory.
+    func loadItemsIfNeeded(following: FollowingStore) async {
         guard allItems.isEmpty else { return }
-        allItems = (await content.items()).sorted { $0.timestamp > $1.timestamp }
+        allItems = (await contentService.feedCards(
+            followedAbbreviations: followedAbbreviations(following)
+        )).sorted { $0.timestamp > $1.timestamp }
+    }
+
+    /// Abbreviations of the followed clubs — scopes the live `/feed` query (the
+    /// proxy returns reporters + league regardless, plus team posts for these
+    /// clubs). Empty (directory not loaded / no follows) → reporters + league only.
+    private func followedAbbreviations(_ following: FollowingStore) -> Set<String> {
+        Set(followedClubs(following).map(\.abbreviation))
     }
 
     private var clubs: [Club] { clubStore?.clubs ?? [] }

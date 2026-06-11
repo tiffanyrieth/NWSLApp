@@ -23,7 +23,7 @@ import Foundation
 final class HomeViewModel {
     // Module 1/2 content (TEMP static seeds; see the providers). Loaded in
     // loadContent(), which the view runs alongside the shared store loads.
-    private(set) var teamContentItems: [TeamContentItem] = []
+    private(set) var teamContentItems: [ContentCard] = []
     // Named `allSpotlights` (not `spotlights`) so it doesn't collide with the
     // derived `spotlights(following:)` below.
     private(set) var allSpotlights: [PlayerSpotlight] = []
@@ -82,12 +82,19 @@ final class HomeViewModel {
 
     // MARK: - Module 1: From your teams
 
-    /// The latest team-content items across all followed clubs, newest first,
-    /// capped so the hook stays scannable above the rest of the hub.
-    func teamContent(following: FollowingStore, limit: Int = 6) -> [TeamContentItem] {
+    /// The latest team-content cards across all followed clubs, newest first,
+    /// capped so the hook stays scannable above the rest of the hub. Home shows
+    /// only the teams' OWN voices, so feed-only cards are gated out (placement),
+    /// and only same-day-ish content survives the 72h Home staleness window.
+    func teamContent(following: FollowingStore, limit: Int = 6) -> [ContentCard] {
         let followed = followedAbbreviations(following)
         return teamContentItems
-            .filter { followed.contains($0.teamAbbreviation) }
+            .filter { card in
+                guard card.placement != .feed,
+                      let abbr = card.teamAbbreviation else { return false }
+                return followed.contains(abbr)
+            }
+            .fresh(.home, now: now())
             .sorted { $0.timestamp > $1.timestamp }
             .prefix(limit)
             .map { $0 }

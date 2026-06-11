@@ -338,7 +338,7 @@ NWSLApp/
 ├── Models/                            — Codable models (⚠️ = backed by a seed provider)
 │   ├── BracketEdition.swift           — Bracket Battle entrants + edition, seed order
 │   ├── Club.swift                     — flat Club + ESPN /teams decode wrappers (now decodes brand color/alternateColor → ring crests)
-│   ├── ContentCard.swift              — ⚠️ unified ALIVE-content model: 7 layouts (youtube/blueskyTeam·Text·Media/blueskyReporter/newsArticle/socialVideo/instagramFallback) + StalenessWindow (Home 72h-OR-6-card floor / Feed 7d — floor keeps a slow stretch from going sparse); Codable-shaped for the live pipeline; supersedes FeedItem+TeamContentItem
+│   ├── ContentCard.swift              — ⚠️ unified ALIVE-content model: 7 layouts (youtube/blueskyTeam·Text·Media/blueskyReporter/newsArticle/socialVideo/instagramFallback) + StalenessWindow (Home 72h / Feed 7d, each **6-card-floored** → never-empty, 0.3.7); Codable-shaped for the live pipeline; supersedes FeedItem+TeamContentItem
 │   ├── FollowedCompetition.swift      — international competitions list + follow model
 │   ├── AthleteStatistics.swift        — ESPN Core API /statistics decode: category→field flatten → PlayerSeasonStats
 │   ├── MatchSummary.swift             — ESPN /summary decode: lineups+formation, boxscore stats, key-events timeline
@@ -503,16 +503,17 @@ File Map above):
 - **Content Cards** (`we-are-going-to-iridescent-otter.md`) — one `ContentCard` model +
   `ContentCardView` router back BOTH Home Module 1 and the Feed via 7 design-spec layouts.
   Placement gate (Home = team voices; Feed = wider convo; `.both` either) + staleness
-  (Home 72h-OR-6-card floor, Feed 7d). **Both surfaces are now LIVE** via `ContentService`
+  (Home 72h, Feed 7d — **each with a 6-card floor so a slow stretch never empties the tab**,
+  0.3.7). **Both surfaces are now LIVE** via `ContentService`
   → proxy routes (seed = offline-first fallback): **Home** (A1/0.3.4 + 0.3.5) ← `/team-videos`
-  = YouTube uploads + club WordPress-OG news + team Bluesky; **Feed** (A2/0.3.6) ← `/feed`
-  = a verified Bluesky handle map (reporters + league always; 13 of 16 clubs, scoped to
-  follows) → `blueskyReporter` + team `blueskyTeam{Media,Text}`. Team Bluesky is `.both`
-  (shared `buildTeamBlueskyCards`), so a club's posts merge onto Home too. The proxy
-  normalizes timestamps to non-fractional ISO (strict `.iso8601` rejects Bluesky's
-  `…653Z`). **Reporter posts are Haiku-relevance-filtered server-side** (Step 2 —
+  = YouTube uploads + club-site OG news + team Bluesky; **Feed** (A2/0.3.6) ← `/feed`
+  = a verified Bluesky handle map (reporters + league always; 13 of 16 clubs) →
+  `blueskyReporter` + team `blueskyTeam{Media,Text}`. Team Bluesky is `.both`
+  (shared `buildTeamBlueskyCards`), so a club's posts merge onto Home too.
+  **Reporter posts are Haiku-relevance-filtered server-side** (Step 2 —
   `claude-haiku-4-5` drops off-topic reporter posts, KV-cached once; league/team pass
-  untouched) + a free 3/account flood cap. A3/news could extend `/feed` (deferred).
+  untouched) + a free 3/account flood cap + content dedup (`dedupeByContent` collapses
+  identical-text double-posts, e.g. nwslstat). A3/news could extend `/feed` later.
 - **Teams + Following** — `TeamsView` lists all 16 (followed float up). Onboarding + a
   bottom row offer **international competitions** (`FollowedCompetition` →
   `CompetitionsView`); persisted, but the schedule isn't competition-aware yet (#13).

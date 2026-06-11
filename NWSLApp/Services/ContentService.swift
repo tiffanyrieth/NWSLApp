@@ -32,9 +32,11 @@ enum ContentServiceError: Error {
 struct ContentService {
     var session: URLSession = .shared
 
-    /// The Part-1 seed, used as the fallback (and the only source while
-    /// `liveContentEnabled` is false). Injectable for tests/previews.
+    /// The Part-1 seeds, used as the fallback (and the only source while
+    /// `liveContentEnabled` is false). Injectable for tests/previews. `seed` backs
+    /// Home (`homeCards`); `seedFeed` backs the Feed (`feedCards`).
     var seed = TeamContentProvider()
+    var seedFeed = FeedContentProvider()
 
     /// Home Module-1 cards for the followed clubs. Live: the proxy `/team-videos`
     /// route (recent YouTube uploads, normalized to `ContentCard`); today: the
@@ -55,10 +57,35 @@ struct ContentService {
         }
     }
 
+    /// Feed-tab cards for the followed clubs. Live: the proxy `/feed` route
+    /// (reporter + league + followed-team Bluesky posts, normalized to
+    /// `ContentCard`); today's fallback: the curated seed. Any failure degrades to
+    /// the seed so the Feed never goes blank. The returned set is filtered (by chip,
+    /// follows, preferences) and 7-day-staleness-windowed by `FeedViewModel`.
+    func feedCards(followedAbbreviations: Set<String>) async -> [ContentCard] {
+        guard AppConfig.liveContentEnabled, !forceSeed else {
+            return await seedFeed.items()
+        }
+        do {
+            return try await fetchFeed(Array(followedAbbreviations))
+        } catch {
+            // Offline-first: a proxy hiccup falls back to the seed, never an empty
+            // Feed. (The seed is a valid answer, not a failure state.)
+            return await seedFeed.items()
+        }
+    }
+
     // MARK: - Live fetch
 
     private func fetchTeamVideos(_ teams: [String]) async throws -> [ContentCard] {
         guard let url = AppConfig.teamVideosURL(teams: teams) else {
+            throw ContentServiceError.badURL
+        }
+        return try await fetch([ContentCard].self, from: url)
+    }
+
+    private func fetchFeed(_ teams: [String]) async throws -> [ContentCard] {
+        guard let url = AppConfig.feedURL(teams: teams) else {
             throw ContentServiceError.badURL
         }
         return try await fetch([ContentCard].self, from: url)

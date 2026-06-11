@@ -56,16 +56,18 @@ struct HomeView: View {
             }
         }
         .task {
-            // Hand the view model the shared stores, load the (TEMP) content
-            // seeds, then load the shared stores once (guarding on .idle so
-            // re-selecting the tab — or another screen having loaded them first —
-            // doesn't refetch). Seeds load first so they're ready by the time the
-            // stores report .loaded and the hub renders.
+            // Hand the view model the shared stores, load the shared stores once
+            // (guarding on .idle so re-selecting the tab — or another screen having
+            // loaded them first — doesn't refetch), THEN load Module-1 content.
+            // Content runs last because the live `/team-videos` route is scoped to
+            // the followed clubs, which `loadContent` resolves from the now-loaded
+            // ClubStore. The hub gates on clubs+matches being `.loaded` anyway, so
+            // content loading after them costs nothing visible.
             viewModel.store = matchStore
             viewModel.clubStore = clubStore
-            await viewModel.loadContent()
             if case .idle = matchStore.state { await matchStore.load() }
             if case .idle = clubStore.state { await clubStore.load() }
+            await viewModel.loadContent(following: following)
         }
         .sheet(isPresented: $showTeamPicker) {
             NavigationStack { OnboardingView() }

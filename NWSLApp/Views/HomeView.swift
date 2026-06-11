@@ -153,10 +153,10 @@ struct HomeView: View {
                 followPrompt
             } else {
                 VStack(spacing: 14) {
-                    ForEach(items) { item in
-                        TeamContentCard(
-                            item: item,
-                            club: viewModel.club(forAbbreviation: item.teamAbbreviation)
+                    ForEach(items) { card in
+                        ContentCardView(
+                            card: card,
+                            club: viewModel.club(forAbbreviation: card.teamAbbreviation ?? "")
                         )
                     }
                 }

@@ -82,9 +82,9 @@ struct FeedView: View {
     private var chipsBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(viewModel.chips(following)) { chip in
-                    Chip(label: chip.label, isActive: viewModel.selectedFilter == chip.filter) {
-                        viewModel.selectedFilter = chip.filter
+                ForEach(viewModel.chips, id: \.self) { filter in
+                    Chip(label: filter.label, isActive: viewModel.selectedFilter == filter) {
+                        viewModel.selectedFilter = filter
                     }
                 }
             }
@@ -102,7 +102,9 @@ struct FeedView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    ForEach(items) { FeedCard(item: $0) }
+                    ForEach(items) { card in
+                        ContentCardView(card: card, club: club(for: card))
+                    }
                 }
                 .padding(16)
             }
@@ -126,17 +128,25 @@ struct FeedView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// Contextual empty copy — names the selected chip so it reads deliberately.
+    /// Resolve the club a card is about (for the team-colored layouts) from the
+    /// shared directory; nil for reporter/league/creator cards.
+    private func club(for card: ContentCard) -> Club? {
+        guard let abbr = card.teamAbbreviation else { return nil }
+        return clubStore.clubs.first { $0.abbreviation == abbr }
+    }
+
+    /// Contextual empty copy — names the selected content type so it reads
+    /// deliberately.
     private var emptyMessage: String {
         switch viewModel.selectedFilter {
         case .all:
             return "No posts yet. As your teams make news, it'll show up here."
-        case .league:
-            return "No league-wide news right now. Check back soon."
-        case .team:
-            let label = viewModel.chips(following)
-                .first { $0.filter == viewModel.selectedFilter }?.label ?? "this team"
-            return "Nothing about \(label) yet. We're adding more sources."
+        case .reporters:
+            return "No reporter posts right now. Check back soon."
+        case .news:
+            return "No news articles right now. Check back soon."
+        case .social:
+            return "No social clips right now. Check back soon."
         }
     }
 

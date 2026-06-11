@@ -1,5 +1,22 @@
 # NWSLApp — Project Context for Claude
 
+## ⚠️ PRIORITY FRAMEWORK — READ FIRST
+
+This app's differentiator is NOT stats, scores, or schedules. Every sports app has those.
+This app exists because it feels ALIVE — fresh content every time you open it, fan engagement
+that brings people together, and a personal connection to your teams and players.
+
+PRIORITY ORDER (non-negotiable):
+1. ALIVE FEATURES — Live content pipelines (YouTube → Home, Bluesky/Reddit → Feed, Spotlight rotation, Fan Zone rounds)
+2. CORE FUNCTIONALITY — Scores, schedule, standings, stats (table stakes, must work, but not the differentiator)
+3. HARDENING — Bug fixes, decode tests, abbreviation fragility, pull-to-refresh polish
+
+Never prioritize category 3 over category 1. If someone asks "what's next?", the answer
+is always the highest incomplete item in category 1 unless it's physically blocked.
+
+The litmus test: "Would I open this app today if I opened it yesterday?"
+If the answer is no because the content hasn't changed, that's the #1 priority to fix.
+
 ## Overview
 
 **What:** A native iOS app for tracking the NWSL (National Women's Soccer
@@ -521,9 +538,30 @@ in the File Map above):
 ## What's Next
 
 Completed work lives in **Current State**; only pending work here. Original item
-numbers are kept so existing cross-references stay valid.
+numbers are kept so existing cross-references stay valid. **Ordered by the PRIORITY
+FRAMEWORK at the top of this file** — Category 1 (ALIVE) always outranks 2/3.
 
-**Near-term / cleanup**
+**Category 1 — ALIVE features (TOP PRIORITY). These ARE the app; do these before any
+Category 2/3 work, and before any TestFlight ship. "Would I open it today if I opened
+it yesterday?"** Today the answer is no — the content is static v0.1 seed. That is the
+#1 bug.
+- **A1. YouTube → Home "From your teams" live.** Replace ⚠️`TeamContentProvider`'s static
+  seed with each followed team's latest channel uploads via the YouTube Data API (key as
+  a `nwslapp-proxy` Worker secret + cache; per-team channel IDs). Makes the Home tab change
+  daily. **← current highest incomplete ALIVE item.**
+- **A2. Bluesky → Feed tab live.** Real reporter + player + team posts via the open AT
+  Protocol (no key); replaces ⚠️`FeedContentProvider`. (folds into #11.)
+- **A3. Reddit → Feed enrichment.** Each team's subreddit (OAuth key in the proxy) —
+  surfaces cross-platform virals (IG/TikTok reposts) **legally**, since IG and TikTok have
+  NO public API for arbitrary accounts (scraping = ToS + App-Store-rejection risk; don't).
+  (folds into #11.)
+- **A4. Player Spotlight weekly rotation** — real per-team pool + rotation logic, not the
+  static demo (was a Module-2 follow-up).
+- **A5. Fan Zone live rounds** — rotating bracket editions / fresh predictions / trivia
+  backend so rounds change (was a Module-3 follow-up).
+- Per-post **Haiku tagging + NWSL/no-hot-takes filter** (#11) backs A2/A3.
+
+**Category 3 — HARDENING** (cleanup/robustness — do AFTER Category 1, never above it)
 3. **(Polish)** Keep the list visible during pull-to-refresh (spinner only on
    first load), instead of flipping `state` to `.loading` full-screen.
 4. Capture a real ESPN response → `NWSLAppTests/Fixtures/scoreboard.json` + a

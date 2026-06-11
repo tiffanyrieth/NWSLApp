@@ -327,7 +327,7 @@ NWSLApp/
 ├── NWSLAppApp.swift                   — app entry point; launches RootTabView; forces dark appearance app-wide; DEBUG `-resetOnboarding` launch arg → resets onboarding; `AppDelegate` (@UIApplicationDelegateAdaptor) captures the APNs token + handles foreground-present/tap → PushBridge (Tier 2)
 ├── NWSLApp.entitlements               — Sign in with Apple + `aps-environment` (development; Xcode flips to production on archive) for Tier-2 push
 ├── Config/                            — app configuration
-│   ├── AppConfig.swift                — base URLs; scoreboard + summary → Cloudflare proxy (0.3.1); DEBUG `-useESPNDirect`; `liveContentEnabled` flag (ON — A1 live, 0.3.4) + `teamVideosURL(teams:)` (Home live YouTube route)
+│   ├── AppConfig.swift                — base URLs; scoreboard + summary → Cloudflare proxy (0.3.1); DEBUG `-useESPNDirect`; `liveContentEnabled` flag (ON — A1 live, 0.3.4) + `teamVideosURL(teams:)` (Home live route: YouTube uploads + club-site news, 0.3.5)
 │   ├── Secrets.swift                  — 🔒 GITIGNORED Supabase URL + anon key (not committed)
 │   └── Secrets.example                — checked-in template for Secrets.swift (non-`.swift` so it never compiles)
 ├── DesignSystem/                      — token layer mirroring the Claude Design handoff; the app-chrome palette (team colors stay dynamic via Color+Hex)
@@ -419,7 +419,7 @@ NWSLApp/
 │   ├── ContentCardView.swift          — single entry point; routes a ContentCard by layout → the 3 card views below (Home + Feed call only this)
 │   ├── ThumbnailContentCard.swift     — ⚠️ thumbnail-forward cards (layouts 1 youtube / 6 socialVideo) + ThumbnailHeader (bg image-or-gradient + stripe/play/duration/crest/platform overlay slots)
 │   ├── AvatarContentCard.swift        — ⚠️ avatar-led cards (layouts 2/3/4/7) + shared atoms TeamRingAvatar, EngagementRow, CTARow
-│   ├── ArticleContentCard.swift       — ⚠️ news-article card (layout 5): favicon+outlet+time, headline, blurb, optional 80×80 thumb
+│   ├── ArticleContentCard.swift       — news-article card (layout 5): source row (club crest / article-badge) + time, headline, blurb, optional 80×80 thumb, team-color top stripe (matches video cards); LIVE on Home via club-site OG news (0.3.5)
 │   ├── PlatformBadge.swift            — shared rounded platform glyph (YT/Bluesky/TikTok/IG/article/reddit color+SF-Symbol)
 │   ├── FormBadge.swift                — W/D/L form badge (token-colored)
 │   ├── GameCard.swift                 — Fan Zone game tile (170×138, game-accent border + emoji + status + badge)
@@ -510,8 +510,12 @@ File Map above):
   7 design-spec layouts (see the File Map entry). Placement gate (Home = team voices; Feed
   = wider convo; `.both` either) + staleness (Home 72h-OR-6-card floor, Feed 7d). **Home
   Module 1 is LIVE (A1, 0.3.4)** — `ContentService` pulls real YouTube uploads from the
-  proxy `/team-videos` route (seed is now only the offline-first fallback). The Feed is
-  still ⚠️seed; A2 (Bluesky) / A3 (Reddit) wire its live routes next.
+  proxy `/team-videos` route (seed is now only the offline-first fallback). **Home also
+  shows live club-site NEWS (0.3.5)** — the same route OG-scrapes each club's own
+  website articles (WordPress `/feed`+`/wp-json` make club sites the easy source;
+  nwslsoccer.com was trialed + dropped) into `newsArticle` cards (club crest source,
+  team-color stripe), merged with the videos by recency. The Feed is still ⚠️seed; A2
+  (Bluesky) / A3 (Reddit) wire its live routes next.
 - **Teams + Following** — `TeamsView` lists all 16 (followed float up). Onboarding + a
   bottom row offer **international competitions** (`FollowedCompetition` →
   `CompetitionsView`); persisted, but the schedule isn't competition-aware yet (#13).

@@ -88,7 +88,27 @@ enum AppConfig {
     /// Built on the same proxy host as the scoreboard. Returns nil on a malformed
     /// query (caller falls back to seed). `teams` is the followed-club abbreviations.
     static func teamVideosURL(teams: [String]) -> URL? {
-        let endpoint = scoreboardProxyBase.appendingPathComponent("team-videos")
+        contentRouteURL("team-videos", teams: teams)
+    }
+
+    /// The proxy route powering the Feed tab: `GET /feed?teams=WAS,POR,…`. The
+    /// Worker fans out the curated Bluesky handles — reporters + league outlets
+    /// always, plus each requested club's own account — and normalizes posts to
+    /// `ContentCard` JSON (reporter/league → `blueskyReporter`; a club's own posts
+    /// → `blueskyTeam{Media,Text}` with placement `.both`, so they ALSO surface on
+    /// Home). `teams` is the followed-club abbreviations, which scope the team
+    /// posts (reporters/league come back regardless). Returns nil on a malformed
+    /// query (caller falls back to seed). A2 of the live Feed; Reddit + news RSS
+    /// extend this same route later. Mirrors `teamVideosURL`.
+    static func feedURL(teams: [String]) -> URL? {
+        contentRouteURL("feed", teams: teams)
+    }
+
+    /// Shared builder for the `?teams=…` content routes (`/team-videos`, `/feed`):
+    /// appends the path to the proxy host and the comma-joined team list, omitting
+    /// the query entirely when no teams are given. Returns nil on a malformed URL.
+    private static func contentRouteURL(_ path: String, teams: [String]) -> URL? {
+        let endpoint = scoreboardProxyBase.appendingPathComponent(path)
         guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
             return nil
         }

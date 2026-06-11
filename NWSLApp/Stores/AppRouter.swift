@@ -23,6 +23,27 @@ final class AppRouter {
     /// set it to navigate across tabs.
     var selectedTab: AppTab = .home
 
+    init() {
+        #if DEBUG
+        // DEBUG launch arg `-startTab <home|schedule|standings|teams|feed>` lands the
+        // app on a given tab at launch, so in-sim screenshot verification doesn't
+        // depend on flaky synthetic tab taps (the UIKit tab bar responds, but precise
+        // taps are unreliable — see CLAUDE.md → Commands). A testing affordance only,
+        // like `-resetOnboarding`/`-useESPNDirect`; compiled out of release builds.
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-startTab"), i + 1 < args.count {
+            switch args[i + 1] {
+            case "home": selectedTab = .home
+            case "schedule": selectedTab = .schedule
+            case "standings": selectedTab = .standings
+            case "teams": selectedTab = .teams
+            case "feed": selectedTab = .feed
+            default: break
+            }
+        }
+        #endif
+    }
+
     /// The match a live push (goal/kickoff/…) tap wants to open, by ESPN event id.
     /// Set via `openMatch(eventID:)` and consumed by the Schedule tab.
     ///

@@ -510,7 +510,9 @@ File Map above):
   follows) → `blueskyReporter` + team `blueskyTeam{Media,Text}`. Team Bluesky is `.both`
   (shared `buildTeamBlueskyCards`), so a club's posts merge onto Home too. The proxy
   normalizes timestamps to non-fractional ISO (strict `.iso8601` rejects Bluesky's
-  `…653Z`). A3 + news RSS extend `/feed` next.
+  `…653Z`). **Reporter posts are Haiku-relevance-filtered server-side** (Step 2 —
+  `claude-haiku-4-5` drops off-topic reporter posts, KV-cached once; league/team pass
+  untouched) + a free 3/account flood cap. A3/news could extend `/feed` (deferred).
 - **Teams + Following** — `TeamsView` lists all 16 (followed float up). Onboarding + a
   bottom row offer **international competitions** (`FollowedCompetition` →
   `CompetitionsView`); persisted, but the schedule isn't competition-aware yet (#13).
@@ -542,18 +544,17 @@ it yesterday?"** Content Card UI layer (Part 1) is built; A1–A3 (**Part 2**) s
 seed for live proxy routes (`content-cards-part2-live-data.md`, Steps 1→2→2b→3). A1+A2
 shipped (Home + Feed LIVE); Haiku → A3 → news next — see `Reference/Design/live-feed-plan.md`.
 - **A1. YouTube → Home live.** ✅ **SHIPPED 0.3.4** (+ club-site news 0.3.5; see Current
-  State). Remaining polish: a refetch-on-follows-change seam (shared with A2).
+  State). Remaining polish: a refetch-on-follows-change seam.
 - **A2. Bluesky → Feed tab live.** ✅ **SHIPPED 0.3.6** (proxy `/feed` + `feedCards`; see
-  Current State). Polish: one stats bot (`nwslstat`) floods the top — a per-handle
-  cap/dedup folds in with Haiku.
-- **A3. Reddit → Feed enrichment.** Each team's subreddit (OAuth key in the proxy) —
-  surfaces cross-platform virals **legally**. **Step-0 OG spike DONE:** IG OG-scraping is
-  auth-blocked (0 og tags for any scraper UA) → **no Meta registration; IG only via Reddit
-  reposts**; TikTok via keyless oEmbed (verified). Run AFTER Haiku; extends `/feed`. (#11.)
+  Current State). Reporter relevance filter + flood cap followed in Step 2.
+- **A3. Reddit → Feed enrichment** — **DEFERRED** (too noisy; subreddits live in Teams).
+  **Step-0 OG spike DONE:** IG OG-scraping auth-blocked (all scraper UAs) → no Meta reg,
+  IG only via reposts; TikTok via keyless oEmbed. (Revisit if Feed needs volume.)
 - **A4. Player Spotlight weekly rotation** — real per-team pool + rotation, not the static demo.
 - **A5. Fan Zone live rounds** — rotating bracket editions / fresh predictions / trivia backend.
-- Per-post **Haiku tagging + NWSL/no-hot-takes filter** (#11) backs A2/A3. **← current
-  highest incomplete ALIVE item** (Step 2 of `live-feed-plan.md`; also dedups the A2 Feed).
+- **Haiku relevance filter (reporters) + flood cap** ✅ **SHIPPED** (Step 2, proxy-side,
+  ~$2-3/yr, fail-open; see Content Cards). Reddit deferred (subreddits live in Teams).
+  **← A4/A5 are the next ALIVE items.**
 
 **Category 3 — HARDENING** (cleanup/robustness — do AFTER Category 1, never above it)
 3. **(Polish)** Keep the list visible during pull-to-refresh (spinner only on first
@@ -587,9 +588,8 @@ shipped (Home + Feed LIVE); Haiku → A3 → news next — see `Reference/Design
   real voting + rotating editions. Predict: real fixtures + lineup feed + stats.
 
 **Longer-term (vision — see `Reference/Sessions/`)**
-11. **Feed backend** — Bluesky source LIVE (A2). Remaining: the "no hot takes" gate as a
-    real filter + per-post **team tagging via a Claude Haiku call** that drops non-NWSL
-    content (`nwslapp-feed-content-rules.md`); user-added sources. (Haiku = next; A3.)
+11. **Feed backend** — Bluesky source LIVE (A2) + Haiku relevance filter LIVE (Step 2).
+    Remaining: user-added sources; optional richer filtering. (Reddit/A3 deferred.)
 12. **Push notifications.** **Tier 1 (LOCAL) shipped 0.3.2.** **Tier 2 (SERVER push)
     code-complete through Stage C** (≈0.4.x; PR #32) — app side
     (AppDelegate/PushBridge/sync coordinator/schema, Tier 2 requires sign-in) per the

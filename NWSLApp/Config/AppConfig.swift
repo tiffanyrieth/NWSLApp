@@ -79,7 +79,7 @@ enum AppConfig {
     /// set as a Worker secret first — see `content-cards-part2-live-data.md`).
     /// While false, `ContentService` serves the Part-1 ⚠️seed providers, so Home/
     /// Feed render exactly as today. Flip to `true` once the route is live — one line.
-    static let liveContentEnabled = false
+    static let liveContentEnabled = true
 
     /// The proxy route that returns Home Module-1 cards as `ContentCard` JSON:
     /// `GET /team-videos?teams=WAS,POR,…`. The Worker resolves each club's YouTube

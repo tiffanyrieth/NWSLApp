@@ -327,7 +327,7 @@ NWSLApp/
 ├── NWSLAppApp.swift                   — app entry point; launches RootTabView; forces dark appearance app-wide; DEBUG `-resetOnboarding` launch arg → resets onboarding; `AppDelegate` (@UIApplicationDelegateAdaptor) captures the APNs token + handles foreground-present/tap → PushBridge (Tier 2)
 ├── NWSLApp.entitlements               — Sign in with Apple + `aps-environment` (development; Xcode flips to production on archive) for Tier-2 push
 ├── Config/                            — app configuration
-│   ├── AppConfig.swift                — base URLs; scoreboard + summary → Cloudflare proxy (0.3.1); DEBUG `-useESPNDirect`; `liveContentEnabled` flag (OFF) + `teamVideosURL(teams:)` (Part-2 content route)
+│   ├── AppConfig.swift                — base URLs; scoreboard + summary → Cloudflare proxy (0.3.1); DEBUG `-useESPNDirect`; `liveContentEnabled` flag (ON — A1 live, 0.3.4) + `teamVideosURL(teams:)` (Home live YouTube route)
 │   ├── Secrets.swift                  — 🔒 GITIGNORED Supabase URL + anon key (not committed)
 │   └── Secrets.example                — checked-in template for Secrets.swift (non-`.swift` so it never compiles)
 ├── DesignSystem/                      — token layer mirroring the Claude Design handoff; the app-chrome palette (team colors stay dynamic via Color+Hex)
@@ -337,7 +337,7 @@ NWSLApp/
 ├── Models/                            — Codable models (⚠️ = backed by a seed provider)
 │   ├── BracketEdition.swift           — Bracket Battle entrants + edition, seed order
 │   ├── Club.swift                     — flat Club + ESPN /teams decode wrappers (now decodes brand color/alternateColor → ring crests)
-│   ├── ContentCard.swift              — ⚠️ unified ALIVE-content model: 7 layouts (youtube/blueskyTeam·Text·Media/blueskyReporter/newsArticle/socialVideo/instagramFallback) + StalenessWindow (Home 72h/Feed 7d); Codable-shaped for the live pipeline; supersedes FeedItem+TeamContentItem
+│   ├── ContentCard.swift              — ⚠️ unified ALIVE-content model: 7 layouts (youtube/blueskyTeam·Text·Media/blueskyReporter/newsArticle/socialVideo/instagramFallback) + StalenessWindow (Home 72h-OR-6-card floor / Feed 7d — floor keeps a slow stretch from going sparse); Codable-shaped for the live pipeline; supersedes FeedItem+TeamContentItem
 │   ├── FollowedCompetition.swift      — international competitions list + follow model
 │   ├── AthleteStatistics.swift        — ESPN Core API /statistics decode: category→field flatten → PlayerSeasonStats
 │   ├── MatchSummary.swift             — ESPN /summary decode: lineups+formation, boxscore stats, key-events timeline
@@ -352,7 +352,7 @@ NWSLApp/
 ├── Services/                          — ESPNService + Supabase clients + ⚠️ curated async seed providers
 │   ├── BracketEditionProvider.swift   — ⚠️ Bracket seed + simulated leaderboard
 │   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats by athlete+year (backs seasonStats)
-│   ├── ContentService.swift           — ⚠️ ALIVE content client: `homeCards(followedAbbreviations:)` → proxy `/team-videos` `[ContentCard]` (live) or seed; gated by `AppConfig.liveContentEnabled` (OFF) + DEBUG `-useSeedContent`; failure → seed (Part-2 Step-1 scaffold)
+│   ├── ContentService.swift           — ALIVE content client: `homeCards(followedAbbreviations:)` → proxy `/team-videos` `[ContentCard]` (LIVE as of 0.3.4); gated by `AppConfig.liveContentEnabled` (ON) + DEBUG `-useSeedContent`; failure → seed (offline-first)
 │   ├── ESPNService.swift              — async fetch: scoreboard + summary (proxy)/teams/roster/standings + seasonStats (Core API, parallel per-athlete, best-effort)
 │   ├── FollowSyncService.swift        — Supabase `follows` table client (fetch/push/add/remove); RLS-scoped per user
 │   ├── DeviceTokenService.swift       — Supabase `device_tokens` client (register/remove APNs token); RLS-scoped; modeled on FollowSyncService
@@ -508,8 +508,10 @@ File Map above):
 - **Content Cards** (Part-1, on ⚠️seed; `we-are-going-to-iridescent-otter.md`) — one
   `ContentCard` model + `ContentCardView` router back BOTH Home Module 1 and the Feed via
   7 design-spec layouts (see the File Map entry). Placement gate (Home = team voices; Feed
-  = wider convo; `.both` either) + staleness (Home 72h, Feed 7d). Home Module 1 flows
-  through `ContentService` (live-or-seed); Part-2 wires the live routes.
+  = wider convo; `.both` either) + staleness (Home 72h-OR-6-card floor, Feed 7d). **Home
+  Module 1 is LIVE (A1, 0.3.4)** — `ContentService` pulls real YouTube uploads from the
+  proxy `/team-videos` route (seed is now only the offline-first fallback). The Feed is
+  still ⚠️seed; A2 (Bluesky) / A3 (Reddit) wire its live routes next.
 - **Teams + Following** — `TeamsView` lists all 16 (followed float up). Onboarding + a
   bottom row offer **international competitions** (`FollowedCompetition` →
   `CompetitionsView`); persisted, but the schedule isn't competition-aware yet (#13).
@@ -543,18 +545,22 @@ Category 2/3 work, and before any TestFlight ship. "Would I open it today if I o
 it yesterday?"** Today the answer is no — the content is static v0.1 seed. That is the
 #1 bug. **Content Card UI layer (Part 1) built on seed** (see Current State); A1–A3 are
 now **Part 2** — swap the seed for live proxy routes (`content-cards-part2-live-data.md`),
-Steps 1→2→2b→3.
-- **A1. YouTube → Home "From your teams" live.** **App-side scaffold landed** — Home
-  Module-1 routes through `ContentService` (`liveContentEnabled` OFF → seed; live path
-  written behind the flag). **Remaining (owner-gated):** YouTube Data API key as a
-  `nwslapp-proxy` Worker secret + the `/team-videos` route (channel IDs → uploads →
-  `[ContentCard]`, ~1h cache), then flip the flag + a refetch-on-follows seam.
-  **← current highest incomplete ALIVE item.**
+Steps 1→2→2b→3. **A1 SHIPPED 0.3.4** (Home live); A2/A3/Haiku next — see
+`Reference/Design/live-feed-plan.md`.
+- **A1. YouTube → Home "From your teams" live.** ✅ **SHIPPED 0.3.4.** `/team-videos`
+  route deployed (YouTube Data API key set as a Worker secret; channel IDs → uploads →
+  `[ContentCard]`, ~1h cache); `liveContentEnabled` flipped ON; verified in-sim (real
+  Angel City uploads on Home). Staleness is **72h-OR-6-card floor** so the break's
+  slow stretch doesn't empty Module 1. Remaining polish: a refetch-on-follows-change seam.
 - **A2. Bluesky → Feed tab live.** Real reporter/player/team posts via the open AT
-  Protocol (no key); replaces ⚠️`FeedContentProvider`. (folds into #11.)
+  Protocol (no key); replaces ⚠️`FeedContentProvider`. **← current highest incomplete
+  ALIVE item.** (folds into #11; plan: `Reference/Design/live-feed-plan.md`.)
 - **A3. Reddit → Feed enrichment.** Each team's subreddit (OAuth key in the proxy) —
-  surfaces cross-platform virals (IG/TikTok reposts) **legally** (IG/TikTok have NO
-  public API; scraping = ToS + rejection risk — don't). (folds into #11.)
+  surfaces cross-platform virals (IG/TikTok reposts) **legally**. IG/TikTok have NO
+  content API, but **OG-tag link-preview scraping** (the iMessage/Slack/Discord model —
+  fetch the post URL, read `og:image`/`og:description`) is fair game for a card preview
+  that taps OUT to the native app; a spike (#A3-spike) tests whether OG tags alone
+  suffice or Meta App registration is needed. (folds into #11.)
 - **A4. Player Spotlight weekly rotation** — real per-team pool + rotation, not the static demo.
 - **A5. Fan Zone live rounds** — rotating bracket editions / fresh predictions / trivia backend.
 - Per-post **Haiku tagging + NWSL/no-hot-takes filter** (#11) backs A2/A3.

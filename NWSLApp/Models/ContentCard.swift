@@ -115,7 +115,7 @@ struct ContentCard: Identifiable, Codable, Hashable {
 /// team content; the Feed keeps a week of the wider conversation.
 enum StalenessWindow {
     case home   // ≤ 72 hours, but never fewer than `floor` cards
-    case feed   // ≤ 7 days
+    case feed   // ≤ 7 days, but never fewer than `floor` cards
 
     var interval: TimeInterval {
         switch self {
@@ -132,12 +132,15 @@ enum StalenessWindow {
     ///
     /// Home's floor is 6 — exactly Module 1's display cap
     /// (`HomeViewModel.teamContent(limit:)`), so a slow week still fills the hook
-    /// rather than leaving a near-empty module. The Feed's 7-day window rarely
-    /// runs dry, so it stays a strict window for now.
+    /// rather than leaving a near-empty module. **The Feed shares the same floor of
+    /// 6**: an empty Feed during a slow stretch (an international break, the
+    /// off-season) reads as "the app is broken" even when it's technically correct —
+    /// users don't know there's a World Cup break, they just see an empty tab. So a
+    /// dry window relaxes to the 6 most-recent posts regardless of age.
     var floor: Int? {
         switch self {
         case .home: return 6
-        case .feed: return nil
+        case .feed: return 6
         }
     }
 }

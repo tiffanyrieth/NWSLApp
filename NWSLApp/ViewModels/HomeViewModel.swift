@@ -34,31 +34,38 @@ final class HomeViewModel {
     var store: MatchStore?
     var clubStore: ClubStore?
 
-    private let contentProvider: TeamContentProvider
+    private let contentService: ContentService
     private let spotlightProvider: PlayerSpotlightProvider
     private let calendar: Calendar
     private let now: () -> Date
 
     init(
-        contentProvider: TeamContentProvider = TeamContentProvider(),
+        contentService: ContentService = ContentService(),
         spotlightProvider: PlayerSpotlightProvider = PlayerSpotlightProvider(),
         calendar: Calendar = .current,
         now: @escaping () -> Date = Date.init
     ) {
-        self.contentProvider = contentProvider
+        self.contentService = contentService
         self.spotlightProvider = spotlightProvider
         self.calendar = calendar
         self.now = now
     }
 
-    /// Loads the (TEMP) Module 1/2 content seeds. The club directory now lives in
-    /// the shared ClubStore (loaded separately by the view); this owns only the
-    /// seeds. Idempotent — the seeds are static today, so a second call (tab
-    /// re-select, pull-to-refresh) is a no-op.
-    func loadContent() async {
+    /// Loads Module-1 content via `ContentService` (live `/team-videos` once
+    /// enabled; the Part-1 ⚠️seed today) plus the Module-2 spotlight seed. Runs
+    /// AFTER the shared ClubStore so `followedAbbreviations` is resolvable (the
+    /// live route is scoped to followed teams; the seed ignores the arg and returns
+    /// all, leaving the per-follow filtering to `teamContent`).
+    ///
+    /// ⚠️ TEMP seam: idempotent on first load. Once `liveContentEnabled` is true,
+    /// a newly-followed team's live content won't appear until a refresh because
+    /// the guard skips a refetch (the seed is unaffected — it loads all + filters).
+    /// Wire a refetch on follows-change when the live route lands (Part 2 Step 1).
+    func loadContent(following: FollowingStore) async {
         guard teamContentItems.isEmpty else { return }
-        // Seeds resolve immediately today; the async shape is the future source's.
-        teamContentItems = await contentProvider.items()
+        teamContentItems = await contentService.homeCards(
+            followedAbbreviations: followedAbbreviations(following)
+        )
         allSpotlights = await spotlightProvider.spotlights()
     }
 

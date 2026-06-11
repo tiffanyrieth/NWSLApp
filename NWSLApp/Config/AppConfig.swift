@@ -70,4 +70,31 @@ enum AppConfig {
         #endif
         return scoreboardProxyBase
     }
+
+    // MARK: - Live content (ALIVE pipeline — Part 2)
+
+    /// Master switch for the live content pipeline (YouTube → Home, then
+    /// Bluesky/Reddit/news → Feed). **OFF until the proxy content routes are
+    /// deployed** (the `/team-videos` route needs the owner's YouTube Data API key
+    /// set as a Worker secret first — see `content-cards-part2-live-data.md`).
+    /// While false, `ContentService` serves the Part-1 ⚠️seed providers, so Home/
+    /// Feed render exactly as today. Flip to `true` once the route is live — one line.
+    static let liveContentEnabled = true
+
+    /// The proxy route that returns Home Module-1 cards as `ContentCard` JSON:
+    /// `GET /team-videos?teams=WAS,POR,…`. The Worker resolves each club's YouTube
+    /// uploads playlist, fetches recent uploads via the YouTube Data API, and
+    /// normalizes them to the `ContentCard` shape (so the app just decodes).
+    /// Built on the same proxy host as the scoreboard. Returns nil on a malformed
+    /// query (caller falls back to seed). `teams` is the followed-club abbreviations.
+    static func teamVideosURL(teams: [String]) -> URL? {
+        let endpoint = scoreboardProxyBase.appendingPathComponent("team-videos")
+        guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        if !teams.isEmpty {
+            components.queryItems = [URLQueryItem(name: "teams", value: teams.joined(separator: ","))]
+        }
+        return components.url
+    }
 }

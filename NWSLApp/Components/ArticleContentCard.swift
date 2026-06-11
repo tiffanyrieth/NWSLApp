@@ -18,6 +18,20 @@ struct ArticleContentCard: View {
 
     private var sourceName: String { card.sourceName ?? card.authorName ?? "News" }
 
+    /// Team accent for the top stripe — the same per-source color coding the
+    /// thumbnail (video) cards use, so articles read as the same team's content.
+    private var teamColor: Color { club?.accentColor ?? .dsAccent }
+
+    /// The source mark: a club's own site shows that club's crest; anything else
+    /// (e.g. a future Google-News outlet) falls back to the generic article badge.
+    @ViewBuilder private var sourceIcon: some View {
+        if let club {
+            TeamLogo(urlString: club.logoURL, size: 18)
+        } else {
+            PlatformBadge(platform: .article, size: 18)
+        }
+    }
+
     var body: some View {
         Button {
             if let url = card.url { openURL(url) }
@@ -32,6 +46,11 @@ struct ArticleContentCard: View {
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.dsBgCard)
+            // Team-color top stripe, matching the thumbnail cards (clipped to the
+            // card's rounded corners by the clipShape below).
+            .overlay(alignment: .top) {
+                Rectangle().fill(teamColor).frame(height: 3)
+            }
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -64,7 +83,7 @@ struct ArticleContentCard: View {
 
     private var sourceRow: some View {
         HStack(spacing: 6) {
-            PlatformBadge(platform: .article, size: 18)
+            sourceIcon
             Text(sourceName)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Color.dsFgSecondary)

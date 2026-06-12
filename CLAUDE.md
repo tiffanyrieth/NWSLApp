@@ -335,7 +335,7 @@ NWSLApp/
 │   ├── DSMetrics.swift                — `enum DS` spacing, radii, avatar/crest sizes, game-card dims
 │   └── DSText.swift                   — modifiers: `.trackedCaps()`, `.sectionTitle()`, `.navigationContextLabel("…")` (left "‹ Label" on pushed screens), `Font.dsScore`
 ├── Models/                            — Codable models (⚠️ = backed by a seed provider)
-│   ├── BracketEdition.swift           — Bracket Battle entrants + edition, seed order
+│   ├── BracketEdition.swift           — Bracket Battle LIVE models (0.3.9): BracketRound (escalating points, any power-of-2 pool) · Entrant/Matchup/Edition (64→6 rounds, flat Codable)
 │   ├── Club.swift                     — flat Club + ESPN /teams decode wrappers (now decodes brand color/alternateColor → ring crests)
 │   ├── ContentCard.swift              — ⚠️ unified ALIVE-content model: 7 layouts (youtube/blueskyTeam·Text·Media/blueskyReporter/newsArticle/socialVideo/instagramFallback) + StalenessWindow (Home 72h / Feed 7d, each **6-card-floored** → never-empty, 0.3.7); Codable-shaped for the live pipeline; supersedes FeedItem+TeamContentItem
 │   ├── FollowedCompetition.swift      — international competitions list + follow model
@@ -350,7 +350,9 @@ NWSLApp/
 │   ├── TeamSocialLinks.swift          — ⚠️ per-team social links for TeamDetail
 │   └── TriviaQuestion.swift           — ⚠️ one Daily-Trivia question (4 options)
 ├── Services/                          — ESPNService + Supabase clients + ⚠️ curated async seed providers
-│   ├── BracketEditionProvider.swift   — ⚠️ Bracket seed + simulated leaderboard
+│   ├── BracketEditionProvider.swift   — ⚠️ OFFLINE-FIRST sample Bracket edition (real forwards, 16) + sample leaderboard; live edition = Supabase
+│   ├── BracketScoring.swift           — pure Bracket scorer: escalating per-round points + rule-derived max (546 for 64; mock's 468 is a slip). Unit-tested (BracketScoringTests)
+│   ├── BracketService.swift           — Bracket data boundary: currentEdition/results/leaderboard/submit; ⚠️ Supabase reads/writes STUBBED (offline sample fallback) — next step
 │   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats by athlete+year (backs seasonStats)
 │   ├── ContentService.swift           — ALIVE content client: `homeCards(…)`→`/team-videos`, `feedCards(…)`→`/feed` ([ContentCard]), `spotlightCards(…)`→`/spotlight` ([PlayerSpotlight], B2/0.3.8); gated by `liveContentEnabled` (ON) + DEBUG `-useSeedContent`; failure → seed (offline-first)
 │   ├── ESPNService.swift              — async fetch: scoreboard + summary (proxy)/teams/roster/standings + seasonStats (Core API, parallel per-athlete, best-effort)
@@ -370,7 +372,7 @@ NWSLApp/
 ├── Stores/                            — @Observable shared state → UserDefaults, injected
 │   ├── AppRouter.swift                — tab selection (AppTab); RootTabView binds the TabView; Home's "Full schedule →" jumps tabs; `openMatch(eventID:)` + `pendingMatchEventID` for a live-push tap (TEMP seam: lands on Schedule); DEBUG `-startTab` init for in-sim verification
 │   ├── AuthStore.swift                — @MainActor; Sign in with Apple → Supabase user; profile upsert; cached displayName; deleteAccount (⚠️ TEMP — real auth-user deletion needs a server fn); knows nothing about follows
-│   ├── BracketStore.swift             — Bracket picks / points / locked rounds
+│   ├── BracketStore.swift             — Bracket per-edition/round draft + one-way submit + banked points + cached edition summary (Home gate); `bracket.v2.*`
 │   ├── ClubStore.swift                — shared club directory; one fetch, many readers (ID/abbr lookups)
 │   ├── FeedPreferencesStore.swift     — Feed content-type toggles + muted sources
 │   ├── FollowSyncCoordinator.swift    — @MainActor; the ONLY follows↔Supabase bridge (sign-in union-merge + ongoing sync); not env-injected
@@ -381,7 +383,7 @@ NWSLApp/
 │   ├── PredictionStore.swift          — Predict-the-XI durable state (0.3.9): predictions[fixtureID:XIPrediction] (draft/submitted) + scores[fixtureID:PredictionScore], JSON under `predict.v2.*`; submit is one-way; `seasonPoints`/`hasPredicted` preserved for Home/Profile readers
 │   └── TriviaStore.swift              — Daily-Trivia streak/accuracy + one-play/day gate
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
-│   ├── BracketViewModel.swift         — Bracket session; deterministic community sim
+│   ├── BracketViewModel.swift         — Bracket session: round phase (open/submitted/closed/scored), progress, results, leaderboard, settled-round scoring
 │   ├── FeedViewModel.swift            — content-type chips (All/News/Social — Social = reporter+club Bluesky+player IG/TikTok; B3a 0.3.8 folded "Reporters" in) + filtered [ContentCard] (follows∩ OR league, placement≠home, 7d staleness) + sources (prefs-aware); cards ← `ContentService.feedCards` (live `/feed`, seed fallback); clubs ← ClubStore
 │   ├── HomeViewModel.swift            — derives Home modules from MatchStore+ClubStore+Following; Module-1 via ContentService (live-or-seed)
 │   ├── MatchDetailViewModel.swift     — one match: temporalState (past/live/future) + /summary fetch + live refresh + preview
@@ -397,7 +399,7 @@ NWSLApp/
 │   ├── HomeView.swift                 — your-teams hub: 4 modules + profile-avatar button (→ ProfileView sheet); spotlight carousel; onboarding-in-place
 │   ├── ProfileView.swift              — account & settings sheet (from Home avatar): identity / Fan Zone stats / notif toggles (7 shown; lineup/subs hidden until Stage D) / My Teams / Account; offline-first (signed-out CTA); Tier-2 toggles `requiresSignIn` → NotificationAuthPromptView; grant → registerForRemoteNotifications
 │   ├── DailyTriviaView.swift          — Daily Trivia game (indigo); 5/day
-│   ├── BracketBattleView.swift        — Bracket Battle game (teal); vote + lock rounds
+│   ├── BracketBattleView.swift        — Bracket Battle (teal, 0.3.9): 5 screens — Edition Intro · Voting · Save/Submit · Results · Bracket Overview; sign-in at submit
 │   ├── PredictXIView.swift            — Predict the XI game (pink, 0.3.9 LIVE): Open-for-predictions fixtures (draft/submitted/closed) + Results score breakdown + simulated leaderboard
 │   ├── XIPickerView.swift             — Predict the XI picker sheet: formation chips → pitch-grid slots (tap → roster sheet) → scoreline steppers → Save draft / Submit (lock at kickoff−2h, one-way)
 │   ├── OnboardingView.swift           — first-open team + competition follow picker
@@ -434,6 +436,7 @@ NWSLApp/
 │   ├── FlowLayout.swift               — wrapping Layout (iOS16) — backs the Lineups substitute chips
 │   ├── ImageCache.swift               — in-memory NSCache singleton; backs TeamLogo (no re-download)
 │   ├── MatchCard.swift                — V2: bare TeamLogo crests + hairline status column + orange live clock + venue/📺; → MatchDetailView
+│   ├── PlayerDot.swift                — Bracket player chip: team-ring jersey monogram + name/abbr (no headshots); backs the matchup cards
 │   ├── PlayerCard.swift               — Squad-grid card; team-color monogram + position
 │   ├── StatComparisonBar.swift        — head-to-head split bar (team-colored values | tracked-caps label | split track); past + future
 │   ├── PlayerSpotlightCard.swift      — Module-2 profile card: PLAYER OF THE WEEK + jersey + hook + stat strip (`statStrip` = real-or-demo) + Read-spotlight
@@ -491,9 +494,12 @@ Per-screen behavior (full file detail in the File Map; specs in `Reference/Desig
   vs ESPN `/summary` (max 88; Draft→Submit one-way, closes kickoff−2h, only submitted score).
   **Visibility rule (all games):** hidden EVERYWHERE (Home card + screen) when nothing
   active/upcoming — Predict's gate = followed-team fixture **within 28 days**; the module
-  hides when no game is visible. **Daily Trivia** (indigo) + **Bracket Battle** (teal) still
-  ⚠️seed (always-visible until live gates land; next up). Leaderboards simulated (real = Game
-  Center).
+  hides when no game is visible. **Bracket Battle** (teal) — APP-SIDE LIVE (0.3.9): the real
+  64-player / 6-round community-voting tournament (5 screens per the Claude Design ref;
+  escalating scoring Rd64+5…Final+40; draft→submit one-way; sign-in at submit; gate hides when
+  no active edition). Renders an offline-first sample edition; **real Supabase voting + the
+  ESPN/Haiku edition-generation engine are PENDING** (the votes are stubbed — see What's Next).
+  **Daily Trivia** (indigo) still ⚠️seed. Leaderboards simulated (real = Game Center).
 - **Player Spotlight** (`spotlight-design-spec.md`) — one mini-profile/followed team →
   `PlayerSpotlightView`. **LIVE** (B2/0.3.8) via proxy `/spotlight`: real player + ESPN stats
   + a Haiku "why watch" blurb, weekly rotation. Seed = offline-first fallback.
@@ -538,11 +544,15 @@ before any TestFlight ship. The content pipeline is LIVE end-to-end (Home + Feed
 club OG news · Bluesky · News RSS · Instagram · Player Spotlight). **Backbone sequence**
 (`Reference/BACKBONE.md` + `Reference/Feed update/` handoff): A1/A2 · B1 · B2 · B3a · **B3b
 all SHIPPED**.
-- **Fan Zone games (0.3.9, app-side Swift):** swap the ⚠️seed games for live ESPN-driven
-  rounds, in order — ~~**Predict the XI** (LIVE)~~ ✅ → **NEXT: Bracket Battle** (roster/stats
-  + voting) → **Daily Trivia** (question pool) → **Game Center** (GameKit leaderboards across
-  all three). Then **B4 final sweep** — re-audit every surface for empty/stale → ship **0.3.9**
-  (last backbone patch; QOL begins at 0.4.0).
+- **Fan Zone games (0.3.9):** swap the ⚠️seed games for live rounds, in order —
+  ~~**Predict the XI** (LIVE)~~ ✅ → **Bracket Battle** 🔨 app-side LIVE (5 screens + models +
+  scoring + store/VM + Home gate, on branch `feature/bracket-battle`); **NEXT for Bracket =
+  the real-voting backend**: Supabase schema (`bracket_editions`/`_matchups`/`_votes` RLS +
+  grants/`_scores`/`bracket_leaderboard` view) + wire `BracketService` submit/results/
+  leaderboard to Supabase (currently TEMP-stubbed) + one seeded edition; then the proxy Worker
+  edition-generation engine (ESPN stats-seeded + Haiku creative themes + scheduled round
+  advancement/tallying). → **Daily Trivia** (question pool) → **Game Center** (GameKit
+  leaderboards across all three). Then **B4 final sweep** → ship **0.3.9** (QOL begins at 0.4.0).
 - **A3 Reddit → Feed** — DEFERRED (noisy; subreddits live in Teams). IG now via Apify (B3b).
 
 **Category 3 — HARDENING** (cleanup/robustness — do AFTER Category 1, never above it)

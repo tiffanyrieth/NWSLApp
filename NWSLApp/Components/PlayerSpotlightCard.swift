@@ -88,7 +88,7 @@ struct PlayerSpotlightCard: View {
     // MARK: - Stat strip (Goals / Assists / Apps)
 
     private var statStrip: some View {
-        let s = spotlight.demoSeasonStats
+        let s = spotlight.statStrip
         return HStack(spacing: 0) {
             statCell("\(s.goals)", "Goals", highlight: true)
             statDivider

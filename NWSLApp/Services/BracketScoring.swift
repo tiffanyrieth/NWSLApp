@@ -6,13 +6,12 @@
 //  I/O, so every rule is unit-testable (BracketScoringTests) and the view model just
 //  calls them once a round's real community tally lands. You score by predicting
 //  which entrant the COMMUNITY advances; each correct pick is worth that round's
-//  escalating value (Rd of 64 +5 … Final +40 — see BracketRound.points).
+//  tiered value (1·1·2·2·3·3 by round — see BracketRound.points, v2).
 //
-//  NOTE on the maximum: the per-round values × matchup counts (32·5 + 16·8 + 8·12 +
-//  4·18 + 2·25 + 1·40) sum to 546 for a perfect 64-pool bracket — NOT the 468 the
-//  design mock printed (an arithmetic slip in the prototype). We derive the max from
+//  NOTE on the maximum: the per-round values × matchup counts (32·1 + 16·1 + 8·2 +
+//  4·2 + 2·3 + 1·3) sum to 81 for a perfect 64-pool bracket. We derive the max from
 //  the rule via `maxPoints(...)` so the "perfect bracket" figure is always
-//  self-consistent with the scoring; flagged to the owner.
+//  self-consistent with the scoring.
 //
 
 import Foundation

@@ -26,9 +26,10 @@ import Foundation
 // MARK: - Round
 
 /// A tournament round, keyed by how many ENTRANTS contest it (64 → Round of 64).
-/// Points ESCALATE by round — later picks are harder to predict, so they're worth
-/// more (owner-set weights). The set generalises to any power-of-two pool: a
-/// 32-player edition just starts at `.roundOf32`.
+/// Points rise in gentle tiers by round (1·1·2·2·3·3) — later picks are worth a
+/// little more without an extreme "upset tax" (owner-set, v2). A perfect 64-pool
+/// bracket totals 81. The set generalises to any power-of-two pool: a 32-player
+/// edition just starts at `.roundOf32`.
 enum BracketRound: Int, Codable, CaseIterable, Comparable {
     case roundOf64 = 64
     case roundOf32 = 32
@@ -40,15 +41,15 @@ enum BracketRound: Int, Codable, CaseIterable, Comparable {
     /// Matchups in this round (entrants ÷ 2): Rd of 64 = 32, … Final = 1.
     var matchupCount: Int { rawValue / 2 }
 
-    /// Points for ONE correct pick in this round (escalating).
+    /// Points for ONE correct pick in this round (tiered 1·1·2·2·3·3, v2).
     var points: Int {
         switch self {
-        case .roundOf64: return 5
-        case .roundOf32: return 8
-        case .roundOf16: return 12
-        case .quarterfinal: return 18
-        case .semifinal: return 25
-        case .final: return 40
+        case .roundOf64: return 1
+        case .roundOf32: return 1
+        case .roundOf16: return 2
+        case .quarterfinal: return 2
+        case .semifinal: return 3
+        case .final: return 3
         }
     }
 

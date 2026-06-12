@@ -40,16 +40,16 @@ insert into public.bracket_entrants (edition_id, entrant_id, seed, player_name, 
   ('top-forward-2026', 'tf15', 15, 'Fox',      3,  'NC'),
   ('top-forward-2026', 'tf16', 16, 'Bugg',     14, 'DEN');
 
--- ── Round of 16 matchups (1v16, 2v15, … 8v9; +12 pts each) ───────────────────
+-- ── Round of 16 matchups (1v16, 2v15, … 8v9; 2 pts each, v2 tiered scoring) ───
 insert into public.bracket_matchups (id, edition_id, round, slot, entrant_a_id, entrant_b_id, points) values
-  ('top-forward-2026-r16-s0', 'top-forward-2026', 16, 0, 'tf1', 'tf16', 12),
-  ('top-forward-2026-r16-s1', 'top-forward-2026', 16, 1, 'tf2', 'tf15', 12),
-  ('top-forward-2026-r16-s2', 'top-forward-2026', 16, 2, 'tf3', 'tf14', 12),
-  ('top-forward-2026-r16-s3', 'top-forward-2026', 16, 3, 'tf4', 'tf13', 12),
-  ('top-forward-2026-r16-s4', 'top-forward-2026', 16, 4, 'tf5', 'tf12', 12),
-  ('top-forward-2026-r16-s5', 'top-forward-2026', 16, 5, 'tf6', 'tf11', 12),
-  ('top-forward-2026-r16-s6', 'top-forward-2026', 16, 6, 'tf7', 'tf10', 12),
-  ('top-forward-2026-r16-s7', 'top-forward-2026', 16, 7, 'tf8', 'tf9',  12);
+  ('top-forward-2026-r16-s0', 'top-forward-2026', 16, 0, 'tf1', 'tf16', 2),
+  ('top-forward-2026-r16-s1', 'top-forward-2026', 16, 1, 'tf2', 'tf15', 2),
+  ('top-forward-2026-r16-s2', 'top-forward-2026', 16, 2, 'tf3', 'tf14', 2),
+  ('top-forward-2026-r16-s3', 'top-forward-2026', 16, 3, 'tf4', 'tf13', 2),
+  ('top-forward-2026-r16-s4', 'top-forward-2026', 16, 4, 'tf5', 'tf12', 2),
+  ('top-forward-2026-r16-s5', 'top-forward-2026', 16, 5, 'tf6', 'tf11', 2),
+  ('top-forward-2026-r16-s6', 'top-forward-2026', 16, 6, 'tf7', 'tf10', 2),
+  ('top-forward-2026-r16-s7', 'top-forward-2026', 16, 7, 'tf8', 'tf9',  2);
 
 -- After voting closes, the tally step (deferred Worker / manual) resolves each
 -- matchup and advances the round, e.g.:

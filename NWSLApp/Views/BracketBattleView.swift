@@ -89,7 +89,7 @@ struct BracketBattleView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     VStack(spacing: 8) {
-                        Text(edition.emoji).font(.system(size: 40))
+                        Image(systemName: "trophy.fill").font(.system(size: 34)).foregroundStyle(accent)
                         Text(edition.themeLabel).font(.system(size: 12, weight: .bold)).tracking(2).foregroundStyle(accent)
                         Text(edition.title).font(.system(size: 22, weight: .bold)).foregroundStyle(.white)
                         Text("\(edition.entrants.count) players · \(viewModel.totalMatchups) brackets · \(edition.rounds.count) rounds")
@@ -120,7 +120,8 @@ struct BracketBattleView: View {
             ForEach(Array(rounds.enumerated()), id: \.element) { i, round in
                 let widthFraction = max(0.12, 1.0 - Double(i) * (0.85 / Double(max(1, rounds.count - 1))))
                 if round == .final {
-                    Circle().fill(accent).frame(width: 32, height: 32).overlay(Text("🏆").font(.system(size: 14)))
+                    Circle().fill(accent).frame(width: 32, height: 32)
+                        .overlay(Image(systemName: "trophy.fill").font(.system(size: 13)).foregroundStyle(.white))
                     Text("FINAL · 1 winner").font(.system(size: 10, weight: .bold)).foregroundStyle(accent)
                 } else {
                     GeometryReader { geo in
@@ -225,7 +226,7 @@ struct BracketBattleView: View {
 
     private var allPickedBanner: some View {
         HStack(spacing: 10) {
-            Text("✅").font(.system(size: 20))
+            Image(systemName: "checkmark.circle.fill").font(.system(size: 20)).foregroundStyle(accent)
             VStack(alignment: .leading, spacing: 2) {
                 Text("All \(viewModel.totalMatchups) picks made!").font(.system(size: 14, weight: .bold)).foregroundStyle(accent)
                 Text("Save as draft or submit now. Once submitted, picks are locked forever.")
@@ -463,7 +464,7 @@ struct BracketBattleView: View {
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Text("🏆").font(.system(size: 44))
+            Image(systemName: "trophy").font(.system(size: 40)).foregroundStyle(Color.dsFgTertiary)
             Text("No active bracket").font(.system(size: 18, weight: .semibold)).foregroundStyle(.white)
             Text("A new edition opens soon — check back.").font(.system(size: 14)).foregroundStyle(Color.dsFgSecondary)
         }

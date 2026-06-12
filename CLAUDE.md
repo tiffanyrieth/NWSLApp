@@ -19,9 +19,16 @@ If the answer is no because the content hasn't changed, that's the #1 priority t
 
 ## Overview
 
-**What:** A native iOS app for tracking the NWSL (National Women's Soccer
-League) — live scores, full-season schedule, standings, team pages, and match
-details.
+**What:** A native iOS app for the NWSL (National Women's Soccer League) — live
+scores, full-season schedule, standings, team pages, and match details.
+
+**This is a HYBRID sports + fandom app — not purely either.** Frame every feature this
+way. The "sports app" half (scores/schedule/standings/stats) is table stakes; the
+**fandom** half — community engagement, the Fan Zone games (Bracket Battle's community
+voting + creative editions, Predict the XI), social sharing, the live/"alive" content,
+and personal connection to your teams — is **equally core to the identity.** Defaulting to
+"it's a sports app" → ESPN-clone patterns is the failure mode to avoid; the differentiator
+is the fandom side (see the Priority Framework).
 
 **Why:** Personal project to build production-quality iOS skills and ship a
 real consumer app. Long-term goal: App Store distribution.
@@ -351,7 +358,7 @@ NWSLApp/
 │   └── TriviaQuestion.swift           — ⚠️ one Daily-Trivia question (4 options)
 ├── Services/                          — ESPNService + Supabase clients + ⚠️ curated async seed providers
 │   ├── BracketEditionProvider.swift   — ⚠️ OFFLINE-FIRST sample Bracket edition (real forwards, 16) + sample leaderboard; live edition = Supabase
-│   ├── BracketScoring.swift           — pure Bracket scorer: escalating per-round points + rule-derived max (546 for 64; mock's 468 is a slip). Unit-tested (BracketScoringTests)
+│   ├── BracketScoring.swift           — pure Bracket scorer: tiered per-round points (1·1·2·2·3·3, v2) + rule-derived max (81 for a 64-pool). Unit-tested (BracketScoringTests)
 │   ├── BracketService.swift           — Bracket data boundary: currentEdition/results/leaderboard/submit; ⚠️ Supabase reads/writes STUBBED (offline sample fallback) — next step
 │   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats by athlete+year (backs seasonStats)
 │   ├── ContentService.swift           — ALIVE content client: `homeCards(…)`→`/team-videos`, `feedCards(…)`→`/feed` ([ContentCard]), `spotlightCards(…)`→`/spotlight` ([PlayerSpotlight], B2/0.3.8); gated by `liveContentEnabled` (ON) + DEBUG `-useSeedContent`; failure → seed (offline-first)
@@ -496,8 +503,9 @@ Per-screen behavior (full file detail in the File Map; specs in `Reference/Desig
   active/upcoming — Predict's gate = followed-team fixture **within 28 days**; the module
   hides when no game is visible. **Bracket Battle** (teal) — ⚠️ **IN PROGRESS, NOT shipped**
   (0.3.9): the real 64-player / 6-round community-voting tournament. **App-side + real Supabase
-  voting are DONE + verified** (5 screens per the Claude Design ref; escalating scoring
-  Rd64+5…Final+40, max 546; draft→submit one-way; sign-in at submit; gate hides when no active
+  voting are DONE + verified** (5 screens per the Claude Design ref; tiered scoring
+  1·1·2·2·3·3 (max 81, v2); no emoji in the game screens; draft→submit one-way; sign-in at
+  submit; gate hides when no active
   edition; votes land in `bracket_votes`). **But the feature is NOT shipped** until the **proxy
   Worker engine is built — REQUIRED 0.3.9 work, not deferred** (auto-generate 64-player ESPN
   editions · auto-advance rounds · auto-tally votes at close · auto-rotate editions · Haiku

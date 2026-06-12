@@ -299,8 +299,12 @@ Two separate numbering systems — don't conflate them.
     minor. Routine fixes and polish do not.
   - **Reserve 1.0.0 for the first public App Store launch.** Because a chapter
     is one minor, you arrive at 1.0 from somewhere low (≈0.2–0.3) and never
-    balloon past it. A distinct pre-launch hardening/beta chapter, if one
-    emerges, would be 0.3.x.
+    balloon past it.
+  - **Current line (owner's call):** **0.3.x = the BACKBONE chapter** (demo →
+    live). **0.3.8** = the feed/content work (B1 News · B2 Spotlight · B3a chips ·
+    B3b Instagram). **0.3.9** = the rest of the backbone (Fan Zone games + B4
+    sweep). **0.4.x = QOL** — improving the *experience* of what's already alive,
+    not backbone infrastructure.
 - **Xcode has two fields, both required:** "Marketing Version"
   (`CFBundleShortVersionString`, the human-facing `0.2.0`) and "Build"
   (`CFBundleVersion`, a monotonic integer bumped on *every* TestFlight upload —
@@ -323,7 +327,7 @@ NWSLApp/
 ├── NWSLAppApp.swift                   — app entry point; launches RootTabView; forces dark appearance app-wide; DEBUG `-resetOnboarding` launch arg → resets onboarding; `AppDelegate` (@UIApplicationDelegateAdaptor) captures the APNs token + handles foreground-present/tap → PushBridge (Tier 2)
 ├── NWSLApp.entitlements               — Sign in with Apple + `aps-environment` (development; Xcode flips to production on archive) for Tier-2 push
 ├── Config/                            — app configuration
-│   ├── AppConfig.swift                — base URLs; scoreboard + summary → Cloudflare proxy (0.3.1); DEBUG `-useESPNDirect`; `liveContentEnabled` flag (ON) + `teamVideosURL` (Home: YouTube + news + Bluesky) + `feedURL` (Feed: Bluesky A2 + RSS news B1) + `spotlightURL` (Module 2: B2/0.3.8); shared `contentRouteURL`
+│   ├── AppConfig.swift                — base URLs; scoreboard + summary → Cloudflare proxy (0.3.1); DEBUG `-useESPNDirect`; `liveContentEnabled` flag (ON) + `teamVideosURL` (Home: YouTube + news + club Instagram) + `feedURL` (Feed: Bluesky + RSS news + player Instagram) + `spotlightURL` (Module 2: B2/0.3.8); shared `contentRouteURL`
 │   ├── Secrets.swift                  — 🔒 GITIGNORED Supabase URL + anon key (not committed)
 │   └── Secrets.example                — checked-in template for Secrets.swift (non-`.swift` so it never compiles)
 ├── DesignSystem/                      — token layer mirroring the Claude Design handoff; the app-chrome palette (team colors stay dynamic via Color+Hex)
@@ -501,22 +505,21 @@ File Map above):
   per-source mute).
 - **Content Cards** (`we-are-going-to-iridescent-otter.md`) — one `ContentCard` model +
   `ContentCardView` router back BOTH Home Module 1 and the Feed via 7 layouts. Placement
-  gate (Home = team voices; Feed = wider convo; `.both` either) + staleness (Home 72h,
-  Feed 7d, each with a 6-card floor so a slow stretch never empties the tab, 0.3.7).
-  **Both surfaces LIVE** via `ContentService` → proxy (seed = offline-first fallback):
-  **Home** (A1/0.3.4–5) ← `/team-videos` = YouTube + club-site OG news + team Bluesky;
-  **Feed** (A2/0.3.6) ← `/feed` = verified Bluesky handle map (reporters + league always;
-  13/16 clubs) → `blueskyReporter`/`blueskyTeam{Media,Text}`. Team Bluesky is `.both` (so
-  it merges onto Home too). **Server-side quality:** reporter posts Haiku-relevance-filtered
-  (`claude-haiku-4-5`, off-topic dropped, KV-cached; league/team pass), 3/account flood cap,
-  `dedupeByContent`. The **Feed "News" chip is LIVE** (B1, 2026-06-11, proxy-only): per-outlet
-  RSS/Atom (`NEWS_FEEDS` — Equalizer / Just Women's Sports / All For XI / Guardian) → Haiku
-  NWSL-gate + team-tag → OG-enrich → `newsArticle` cards (placement `feed`); real URLs +
-  summary + thumbnail; non-NWSL (PWHL/WSL/men's) dropped. Distinct from Home's club-site OG
-  news (placement `home`). **B2 Player Spotlight is LIVE** (0.3.8, proxy `/spotlight` +
-  `spotlightCards`). **B3a chip restructure shipped** (0.3.8, app-only): Feed chips are now
-  **All/News/Social** — "Reporters" folded into "Social" (which admits reporter Bluesky + club
-  Bluesky + the B3b player IG/TikTok clips). Next is **B3b** (IG/TikTok via Apify — proxy-side).
+  gate (Home = team voices; Feed = wider convo; `.both` either) + staleness (Home 72h, Feed
+  7d, each 6-card-floored so a slow stretch never empties the tab, 0.3.7). **All LIVE** via
+  `ContentService` → proxy (seed = offline-first fallback). **Home** ← `/team-videos` =
+  YouTube + club-site OG news + **club Instagram** (B3b). **Feed** ← `/feed` = Bluesky handle
+  map (reporters + league + 13/16 clubs) + **News** (B1) + **player Instagram** (B3b). Club
+  Bluesky is `.feed` (B3b moved it off Home). **Server-side quality:** reporter posts
+  Haiku-relevance-filtered (`claude-haiku-4-5`, off-topic dropped, KV-cached), 3/account flood
+  cap, `dedupeByContent`. **B1 News** (proxy-only): per-outlet RSS/Atom (`NEWS_FEEDS` —
+  Equalizer / Just Women's Sports / All For XI / Guardian) → Haiku NWSL-gate + team-tag →
+  OG-enrich → `newsArticle` cards; non-NWSL dropped. **B2 Spotlight** (0.3.8, `/spotlight`).
+  **B3a** (app-only): chips now **All/News/Social** (Reporters folded into Social). **B3b
+  Instagram** (2026-06-12, proxy-only): daily-ish Apify cron (`sones` lowcost actor) → KV
+  `socialVideo` snapshot; club IG → Home, USWNT-pool + marquee player IG → Feed Social (routed
+  to each player's NWSL club, no Haiku). TikTok deferred (mapper kept ready); handles
+  web-verified, zero dead.
 - **Teams + Following** — `TeamsView` lists all 16 (followed float up). Onboarding + a
   bottom row offer **international competitions** (`FollowedCompetition` →
   `CompetitionsView`); persisted, but the schedule isn't competition-aware yet (#13).
@@ -543,25 +546,17 @@ numbers are kept so cross-references stay valid. **Ordered by the PRIORITY FRAME
 Category 1 (ALIVE) always outranks 2/3.
 
 **Category 1 — ALIVE features (TOP PRIORITY). These ARE the app; do these before any
-Category 2/3 work, and before any TestFlight ship. "Would I open it today if I opened
-it yesterday?"** Content Card UI layer (Part 1) is built; A1–A3 (**Part 2**) swap the
-seed for live proxy routes (`content-cards-part2-live-data.md`, Steps 1→2→2b→3). A1+A2
-shipped (Home + Feed LIVE) + Haiku filter + **B1 News chip LIVE** (per-outlet RSS,
-2026-06-11) + **B2 Player Spotlight LIVE** (0.3.8) + **B3a Feed chip restructure** (0.3.8,
-All/News/Social). Next ALIVE: **B3b** (IG/TikTok via Apify, proxy-side) → **Fan Zone games
-(now backbone)** → B4 sweep → 0.4.0. See
-`Reference/Feed update/` handoff + `Reference/BACKBONE.md` for the full sequence.
-- **A1. YouTube → Home live.** ✅ **SHIPPED 0.3.4** (+ club-site news 0.3.5; see Current
-  State). Remaining polish: a refetch-on-follows-change seam.
-- **A2. Bluesky → Feed tab live.** ✅ **SHIPPED 0.3.6** (proxy `/feed` + `feedCards`; see
-  Current State). Reporter relevance filter + flood cap followed in Step 2.
-- **A3. Reddit → Feed enrichment** — **DEFERRED** (too noisy; subreddits live in Teams).
-  **Step-0 OG spike DONE:** IG OG-scraping auth-blocked (all scraper UAs) → no Meta reg,
-  IG only via reposts; TikTok via keyless oEmbed. (Revisit if Feed needs volume.)
-- **A4 (Player Spotlight rotation) = B2 ✅ SHIPPED 0.3.8; A5 (Fan Zone live rounds) = Fan
-  Zone backbone** — tracked in `Reference/BACKBONE.md`.
-- **Haiku relevance filter (reporters) + flood cap** ✅ **SHIPPED** (Step 2, proxy-side,
-  ~$2-3/yr, fail-open; see Content Cards). Reddit deferred (subreddits live in Teams).
+Category 2/3 work, and before any TestFlight ship. "Would I open it today if I opened it
+yesterday?"** The content pipeline is LIVE end-to-end (Home + Feed; YouTube · club OG news ·
+Bluesky · News RSS · Instagram · Player Spotlight — all in Current State). **Backbone
+sequence** (`Reference/BACKBONE.md` + `Reference/Feed update/` handoff): A1/A2 · B1 · B2 ·
+B3a · **B3b Instagram all SHIPPED**.
+- **NEXT → Fan Zone games (0.3.9, app-side Swift):** swap the ⚠️seed games for live
+  ESPN-driven rounds, in order — **Predict the XI** (100% ESPN data) → **Bracket Battle**
+  (roster/stats + voting) → **Daily Trivia** (question pool) → **Game Center** (GameKit
+  leaderboards). Then **B4 final sweep** — re-audit every surface for empty/stale → ship
+  **0.3.9** (last backbone patch; QOL begins at 0.4.0).
+- **A3 Reddit → Feed** — DEFERRED (noisy; subreddits live in Teams). IG now via Apify (B3b).
 
 **Category 3 — HARDENING** (cleanup/robustness — do AFTER Category 1, never above it)
 3. **(Polish)** Keep the list visible during pull-to-refresh (spinner only on first
@@ -586,9 +581,8 @@ All/News/Social). Next ALIVE: **B3b** (IG/TikTok via Apify, proxy-side) → **Fa
 - **Home Module 1** — LIVE (A1/A2). Remaining: a "See all" destination + refetch-on-follows-change.
 - **Home Module 2 spotlight** — LIVE (B2/0.3.8). Remaining: no-repeat-per-season, player
   video match, opt-in weekly notification, badge, refetch-on-follows-change.
-- **Home Module 3 games** — built; remaining: swap each off its ⚠️seed + add
-  social/push (real leaderboards via #12). Trivia: real question backend. Bracket:
-  real voting + rotating editions. Predict: real fixtures + lineup feed + stats.
+- **Home Module 3 games** — built on ⚠️seed; the live swap (real ESPN data + leaderboards)
+  is the **Fan Zone (0.3.9)** work in Category 1 above.
 
 **Longer-term (vision — see `Reference/Sessions/`)**
 11. **Feed backend** — Bluesky LIVE (A2) + Haiku filter LIVE (Step 2). Remaining:

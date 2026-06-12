@@ -343,7 +343,7 @@ NWSLApp/
 │   ├── MatchSummary.swift             — ESPN /summary decode: lineups+formation, boxscore stats, key-events timeline
 │   ├── PlayerSpotlight.swift          — Home Module-2 player-of-week mini-profile; Codable; `espnAthleteId` + `seasonStatLine` carry the LIVE `/spotlight` data (B2/0.3.8); `statStrip` prefers real stats, else seed `demoSeasonStats`
 │   ├── PlayerStats.swift              — per-player season stats + team-leaders models (view-facing; real ESPN Core API data)
-│   ├── PredictionMatch.swift          — ⚠️ Predict-the-XI match, questions, answer key
+│   ├── XIPrediction.swift             — LIVE Predict-the-XI model (Fan Zone game 1, 0.3.9): PositionGroup · Formation (string→11 slots) · PredictionFixture · XIPrediction (draft→submitted) · ActualResult (from /summary, w/ `make(from:)` builder) · PredictionScore breakdown. Two-phase: roster pre-match → /summary answer key post-match
 │   ├── Roster.swift                   — squad + team profile from one roster fetch
 │   ├── Scoreboard.swift               — ESPN scoreboard structs + Event helpers
 │   ├── Standings.swift                — table rows (rank + Club + GP/W/D/L/PTS)
@@ -362,7 +362,8 @@ NWSLApp/
 │   ├── SupabaseManager.swift          — the one shared SupabaseClient (built from Secrets)
 │   ├── FeedContentProvider.swift      — ⚠️ Feed seed → [ContentCard]: reporter/news/social, 16 clubs + league — now the offline-first FALLBACK only (Feed is LIVE via `/feed`, A2/0.3.6)
 │   ├── PlayerSpotlightProvider.swift  — ⚠️ one spotlight player per club (16) — now the offline-first FALLBACK only (Module 2 is LIVE via `/spotlight`, B2/0.3.8)
-│   ├── PredictionMatchProvider.swift  — ⚠️ Predict-the-XI seed (open + settled)
+│   ├── PredictionScoring.swift        — pure Predict-the-XI scorer: XIPrediction × ActualResult → PredictionScore (Mastermind partial; players+3/position+2/formation+5/exact+10/result+3/perfect+15; max 88). Unit-tested (PredictXIScoringTests)
+│   ├── PredictionMatchProvider.swift  — ⚠️ Predict-the-XI SIMULATED LEADERBOARD only now (the match slate went LIVE 0.3.9; real multi-user board = Game Center item)
 │   ├── TeamContentProvider.swift      — ⚠️ Module-1 seed → [ContentCard]: 2 real YouTube videos/club + Bluesky/IG/social variants for marquee clubs
 │   ├── TeamSocialLinksProvider.swift  — ⚠️ per-team social-account URLs seed
 │   └── TriviaQuestionProvider.swift   — ⚠️ 55 hand-written NWSL trivia questions
@@ -377,14 +378,15 @@ NWSLApp/
 │   ├── FollowingStore.swift           — followed clubs + competitions + onboarding gate + sign-in-prompt flag; pure/offline-first; `onFollowsChanged`/`merge(ids:)` seams; DEBUG `debugResetState`
 │   ├── MatchStore.swift               — shared season store; one fetch, many readers
 │   ├── NotificationPreferencesStore.swift — Profile's 9 notif toggles; `onPreferenceChanged` → NotificationScheduler; `snapshot` → NotificationSyncCoordinator. LOCAL delivers day-before+spotlight; 6 live-event toggles mirror to Supabase once signed in; Fan Zone persists intent only
-│   ├── PredictionStore.swift          — Predict-the-XI picks + season-points
+│   ├── PredictionStore.swift          — Predict-the-XI durable state (0.3.9): predictions[fixtureID:XIPrediction] (draft/submitted) + scores[fixtureID:PredictionScore], JSON under `predict.v2.*`; submit is one-way; `seasonPoints`/`hasPredicted` preserved for Home/Profile readers
 │   └── TriviaStore.swift              — Daily-Trivia streak/accuracy + one-play/day gate
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
 │   ├── BracketViewModel.swift         — Bracket session; deterministic community sim
 │   ├── FeedViewModel.swift            — content-type chips (All/News/Social — Social = reporter+club Bluesky+player IG/TikTok; B3a 0.3.8 folded "Reporters" in) + filtered [ContentCard] (follows∩ OR league, placement≠home, 7d staleness) + sources (prefs-aware); cards ← `ContentService.feedCards` (live `/feed`, seed fallback); clubs ← ClubStore
 │   ├── HomeViewModel.swift            — derives Home modules from MatchStore+ClubStore+Following; Module-1 via ContentService (live-or-seed)
 │   ├── MatchDetailViewModel.swift     — one match: temporalState (past/live/future) + /summary fetch + live refresh + preview
-│   ├── PredictXIViewModel.swift       — Predict session; open/settled split + scoring
+│   ├── PredictXIViewModel.swift       — Predict the XI slate (0.3.9 LIVE): builds open fixtures (each followed team's next match) from MatchStore+ClubStore+Following; scores newly-settled SUBMITTED predictions via /summary; lazy per-team roster cache; simulated leaderboard
+│   ├── XIPickerViewModel.swift        — in-flight Predict the XI picker session: formation + slot→athlete + scoreline; hydrates from a draft, read-only once submitted; roster sheet groups (slot's band first)
 │   ├── ScheduleViewModel.swift        — day-grouped sections + filters from MatchStore; My-teams ← ClubStore (error/retry)
 │   ├── StandingsViewModel.swift       — one-shot fetchStandings
 │   ├── TeamsViewModel.swift           — thin reader over the shared ClubStore (feeds Onboarding too)
@@ -396,7 +398,8 @@ NWSLApp/
 │   ├── ProfileView.swift              — account & settings sheet (from Home avatar): identity / Fan Zone stats / notif toggles (7 shown; lineup/subs hidden until Stage D) / My Teams / Account; offline-first (signed-out CTA); Tier-2 toggles `requiresSignIn` → NotificationAuthPromptView; grant → registerForRemoteNotifications
 │   ├── DailyTriviaView.swift          — Daily Trivia game (indigo); 5/day
 │   ├── BracketBattleView.swift        — Bracket Battle game (teal); vote + lock rounds
-│   ├── PredictXIView.swift            — Predict the XI game (pink); per-match questions
+│   ├── PredictXIView.swift            — Predict the XI game (pink, 0.3.9 LIVE): Open-for-predictions fixtures (draft/submitted/closed) + Results score breakdown + simulated leaderboard
+│   ├── XIPickerView.swift             — Predict the XI picker sheet: formation chips → pitch-grid slots (tap → roster sheet) → scoreline steppers → Save draft / Submit (lock at kickoff−2h, one-way)
 │   ├── OnboardingView.swift           — first-open team + competition follow picker
 │   ├── SignInPromptView.swift         — one-time post-onboarding "save your picks" sheet (official Sign-in-with-Apple button + skip)
 │   ├── NotificationAuthPromptView.swift — contextual "sign in for live alerts" half-sheet (Tier 2 requires sign-in); shown when a live-event toggle flips on while signed out; honest why-copy + skip
@@ -490,9 +493,16 @@ File Map above):
   (Content Cards, LIVE), (2) spotlights (⚠️seed), (3) "Fan Zone" games, (4) "Coming up".
   Games ordered Predict → Bracket → Trivia (**Predict only when ≥1 club followed**);
   no-follows re-presents the picker.
-- **Fan Zone games** (`games-design-spec.md`) — **Daily Trivia** (indigo), **Bracket
-  Battle** (teal, deterministic sim), **Predict the XI** (pink) — all built on ⚠️seed
-  (detail in File Map).
+- **Fan Zone games** (`games-design-spec.md`) — **Predict the XI** (pink) is **LIVE**
+  (0.3.9): pick your followed team's full starting XI + formation + scoreline before each
+  match, auto-scored Mastermind-style (players/position/formation/scoreline/result/perfect,
+  max 88) against ESPN's real `/summary` lineup. Draft→Submit (one-way; closes kickoff−2h;
+  only submitted predictions score). **Fan Zone visibility rule:** each game has its own gate
+  and is hidden EVERYWHERE (Home card + screen) when it has nothing active/upcoming — no dead
+  links; Predict the XI's gate is a followed-team fixture **within 28 days** (else the game
+  goes dark; the Fan Zone module itself hides when no game is visible). Leaderboard still
+  simulated (real board = Game Center item). **Daily Trivia** (indigo) + **Bracket Battle**
+  (teal) still on ⚠️seed (always-visible until their live gates land; next up).
 - **Player Spotlight** (`spotlight-design-spec.md`) — one mini-profile/followed team →
   `PlayerSpotlightView`. **LIVE** (B2/0.3.8) via proxy `/spotlight`: a real player from
   each team's recent matchday squad + real ESPN stats + a Haiku "why watch" blurb
@@ -551,10 +561,10 @@ yesterday?"** The content pipeline is LIVE end-to-end (Home + Feed; YouTube · c
 Bluesky · News RSS · Instagram · Player Spotlight — all in Current State). **Backbone
 sequence** (`Reference/BACKBONE.md` + `Reference/Feed update/` handoff): A1/A2 · B1 · B2 ·
 B3a · **B3b Instagram all SHIPPED**.
-- **NEXT → Fan Zone games (0.3.9, app-side Swift):** swap the ⚠️seed games for live
-  ESPN-driven rounds, in order — **Predict the XI** (100% ESPN data) → **Bracket Battle**
+- **Fan Zone games (0.3.9, app-side Swift):** swap the ⚠️seed games for live ESPN-driven
+  rounds, in order — ~~**Predict the XI** (full XI-picker, LIVE)~~ ✅ → **NEXT: Bracket Battle**
   (roster/stats + voting) → **Daily Trivia** (question pool) → **Game Center** (GameKit
-  leaderboards). Then **B4 final sweep** — re-audit every surface for empty/stale → ship
+  leaderboards across all three). Then **B4 final sweep** — re-audit every surface for empty/stale → ship
   **0.3.9** (last backbone patch; QOL begins at 0.4.0).
 - **A3 Reddit → Feed** — DEFERRED (noisy; subreddits live in Teams). IG now via Apify (B3b).
 

@@ -235,28 +235,62 @@ struct HomeView: View {
 
     // MARK: - Module 3: Fan Zone (the games)
 
+    // Fan Zone visibility rule: each game has its own gate, and a game with nothing
+    // active/upcoming is hidden EVERYWHERE (card + screen) — no dead links or stale
+    // states. The module itself hides when no game is visible (offseason). Predict
+    // the XI's gate is a followed-team fixture within 28 days; Bracket and Daily
+    // Trivia are seed-backed so always have content for now (their real gates land
+    // when they go live).
+    private var predictXIVisible: Bool { predictXIActive }
+    private var bracketVisible: Bool { true }
+    private var triviaVisible: Bool { true }
+    private var anyFanZoneGameVisible: Bool { predictXIVisible || bracketVisible || triviaVisible }
+
+    @ViewBuilder
     private var playSection: some View {
-        section(
-            "Fan Zone",
-            subtitle: "Test your NWSL knowledge and compete with other fans",
-            accessory: { activeGamesIndicator }
-        ) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    // Ordered most time-sensitive first. Predict the XI is
-                    // matchday-driven AND inherently personal (you predict YOUR
-                    // team's lineup), so it only appears once the user follows a
-                    // club; Bracket Battle and Daily Trivia show for everyone.
-                    if !following.followedIDs.isEmpty {
-                        NavigationLink { PredictXIView() } label: { predictGameCard }
-                            .buttonStyle(.plain)
+        if anyFanZoneGameVisible {
+            section(
+                "Fan Zone",
+                subtitle: "Test your NWSL knowledge and compete with other fans",
+                accessory: { activeGamesIndicator }
+            ) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        // Ordered most time-sensitive first. Predict the XI is
+                        // matchday-driven AND personal (you predict YOUR team's
+                        // lineup), so it appears only when a followed team has a
+                        // fixture within 28 days; Bracket Battle and Daily Trivia
+                        // show whenever they have content.
+                        if predictXIVisible {
+                            NavigationLink { PredictXIView() } label: { predictGameCard }
+                                .buttonStyle(.plain)
+                        }
+                        if bracketVisible {
+                            NavigationLink { BracketBattleView() } label: { bracketGameCard }
+                                .buttonStyle(.plain)
+                        }
+                        if triviaVisible {
+                            NavigationLink { DailyTriviaView() } label: { triviaGameCard }
+                                .buttonStyle(.plain)
+                        }
                     }
-                    NavigationLink { BracketBattleView() } label: { bracketGameCard }
-                        .buttonStyle(.plain)
-                    NavigationLink { DailyTriviaView() } label: { triviaGameCard }
-                        .buttonStyle(.plain)
+                    .padding(.horizontal, 2)
                 }
-                .padding(.horizontal, 2)
+            }
+        }
+    }
+
+    /// Predict the XI is active when a followed team has a fixture within the
+    /// 28-day window — the gate that hides the game (card + screen) in a long
+    /// break. Shares the horizon with PredictXIViewModel's slate.
+    private var predictXIActive: Bool {
+        let now = Date()
+        let horizon = now.addingTimeInterval(PredictionFixture.activeWindow)
+        return following.followedIDs.contains { id in
+            guard let club = clubStore.club(id: id) else { return false }
+            return matchStore.matches(for: club).contains { event in
+                guard let kickoff = event.kickoff else { return false }
+                return kickoff > now && kickoff <= horizon
             }
         }
     }
@@ -277,7 +311,7 @@ struct HomeView: View {
 
     private var activeGameCount: Int {
         var n = 0
-        if !following.followedIDs.isEmpty { n += 1 }   // Predict is shown + playable
+        if predictXIActive { n += 1 }                  // a followed-team fixture is up
         if !bracket.isComplete { n += 1 }
         if !trivia.hasPlayedToday { n += 1 }
         return n

@@ -32,24 +32,40 @@ enum BracketEditionProvider {
         let entrants = pool.enumerated().map { i, p in
             BracketEntrant(id: "s\(i)", playerName: p.0, jerseyNumber: p.1, teamAbbreviation: p.2)
         }
-        let firstRound = BracketRound.rounds(forEntrants: entrants.count).first ?? .roundOf16
-        // Standard-ish seeding: 1 v N, 2 v N-1, … so favourites don't collide early.
-        let n = entrants.count
-        let matchups = (0..<n / 2).map { slot in
-            BracketMatchup(
+        let n = entrants.count                                  // 16
+        let firstRound = BracketRound.rounds(forEntrants: n).first ?? .roundOf16   // .roundOf16
+
+        // Round of 16 — COMPLETED, with sample community splits + a couple of upsets,
+        // so the overview + results show real "what already happened" state offline.
+        let upsets: Set<Int> = [2, 5]
+        var matchups: [BracketMatchup] = []
+        var winners: [BracketEntrant] = []
+        for slot in 0..<n / 2 {                                 // 1 v 16, 2 v 15, … 8 v 9
+            let a = entrants[slot], b = entrants[n - 1 - slot]
+            let bWins = upsets.contains(slot)
+            let splitA = bWins ? 41 + slot : 74 - slot * 3      // <50 on upsets, >50 otherwise
+            let winner = bWins ? b : a
+            winners.append(winner)
+            matchups.append(BracketMatchup(
                 id: BracketMatchup.matchupID(editionID: id, round: firstRound, slot: slot),
-                round: firstRound, slot: slot,
-                entrantA: entrants[slot], entrantB: entrants[n - 1 - slot],
-                communityWinnerID: nil, splitAPercent: nil
-            )
+                round: firstRound, slot: slot, entrantA: a, entrantB: b,
+                communityWinnerID: winner.id, splitAPercent: splitA))
+        }
+        // Quarterfinals — ACTIVE (open for voting), the 8 winners re-bracketed.
+        let qf = BracketRound.quarterfinal
+        for slot in 0..<winners.count / 2 {
+            matchups.append(BracketMatchup(
+                id: BracketMatchup.matchupID(editionID: id, round: qf, slot: slot),
+                round: qf, slot: slot,
+                entrantA: winners[slot * 2], entrantB: winners[slot * 2 + 1],
+                communityWinnerID: nil, splitAPercent: nil))
         }
         return BracketEdition(
-            id: id, themeLabel: "TOP FORWARD", title: "Best Forward · 2026", emoji: "⚽",
-            type: .statsSeeded, entrants: entrants, currentRound: firstRound,
+            id: id, themeLabel: "TOP FORWARD", title: "Best Forward · 2026", emoji: "",
+            type: .statsSeeded, entrants: entrants, currentRound: qf,
             roundOpenedAt: now.addingTimeInterval(-24 * 3600),
-            roundClosesAt: now.addingTimeInterval(32 * 3600),
-            fanCount: 4218, matchups: matchups
-        )
+            roundClosesAt: now.addingTimeInterval(42 * 3600),
+            fanCount: 4218, matchups: matchups)
     }
 
     /// Illustrative leaderboard opponents for the offline sample (the live board is a

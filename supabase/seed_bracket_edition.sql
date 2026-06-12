@@ -51,10 +51,24 @@ insert into public.bracket_matchups (id, edition_id, round, slot, entrant_a_id, 
   ('top-forward-2026-r16-s6', 'top-forward-2026', 16, 6, 'tf7', 'tf10', 2),
   ('top-forward-2026-r16-s7', 'top-forward-2026', 16, 7, 'tf8', 'tf9',  2);
 
--- After voting closes, the tally step (deferred Worker / manual) resolves each
--- matchup and advances the round, e.g.:
---   update public.bracket_matchups set community_winner_id='tf1', split_a_percent=78
---     where id='top-forward-2026-r16-s0';
---   update public.bracket_editions set current_round=8 where id='top-forward-2026';
---   -- then insert the Quarterfinal matchups from the winners, and upsert
---   -- public.bracket_scores per user from their votes × resolved winners.
+-- ── OPTIONAL: advance to a mid-tournament DEMO state ─────────────────────────
+-- Run this block to resolve Round of 16 + open Quarterfinals, so the Bracket
+-- Overview shows the full story (completed history with winners + vote %s · an
+-- active round · upcoming TBD rounds). The real Worker will do this automatically
+-- at round close; this is just to preview the UI. Mirrors the offline sample
+-- (upsets at slots 2 & 5; favourites advance elsewhere).
+
+-- Resolve Round of 16 (favourites win ~72%; slots 2 & 5 are upsets → B wins ~57%):
+update public.bracket_matchups set community_winner_id = entrant_a_id, split_a_percent = 72
+  where edition_id = 'top-forward-2026' and round = 16 and slot not in (2, 5);
+update public.bracket_matchups set community_winner_id = entrant_b_id, split_a_percent = 43
+  where edition_id = 'top-forward-2026' and round = 16 and slot in (2, 5);
+
+-- Open the Quarterfinals (the 8 winners re-bracketed; 2 pts each):
+insert into public.bracket_matchups (id, edition_id, round, slot, entrant_a_id, entrant_b_id, points) values
+  ('top-forward-2026-r8-s0', 'top-forward-2026', 8, 0, 'tf1',  'tf2',  2),
+  ('top-forward-2026-r8-s1', 'top-forward-2026', 8, 1, 'tf14', 'tf4',  2),
+  ('top-forward-2026-r8-s2', 'top-forward-2026', 8, 2, 'tf5',  'tf11', 2),
+  ('top-forward-2026-r8-s3', 'top-forward-2026', 8, 3, 'tf7',  'tf8',  2);
+
+update public.bracket_editions set current_round = 8 where id = 'top-forward-2026';

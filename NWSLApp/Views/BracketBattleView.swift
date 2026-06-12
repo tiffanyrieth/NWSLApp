@@ -74,7 +74,7 @@ struct BracketBattleView: View {
             case .open, .closed:
                 if stage == .intro { introScreen } else { votingScreen }
             case .submitted:
-                submittedScreen
+                overviewBody(banner: submittedBannerText)
             case .scored:
                 resultsScreen
             }
@@ -287,17 +287,12 @@ struct BracketBattleView: View {
         .background(LinearGradient(colors: [.clear, Color.dsBgPrimary], startPoint: .top, endPoint: .bottom))
     }
 
-    // MARK: - Submitted state
+    // MARK: - Submitted state → straight into the bracket overview (with a banner)
 
-    private var submittedScreen: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "checkmark.seal.fill").font(.system(size: 44)).foregroundStyle(accent)
-            Text("Picks locked in").font(.system(size: 20, weight: .bold)).foregroundStyle(.white)
-            Text("Your \(viewModel.currentRound?.title ?? "round") picks are submitted. Results drop when voting closes — \(viewModel.closesInText?.lowercased() ?? "soon").")
-                .font(.system(size: 14)).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center).padding(.horizontal, 32)
-            Button { showOverview = true } label: { Text("View bracket").primaryButtonLabel(accent) }.padding(.horizontal, 40)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    /// The post-submit confirmation shown inline atop the overview — no dead-end screen.
+    private var submittedBannerText: String {
+        let when = viewModel.closesInText.map { $0.replacingOccurrences(of: "Closes in ", with: "in ") } ?? "soon"
+        return "Picks locked in — results drop when voting closes \(when)."
     }
 
     // MARK: - Screen 4: Results
@@ -327,7 +322,7 @@ struct BracketBattleView: View {
                 .padding(.horizontal, 16).padding(.bottom, 32)
             }
         } else {
-            submittedScreen
+            overviewBody(banner: nil)
         }
     }
 
@@ -384,27 +379,48 @@ struct BracketBattleView: View {
         .padding(16).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    // MARK: - Screen 5: Bracket Overview
+    // MARK: - Screen 5: Bracket Overview (the tournament story)
 
     @ViewBuilder
     private var overviewScreen: some View {
+        overviewBody(banner: nil).navigationContextLabel("Bracket")
+    }
+
+    /// The full bracket journey — every round shown as complete · active · upcoming so
+    /// the user sees at a glance what already happened, what's live now, and what's
+    /// coming. Optional `banner` is the post-submit confirmation shown at top.
+    @ViewBuilder
+    private func overviewBody(banner: String?) -> some View {
         if let edition = viewModel.edition {
             ScrollView {
                 VStack(spacing: 16) {
+                    if let banner {
+                        HStack(spacing: 10) {
+                            Image(systemName: "checkmark.seal.fill").font(.system(size: 18)).foregroundStyle(accent)
+                            Text(banner).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(12).background(accent.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.35)))
+                    }
                     VStack(spacing: 4) {
-                        Text("\(edition.themeLabel) · 2026").font(.system(size: 12, weight: .bold)).tracking(2).foregroundStyle(accent)
+                        Text(edition.themeLabel).font(.system(size: 12, weight: .bold)).tracking(2).foregroundStyle(accent)
                         Text("Bracket Overview").font(.system(size: 20, weight: .bold)).foregroundStyle(.white)
                         Text("\(edition.entrants.count) entrants → \(edition.rounds.count) rounds → 1 winner")
                             .font(.system(size: 12)).foregroundStyle(Color.dsFgSecondary)
-                    }.padding(.vertical, 12)
+                    }.padding(.top, 4)
 
+                    // Legend: a dot + label per round, colored by status.
                     HStack(spacing: 6) {
                         ForEach(edition.rounds, id: \.self) { round in
-                            Text(round.shortLabel).font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(statusColor(edition.status(of: round)))
-                                .padding(.horizontal, 10).padding(.vertical, 6)
-                                .background(edition.status(of: round) == .active ? accent.opacity(0.12) : Color.white.opacity(0.04))
-                                .clipShape(Capsule())
+                            let st = edition.status(of: round)
+                            HStack(spacing: 4) {
+                                Circle().fill(statusColor(st)).frame(width: 6, height: 6)
+                                Text(round.shortLabel).font(.system(size: 10, weight: .bold)).foregroundStyle(statusColor(st))
+                            }
+                            .padding(.horizontal, 9).padding(.vertical, 6)
+                            .background(st == .active ? accent.opacity(0.12) : Color.white.opacity(0.04))
+                            .clipShape(Capsule())
                         }
                     }
                     ForEach(edition.rounds, id: \.self) { round in overviewRound(edition, round) }
@@ -412,14 +428,14 @@ struct BracketBattleView: View {
                 .padding(.horizontal, 16).padding(.bottom, 32)
             }
             .background(Color.dsBgPrimary.ignoresSafeArea())
-            .navigationContextLabel("Bracket")
         }
     }
 
     private func overviewRound(_ edition: BracketEdition, _ round: BracketRound) -> some View {
         let status = edition.status(of: round)
         let ms = edition.matchups(in: round)
-        return VStack(alignment: .leading, spacing: 10) {
+        let cap = 6
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Circle().fill(statusColor(status)).frame(width: 8, height: 8)
                 sectionLabel(round.title).foregroundStyle(statusColor(status))
@@ -427,37 +443,70 @@ struct BracketBattleView: View {
             }
             VStack(spacing: 8) {
                 if ms.isEmpty {
-                    Text("Opens after the current round").font(.system(size: 12)).foregroundStyle(Color.dsFgTertiary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    // Upcoming — show the bracket structure ahead as TBD slots.
+                    ForEach(0..<min(cap, round.matchupCount), id: \.self) { _ in tbdSlot }
+                    if round.matchupCount > cap { overflowNote(round.matchupCount - cap) }
                 } else {
-                    ForEach(ms.prefix(6)) { m in overviewMatchup(m) }
-                    if ms.count > 6 {
-                        Text("Showing 6 · \(ms.count) matchups total").font(.system(size: 11)).foregroundStyle(Color.dsFgTertiary)
-                    }
+                    ForEach(ms.prefix(cap)) { m in overviewMatchup(m) }
+                    if ms.count > cap { overflowNote(ms.count - cap) }
                 }
             }
             .padding(.leading, 16)
             .overlay(Rectangle().fill(statusColor(status).opacity(0.3)).frame(width: 2), alignment: .leading)
         }
+        .padding(.top, 4)
     }
 
-    private func overviewMatchup(_ m: BracketMatchup) -> some View {
-        let aWon = m.communityWinnerID == m.entrantA.id
-        let bWon = m.communityWinnerID == m.entrantB.id
-        return HStack(spacing: 10) {
-            overviewName(m.entrantA, won: aWon, lost: m.isResolved && !aWon)
+    private func overflowNote(_ n: Int) -> some View {
+        Text("+\(n) more").font(.system(size: 11)).foregroundStyle(Color.dsFgTertiary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var tbdSlot: some View {
+        HStack(spacing: 10) {
+            Text("TBD").font(.system(size: 13, weight: .medium)).foregroundStyle(Color.dsFgQuaternary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             Text("VS").font(.system(size: 10, weight: .bold)).foregroundStyle(Color.dsFgQuaternary)
-            overviewName(m.entrantB, won: bWon, lost: m.isResolved && !bWon)
+            Text("TBD").font(.system(size: 13, weight: .medium)).foregroundStyle(Color.dsFgQuaternary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .background(Color.dsMdCard.opacity(0.4)).clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// A matchup row in the overview. Resolved rounds show winner (bold) + loser
+    /// (struck through, dimmed) with each side's vote %; the active round shows the
+    /// live pairing without a result yet.
+    private func overviewMatchup(_ m: BracketMatchup) -> some View {
+        let resolved = m.isResolved
+        let aWon = resolved && m.communityWinnerID == m.entrantA.id
+        let bWon = resolved && m.communityWinnerID == m.entrantB.id
+        let aPct = m.splitAPercent
+        return HStack(spacing: 10) {
+            overviewSide(m.entrantA, won: aWon, lost: resolved && !aWon,
+                         pct: resolved ? aPct : nil, alignTrailing: false)
+            Text("VS").font(.system(size: 10, weight: .bold)).foregroundStyle(Color.dsFgQuaternary)
+            overviewSide(m.entrantB, won: bWon, lost: resolved && !bWon,
+                         pct: resolved ? aPct.map { 100 - $0 } : nil, alignTrailing: true)
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
-    private func overviewName(_ e: BracketEntrant, won: Bool, lost: Bool) -> some View {
-        Text(e.playerName)
-            .font(.system(size: 13, weight: won ? .bold : .medium))
-            .foregroundStyle(lost ? Color.dsFgTertiary : .white).strikethrough(lost)
-            .frame(maxWidth: .infinity, alignment: .leading)
+    private func overviewSide(_ e: BracketEntrant, won: Bool, lost: Bool, pct: Int?, alignTrailing: Bool) -> some View {
+        HStack(spacing: 6) {
+            if alignTrailing, let pct { pctText(pct, won: won) }
+            Text(e.playerName)
+                .font(.system(size: 13, weight: won ? .bold : .medium))
+                .foregroundStyle(lost ? Color.dsFgTertiary : .white).strikethrough(lost).lineLimit(1)
+            if !alignTrailing, let pct { pctText(pct, won: won) }
+        }
+        .frame(maxWidth: .infinity, alignment: alignTrailing ? .trailing : .leading)
+    }
+
+    private func pctText(_ p: Int, won: Bool) -> some View {
+        Text("\(p)%").font(.system(size: 11, weight: won ? .bold : .regular))
+            .foregroundStyle(won ? accent : Color.dsFgTertiary)
     }
 
     // MARK: - Empty / error
@@ -495,7 +544,7 @@ struct BracketBattleView: View {
         switch s {
         case .complete: return "· Complete"
         case .active: return "· Voting now" + (viewModel.closesInText.map { " · " + $0.replacingOccurrences(of: "Closes in ", with: "") + " left" } ?? "")
-        case .upcoming: return "· Opens after current round"
+        case .upcoming: return "· Upcoming"
         }
     }
 }

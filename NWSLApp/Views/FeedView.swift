@@ -141,12 +141,10 @@ struct FeedView: View {
         switch viewModel.selectedFilter {
         case .all:
             return "No posts yet. As your teams make news, it'll show up here."
-        case .reporters:
-            return "No reporter posts right now. Check back soon."
         case .news:
             return "No news articles right now. Check back soon."
         case .social:
-            return "No social clips right now. Check back soon."
+            return "No social posts right now. Check back soon."
         }
     }
 

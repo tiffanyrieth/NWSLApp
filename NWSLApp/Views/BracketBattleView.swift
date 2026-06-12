@@ -53,7 +53,9 @@ struct BracketBattleView: View {
             }
         }
         .task {
-            if case .idle = viewModel.state { await viewModel.load(store: store) }
+            if case .idle = viewModel.state {
+                await viewModel.load(store: store, userID: auth.userID, displayName: auth.displayName)
+            }
         }
         .sheet(isPresented: $showSignIn) { SignInPromptView() }
         .sheet(isPresented: $showOverview) {
@@ -267,7 +269,7 @@ struct BracketBattleView: View {
     private func submitBar(allMade: Bool, made: Int, total: Int) -> some View {
         VStack(spacing: 10) {
             Button {
-                if auth.isSignedIn { Task { await viewModel.submit(store: store) } } else { showSignIn = true }
+                if auth.isSignedIn { Task { await viewModel.submit(store: store, userID: auth.userID) } } else { showSignIn = true }
             } label: {
                 Text(allMade ? "Submit picks (locked forever)" : "Submit picks (\(made)/\(total))")
                     .primaryButtonLabel(allMade ? accent : Color.dsBgTertiary, fg: allMade ? .white : Color.dsFgTertiary)

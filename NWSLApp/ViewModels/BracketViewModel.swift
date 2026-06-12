@@ -40,7 +40,7 @@ final class BracketViewModel {
     /// Fetch the active edition, cache its summary for the Home gate, score any
     /// settled-but-unscored round, and load the leaderboard. No active edition →
     /// loaded with `edition == nil` (the game hides), never an error.
-    func load(store: BracketStore) async {
+    func load(store: BracketStore, userID: UUID? = nil, displayName: String? = nil) async {
         state = .loading
         guard let edition = await service.currentEdition() else {
             store.clearActiveEdition()
@@ -55,7 +55,8 @@ final class BracketViewModel {
             roundClosesAt: edition.roundClosesAt, isActive: true
         ))
         await scoreSettledRounds(edition: edition, store: store)
-        leaderboard = await service.leaderboard(myPoints: store.points)
+        leaderboard = await service.leaderboard(myPoints: store.points,
+                                                myName: displayName ?? "You", editionID: edition.id)
         state = .loaded
     }
 
@@ -121,12 +122,17 @@ final class BracketViewModel {
         store.setPick(matchupID: matchup.id, entrantID: entrantID, round: round)
     }
 
-    /// Commit the current round and persist the votes to the backend.
-    func submit(store: BracketStore) async {
+    /// Commit the current round and persist the votes to the backend. `userID` comes
+    /// from the sign-in gate at the call site (votes are owner-scoped); a nil id
+    /// records the local submit only.
+    func submit(store: BracketStore, userID: UUID?) async {
         guard let edition, allPicksMade(store: store) else { return }
         let round = edition.currentRound
         store.submit(round: round)
-        await service.submit(editionID: edition.id, round: round, picks: store.picks(for: round))
+        if let userID {
+            await service.submit(editionID: edition.id, round: round,
+                                 picks: store.picks(for: round), userID: userID)
+        }
     }
 
     // MARK: - Results (a closed round)

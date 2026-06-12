@@ -545,14 +545,17 @@ club OG news · Bluesky · News RSS · Instagram · Player Spotlight). **Backbon
 (`Reference/BACKBONE.md` + `Reference/Feed update/` handoff): A1/A2 · B1 · B2 · B3a · **B3b
 all SHIPPED**.
 - **Fan Zone games (0.3.9):** swap the ⚠️seed games for live rounds, in order —
-  ~~**Predict the XI** (LIVE)~~ ✅ → **Bracket Battle** 🔨 app-side LIVE (5 screens + models +
-  scoring + store/VM + Home gate, on branch `feature/bracket-battle`); **NEXT for Bracket =
-  the real-voting backend**: Supabase schema (`bracket_editions`/`_matchups`/`_votes` RLS +
-  grants/`_scores`/`bracket_leaderboard` view) + wire `BracketService` submit/results/
-  leaderboard to Supabase (currently TEMP-stubbed) + one seeded edition; then the proxy Worker
-  edition-generation engine (ESPN stats-seeded + Haiku creative themes + scheduled round
-  advancement/tallying). → **Daily Trivia** (question pool) → **Game Center** (GameKit
-  leaderboards across all three). Then **B4 final sweep** → ship **0.3.9** (QOL begins at 0.4.0).
+  ~~**Predict the XI** (LIVE)~~ ✅ → **Bracket Battle** 🔨 code-complete on branch
+  `feature/bracket-battle` (5 screens + models + scoring + store/VM + Home gate + **real
+  Supabase voting wired**: `BracketService` reads editions/matchups + upserts owner-scoped
+  votes + reads `bracket_scores`). **REMAINING to ship Bracket:** (1) apply
+  `supabase/schema.sql` (bracket_* tables/RLS/grants) + `supabase/seed_bracket_edition.sql` in
+  the Supabase dashboard, then verify the live vote round-trip in-sim (signed-in submit → row
+  in `bracket_votes`); (2) the proxy Worker engine (ESPN stats-seeded + Haiku creative themes →
+  full 64-pool editions + scheduled round advancement/tallying writing `bracket_scores`) — the
+  deferred "alive" automation; (3) full 5-screen visual pass (DEBUG nav scaffold). → **Daily
+  Trivia** (question pool) → **Game Center** (GameKit leaderboards across all three). Then
+  **B4 final sweep** → ship **0.3.9** (QOL begins at 0.4.0).
 - **A3 Reddit → Feed** — DEFERRED (noisy; subreddits live in Teams). IG now via Apify (B3b).
 
 **Category 3 — HARDENING** (cleanup/robustness — do AFTER Category 1, never above it)

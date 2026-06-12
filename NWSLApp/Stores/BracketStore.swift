@@ -2,146 +2,155 @@
 //  BracketStore.swift
 //  NWSLApp
 //
-//  Durable Bracket Battle state — Home's Module 3 "Play", game 2 (per
-//  Reference/Design/games-design-spec.md §"Game 2: Bracket Battle"). Like
-//  TriviaStore / FollowingStore, this is shared app state (votes + points persist
-//  across launches and surface on more than one screen — the game itself and the
-//  Home Play card), so it lives in Stores/ and is injected app-wide via
-//  `.environment` in RootTabView, not owned by a single view.
+//  Durable Bracket Battle state — the LIVE community-voting game (Fan Zone game 2,
+//  0.3.9). Shared app state (picks + points outlive a session and surface on the
+//  game screen, the Home Play card, and the Profile total), so it lives in Stores/
+//  and is injected app-wide via `.environment`, like PredictionStore / FollowingStore.
 //
-//  Persistence is UserDefaults (the spec: "voting and results stored locally for
-//  demo"). It holds only what must outlive a session: the user's pick per matchup,
-//  how many rounds they've locked (closed), the cumulative points, and the round
-//  count of the active edition (so the Home card can show "Round 2 of 4" without
-//  loading the edition). The bracket structure + simulated community results are
-//  NOT here — those are derived in BracketViewModel from the edition.
-//
-//  Rounds lock IN ORDER and locking is idempotent: lockRound only advances when
-//  it's the next round, so a re-tap can't double-count points. Per the approved
-//  "play through, daily-styled" cadence, there is no calendar day-gate (unlike
-//  TriviaStore) — the per-round lock → reveal → advance rhythm carries the feel.
+//  Offline-first: this is the immediate LOCAL cache of the user's own picks +
+//  submission state per round, plus a small cached edition summary so the Home gate
+//  and card render WITHOUT a network round-trip. The real community vote tally,
+//  cross-user leaderboard, and edition generation are server-side (BracketService →
+//  Supabase). Submit is one-way per round (a committed round can't be edited), and
+//  picks are keyed by edition + round so a new edition / round starts clean.
 //
 
 import Foundation
 
 @Observable
 final class BracketStore {
-    /// The edition these picks/points belong to. If the active edition changes,
-    /// progress resets (so a new themed bracket starts clean).
+    /// A tiny cached snapshot of the active edition, persisted so Home can show /
+    /// hide the card + render its status without loading the full edition.
+    struct EditionSummary: Codable, Equatable {
+        let id: String
+        let title: String
+        let currentRoundRaw: Int
+        let roundClosesAt: Date?
+        /// False when there's no active/upcoming edition (the Fan Zone gate).
+        let isActive: Bool
+    }
+
+    private(set) var summary: EditionSummary?
+
+    /// Picks per round: "r{roundRaw}" → (matchup id → chosen entrant id).
+    private(set) var picksByRound: [String: [String: String]]
+
+    /// Round raw-values the user has SUBMITTED (locked, eligible to score).
+    private(set) var submittedRounds: Set<Int>
+
+    /// Points banked per scored round: roundRaw → points.
+    private(set) var roundScores: [Int: Int]
+
+    /// The edition the above belong to. Changing edition resets picks/scores.
     private(set) var editionID: String?
-
-    /// matchup id → chosen entrant id (the user's vote). Persisted as JSON.
-    private(set) var picks: [String: String]
-
-    /// How many rounds the user has locked (closed). Since rounds lock in order,
-    /// this single count is also the index of the current (next open) round.
-    private(set) var lockedRoundCount: Int
-
-    /// Cumulative points earned (1 per matchup where the pick matched the
-    /// community's choice), across all locked rounds.
-    private(set) var points: Int
-
-    /// Total rounds in the active edition (4 for a 16-team bracket). Stored so the
-    /// Home card can render progress without loading the edition seed.
-    private(set) var roundCount: Int
 
     private let defaults: UserDefaults
 
     private enum Key {
-        static let editionID = "bracket.editionID"
-        static let picks = "bracket.picks"
-        static let lockedRoundCount = "bracket.lockedRoundCount"
-        static let points = "bracket.points"
-        static let roundCount = "bracket.roundCount"
+        static let summary = "bracket.v2.summary"
+        static let picks = "bracket.v2.picksByRound"
+        static let submitted = "bracket.v2.submittedRounds"
+        static let scores = "bracket.v2.roundScores"
+        static let editionID = "bracket.v2.editionID"
     }
 
-    /// `defaults` is injectable so tests/previews use an isolated store.
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        self.summary = Self.decode(defaults.data(forKey: Key.summary))
+        self.picksByRound = Self.decode(defaults.data(forKey: Key.picks)) ?? [:]
+        self.submittedRounds = Set(Self.decode(defaults.data(forKey: Key.submitted)) ?? [Int]())
+        self.roundScores = Self.decode(defaults.data(forKey: Key.scores)) ?? [:]
         self.editionID = defaults.string(forKey: Key.editionID)
-        self.picks = Self.decodePicks(defaults.data(forKey: Key.picks))
-        self.lockedRoundCount = defaults.integer(forKey: Key.lockedRoundCount)
-        self.points = defaults.integer(forKey: Key.points)
-        self.roundCount = defaults.integer(forKey: Key.roundCount)
     }
 
-    // MARK: - Derived
+    // MARK: - Readers (Home / Profile)
 
-    /// The first round that isn't locked yet — the one the user votes on next.
-    var currentRound: Int { lockedRoundCount }
+    /// Cumulative Bracket points (sum of scored rounds) — the Profile total reads
+    /// this alongside Predict's season points.
+    var points: Int { roundScores.values.reduce(0, +) }
 
-    /// True once any voting has happened (drives the Home card's "Play now" vs
-    /// "Round n of N" copy).
-    var hasStarted: Bool { lockedRoundCount > 0 || !picks.isEmpty }
+    /// The Fan Zone visibility gate: is there an active/upcoming edition?
+    var hasActiveEdition: Bool { summary?.isActive ?? false }
 
-    /// True once every round is locked (the tournament is decided).
-    var isComplete: Bool { roundCount > 0 && lockedRoundCount >= roundCount }
+    /// True once the user has made any pick this edition (Home "Play now" vs status).
+    var hasPlayed: Bool { !picksByRound.isEmpty }
 
-    func pick(for matchupID: String) -> String? { picks[matchupID] }
+    // MARK: - Per-round access
 
-    func isRoundLocked(_ round: Int) -> Bool { round < lockedRoundCount }
+    private static func roundKey(_ round: BracketRound) -> String { "r\(round.rawValue)" }
+
+    func picks(for round: BracketRound) -> [String: String] {
+        picksByRound[Self.roundKey(round)] ?? [:]
+    }
+
+    func hasSubmitted(_ round: BracketRound) -> Bool { submittedRounds.contains(round.rawValue) }
+
+    func pick(matchupID: String, in round: BracketRound) -> String? {
+        picksByRound[Self.roundKey(round)]?[matchupID]
+    }
+
+    func score(for round: BracketRound) -> Int? { roundScores[round.rawValue] }
 
     // MARK: - Mutation
 
-    /// Adopt an edition. Always refreshes the round count; resets all progress
-    /// only when the edition actually changed (so reopening the same bracket keeps
-    /// your picks). Call once when the game loads.
-    func beginEdition(_ id: String, roundCount: Int) {
-        self.roundCount = roundCount
-        if editionID != id {
-            editionID = id
-            picks = [:]
-            lockedRoundCount = 0
-            points = 0
+    /// Cache the active edition snapshot for the Home gate; reset picks/scores when
+    /// the edition actually changes (a new themed bracket starts clean).
+    func adopt(summary: EditionSummary) {
+        self.summary = summary
+        if editionID != summary.id {
+            editionID = summary.id
+            picksByRound = [:]
+            submittedRounds = []
+            roundScores = [:]
         }
         persist()
     }
 
-    /// Record (or change) a vote — only allowed while that matchup's round is
-    /// still open.
-    func setPick(matchupID: String, entrantID: String, round: Int) {
-        guard !isRoundLocked(round) else { return }
-        picks[matchupID] = entrantID
+    /// Clear the cached edition when none is active (Home then hides the card).
+    func clearActiveEdition() {
+        if var s = summary, s.isActive {
+            s = EditionSummary(id: s.id, title: s.title, currentRoundRaw: s.currentRoundRaw,
+                               roundClosesAt: s.roundClosesAt, isActive: false)
+            summary = s
+            persist()
+        }
+    }
+
+    /// Save (or change) a pick — only while the round is an unsubmitted draft.
+    func setPick(matchupID: String, entrantID: String, round: BracketRound) {
+        guard !hasSubmitted(round) else { return }
+        var roundPicks = picksByRound[Self.roundKey(round)] ?? [:]
+        roundPicks[matchupID] = entrantID
+        picksByRound[Self.roundKey(round)] = roundPicks
         persist()
     }
 
-    /// Close a round: bank the points and advance. Guarded to the next round and
-    /// idempotent — re-calling for an already-locked round does nothing, so points
-    /// can't be farmed by re-tapping.
-    func lockRound(_ round: Int, pointsEarned: Int) {
-        guard round == lockedRoundCount else { return }
-        lockedRoundCount += 1
-        points += pointsEarned
+    /// Commit a round's picks. One-way: only a not-yet-submitted round can submit.
+    func submit(round: BracketRound) {
+        guard !hasSubmitted(round) else { return }
+        submittedRounds.insert(round.rawValue)
         persist()
     }
 
-    /// Clear all progress for the current edition (keep the edition) — the demo's
-    /// "Play again" after a tournament completes.
-    func restart() {
-        picks = [:]
-        lockedRoundCount = 0
-        points = 0
+    /// Record a round's earned points once its real tally has settled.
+    func recordScore(_ points: Int, for round: BracketRound) {
+        roundScores[round.rawValue] = points
         persist()
     }
 
-    // MARK: - Helpers
+    // MARK: - Persistence
 
     private func persist() {
+        defaults.set(Self.encode(summary), forKey: Key.summary)
+        defaults.set(Self.encode(picksByRound), forKey: Key.picks)
+        defaults.set(Self.encode(Array(submittedRounds)), forKey: Key.submitted)
+        defaults.set(Self.encode(roundScores), forKey: Key.scores)
         defaults.set(editionID, forKey: Key.editionID)
-        defaults.set(encodePicks(), forKey: Key.picks)
-        defaults.set(lockedRoundCount, forKey: Key.lockedRoundCount)
-        defaults.set(points, forKey: Key.points)
-        defaults.set(roundCount, forKey: Key.roundCount)
     }
 
-    private func encodePicks() -> Data? {
-        try? JSONEncoder().encode(picks)
-    }
-
-    private static func decodePicks(_ data: Data?) -> [String: String] {
-        guard let data, let picks = try? JSONDecoder().decode([String: String].self, from: data) else {
-            return [:]
-        }
-        return picks
+    private static func encode<T: Encodable>(_ value: T) -> Data? { try? JSONEncoder().encode(value) }
+    private static func decode<T: Decodable>(_ data: Data?) -> T? {
+        guard let data else { return nil }
+        return try? JSONDecoder().decode(T.self, from: data)
     }
 }

@@ -123,3 +123,119 @@ create policy "Users can update own notification prefs"
 -- Grants (the 42501 gotcha again — RLS does not imply privilege).
 grant select, insert, update, delete on public.device_tokens            to authenticated;
 grant select, insert, update          on public.notification_preferences to authenticated;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- Bracket Battle — community-voting tournament (Fan Zone game 2, 0.3.9)
+-- ═════════════════════════════════════════════════════════════════════════════
+--
+-- The "guess what the community votes" game. A themed edition seeds a large player
+-- pool into a bracket; each round, every signed-in user votes who advances, and the
+-- community majority decides. Unlike `follows`/`device_tokens` (private per-user),
+-- the EDITION + MATCHUPS + final SCORES are GLOBAL — everyone votes the same bracket
+-- and sees the same standings — so they are world-READABLE (anon + authenticated;
+-- you can read the rules + fill a bracket signed-out, the Apple sheet only appears
+-- at submit). Only `bracket_votes` is RLS owner-scoped: you write your OWN picks.
+--
+-- Cross-user work (resolving a round's community winner from all votes, and writing
+-- each user's score) is done by a SERVICE-ROLE job — the proxy match-watcher-style
+-- Worker that generates editions + advances/tallies rounds (deferred; seeded by SQL
+-- for now). The service role bypasses RLS, so no user can read others' raw votes —
+-- they only see the resolved winner + split on the matchup, and the public scores.
+
+-- Edition (global; one row is `is_active` at a time during the season)
+create table public.bracket_editions (
+  id text primary key,
+  theme_label text not null,            -- tracked-caps eyebrow, "TOP FORWARD"
+  title text not null,                  -- "Best Forward · 2026"
+  emoji text not null,
+  type text not null,                   -- 'statsSeeded' | 'creative'
+  current_round int not null,           -- BracketRound rawValue (entrant count of round)
+  round_opened_at timestamptz,
+  round_closes_at timestamptz,
+  is_active boolean not null default true,
+  fan_count int not null default 0,
+  created_at timestamptz default now()
+);
+
+-- Entrants in an edition's pool (seed order)
+create table public.bracket_entrants (
+  edition_id text references public.bracket_editions(id) on delete cascade,
+  entrant_id text not null,             -- ESPN athlete id
+  seed int not null,
+  player_name text not null,
+  jersey_number int,
+  team_abbreviation text not null,
+  primary key (edition_id, entrant_id)
+);
+
+-- Matchups per round. `community_winner_id` + `split_a_percent` are null until the
+-- round closes and the service-role tally resolves them. `points` is the round's
+-- per-correct-pick value (denormalized so scoring is a trivial sum).
+create table public.bracket_matchups (
+  id text primary key,                  -- "{edition}-r{round}-s{slot}"
+  edition_id text references public.bracket_editions(id) on delete cascade,
+  round int not null,
+  slot int not null,
+  entrant_a_id text not null,
+  entrant_b_id text not null,
+  points int not null,
+  community_winner_id text,
+  split_a_percent int,
+  created_at timestamptz default now()
+);
+
+-- One vote per user per matchup (the chosen entrant). Owner-scoped.
+create table public.bracket_votes (
+  user_id uuid references auth.users(id) not null default auth.uid(),
+  matchup_id text references public.bracket_matchups(id) on delete cascade,
+  edition_id text not null,
+  round int not null,
+  entrant_id text not null,
+  created_at timestamptz default now(),
+  primary key (user_id, matchup_id)     -- backs the app's upsert onConflict
+);
+
+-- Per-user per-edition banked points — the leaderboard source. Written by the
+-- service-role tally job (so it's a cross-user-readable standings table); the app
+-- only reads it and splices its own live total in client-side.
+create table public.bracket_scores (
+  user_id uuid references auth.users(id) on delete cascade,
+  edition_id text references public.bracket_editions(id) on delete cascade,
+  display_name text,
+  points int not null default 0,
+  updated_at timestamptz default now(),
+  primary key (user_id, edition_id)
+);
+
+-- ── Row-Level Security ───────────────────────────────────────────────────────
+
+alter table public.bracket_editions enable row level security;
+alter table public.bracket_entrants enable row level security;
+alter table public.bracket_matchups enable row level security;
+alter table public.bracket_votes    enable row level security;
+alter table public.bracket_scores   enable row level security;
+
+-- Public reads (the bracket is global; browse it signed-out). Writes to these
+-- tables are service-role only (no authenticated insert/update policy → blocked).
+create policy "Anyone can read bracket editions" on public.bracket_editions for select using (true);
+create policy "Anyone can read bracket entrants" on public.bracket_entrants for select using (true);
+create policy "Anyone can read bracket matchups" on public.bracket_matchups for select using (true);
+create policy "Anyone can read bracket scores"   on public.bracket_scores   for select using (true);
+
+-- Votes: each user reads/writes only their own picks.
+create policy "Users read own bracket votes"
+  on public.bracket_votes for select using (auth.uid() = user_id);
+create policy "Users insert own bracket votes"
+  on public.bracket_votes for insert with check (auth.uid() = user_id);
+create policy "Users update own bracket votes"
+  on public.bracket_votes for update using (auth.uid() = user_id);
+
+-- ── Grants (the 42501 gotcha — RLS does not imply privilege) ──────────────────
+-- Read tables go to anon + authenticated (signed-out browsing); votes are
+-- authenticated-only. Service-role (generation/tally) bypasses RLS + needs no grant.
+grant select on public.bracket_editions to anon, authenticated;
+grant select on public.bracket_entrants to anon, authenticated;
+grant select on public.bracket_matchups to anon, authenticated;
+grant select on public.bracket_scores   to anon, authenticated;
+grant select, insert, update on public.bracket_votes to authenticated;

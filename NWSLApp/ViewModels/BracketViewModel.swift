@@ -2,301 +2,149 @@
 //  BracketViewModel.swift
 //  NWSLApp
 //
-//  Owns one Bracket Battle "session" — Home's Module 3 "Play", game 2. Same
-//  idle/loading/loaded/error State shape as the other view models. The durable
-//  state (votes, locked rounds, points) lives in BracketStore; this view model
-//  owns the DERIVED bracket: the matchup tree and the simulated "community"
-//  result for every matchup.
+//  Owns one Bracket Battle session — Fan Zone game 2 (0.3.9, LIVE). Same
+//  idle/loading/loaded/error State as every other view model. Durable per-user state
+//  (picks, submission, banked points) lives in BracketStore; this view model owns the
+//  DERIVED view of the current edition fetched from BracketService (Supabase-backed,
+//  offline-sample fallback): the round in play, its phase, the user's progress, the
+//  results of a closed round, and the leaderboard.
 //
-//  The community is simulated DETERMINISTICALLY (no backend yet): the bracket is
-//  built by standard tournament seeding, and each matchup's winner + vote split
-//  come from a SplitMix64 RNG seeded by a stable hash of the matchup id, weighted
-//  by the entrants' seed strength so favourites usually (but not always) advance.
-//  Same edition in → same bracket out, every launch — which is what lets a locked
-//  round's results stay stable and the leaderboard make sense.
-//
-//  Club crests/names are resolved best-effort via the club directory (like Home /
-//  Feed / Schedule). If that fetch fails the game is still fully playable — the
-//  entrants just render with their team abbreviation instead of a crest.
+//  A round's phase is resolved against an injectable clock ("now"), never stored:
+//   • open      — current round, not submitted, before close → editable/submittable
+//   • submitted — committed, awaiting the community tally
+//   • closed    — deadline passed and never submitted (missed this round)
+//   • scored    — round resolved + you submitted → has points
 //
 
 import Foundation
 
 @Observable
 final class BracketViewModel {
-    enum State {
-        case idle
-        case loading
-        case loaded
-        case error(String)
-    }
+    enum State { case idle, loading, loaded, error(String) }
+    enum RoundPhase { case open, submitted, closed, scored }
 
     private(set) var state: State = .idle
     private(set) var edition: BracketEdition?
-    /// rounds[r] = that round's matchups, slot order. Round 0 is the Round of 16.
-    private(set) var rounds: [[BracketMatchup]] = []
-    private(set) var clubsByAbbr: [String: Club] = [:]
+    private(set) var leaderboard: [BracketLeaderboardRow] = []
 
-    private let provider: BracketEditionProvider
-    private let service: ESPNService
+    private let service: BracketService
+    private let now: () -> Date
 
-    init(provider: BracketEditionProvider = BracketEditionProvider(),
-         service: ESPNService = ESPNService()) {
-        self.provider = provider
+    init(service: BracketService = BracketService(), now: @escaping () -> Date = Date.init) {
         self.service = service
+        self.now = now
     }
 
     // MARK: - Loading
 
-    /// Load the edition, build + simulate the bracket, and adopt it in the store.
-    /// The edition is a local seed (so the game always reaches `.loaded`); the club
-    /// directory is a best-effort enrichment for crests/names.
-    func load(store: BracketStore) async {
-        if case .loaded = state { return }
+    /// Fetch the active edition, cache its summary for the Home gate, score any
+    /// settled-but-unscored round, and load the leaderboard. No active edition →
+    /// loaded with `edition == nil` (the game hides), never an error.
+    func load(store: BracketStore, userID: UUID? = nil, displayName: String? = nil) async {
         state = .loading
-
-        let edition = await provider.edition()
-        self.edition = edition
-        rounds = Self.buildBracket(edition: edition)
-        store.beginEdition(edition.id, roundCount: rounds.count)
-
-        // Best-effort crest/name resolution — a failure here must not break play.
-        if let clubs = try? await service.fetchTeams() {
-            clubsByAbbr = Dictionary(clubs.map { ($0.abbreviation, $0) }, uniquingKeysWith: { first, _ in first })
+        guard let edition = await service.currentEdition() else {
+            store.clearActiveEdition()
+            self.edition = nil
+            state = .loaded
+            return
         }
-
+        self.edition = edition
+        store.adopt(summary: .init(
+            id: edition.id, title: edition.title,
+            currentRoundRaw: edition.currentRound.rawValue,
+            roundClosesAt: edition.roundClosesAt, isActive: true
+        ))
+        await scoreSettledRounds(edition: edition, store: store)
+        leaderboard = await service.leaderboard(myPoints: store.points,
+                                                myName: displayName ?? "You", editionID: edition.id)
         state = .loaded
     }
 
-    // MARK: - Bracket construction + simulation
-
-    /// Standard single-elimination seeding for 16 entrants (1 v 16, 8 v 9, …), as
-    /// 0-based indices into the seed-ordered entrant list. Falls back to sequential
-    /// pairing for any other count (keeps the model general).
-    private static let seedOrder16 = [0, 15, 7, 8, 4, 11, 3, 12, 2, 13, 5, 10, 6, 9, 1, 14]
-
-    private static func buildBracket(edition: BracketEdition) -> [[BracketMatchup]] {
-        let entrants = edition.entrants
-        guard entrants.count >= 2 else { return [] }
-
-        // Strength = position in the seed-ordered list (0 = strongest); used to
-        // weight the simulated upset chance.
-        var strength: [String: Int] = [:]
-        for (index, entrant) in entrants.enumerated() { strength[entrant.id] = index }
-
-        // Round 0 contenders in bracket order.
-        let ordered: [BracketEntrant]
-        if entrants.count == 16 {
-            ordered = seedOrder16.map { entrants[$0] }
-        } else {
-            ordered = entrants
-        }
-
-        var rounds: [[BracketMatchup]] = []
-        var advancing = ordered    // entrants entering the current round, slot order
-
-        var roundIndex = 0
-        while advancing.count >= 2 {
-            var matchups: [BracketMatchup] = []
-            var winners: [BracketEntrant] = []
-
-            var slot = 0
-            var i = 0
-            while i + 1 < advancing.count {
-                let a = advancing[i]
-                let b = advancing[i + 1]
-                let id = "\(edition.id)-r\(roundIndex)-s\(slot)"
-                let result = simulate(
-                    id: id,
-                    a: a, b: b,
-                    strengthA: strength[a.id] ?? 0,
-                    strengthB: strength[b.id] ?? 0
-                )
-                matchups.append(BracketMatchup(
-                    id: id,
-                    roundIndex: roundIndex,
-                    slot: slot,
-                    entrantA: a,
-                    entrantB: b,
-                    communityWinnerID: result.winner.id,
-                    votePercentWinner: result.winnerPercent
-                ))
-                winners.append(result.winner)
-                slot += 1
-                i += 2
+    /// For each round the user submitted but isn't scored yet, if its real tally has
+    /// resolved, run BracketScoring and bank the points (once).
+    private func scoreSettledRounds(edition: BracketEdition, store: BracketStore) async {
+        for round in edition.rounds where store.hasSubmitted(round) && store.score(for: round) == nil {
+            var resolved = edition.matchups(in: round)
+            if !resolved.contains(where: { $0.isResolved }) {
+                resolved = await service.results(editionID: edition.id, round: round)
             }
-
-            rounds.append(matchups)
-            advancing = winners
-            roundIndex += 1
+            guard resolved.contains(where: { $0.isResolved }) else { continue }
+            let points = BracketScoring.roundPoints(picks: store.picks(for: round), matchups: resolved)
+            store.recordScore(points, for: round)
         }
-        return rounds
     }
 
-    /// Deterministic community result for a matchup: who advances + the winner's
-    /// vote share. The favourite (lower strength index) usually wins; the upset
-    /// chance shrinks as the seed gap grows. Stable across launches because it's
-    /// seeded by a stable hash of the matchup id.
-    private static func simulate(id: String, a: BracketEntrant, b: BracketEntrant,
-                                 strengthA: Int, strengthB: Int)
-        -> (winner: BracketEntrant, winnerPercent: Int) {
-        var generator = SeededGenerator(seed: stableHash(id))
-        let roll = unitInterval(&generator)        // decides upset
-        let split = unitInterval(&generator)        // decides the vote margin
+    // MARK: - Current round derivation
 
-        let gap = abs(strengthA - strengthB)
-        // gap 1 → ~0.39 upset chance (near coin flip); gap 15 → floored at 0.08.
-        let upsetChance = max(0.08, 0.42 - 0.025 * Double(gap))
-        let favouriteIsA = strengthA < strengthB
-        let favouriteWins = roll >= upsetChance
-        let winnerIsA = favouriteIsA ? favouriteWins : !favouriteWins
+    var currentRound: BracketRound? { edition?.currentRound }
 
-        let winner = winnerIsA ? a : b
-        // Winner's share lands in 54–76% — a believable community split.
-        let winnerPercent = 54 + Int((split * 22).rounded())
-        return (winner, winnerPercent)
+    var currentMatchups: [BracketMatchup] {
+        guard let edition else { return [] }
+        return edition.matchups(in: edition.currentRound)
     }
 
-    // MARK: - Derived
-
-    var roundCount: Int { rounds.count }
-
-    func matchups(inRound round: Int) -> [BracketMatchup] {
-        rounds.indices.contains(round) ? rounds[round] : []
+    /// The phase of the current round for this user.
+    func phase(store: BracketStore) -> RoundPhase {
+        guard let edition else { return .closed }
+        let round = edition.currentRound
+        if store.score(for: round) != nil { return .scored }
+        if store.hasSubmitted(round) { return .submitted }
+        if let closes = edition.roundClosesAt, now() >= closes { return .closed }
+        return .open
     }
 
-    func roundTitle(_ round: Int) -> String {
-        BracketRoundLabel.title(matchups: matchups(inRound: round).count)
+    func picksMade(store: BracketStore) -> Int {
+        guard let edition else { return 0 }
+        return store.picks(for: edition.currentRound).count
     }
 
-    func entrant(_ id: String?) -> BracketEntrant? {
-        guard let id else { return nil }
-        for round in rounds {
-            for matchup in round {
-                if matchup.entrantA?.id == id { return matchup.entrantA }
-                if matchup.entrantB?.id == id { return matchup.entrantB }
-            }
+    var totalMatchups: Int { currentMatchups.count }
+
+    func allPicksMade(store: BracketStore) -> Bool {
+        totalMatchups > 0 && picksMade(store: store) == totalMatchups
+    }
+
+    /// "Closes in 1d 8h" for the current round.
+    var closesInText: String? {
+        guard let closes = edition?.roundClosesAt else { return nil }
+        let secs = closes.timeIntervalSince(now())
+        guard secs > 0 else { return "Closing" }
+        let h = Int(secs) / 3600
+        if h >= 24 { return "Closes in \(h / 24)d \(h % 24)h" }
+        if h >= 1 { return "Closes in \(h)h" }
+        return "Closes in \(Int(secs) / 60)m"
+    }
+
+    // MARK: - Mutation
+
+    func setPick(matchup: BracketMatchup, entrantID: String, store: BracketStore) {
+        guard let round = currentRound else { return }
+        store.setPick(matchupID: matchup.id, entrantID: entrantID, round: round)
+    }
+
+    /// Commit the current round and persist the votes to the backend. `userID` comes
+    /// from the sign-in gate at the call site (votes are owner-scoped); a nil id
+    /// records the local submit only.
+    func submit(store: BracketStore, userID: UUID?) async {
+        guard let edition, allPicksMade(store: store) else { return }
+        let round = edition.currentRound
+        store.submit(round: round)
+        if let userID {
+            await service.submit(editionID: edition.id, round: round,
+                                 picks: store.picks(for: round), userID: userID)
+        }
+    }
+
+    // MARK: - Results (a closed round)
+
+    /// Resolved matchups for the most recently completed round (for the Results
+    /// screen), or nil if no round has closed yet.
+    func completedResults() -> (round: BracketRound, matchups: [BracketMatchup])? {
+        guard let edition else { return nil }
+        for round in edition.rounds.reversed() where round < edition.currentRound {
+            let ms = edition.matchups(in: round)
+            if ms.contains(where: { $0.isResolved }) { return (round, ms) }
         }
         return nil
-    }
-
-    func club(for entrant: BracketEntrant?) -> Club? {
-        guard let entrant else { return nil }
-        return clubsByAbbr[entrant.teamAbbreviation]
-    }
-
-    /// True once every matchup in a round has a vote (enables the Lock button).
-    func allPicked(inRound round: Int, store: BracketStore) -> Bool {
-        let ms = matchups(inRound: round)
-        return !ms.isEmpty && ms.allSatisfy { store.pick(for: $0.id) != nil }
-    }
-
-    /// Correct picks in a round (each worth a point) — the round score.
-    func correctPicks(inRound round: Int, store: BracketStore) -> Int {
-        matchups(inRound: round).filter { store.pick(for: $0.id) == $0.communityWinnerID }.count
-    }
-
-    /// Close the current round, banking its points. No-op unless every matchup is
-    /// voted (the view also gates the button) and it's the next round to lock.
-    func lockRound(_ round: Int, store: BracketStore) {
-        guard allPicked(inRound: round, store: store) else { return }
-        store.lockRound(round, pointsEarned: correctPicks(inRound: round, store: store))
-    }
-
-    /// The community champion — the final's winner, known once the final is locked.
-    func champion(store: BracketStore) -> BracketEntrant? {
-        guard store.isComplete, let final = rounds.last?.first else { return nil }
-        return entrant(final.communityWinnerID)
-    }
-
-    /// The final's winning vote share (for the champion banner).
-    func finalWinnerPercent() -> Int? {
-        rounds.last?.first?.votePercentWinner
-    }
-
-    // MARK: - Leaderboard (simulated)
-
-    struct LeaderboardRow: Identifiable {
-        let id = UUID()
-        let rank: Int
-        let name: String
-        let points: Int
-        let isYou: Bool
-    }
-
-    /// The simulated per-edition leaderboard: fixed sample opponents plus "You"
-    /// (live points), sorted high-to-low. On a tie, "You" sorts ahead so climbing
-    /// reads cleanly. Replaced by a real board when a voting backend exists.
-    func leaderboard(store: BracketStore) -> [LeaderboardRow] {
-        var entries = provider.leaderboardOpponents().map { (name: $0.name, points: $0.points, isYou: false) }
-        entries.append((name: "You", points: store.points, isYou: true))
-        entries.sort { lhs, rhs in
-            if lhs.points != rhs.points { return lhs.points > rhs.points }
-            return lhs.isYou && !rhs.isYou
-        }
-        return entries.enumerated().map { index, entry in
-            LeaderboardRow(rank: index + 1, name: entry.name, points: entry.points, isYou: entry.isYou)
-        }
-    }
-
-    /// The user's current rank in the simulated board (for the header + share).
-    func yourRank(store: BracketStore) -> Int {
-        leaderboard(store: store).first(where: \.isYou)?.rank ?? 0
-    }
-}
-
-/// A single matchup, derived at runtime (not persisted). Entrants are known for
-/// every round because the simulation is deterministic; the view decides when to
-/// REVEAL future rounds so results aren't spoiled before you've voted.
-struct BracketMatchup: Identifiable {
-    let id: String
-    let roundIndex: Int
-    let slot: Int
-    let entrantA: BracketEntrant?
-    let entrantB: BracketEntrant?
-    /// The community's choice to advance (the demo simulation).
-    let communityWinnerID: String?
-    /// The winning entrant's vote share; the loser's is 100 − this.
-    let votePercentWinner: Int
-
-    var votePercentLoser: Int { 100 - votePercentWinner }
-
-    func percent(forEntrant id: String?) -> Int {
-        id == communityWinnerID ? votePercentWinner : votePercentLoser
-    }
-}
-
-// MARK: - Deterministic helpers
-
-/// A stable FNV-1a hash so a matchup id maps to the same RNG seed on every launch
-/// (Swift's built-in Hasher is intentionally randomised per-process, which would
-/// reshuffle results between runs).
-private func stableHash(_ string: String) -> UInt64 {
-    var hash: UInt64 = 1_469_598_103_934_665_603
-    for byte in string.utf8 {
-        hash ^= UInt64(byte)
-        hash = hash &* 1_099_511_628_211
-    }
-    return hash
-}
-
-/// A double in [0, 1) from the next 53 bits of the generator.
-private func unitInterval(_ generator: inout SeededGenerator) -> Double {
-    Double(generator.next() >> 11) * (1.0 / 9_007_199_254_740_992.0)
-}
-
-/// A tiny deterministic RNG (SplitMix64), matching the one TriviaViewModel uses
-/// for its daily pick — same seed in, same sequence out, on every device.
-private struct SeededGenerator: RandomNumberGenerator {
-    private var state: UInt64
-
-    init(seed: UInt64) { state = seed }
-
-    mutating func next() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
-        return z ^ (z >> 31)
     }
 }

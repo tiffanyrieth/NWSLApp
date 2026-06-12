@@ -494,12 +494,15 @@ Per-screen behavior (full file detail in the File Map; specs in `Reference/Desig
   vs ESPN `/summary` (max 88; Draft→Submit one-way, closes kickoff−2h, only submitted score).
   **Visibility rule (all games):** hidden EVERYWHERE (Home card + screen) when nothing
   active/upcoming — Predict's gate = followed-team fixture **within 28 days**; the module
-  hides when no game is visible. **Bracket Battle** (teal) — APP-SIDE LIVE (0.3.9): the real
-  64-player / 6-round community-voting tournament (5 screens per the Claude Design ref;
-  escalating scoring Rd64+5…Final+40; draft→submit one-way; sign-in at submit; gate hides when
-  no active edition). Renders an offline-first sample edition; **real Supabase voting + the
-  ESPN/Haiku edition-generation engine are PENDING** (the votes are stubbed — see What's Next).
-  **Daily Trivia** (indigo) still ⚠️seed. Leaderboards simulated (real = Game Center).
+  hides when no game is visible. **Bracket Battle** (teal) — ⚠️ **IN PROGRESS, NOT shipped**
+  (0.3.9): the real 64-player / 6-round community-voting tournament. **App-side + real Supabase
+  voting are DONE + verified** (5 screens per the Claude Design ref; escalating scoring
+  Rd64+5…Final+40, max 546; draft→submit one-way; sign-in at submit; gate hides when no active
+  edition; votes land in `bracket_votes`). **But the feature is NOT shipped** until the **proxy
+  Worker engine is built — REQUIRED 0.3.9 work, not deferred** (auto-generate 64-player ESPN
+  editions · auto-advance rounds · auto-tally votes at close · auto-rotate editions · Haiku
+  creative themes). What's live now = one hand-seeded 16-player TEST edition + manual
+  advancement = a scaffold. See What's Next. **Daily Trivia** (indigo) still ⚠️seed.
 - **Player Spotlight** (`spotlight-design-spec.md`) — one mini-profile/followed team →
   `PlayerSpotlightView`. **LIVE** (B2/0.3.8) via proxy `/spotlight`: real player + ESPN stats
   + a Haiku "why watch" blurb, weekly rotation. Seed = offline-first fallback.
@@ -545,17 +548,23 @@ club OG news · Bluesky · News RSS · Instagram · Player Spotlight). **Backbon
 (`Reference/BACKBONE.md` + `Reference/Feed update/` handoff): A1/A2 · B1 · B2 · B3a · **B3b
 all SHIPPED**.
 - **Fan Zone games (0.3.9):** swap the ⚠️seed games for live rounds, in order —
-  ~~**Predict the XI** (LIVE)~~ ✅ → **Bracket Battle** 🔨 code-complete on branch
-  `feature/bracket-battle` (5 screens + models + scoring + store/VM + Home gate + **real
-  Supabase voting wired**: `BracketService` reads editions/matchups + upserts owner-scoped
-  votes + reads `bracket_scores`). **REMAINING to ship Bracket:** (1) apply
-  `supabase/schema.sql` (bracket_* tables/RLS/grants) + `supabase/seed_bracket_edition.sql` in
-  the Supabase dashboard, then verify the live vote round-trip in-sim (signed-in submit → row
-  in `bracket_votes`); (2) the proxy Worker engine (ESPN stats-seeded + Haiku creative themes →
-  full 64-pool editions + scheduled round advancement/tallying writing `bracket_scores`) — the
-  deferred "alive" automation; (3) full 5-screen visual pass (DEBUG nav scaffold). → **Daily
-  Trivia** (question pool) → **Game Center** (GameKit leaderboards across all three). Then
-  **B4 final sweep** → ship **0.3.9** (QOL begins at 0.4.0).
+  ~~**Predict the XI** (LIVE)~~ ✅ → **Bracket Battle** ⚠️ **IN PROGRESS (NOT shipped).**
+  App-side + real Supabase voting are DONE on `main` (PR #49: 5 screens, models, scoring,
+  store/VM, Home gate; `BracketService` reads editions/matchups + upserts owner-scoped votes +
+  reads `bracket_scores`; schema + one seed edition applied; vote round-trip verified). **The
+  feature is NOT done until the proxy Worker engine is built — REQUIRED 0.3.9 backbone, NOT
+  deferred. No partial credit; the box stays unchecked until ALL sub-items ship.** The Worker
+  (`~/Projects/nwslapp-proxy`, service-role → Supabase) must: (1) **auto-generate real
+  64-player editions** from ESPN roster+season-stats (stats-seeded templates) → write
+  editions/entrants/matchups; (2) **advance rounds automatically** on the 2–3 day schedule
+  (cron); (3) **tally votes automatically at round close** — community majority → winner +
+  split, build next round, advance `current_round`, write `bracket_scores`; (4) **auto-generate
+  the next edition after a break** (rotation); (5) **creative themes** (Haiku or pre-generated
+  pool) mixed into rotation (all-rostered-players personality themes). No hand-seeded SQL, no
+  manual advancement — must work as if public testing starts tomorrow. (Also: app-side full
+  5-screen visual pass via a DEBUG nav scaffold.) → THEN **Daily Trivia** (question pool) →
+  **Game Center** (GameKit leaderboards across all three). Then **B4 final sweep** → ship
+  **0.3.9** (QOL begins at 0.4.0).
 - **A3 Reddit → Feed** — DEFERRED (noisy; subreddits live in Teams). IG now via Apify (B3b).
 
 **Category 3 — HARDENING** (cleanup/robustness — do AFTER Category 1, never above it)

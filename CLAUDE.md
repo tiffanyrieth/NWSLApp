@@ -328,7 +328,7 @@ NWSLApp/
 ├── NWSLAppApp.swift                   — app entry point; launches RootTabView; forces dark appearance app-wide; DEBUG `-resetOnboarding` launch arg → resets onboarding; `AppDelegate` (@UIApplicationDelegateAdaptor) captures the APNs token + handles foreground-present/tap → PushBridge (Tier 2)
 ├── NWSLApp.entitlements               — Sign in with Apple + `aps-environment` (development; Xcode flips to production on archive) for Tier-2 push
 ├── Config/                            — app configuration
-│   ├── AppConfig.swift                — base URLs; scoreboard + summary → Cloudflare proxy (0.3.1); DEBUG `-useESPNDirect`; `liveContentEnabled` flag (ON) + `teamVideosURL(teams:)` (Home live: YouTube + club-site news + team Bluesky) + `feedURL(teams:)` (Feed live: Bluesky reporter/league/team, A2/0.3.6); shared `contentRouteURL`
+│   ├── AppConfig.swift                — base URLs; scoreboard + summary → Cloudflare proxy (0.3.1); DEBUG `-useESPNDirect`; `liveContentEnabled` flag (ON) + `teamVideosURL(teams:)` (Home live: YouTube + club-site news + team Bluesky) + `feedURL(teams:)` (Feed live: Bluesky reporter/league/team A2/0.3.6 + per-outlet RSS news cards B1); shared `contentRouteURL`
 │   ├── Secrets.swift                  — 🔒 GITIGNORED Supabase URL + anon key (not committed)
 │   └── Secrets.example                — checked-in template for Secrets.swift (non-`.swift` so it never compiles)
 ├── DesignSystem/                      — token layer mirroring the Claude Design handoff; the app-chrome palette (team colors stay dynamic via Color+Hex)
@@ -513,7 +513,15 @@ File Map above):
   **Reporter posts are Haiku-relevance-filtered server-side** (Step 2 —
   `claude-haiku-4-5` drops off-topic reporter posts, KV-cached once; league/team pass
   untouched) + a free 3/account flood cap + content dedup (`dedupeByContent` collapses
-  identical-text double-posts, e.g. nwslstat). A3/news could extend `/feed` later.
+  identical-text double-posts, e.g. nwslstat). The **Feed "News" chip is LIVE** (B1,
+  2026-06-11, proxy-only): **per-outlet RSS/Atom (`NEWS_FEEDS` — Equalizer / Just Women's
+  Sports / All For XI / Guardian women's football) → Haiku NWSL-gate + team-tag → OG-enrich →
+  `newsArticle` cards (placement `feed`)** in the same `/feed` route
+  (`buildNewsCards`/`parseOutletRSS`/`tagNewsTeams`/`enrichNewsOG`). Real publisher URLs
+  + summary + thumbnail (OG-scraped where the feed lacks one); Haiku drops non-NWSL
+  (PWHL/WSL/men's) + routes (single-team → abbr, else `isLeague`). Distinct from Home's
+  club-site OG news (`buildArticleCards`, placement `home`). B3 (Social IG/TikTok via
+  Apify + chip restructure to All/News/Social) is next-but-one; **B2 Player Spotlight next.**
 - **Teams + Following** — `TeamsView` lists all 16 (followed float up). Onboarding + a
   bottom row offer **international competitions** (`FollowedCompetition` →
   `CompetitionsView`); persisted, but the schedule isn't competition-aware yet (#13).
@@ -543,7 +551,10 @@ Category 1 (ALIVE) always outranks 2/3.
 Category 2/3 work, and before any TestFlight ship. "Would I open it today if I opened
 it yesterday?"** Content Card UI layer (Part 1) is built; A1–A3 (**Part 2**) swap the
 seed for live proxy routes (`content-cards-part2-live-data.md`, Steps 1→2→2b→3). A1+A2
-shipped (Home + Feed LIVE); Haiku → A3 → news next — see `Reference/Design/live-feed-plan.md`.
+shipped (Home + Feed LIVE) + Haiku filter + **B1 News chip LIVE** (per-outlet RSS,
+2026-06-11). Next ALIVE: **B2 Player Spotlight → live**, then B3 (IG/TikTok via Apify +
+chip restructure) → **Fan Zone games (now backbone)** → B4 sweep → 0.4.0. See
+`Reference/Feed update/` handoff + `Reference/BACKBONE.md` for the full sequence.
 - **A1. YouTube → Home live.** ✅ **SHIPPED 0.3.4** (+ club-site news 0.3.5; see Current
   State). Remaining polish: a refetch-on-follows-change seam.
 - **A2. Bluesky → Feed tab live.** ✅ **SHIPPED 0.3.6** (proxy `/feed` + `feedCards`; see

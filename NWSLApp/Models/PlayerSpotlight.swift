@@ -18,7 +18,7 @@
 
 import Foundation
 
-struct PlayerSpotlight: Identifiable {
+struct PlayerSpotlight: Identifiable, Codable {
     let id: String
 
     /// The followed-team join key (matched to a Club by abbreviation).
@@ -78,6 +78,27 @@ struct PlayerSpotlight: Identifiable {
     /// nil in the seed today; a live stats source fills it (spec §Tap-through).
     let seasonForm: String?
 
+    // MARK: Live backend (B2) — supplied by the proxy `/spotlight` route; nil for
+    // the curated seed. Defaulted so the seed's memberwise init is unchanged.
+
+    /// ESPN athlete id of the spotlit player (the TODO seam referenced below).
+    /// The live `/spotlight` backend supplies it; nil in the seed. `var` (not `let`)
+    /// so Codable still decodes it — a `let` with a default is excluded from decoding.
+    var espnAthleteId: String? = nil
+
+    /// Real season stats (Goals/Assists/Apps) from the live `/spotlight` backend.
+    /// Nil for the seed — the stat strip then falls back to `demoSeasonStats`. `var`
+    /// for the same Codable reason as `espnAthleteId`.
+    var seasonStatLine: SpotlightStats? = nil
+
+    /// The real season-stat line carried by a live spotlight (mirrors the proxy's
+    /// `seasonStatLine` JSON object).
+    struct SpotlightStats: Codable, Hashable {
+        let goals: Int
+        let assists: Int
+        let apps: Int
+    }
+
     /// ⚠️ TEMP demo season stats for the Module-2 card's stat strip, derived
     /// deterministically from the number + position. The model deliberately
     /// carries no *real* season stats (they rot — see `seasonForm`); this keeps
@@ -97,5 +118,12 @@ struct PlayerSpotlight: Identifiable {
         if p.contains("midfield")     { return (1 + base % 5, 3 + base % 7, apps) }
         if p.contains("defend")       { return (base % 3,     1 + base % 4, apps) }
         return (0, base % 2, apps)               // goalkeeper
+    }
+
+    /// The Goals/Assists/Apps the card + detail render: the REAL backend line
+    /// (`seasonStatLine`) for a live spotlight, else the seed's `demoSeasonStats`.
+    var statStrip: (goals: Int, assists: Int, apps: Int) {
+        if let s = seasonStatLine { return (s.goals, s.assists, s.apps) }
+        return demoSeasonStats
     }
 }

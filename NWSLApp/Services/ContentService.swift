@@ -37,6 +37,9 @@ struct ContentService {
     /// Home (`homeCards`); `seedFeed` backs the Feed (`feedCards`).
     var seed = TeamContentProvider()
     var seedFeed = FeedContentProvider()
+    /// Backs Home Module 2 (`spotlightCards`) — the fallback when the live
+    /// `/spotlight` route is off or unreachable.
+    var seedSpotlight = PlayerSpotlightProvider()
 
     /// Home Module-1 cards for the followed clubs. Live: the proxy `/team-videos`
     /// route (recent YouTube uploads, normalized to `ContentCard`); today: the
@@ -75,7 +78,32 @@ struct ContentService {
         }
     }
 
+    /// Home Module-2 spotlights for the followed clubs. Live: the proxy `/spotlight`
+    /// route (one real player per team from the recent matchday squad, real season
+    /// stats, a Haiku "why watch" blurb — `PlayerSpotlight` JSON); today's fallback:
+    /// the curated seed. Any failure degrades to the seed so the module never goes
+    /// blank. `HomeViewModel.spotlights(following:)` then picks one per followed team.
+    func spotlightCards(followedAbbreviations: Set<String>) async -> [PlayerSpotlight] {
+        guard AppConfig.liveContentEnabled, !forceSeed else {
+            return await seedSpotlight.spotlights()
+        }
+        do {
+            return try await fetchSpotlights(Array(followedAbbreviations))
+        } catch {
+            // Offline-first: a proxy hiccup falls back to the seed, never an empty
+            // module. (The seed is a valid answer, not a failure state.)
+            return await seedSpotlight.spotlights()
+        }
+    }
+
     // MARK: - Live fetch
+
+    private func fetchSpotlights(_ teams: [String]) async throws -> [PlayerSpotlight] {
+        guard let url = AppConfig.spotlightURL(teams: teams) else {
+            throw ContentServiceError.badURL
+        }
+        return try await fetch([PlayerSpotlight].self, from: url)
+    }
 
     private func fetchTeamVideos(_ teams: [String]) async throws -> [ContentCard] {
         guard let url = AppConfig.teamVideosURL(teams: teams) else {

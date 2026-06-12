@@ -68,6 +68,7 @@ struct HomeView: View {
             if case .idle = matchStore.state { await matchStore.load() }
             if case .idle = clubStore.state { await clubStore.load() }
             await viewModel.loadContent(following: following)
+            await loadBracketSummary()
         }
         .sheet(isPresented: $showTeamPicker) {
             NavigationStack { OnboardingView() }
@@ -92,6 +93,22 @@ struct HomeView: View {
               !auth.isSignedIn else { return }
         following.markSignInPromptSeen()
         showSignInPrompt = true
+    }
+
+    /// Cache the active Bracket edition summary so the Fan Zone card can show/hide
+    /// (the visibility gate) and render its status without opening the game. The
+    /// full edition + real votes load when the game is opened (BracketService).
+    private func loadBracketSummary() async {
+        let service = BracketService()
+        if let edition = await service.currentEdition() {
+            bracket.adopt(summary: .init(
+                id: edition.id, title: edition.title,
+                currentRoundRaw: edition.currentRound.rawValue,
+                roundClosesAt: edition.roundClosesAt, isActive: true
+            ))
+        } else {
+            bracket.clearActiveEdition()
+        }
     }
 
     // MARK: - Hub
@@ -242,7 +259,7 @@ struct HomeView: View {
     // Trivia are seed-backed so always have content for now (their real gates land
     // when they go live).
     private var predictXIVisible: Bool { predictXIActive }
-    private var bracketVisible: Bool { true }
+    private var bracketVisible: Bool { bracket.hasActiveEdition }
     private var triviaVisible: Bool { true }
     private var anyFanZoneGameVisible: Bool { predictXIVisible || bracketVisible || triviaVisible }
 
@@ -312,7 +329,7 @@ struct HomeView: View {
     private var activeGameCount: Int {
         var n = 0
         if predictXIActive { n += 1 }                  // a followed-team fixture is up
-        if !bracket.isComplete { n += 1 }
+        if bracket.hasActiveEdition { n += 1 }
         if !trivia.hasPlayedToday { n += 1 }
         return n
     }
@@ -330,7 +347,7 @@ struct HomeView: View {
         GameCard(
             emoji: "🏆", title: "Bracket Battle",
             statusLine: bracketStateLine,
-            accent: .dsGameBracket, completed: bracket.isComplete,
+            accent: .dsGameBracket, completed: false,
             badge: bracket.points > 0 ? "\(bracket.points)" : nil, badgeIcon: "🏆"
         )
     }
@@ -348,10 +365,9 @@ struct HomeView: View {
     // current round ("Round 2 of 4"). roundCount falls back to 4 (the current
     // edition) until the game's been opened and stored it.
     private var bracketStateLine: String {
-        if bracket.isComplete { return "Complete ✓" }
-        if !bracket.hasStarted { return "Play now" }
-        let total = bracket.roundCount > 0 ? bracket.roundCount : 4
-        return "Round \(bracket.lockedRoundCount + 1) of \(total)"
+        guard let summary = bracket.summary, summary.isActive else { return "Play now" }
+        if !bracket.hasPlayed { return "Vote now" }
+        return BracketRound(rawValue: summary.currentRoundRaw)?.title ?? "In progress"
     }
 
     // MARK: - Module 4: Coming up (compact schedule strip)

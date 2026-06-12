@@ -377,7 +377,7 @@ NWSLApp/
 │   └── TriviaStore.swift              — Daily-Trivia streak/accuracy + one-play/day gate
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
 │   ├── BracketViewModel.swift         — Bracket session; deterministic community sim
-│   ├── FeedViewModel.swift            — content-type chips (All/Reporters/News/Social) + filtered [ContentCard] (follows∩ OR league, placement≠home, 7d staleness) + sources (prefs-aware); cards ← `ContentService.feedCards` (live `/feed`, seed fallback); clubs ← ClubStore
+│   ├── FeedViewModel.swift            — content-type chips (All/News/Social — Social = reporter+club Bluesky+player IG/TikTok; B3a 0.3.8 folded "Reporters" in) + filtered [ContentCard] (follows∩ OR league, placement≠home, 7d staleness) + sources (prefs-aware); cards ← `ContentService.feedCards` (live `/feed`, seed fallback); clubs ← ClubStore
 │   ├── HomeViewModel.swift            — derives Home modules from MatchStore+ClubStore+Following; Module-1 via ContentService (live-or-seed)
 │   ├── MatchDetailViewModel.swift     — one match: temporalState (past/live/future) + /summary fetch + live refresh + preview
 │   ├── PredictXIViewModel.swift       — Predict session; open/settled split + scoring
@@ -495,8 +495,10 @@ File Map above):
   (soccer-only, guardrail-engineered), weekly rotation. Seed = offline-first fallback.
 - **Feed** (`feed-tab-design-spec.md`) — reporters + news + social filtered to followed
   teams + league (distinct from Home Module 1). **Content-type** chip bar
-  (All/Reporters/News/Social) over the LIVE `/feed` cards (A2; see Content Cards above);
-  gear → `FeedSourcesView` (type toggles + per-source mute).
+  (All/News/Social — "Social" is every individual voice: reporter Bluesky + club Bluesky +
+  player IG/TikTok; B3a/0.3.8 folded the old "Reporters" chip into Social) over the LIVE
+  `/feed` cards (A2; see Content Cards above); gear → `FeedSourcesView` (type toggles +
+  per-source mute).
 - **Content Cards** (`we-are-going-to-iridescent-otter.md`) — one `ContentCard` model +
   `ContentCardView` router back BOTH Home Module 1 and the Feed via 7 layouts. Placement
   gate (Home = team voices; Feed = wider convo; `.both` either) + staleness (Home 72h,
@@ -512,7 +514,9 @@ File Map above):
   NWSL-gate + team-tag → OG-enrich → `newsArticle` cards (placement `feed`); real URLs +
   summary + thumbnail; non-NWSL (PWHL/WSL/men's) dropped. Distinct from Home's club-site OG
   news (placement `home`). **B2 Player Spotlight is LIVE** (0.3.8, proxy `/spotlight` +
-  `spotlightCards`); next is B3 (IG/TikTok via Apify + chip restructure to All/News/Social).
+  `spotlightCards`). **B3a chip restructure shipped** (0.3.8, app-only): Feed chips are now
+  **All/News/Social** — "Reporters" folded into "Social" (which admits reporter Bluesky + club
+  Bluesky + the B3b player IG/TikTok clips). Next is **B3b** (IG/TikTok via Apify — proxy-side).
 - **Teams + Following** — `TeamsView` lists all 16 (followed float up). Onboarding + a
   bottom row offer **international competitions** (`FollowedCompetition` →
   `CompetitionsView`); persisted, but the schedule isn't competition-aware yet (#13).
@@ -543,8 +547,9 @@ Category 2/3 work, and before any TestFlight ship. "Would I open it today if I o
 it yesterday?"** Content Card UI layer (Part 1) is built; A1–A3 (**Part 2**) swap the
 seed for live proxy routes (`content-cards-part2-live-data.md`, Steps 1→2→2b→3). A1+A2
 shipped (Home + Feed LIVE) + Haiku filter + **B1 News chip LIVE** (per-outlet RSS,
-2026-06-11) + **B2 Player Spotlight LIVE** (0.3.8). Next ALIVE: **B3** (IG/TikTok via Apify +
-chip restructure) → **Fan Zone games (now backbone)** → B4 sweep → 0.4.0. See
+2026-06-11) + **B2 Player Spotlight LIVE** (0.3.8) + **B3a Feed chip restructure** (0.3.8,
+All/News/Social). Next ALIVE: **B3b** (IG/TikTok via Apify, proxy-side) → **Fan Zone games
+(now backbone)** → B4 sweep → 0.4.0. See
 `Reference/Feed update/` handoff + `Reference/BACKBONE.md` for the full sequence.
 - **A1. YouTube → Home live.** ✅ **SHIPPED 0.3.4** (+ club-site news 0.3.5; see Current
   State). Remaining polish: a refetch-on-follows-change seam.

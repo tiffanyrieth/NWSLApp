@@ -10,15 +10,16 @@
 //     set — the Feed only ever shows content about teams the user follows plus
 //     league-wide items.
 //
-//  The filter chips are CONTENT-TYPE, not per-team (All / Reporters / News /
-//  Social). The Feed is the league-wide "soccer conversation" — content is already
-//  scoped by the user's follows, so team chips would over-filter; team-specific
-//  content lives on Home. The chip then narrows by card layout.
+//  The filter chips are CONTENT-TYPE, not per-team (All / News / Social). The Feed
+//  is the league-wide "soccer conversation" — content is already scoped by the
+//  user's follows, so team chips would over-filter; team-specific content lives on
+//  Home. The chip then narrows by card layout.
 //
 //  Filtering, in order:
 //   1. Base — placement != .home, AND (about a followed team OR league-wide).
-//   2. Chip — All / Reporters (blueskyReporter) / News (newsArticle) /
-//      Social (socialVideo + instagramFallback).
+//   2. Chip — All / News (newsArticle) / Social (every individual voice: reporter
+//      Bluesky + club Bluesky + player IG/TikTok clips). "Social" absorbs the old
+//      "Reporters" chip (B3a); player IG/TikTok arrive live in B3b.
 //   3. Preferences — drop muted sources + toggled-off content types.
 //   4. Staleness (≤7 days) + reverse-chronological.
 //
@@ -30,14 +31,13 @@ final class FeedViewModel {
     /// The Feed's content-type filter (the chip bar). Replaces the old per-team
     /// chips — see the file note.
     enum ContentFilter: String, CaseIterable, Hashable {
-        case all, reporters, news, social
+        case all, news, social
 
         var label: String {
             switch self {
-            case .all:       return "All"
-            case .reporters: return "Reporters"
-            case .news:      return "News"
-            case .social:    return "Social"
+            case .all:    return "All"
+            case .news:   return "News"
+            case .social: return "Social"
             }
         }
     }
@@ -132,13 +132,21 @@ final class FeedViewModel {
         return false
     }
 
-    /// The content-type chip → which layouts it admits.
+    /// The content-type chip → which layouts it admits. "Social" is the home for
+    /// every individual/conversational voice — reporter Bluesky, club Bluesky, and
+    /// player IG/TikTok clips (the last arrive live in B3b).
     private func passesFilter(_ card: ContentCard) -> Bool {
         switch selectedFilter {
-        case .all:       return true
-        case .reporters: return card.layout == .blueskyReporter
-        case .news:      return card.layout == .newsArticle
-        case .social:    return card.layout == .socialVideo || card.layout == .instagramFallback
+        case .all:    return true
+        case .news:   return card.layout == .newsArticle
+        case .social:
+            switch card.layout {
+            case .blueskyReporter, .blueskyTeamText, .blueskyTeamMedia,
+                 .socialVideo, .instagramFallback:
+                return true
+            default:
+                return false
+            }
         }
     }
 

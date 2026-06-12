@@ -44,6 +44,11 @@ final class BracketStore {
     /// The edition the above belong to. Changing edition resets picks/scores.
     private(set) var editionID: String?
 
+    /// The last edition successfully fetched from Supabase, cached whole so the game
+    /// renders offline-first when the network is briefly unreachable. This is the ONLY
+    /// fallback — there is no fabricated/sample bracket. Nil before the first fetch.
+    private(set) var cachedEdition: BracketEdition?
+
     private let defaults: UserDefaults
 
     private enum Key {
@@ -52,6 +57,7 @@ final class BracketStore {
         static let submitted = "bracket.v2.submittedRounds"
         static let scores = "bracket.v2.roundScores"
         static let editionID = "bracket.v2.editionID"
+        static let edition = "bracket.v2.edition"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -61,6 +67,13 @@ final class BracketStore {
         self.submittedRounds = Set(Self.decode(defaults.data(forKey: Key.submitted)) ?? [Int]())
         self.roundScores = Self.decode(defaults.data(forKey: Key.scores)) ?? [:]
         self.editionID = defaults.string(forKey: Key.editionID)
+        self.cachedEdition = Self.decode(defaults.data(forKey: Key.edition))
+    }
+
+    /// Cache the whole edition just fetched from Supabase (offline-first fallback).
+    func cacheEdition(_ edition: BracketEdition) {
+        cachedEdition = edition
+        defaults.set(Self.encode(edition), forKey: Key.edition)
     }
 
     // MARK: - Readers (Home / Profile)

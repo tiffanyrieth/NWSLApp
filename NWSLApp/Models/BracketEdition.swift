@@ -108,6 +108,9 @@ struct BracketEntrant: Identifiable, Codable, Equatable {
     let jerseyNumber: Int?
     /// Join key → club crest + accent colour + name.
     let teamAbbreviation: String
+    /// Seed (1 = top). Drives "biggest upset" + "Cinderella" flavor. Optional so
+    /// older cached editions still decode; defaults high (unseeded) when absent.
+    var seed: Int?
 }
 
 // MARK: - Matchup
@@ -125,8 +128,17 @@ struct BracketMatchup: Identifiable, Codable, Equatable {
     var communityWinnerID: String?
     /// A's share of the vote, 0–100 (B's is 100 − this). Nil until closed.
     var splitAPercent: Int?
+    /// Total community votes cast on this matchup — shown in the "See stats" reveal.
+    /// Nil until the round closes.
+    var voteCount: Int?
 
     var isResolved: Bool { communityWinnerID != nil }
+
+    /// The winning entrant's vote share (for the results donut), nil until resolved.
+    var winnerPercent: Int? {
+        guard let splitAPercent, let communityWinnerID else { return nil }
+        return communityWinnerID == entrantA.id ? splitAPercent : 100 - splitAPercent
+    }
 
     func entrant(_ id: String) -> BracketEntrant? {
         if entrantA.id == id { return entrantA }

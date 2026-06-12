@@ -25,7 +25,8 @@ struct BracketBattleView: View {
 
     @State private var stage: Stage = .intro
     @State private var showSignIn = false
-    @State private var showOverview = false
+    /// Result matchups the user has expanded to reveal the vote stats (collapsed by default).
+    @State private var expandedMatchups: Set<String> = []
 
     private enum Stage { case intro, voting }
     private let accent = Color.dsGameBracket
@@ -44,23 +45,12 @@ struct BracketBattleView: View {
         }
         .navigationContextLabel("Bracket Battle")
         .background(Color.dsBgPrimary.ignoresSafeArea())
-        .toolbar {
-            if viewModel.edition != nil {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showOverview = true } label: { Image(systemName: "list.bullet.indent") }
-                        .tint(accent)
-                }
-            }
-        }
         .task {
             if case .idle = viewModel.state {
                 await viewModel.load(store: store, userID: auth.userID, displayName: auth.displayName)
             }
         }
         .sheet(isPresented: $showSignIn) { SignInPromptView() }
-        .sheet(isPresented: $showOverview) {
-            NavigationStack { overviewScreen }
-        }
     }
 
     // MARK: - Routing by round phase
@@ -156,10 +146,10 @@ struct BracketBattleView: View {
     }
 
     private static let howItWorksSteps = [
-        "Every qualifying player enters — stars, bench, depth. Seeded by stats into head-to-head brackets.",
-        "Vote on EVERY matchup. Don't recognize a name? Research her stats. That's part of the game.",
-        "Community majority decides who advances. Each round is open 2–3 days.",
-        "The deeper it goes, the harder the picks — and the more they're worth.",
+        "Everyone's in — stars, bench, the depth keeper you've never heard of. The whole league, drawn into one bracket.",
+        "Pick who YOU think the league sends through each matchup. Don't know a name? Go dig — that's half the fun.",
+        "The crowd decides who advances. Each round's open a couple of days, then we see who called it.",
+        "It's not about your team. It's about reading the room — and the deeper it goes, the wilder it gets.",
     ]
 
     private func pointsTable(rounds: [BracketRound]) -> some View {
@@ -228,8 +218,8 @@ struct BracketBattleView: View {
         HStack(spacing: 10) {
             Image(systemName: "checkmark.circle.fill").font(.system(size: 20)).foregroundStyle(accent)
             VStack(alignment: .leading, spacing: 2) {
-                Text("All \(viewModel.totalMatchups) picks made!").font(.system(size: 14, weight: .bold)).foregroundStyle(accent)
-                Text("Save as draft or submit now. Once submitted, picks are locked forever.")
+                Text("That's all \(viewModel.totalMatchups) — you're ready.").font(.system(size: 14, weight: .bold)).foregroundStyle(accent)
+                Text("Save a draft to keep tinkering, or lock 'em in. Once they're in, there's no take-backs.")
                     .font(.system(size: 12)).foregroundStyle(Color.dsFgSecondary)
             }
             Spacer(minLength: 0)
@@ -272,7 +262,7 @@ struct BracketBattleView: View {
             Button {
                 if auth.isSignedIn { Task { await viewModel.submit(store: store, userID: auth.userID) } } else { showSignIn = true }
             } label: {
-                Text(allMade ? "Submit picks (locked forever)" : "Submit picks (\(made)/\(total))")
+                Text(allMade ? "Lock in my picks" : "Pick all \(total) first (\(made)/\(total))")
                     .primaryButtonLabel(allMade ? accent : Color.dsBgTertiary, fg: allMade ? .white : Color.dsFgTertiary)
             }
             .disabled(!allMade)
@@ -306,18 +296,27 @@ struct BracketBattleView: View {
             ScrollView {
                 VStack(spacing: 12) {
                     VStack(spacing: 8) {
-                        sectionLabel("\(result.round.title) Complete").foregroundStyle(accent)
-                        Text("+\(pts) pts").font(.system(size: 28, weight: .heavy)).foregroundStyle(.white)
-                        Text("\(correct) of \(result.matchups.count) correct").font(.system(size: 13)).foregroundStyle(Color.dsFgSecondary)
+                        sectionLabel("\(result.round.title) — that's a wrap").foregroundStyle(accent)
+                        Text("+\(pts)").font(.system(size: 30, weight: .heavy)).foregroundStyle(.white)
+                        Text("You called \(correct) of \(result.matchups.count). \(heroVoiceLine(correct, result.matchups.count))")
+                            .font(.system(size: 13)).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity).padding(20)
                     .background(LinearGradient(colors: [accent.opacity(0.12), .clear], startPoint: .top, endPoint: .bottom))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(accent.opacity(0.35)))
 
-                    sectionLabel("Your picks vs community").frame(maxWidth: .infinity, alignment: .leading)
+                    shareButton(round: result.round, correct: correct, total: result.matchups.count, pts: pts)
+
+                    if viewModel.flavor == .upsetClosest { upsetClosestCallout }
+
+                    sectionLabel("How the league voted").frame(maxWidth: .infinity, alignment: .leading)
                     ForEach(result.matchups) { m in resultCard(m, yourPick: picks[m.id]) }
                     leaderboardCard
+
+                    // The bracket journey lives right below the results (CONCEPT-v2).
+                    Divider().overlay(Color.dsFgQuaternary).padding(.vertical, 4)
+                    overviewContent(banner: nil)
                 }
                 .padding(.horizontal, 16).padding(.bottom, 32)
             }
@@ -326,40 +325,154 @@ struct BracketBattleView: View {
         }
     }
 
-    private func resultCard(_ m: BracketMatchup, yourPick: String?) -> some View {
-        let splitA = m.splitAPercent ?? 50
-        let aWon = m.communityWinnerID == m.entrantA.id
-        let correct = yourPick != nil && yourPick == m.communityWinnerID
-        return VStack(spacing: 4) {
-            HStack(spacing: 0) {
-                resultSide(m.entrantA, won: aWon, pct: splitA, isYour: yourPick == m.entrantA.id)
-                Text("VS").font(.system(size: 10, weight: .bold)).foregroundStyle(Color.dsFgQuaternary).padding(.horizontal, 2)
-                resultSide(m.entrantB, won: !aWon, pct: 100 - splitA, isYour: yourPick == m.entrantB.id)
-            }
-            HStack(spacing: 3) {
-                Rectangle().fill(aWon ? accent : Color.dsFgQuaternary).frame(maxWidth: .infinity).layoutPriority(Double(max(1, splitA)))
-                Rectangle().fill(aWon ? Color.dsFgQuaternary : accent).frame(maxWidth: .infinity).layoutPriority(Double(max(1, 100 - splitA)))
-            }
-            .frame(height: 4).padding(.horizontal, 10)
-            Text(correct ? "✓ You picked the winner · +\(m.round.points) pts" : (yourPick == nil ? "— You didn't vote" : "✗ Your pick was eliminated"))
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(correct ? Color.dsSuccess : (yourPick == nil ? Color.dsFgTertiary : Color.dsError))
-                .padding(.bottom, 8)
+    /// A warm one-liner under the score, keyed to how well you read the crowd.
+    private func heroVoiceLine(_ correct: Int, _ total: Int) -> String {
+        let ratio = total > 0 ? Double(correct) / Double(total) : 0
+        switch ratio {
+        case 0.85...: return "You're basically the league hivemind."
+        case 0.6..<0.85: return "You read the room nicely."
+        case 0.4..<0.6: return "The bracket had other plans."
+        default: return "Chaos won this round — regroup."
         }
-        .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    private func resultSide(_ e: BracketEntrant, won: Bool, pct: Int, isYour: Bool) -> some View {
+    // MARK: - Share your card (ImageRenderer → ShareLink)
+
+    private func shareButton(round: BracketRound, correct: Int, total: Int, pts: Int) -> some View {
+        let img = shareCardImage(round: round, correct: correct, total: total, pts: pts)
+        return ShareLink(item: img, preview: SharePreview("My Bracket Battle card", image: img)) {
+            HStack(spacing: 6) {
+                Image(systemName: "square.and.arrow.up").font(.system(size: 14, weight: .semibold))
+                Text("Share your card")
+            }
+            .font(.system(size: 14, weight: .semibold)).foregroundStyle(accent)
+            .frame(maxWidth: .infinity).padding(.vertical, 12)
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.35), lineWidth: 1.5))
+        }
+    }
+
+    @MainActor private func shareCardImage(round: BracketRound, correct: Int, total: Int, pts: Int) -> Image {
+        let renderer = ImageRenderer(content: shareCard(round: round, correct: correct, total: total, pts: pts))
+        renderer.scale = 3
+        if let ui = renderer.uiImage { return Image(uiImage: ui) }
+        return Image(systemName: "trophy.fill")
+    }
+
+    private func shareCard(round: BracketRound, correct: Int, total: Int, pts: Int) -> some View {
+        VStack(spacing: 8) {
+            Text(viewModel.edition?.themeLabel ?? "BRACKET BATTLE")
+                .font(.system(size: 13, weight: .bold)).tracking(2).foregroundStyle(accent)
+            Text(viewModel.edition?.title ?? "Bracket Battle")
+                .font(.system(size: 20, weight: .bold)).foregroundStyle(.white)
+            Text(round.title).font(.system(size: 13)).foregroundStyle(Color.dsFgSecondary)
+            Text("\(correct)/\(total)").font(.system(size: 52, weight: .heavy)).foregroundStyle(.white).padding(.top, 4)
+            Text("called right · +\(pts) pts").font(.system(size: 13)).foregroundStyle(Color.dsFgSecondary)
+            Text("NWSL · Bracket Battle").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.dsFgTertiary).padding(.top, 6)
+        }
+        .padding(28).frame(width: 320)
+        .background(LinearGradient(colors: [accent.opacity(0.18), Color.dsBgPrimary], startPoint: .top, endPoint: .bottom))
+    }
+
+    /// Collapsed by default — just who advanced + your call. The vote split stays
+    /// hidden behind "See how the league voted" so you scan winners fast, then dig into
+    /// the surprises. (% is never shown until you open it — and never during voting.)
+    private func resultCard(_ m: BracketMatchup, yourPick: String?) -> some View {
+        let aWon = m.communityWinnerID == m.entrantA.id
+        let correct = yourPick != nil && yourPick == m.communityWinnerID
+        let expanded = expandedMatchups.contains(m.id)
+        let winnerName = m.entrant(m.communityWinnerID ?? "")?.playerName ?? "her"
+        return VStack(spacing: 8) {
+            HStack(spacing: 0) {
+                resultSide(m.entrantA, won: aWon, isYour: yourPick == m.entrantA.id)
+                Text("VS").font(.system(size: 10, weight: .bold)).foregroundStyle(Color.dsFgQuaternary).padding(.horizontal, 2)
+                resultSide(m.entrantB, won: !aWon, isYour: yourPick == m.entrantB.id)
+            }
+            Text(correct ? "Nice — you had \(winnerName). +\(m.round.points)"
+                 : (yourPick == nil ? "You sat this one out" : "Ouch — your pick went home"))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(correct ? Color.dsSuccess : (yourPick == nil ? Color.dsFgTertiary : Color.dsError))
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    if expanded { expandedMatchups.remove(m.id) } else { expandedMatchups.insert(m.id) }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(expanded ? "Hide the numbers" : "See how the league voted")
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 9, weight: .bold))
+                }
+                .font(.system(size: 11, weight: .semibold)).foregroundStyle(accent)
+            }
+            if expanded { voteStats(m, aWon: aWon) }
+        }
+        .padding(12).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func resultSide(_ e: BracketEntrant, won: Bool, isYour: Bool) -> some View {
         VStack(spacing: 5) {
             PlayerDot(name: e.playerName, jersey: e.jerseyNumber, teamAbbreviation: e.teamAbbreviation,
                       accent: accentColor(e.teamAbbreviation), size: 40, showLabels: false)
-            Text(e.playerName).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
-            Text("\(pct)%\(isYour ? " · You" : "")").font(.system(size: 13, weight: .bold)).foregroundStyle(won ? accent : Color.dsFgTertiary)
-            if won { Text("ADVANCES ✓").font(.system(size: 10, weight: .bold)).foregroundStyle(Color.dsSuccess) }
+            Text(e.playerName).font(.system(size: 13, weight: won ? .bold : .medium))
+                .foregroundStyle(won ? .white : Color.dsFgTertiary).strikethrough(!won).lineLimit(1)
+            Text(e.teamAbbreviation + (isYour ? " · your pick" : ""))
+                .font(.system(size: 10, weight: .semibold)).foregroundStyle(isYour ? accent : Color.dsFgTertiary)
+            if won { Text("ADVANCES").font(.system(size: 10, weight: .bold)).foregroundStyle(Color.dsSuccess) }
         }
-        .frame(maxWidth: .infinity).padding(.vertical, 14).padding(.horizontal, 8)
-        .background(won ? accent.opacity(0.12) : .clear).opacity(won ? 1 : 0.6)
+        .frame(maxWidth: .infinity).padding(.vertical, 10).padding(.horizontal, 8)
+        .background(won ? accent.opacity(0.12) : .clear).opacity(won ? 1 : 0.55)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// The "See stats" reveal: a donut of the community split, the legend, the vote
+    /// count, and a CLOSE CALL / RUNAWAY badge for the drama.
+    private func voteStats(_ m: BracketMatchup, aWon: Bool) -> some View {
+        let splitA = m.splitAPercent ?? 50
+        let winnerPct = m.winnerPercent ?? max(splitA, 100 - splitA)
+        return VStack(spacing: 10) {
+            voteDonut(splitA: splitA, aWon: aWon, centerPct: winnerPct)
+            VStack(spacing: 4) {
+                legendRow(m.entrantA, pct: splitA, winner: aWon)
+                legendRow(m.entrantB, pct: 100 - splitA, winner: !aWon)
+            }
+            if let count = m.voteCount {
+                Text("\(count.formatted()) fans voted").font(.system(size: 11)).foregroundStyle(Color.dsFgTertiary)
+            }
+            if winnerPct < 55 { dramaBadge("CLOSE CALL", Color.dsWarning) }
+            else if winnerPct > 75 { dramaBadge("RUNAWAY", accent) }
+        }
+        .padding(.top, 4)
+    }
+
+    private func voteDonut(splitA: Int, aWon: Bool, centerPct: Int) -> some View {
+        let aFrac = Double(min(max(splitA, 0), 100)) / 100
+        return ZStack {
+            Circle().trim(from: 0, to: aFrac)
+                .stroke(aWon ? accent : Color.dsFgQuaternary, style: StrokeStyle(lineWidth: 18, lineCap: .butt))
+                .rotationEffect(.degrees(-90))
+            Circle().trim(from: aFrac, to: 1)
+                .stroke(aWon ? Color.dsFgQuaternary : accent, style: StrokeStyle(lineWidth: 18, lineCap: .butt))
+                .rotationEffect(.degrees(-90))
+            VStack(spacing: 0) {
+                Text("\(centerPct)%").font(.system(size: 22, weight: .heavy)).foregroundStyle(.white)
+                Text("WON").font(.system(size: 9, weight: .bold)).tracking(1).foregroundStyle(Color.dsFgTertiary)
+            }
+        }
+        .frame(width: 124, height: 124).padding(6)
+    }
+
+    private func legendRow(_ e: BracketEntrant, pct: Int, winner: Bool) -> some View {
+        HStack(spacing: 8) {
+            Circle().fill(winner ? accent : Color.dsFgQuaternary).frame(width: 8, height: 8)
+            Text(e.playerName).font(.system(size: 12, weight: winner ? .semibold : .regular)).foregroundStyle(winner ? .white : Color.dsFgSecondary)
+            Spacer()
+            Text("\(pct)%").font(.system(size: 12, weight: .semibold)).foregroundStyle(winner ? accent : Color.dsFgTertiary)
+        }
+    }
+
+    private func dramaBadge(_ text: String, _ color: Color) -> some View {
+        Text(text).font(.system(size: 10, weight: .heavy)).tracking(1)
+            .foregroundStyle(color)
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .background(color.opacity(0.14)).clipShape(Capsule())
     }
 
     private var leaderboardCard: some View {
@@ -381,53 +494,94 @@ struct BracketBattleView: View {
 
     // MARK: - Screen 5: Bracket Overview (the tournament story)
 
-    @ViewBuilder
-    private var overviewScreen: some View {
-        overviewBody(banner: nil).navigationContextLabel("Bracket")
-    }
-
-    /// The full bracket journey — every round shown as complete · active · upcoming so
-    /// the user sees at a glance what already happened, what's live now, and what's
-    /// coming. Optional `banner` is the post-submit confirmation shown at top.
+    /// Standalone scrollable overview — the post-submit landing, with a banner.
     @ViewBuilder
     private func overviewBody(banner: String?) -> some View {
-        if let edition = viewModel.edition {
+        if viewModel.edition != nil {
             ScrollView {
-                VStack(spacing: 16) {
-                    if let banner {
-                        HStack(spacing: 10) {
-                            Image(systemName: "checkmark.seal.fill").font(.system(size: 18)).foregroundStyle(accent)
-                            Text(banner).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
-                            Spacer(minLength: 0)
-                        }
-                        .padding(12).background(accent.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.35)))
-                    }
-                    VStack(spacing: 4) {
-                        Text(edition.themeLabel).font(.system(size: 12, weight: .bold)).tracking(2).foregroundStyle(accent)
-                        Text("Bracket Overview").font(.system(size: 20, weight: .bold)).foregroundStyle(.white)
-                        Text("\(edition.entrants.count) entrants → \(edition.rounds.count) rounds → 1 winner")
-                            .font(.system(size: 12)).foregroundStyle(Color.dsFgSecondary)
-                    }.padding(.top, 4)
-
-                    // Legend: a dot + label per round, colored by status.
-                    HStack(spacing: 6) {
-                        ForEach(edition.rounds, id: \.self) { round in
-                            let st = edition.status(of: round)
-                            HStack(spacing: 4) {
-                                Circle().fill(statusColor(st)).frame(width: 6, height: 6)
-                                Text(round.shortLabel).font(.system(size: 10, weight: .bold)).foregroundStyle(statusColor(st))
-                            }
-                            .padding(.horizontal, 9).padding(.vertical, 6)
-                            .background(st == .active ? accent.opacity(0.12) : Color.white.opacity(0.04))
-                            .clipShape(Capsule())
-                        }
-                    }
-                    ForEach(edition.rounds, id: \.self) { round in overviewRound(edition, round) }
-                }
-                .padding(.horizontal, 16).padding(.bottom, 32)
+                overviewContent(banner: banner)
+                    .padding(.horizontal, 16).padding(.bottom, 32)
             }
             .background(Color.dsBgPrimary.ignoresSafeArea())
+        }
+    }
+
+    /// The full bracket journey — every round as complete · active · upcoming so the
+    /// user sees what already happened, what's live, and what's coming. No own
+    /// ScrollView, so it also sits BELOW the results list.
+    @ViewBuilder
+    private func overviewContent(banner: String?) -> some View {
+        if let edition = viewModel.edition {
+            VStack(spacing: 16) {
+                if let banner {
+                    HStack(spacing: 10) {
+                        Image(systemName: "checkmark.seal.fill").font(.system(size: 18)).foregroundStyle(accent)
+                        Text(banner).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(12).background(accent.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.35)))
+                }
+                VStack(spacing: 4) {
+                    Text(edition.themeLabel).font(.system(size: 12, weight: .bold)).tracking(2).foregroundStyle(accent)
+                    Text("The bracket so far").font(.system(size: 20, weight: .bold)).foregroundStyle(.white)
+                    Text("\(edition.entrants.count) in · \(edition.rounds.count) rounds · 1 left standing")
+                        .font(.system(size: 12)).foregroundStyle(Color.dsFgSecondary)
+                }.padding(.top, 4)
+
+                if viewModel.flavor == .cinderella, let c = viewModel.cinderella, let seed = c.seed {
+                    calloutCard(icon: "sparkles", title: "Cinderella watch",
+                                body: "#\(seed) \(c.playerName) (\(c.teamAbbreviation)) is still dancing — nobody saw this run coming.")
+                }
+
+                // Legend: a dot + label per round, colored by status.
+                HStack(spacing: 6) {
+                    ForEach(edition.rounds, id: \.self) { round in
+                        let st = edition.status(of: round)
+                        HStack(spacing: 4) {
+                            Circle().fill(statusColor(st)).frame(width: 6, height: 6)
+                            Text(round.shortLabel).font(.system(size: 10, weight: .bold)).foregroundStyle(statusColor(st))
+                        }
+                        .padding(.horizontal, 9).padding(.vertical, 6)
+                        .background(st == .active ? accent.opacity(0.12) : Color.white.opacity(0.04))
+                        .clipShape(Capsule())
+                    }
+                }
+                ForEach(edition.rounds, id: \.self) { round in overviewRound(edition, round) }
+
+                if viewModel.flavor == .nextEdition {
+                    calloutCard(icon: "calendar", title: "What's next",
+                                body: "Once this one crowns a champion, a fresh edition drops — new names, new chaos.")
+                }
+            }
+        }
+    }
+
+    /// A warm flavor callout (upset / closest call / Cinderella / next edition).
+    private func calloutCard(icon: String, title: String, body: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon).font(.system(size: 18)).foregroundStyle(accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 11, weight: .bold)).tracking(0.5).textCase(.uppercase).foregroundStyle(accent)
+                Text(body).font(.system(size: 13)).foregroundStyle(Color.dsFgSecondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.25)))
+    }
+
+    @ViewBuilder
+    private var upsetClosestCallout: some View {
+        VStack(spacing: 8) {
+            if let upset = viewModel.biggestUpset {
+                calloutCard(icon: "bolt.fill", title: "Biggest upset",
+                            body: "\(upset.winner.playerName) sent \(upset.loser.playerName) home. The bracket is chaos and we're here for it.")
+            }
+            if let close = viewModel.closestCall {
+                calloutCard(icon: "scalemass.fill", title: "Too close to call",
+                            body: "\(close.matchup.entrantA.playerName) vs \(close.matchup.entrantB.playerName) came down to \(close.winnerPct)–\(100 - close.winnerPct). Brutal.")
+            }
         }
     }
 
@@ -514,8 +668,8 @@ struct BracketBattleView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "trophy").font(.system(size: 40)).foregroundStyle(Color.dsFgTertiary)
-            Text("No active bracket").font(.system(size: 18, weight: .semibold)).foregroundStyle(.white)
-            Text("A new edition opens soon — check back.").font(.system(size: 14)).foregroundStyle(Color.dsFgSecondary)
+            Text("Nothing live right now").font(.system(size: 18, weight: .semibold)).foregroundStyle(.white)
+            Text("A fresh bracket drops soon — come back and we'll do it all again.").font(.system(size: 14)).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center).padding(.horizontal, 32)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

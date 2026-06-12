@@ -109,7 +109,7 @@ struct PlayerSpotlightView: View {
     // MARK: - This Season (3-col stat grid)
 
     private var thisSeason: some View {
-        let s = spotlight.demoSeasonStats
+        let s = spotlight.statStrip
         return VStack(alignment: .leading, spacing: 10) {
             sectionHeader("This Season")
             HStack(spacing: 12) {

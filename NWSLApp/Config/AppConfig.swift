@@ -104,6 +104,16 @@ enum AppConfig {
         contentRouteURL("feed", teams: teams)
     }
 
+    /// The proxy route powering Home Module 2 "Get to know your players":
+    /// `GET /spotlight?teams=WAS,POR,…` (B2). The Worker picks one real player from
+    /// each followed club's most recent matchday squad, attaches real ESPN season
+    /// stats, and generates a short "why watch" blurb via Haiku — returning
+    /// `PlayerSpotlight` JSON the app decodes directly. Returns nil on a malformed
+    /// query (caller falls back to the seed). Mirrors `teamVideosURL`/`feedURL`.
+    static func spotlightURL(teams: [String]) -> URL? {
+        contentRouteURL("spotlight", teams: teams)
+    }
+
     /// Shared builder for the `?teams=…` content routes (`/team-videos`, `/feed`):
     /// appends the path to the proxy host and the comma-joined team list, omitting
     /// the query entirely when no teams are given. Returns nil on a malformed URL.

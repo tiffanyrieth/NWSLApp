@@ -35,18 +35,15 @@ final class HomeViewModel {
     var clubStore: ClubStore?
 
     private let contentService: ContentService
-    private let spotlightProvider: PlayerSpotlightProvider
     private let calendar: Calendar
     private let now: () -> Date
 
     init(
         contentService: ContentService = ContentService(),
-        spotlightProvider: PlayerSpotlightProvider = PlayerSpotlightProvider(),
         calendar: Calendar = .current,
         now: @escaping () -> Date = Date.init
     ) {
         self.contentService = contentService
-        self.spotlightProvider = spotlightProvider
         self.calendar = calendar
         self.now = now
     }
@@ -63,10 +60,11 @@ final class HomeViewModel {
     /// Wire a refetch on follows-change when the live route lands (Part 2 Step 1).
     func loadContent(following: FollowingStore) async {
         guard teamContentItems.isEmpty else { return }
-        teamContentItems = await contentService.homeCards(
-            followedAbbreviations: followedAbbreviations(following)
-        )
-        allSpotlights = await spotlightProvider.spotlights()
+        let followed = followedAbbreviations(following)
+        teamContentItems = await contentService.homeCards(followedAbbreviations: followed)
+        // Live `/spotlight` (one real player per followed team) or the seed fallback;
+        // spotlights(following:) below picks one per team from whatever this returns.
+        allSpotlights = await contentService.spotlightCards(followedAbbreviations: followed)
     }
 
     /// Proxies the shared club store's state so HomeView's error/ready checks over

@@ -6,13 +6,13 @@
 //  FollowSyncService, talking to Supabase. The global edition + matchups + the
 //  resolved community tally + the leaderboard are world-readable (the bracket is the
 //  same for everyone; you can browse it signed-out); the user writes their OWN votes
-//  RLS-scoped. Generation + tally are service-role jobs (deferred Worker; seeded via
-//  supabase/seed_bracket_edition.sql for now), so the app never reads raw votes.
+//  RLS-scoped. Generation + tally are service-role jobs (the proxy Worker engine), so
+//  the app never reads raw votes — only the resolved winner + split + count.
 //
-//  Offline-first, like ContentService: any read failure (or, for now, an empty
-//  backend) falls back to the BracketEditionProvider sample so the game always
-//  renders in-sim / before the SQL is applied. The leaderboard's "You" row is the
-//  user's own live total, spliced in client-side.
+//  Offline-first: a read failure returns nil and the caller falls back to the edition
+//  the store CACHED from the last good fetch. There is NO fabricated/sample bracket —
+//  if nothing's been fetched and Supabase is unreachable, the game honestly shows its
+//  empty state. The leaderboard's "You" row is the user's own live total, spliced in.
 //
 
 import Foundation
@@ -33,15 +33,16 @@ struct BracketService {
     // MARK: - Read the active edition
 
     /// The active edition assembled from Supabase (edition + entrants + matchups).
-    /// TEMP: an empty/unreachable backend falls back to the offline sample so the
-    /// game is demoable before the seed SQL is applied; once editions rotate for
-    /// real, an empty result should instead return nil (hide the game).
+    /// The active edition from Supabase, assembled from edition + entrants + matchups.
+    /// Returns nil on an empty backend (no active edition → game hides) OR a transient
+    /// failure — the caller falls back to the locally CACHED real edition (offline-first).
+    /// There is no fabricated/sample bracket anywhere.
     func currentEdition() async -> BracketEdition? {
         do {
             let editions: [EditionRow] = try await client
                 .from("bracket_editions").select().eq("is_active", value: true)
                 .limit(1).execute().value
-            guard let e = editions.first else { return BracketEditionProvider.sampleEdition() }
+            guard let e = editions.first else { return nil }
 
             async let entrantRows: [EntrantRow] = client
                 .from("bracket_entrants").select().eq("edition_id", value: e.id)
@@ -51,12 +52,12 @@ struct BracketService {
                 .execute().value
 
             let entrants = try await entrantRows.map(\.entrant)
+            guard !entrants.isEmpty else { return nil }
             let byID = Dictionary(uniqueKeysWithValues: entrants.map { ($0.id, $0) })
             let matchups = try await matchupRows.compactMap { $0.matchup(entrants: byID) }
-            guard !entrants.isEmpty else { return BracketEditionProvider.sampleEdition() }
             return e.edition(entrants: entrants, matchups: matchups)
         } catch {
-            return BracketEditionProvider.sampleEdition()
+            return nil
         }
     }
 
@@ -99,11 +100,11 @@ struct BracketService {
 
     // MARK: - Leaderboard
 
-    /// The edition standings with the signed-in user spliced in and ranked. A read
-    /// failure falls back to the offline sample names; an empty live board is just
-    /// the user (honest for a new game).
+    /// The real edition standings with the signed-in user spliced in and ranked.
+    /// Real `bracket_scores` only — a read failure or empty board just shows the user
+    /// (honest for a new game; never fabricated rivals).
     func leaderboard(myPoints: Int, myName: String, editionID: String) async -> [BracketLeaderboardRow] {
-        var others: [(name: String, points: Int)]
+        var others: [(name: String, points: Int)] = []
         do {
             let rows: [ScoreRow] = try await client
                 .from("bracket_scores").select("display_name, points")
@@ -111,7 +112,7 @@ struct BracketService {
                 .execute().value
             others = rows.map { (name: $0.display_name ?? "Fan", points: $0.points) }
         } catch {
-            others = BracketEditionProvider.sampleLeaderboard().map { (name: $0.name, points: $0.points) }
+            others = []
         }
         var all = others.map { (name: $0.name, points: $0.points, isYou: false) }
         all.append((name: myName, points: myPoints, isYou: true))
@@ -153,7 +154,7 @@ private struct EntrantRow: Decodable {
 
     var entrant: BracketEntrant {
         BracketEntrant(id: entrant_id, playerName: player_name,
-                       jerseyNumber: jersey_number, teamAbbreviation: team_abbreviation)
+                       jerseyNumber: jersey_number, teamAbbreviation: team_abbreviation, seed: seed)
     }
 }
 
@@ -165,12 +166,14 @@ private struct MatchupRow: Decodable {
     let points: Int
     let community_winner_id: String?
     let split_a_percent: Int?
+    let vote_count: Int?
 
     func matchup(entrants: [String: BracketEntrant]) -> BracketMatchup? {
         guard let r = BracketRound(rawValue: round),
               let a = entrants[entrant_a_id], let b = entrants[entrant_b_id] else { return nil }
         return BracketMatchup(id: id, round: r, slot: slot, entrantA: a, entrantB: b,
-                              communityWinnerID: community_winner_id, splitAPercent: split_a_percent)
+                              communityWinnerID: community_winner_id, splitAPercent: split_a_percent,
+                              voteCount: vote_count)
     }
 }
 

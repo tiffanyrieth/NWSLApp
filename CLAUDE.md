@@ -19,9 +19,16 @@ If the answer is no because the content hasn't changed, that's the #1 priority t
 
 ## Overview
 
-**What:** A native iOS app for tracking the NWSL (National Women's Soccer
-League) — live scores, full-season schedule, standings, team pages, and match
-details.
+**What:** A native iOS app for the NWSL (National Women's Soccer League) — live
+scores, full-season schedule, standings, team pages, and match details.
+
+**This is a HYBRID sports + fandom app — not purely either.** Frame every feature this
+way. The "sports app" half (scores/schedule/standings/stats) is table stakes; the
+**fandom** half — community engagement, the Fan Zone games (Bracket Battle's community
+voting + creative editions, Predict the XI), social sharing, the live/"alive" content,
+and personal connection to your teams — is **equally core to the identity.** Defaulting to
+"it's a sports app" → ESPN-clone patterns is the failure mode to avoid; the differentiator
+is the fandom side (see the Priority Framework).
 
 **Why:** Personal project to build production-quality iOS skills and ship a
 real consumer app. Long-term goal: App Store distribution.
@@ -162,6 +169,13 @@ This project follows a deliberate, disciplined workflow. Treat the steps below
 as requirements, not suggestions. If a request would bypass one — even in the
 name of moving quickly — pause, flag it, and explain the trade-off before
 proceeding.
+
+**Build to spec, not to minimum.** If a design doc says 64 players, seed 64 players.
+Do not ship scaled-down test versions that require follow-up revisions to reach the
+actual spec. The revision cycles cost more total resources than building correctly the
+first time. Numbers in design docs are requirements, not suggestions. (And a feature
+isn't "shipped"/checked off until EVERY sub-item is automated + verified — no partial
+credit; a scaffold needing manual steps ≠ the feature.)
 
 **Before starting any session**
 1. Run `git status` and report what's there. If there are uncommitted changes,
@@ -350,8 +364,7 @@ NWSLApp/
 │   ├── TeamSocialLinks.swift          — ⚠️ per-team social links for TeamDetail
 │   └── TriviaQuestion.swift           — ⚠️ one Daily-Trivia question (4 options)
 ├── Services/                          — ESPNService + Supabase clients + ⚠️ curated async seed providers
-│   ├── BracketEditionProvider.swift   — ⚠️ OFFLINE-FIRST sample Bracket edition (real forwards, 16) + sample leaderboard; live edition = Supabase
-│   ├── BracketScoring.swift           — pure Bracket scorer: escalating per-round points + rule-derived max (546 for 64; mock's 468 is a slip). Unit-tested (BracketScoringTests)
+│   ├── BracketScoring.swift           — pure Bracket scorer: tiered per-round points (1·1·2·2·3·3, v2) + rule-derived max (81 for a 64-pool). Unit-tested (BracketScoringTests)
 │   ├── BracketService.swift           — Bracket data boundary: currentEdition/results/leaderboard/submit; ⚠️ Supabase reads/writes STUBBED (offline sample fallback) — next step
 │   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats by athlete+year (backs seasonStats)
 │   ├── ContentService.swift           — ALIVE content client: `homeCards(…)`→`/team-videos`, `feedCards(…)`→`/feed` ([ContentCard]), `spotlightCards(…)`→`/spotlight` ([PlayerSpotlight], B2/0.3.8); gated by `liveContentEnabled` (ON) + DEBUG `-useSeedContent`; failure → seed (offline-first)
@@ -494,15 +507,19 @@ Per-screen behavior (full file detail in the File Map; specs in `Reference/Desig
   vs ESPN `/summary` (max 88; Draft→Submit one-way, closes kickoff−2h, only submitted score).
   **Visibility rule (all games):** hidden EVERYWHERE (Home card + screen) when nothing
   active/upcoming — Predict's gate = followed-team fixture **within 28 days**; the module
-  hides when no game is visible. **Bracket Battle** (teal) — ⚠️ **IN PROGRESS, NOT shipped**
-  (0.3.9): the real 64-player / 6-round community-voting tournament. **App-side + real Supabase
-  voting are DONE + verified** (5 screens per the Claude Design ref; escalating scoring
-  Rd64+5…Final+40, max 546; draft→submit one-way; sign-in at submit; gate hides when no active
-  edition; votes land in `bracket_votes`). **But the feature is NOT shipped** until the **proxy
-  Worker engine is built — REQUIRED 0.3.9 work, not deferred** (auto-generate 64-player ESPN
-  editions · auto-advance rounds · auto-tally votes at close · auto-rotate editions · Haiku
-  creative themes). What's live now = one hand-seeded 16-player TEST edition + manual
-  advancement = a scaffold. See What's Next. **Daily Trivia** (indigo) still ⚠️seed.
+  hides when no game is visible. **Bracket Battle** (teal) — **LIVE** (0.3.9, v2): a
+  league-wide **fandom** community-voting tournament (NOT March Madness) — a themed edition
+  (Best Forward, or owner-curated CREATIVE like Best Goal Celebration) seeds a real **64-player
+  / 6-round** bracket; you predict who the crowd advances, scored on real Supabase votes (tiered
+  1·1·2·2·3·3, max 81). 5 screens (Edition Intro · Voting · Save/Submit · Results · Bracket
+  Overview), warm group-chat voice, collapsed results → "See stats" donut + CLOSE CALL/RUNAWAY
+  badges, share card, rotating flavor (upset/Cinderella/teaser), draft→submit one-way, sign-in
+  at submit. **The proxy Worker engine** (`~/Projects/nwslapp-proxy` `src/bracket.ts` +
+  `bracket-engine.ts`) auto-generates editions from ESPN (all players of a position, team-
+  interleave seeded, byes, no same-team round-1), auto-tallies + advances rounds (hourly cron),
+  and rotates creative (owner-curated library) ↔ stats editions. Verified end-to-end live
+  (64-forward edition generated → app rendered → tally → Round of 32). Offline-first: app
+  caches the last real edition; no fabricated brackets. **Daily Trivia** (indigo) still ⚠️seed.
 - **Player Spotlight** (`spotlight-design-spec.md`) — one mini-profile/followed team →
   `PlayerSpotlightView`. **LIVE** (B2/0.3.8) via proxy `/spotlight`: real player + ESPN stats
   + a Haiku "why watch" blurb, weekly rotation. Seed = offline-first fallback.
@@ -548,23 +565,15 @@ club OG news · Bluesky · News RSS · Instagram · Player Spotlight). **Backbon
 (`Reference/BACKBONE.md` + `Reference/Feed update/` handoff): A1/A2 · B1 · B2 · B3a · **B3b
 all SHIPPED**.
 - **Fan Zone games (0.3.9):** swap the ⚠️seed games for live rounds, in order —
-  ~~**Predict the XI** (LIVE)~~ ✅ → **Bracket Battle** ⚠️ **IN PROGRESS (NOT shipped).**
-  App-side + real Supabase voting are DONE on `main` (PR #49: 5 screens, models, scoring,
-  store/VM, Home gate; `BracketService` reads editions/matchups + upserts owner-scoped votes +
-  reads `bracket_scores`; schema + one seed edition applied; vote round-trip verified). **The
-  feature is NOT done until the proxy Worker engine is built — REQUIRED 0.3.9 backbone, NOT
-  deferred. No partial credit; the box stays unchecked until ALL sub-items ship.** The Worker
-  (`~/Projects/nwslapp-proxy`, service-role → Supabase) must: (1) **auto-generate real
-  64-player editions** from ESPN roster+season-stats (stats-seeded templates) → write
-  editions/entrants/matchups; (2) **advance rounds automatically** on the 2–3 day schedule
-  (cron); (3) **tally votes automatically at round close** — community majority → winner +
-  split, build next round, advance `current_round`, write `bracket_scores`; (4) **auto-generate
-  the next edition after a break** (rotation); (5) **creative themes** (Haiku or pre-generated
-  pool) mixed into rotation (all-rostered-players personality themes). No hand-seeded SQL, no
-  manual advancement — must work as if public testing starts tomorrow. (Also: app-side full
-  5-screen visual pass via a DEBUG nav scaffold.) → THEN **Daily Trivia** (question pool) →
-  **Game Center** (GameKit leaderboards across all three). Then **B4 final sweep** → ship
-  **0.3.9** (QOL begins at 0.4.0).
+  ~~**Predict the XI** (LIVE)~~ ✅ → ~~**Bracket Battle** (LIVE, v2)~~ ✅ SHIPPED — the real
+  64-player community-voting tournament with the auto-running proxy Worker engine (generate
+  from ESPN · tally + advance · rotate creative↔stats), verified end-to-end live. → **NEXT:
+  Daily Trivia** (question pool via Haiku batch or owner Claude-Max batch; still ⚠️seed
+  `TriviaQuestionProvider`) → **Game Center** (GameKit leaderboards across all three). Then
+  **B4 final sweep** → ship **0.3.9** (QOL begins at 0.4.0). **Bracket follow-ups (optional,
+  documented):** exact season-stat seeding for stat editions (currently team-interleave to fit
+  the free Workers subrequest limit); more stat templates (GK/Mid/Def needs more stat fields);
+  the Swift Alert-style full bracket-TREE graphic (its own Claude Design mockup pass).
 - **A3 Reddit → Feed** — DEFERRED (noisy; subreddits live in Teams). IG now via Apify (B3b).
 
 **Category 3 — HARDENING** (cleanup/robustness — do AFTER Category 1, never above it)

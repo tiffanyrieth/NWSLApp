@@ -2,30 +2,27 @@
 //  TriviaQuestionProvider.swift
 //  NWSLApp
 //
-//  ⚠️ TEMP / SCAFFOLDING — curated static seed for Home's Module 3 "Play",
-//  game 1 (Daily Trivia), per Reference/Design/games-design-spec.md.
+//  ⚠️ Curated static question bank for Daily Trivia (Home's Module 3 "Play",
+//  game 1), per Reference/Design/games-design-spec.md — now the offline-first
+//  FALLBACK only. Daily Trivia is LIVE via the proxy `/trivia` route
+//  (`TriviaService`); this seed backs the game whenever the live pipeline is off,
+//  the route is unreachable, or it returns an empty pool. (Mirrors how
+//  `FeedContentProvider` / `PlayerSpotlightProvider` became fallbacks when their
+//  routes went live.)
 //
 //  WHAT: 55 hand-written NWSL trivia questions covering all 16 clubs (incl. the
 //  2026 Denver Summit / Boston Legacy expansion sides) at mixed difficulty, in a
 //  mix of categories — league history, player facts, stadiums, rules, records,
 //  team history. `questions()` returns the whole pool; the ViewModel
-//  deterministically serves 5 per day from it (a seeded daily shuffle), so the
-//  same 5 show all day and the pool rotates as days pass.
-//
-//  WHY: The spec wants Daily Trivia real and playable for a concept demo without
-//  a backend. This seed is the question bank; the daily/streak/score state lives
-//  in TriviaStore (UserDefaults), the session flow in TriviaViewModel.
+//  deterministically serves a non-repeating 5 per day from it (see
+//  `TriviaViewModel.dailyQuestions`).
 //
 //  ACCURACY: questions lean deliberately on DURABLE facts — league/championship
 //  history, records, club founding, stadiums, and laws of the game — and avoid
 //  volatile "who currently leads in goals" trivia, because a wrong answer in a
 //  quiz is worse than a thin category. Facts are a 2026 snapshot gathered by
-//  research; treat as curated demo content to be editorially re-verified, not a
-//  live source of truth.
-//
-//  WHEN REMOVED: replace `questions()` with a real question backend (an editorial
-//  feed or the planned proxy) returning the same `[TriviaQuestion]`. The async
-//  signature is already shaped for it; the Store / ViewModel / View don't change.
+//  research. The live pool (`/trivia`) is generated + adversarially fact-checked
+//  and is the primary source; this seed is the durable safety net.
 //
 
 import Foundation

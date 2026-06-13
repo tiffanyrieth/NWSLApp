@@ -170,6 +170,13 @@ as requirements, not suggestions. If a request would bypass one — even in the
 name of moving quickly — pause, flag it, and explain the trade-off before
 proceeding.
 
+**Build to spec, not to minimum.** If a design doc says 64 players, seed 64 players.
+Do not ship scaled-down test versions that require follow-up revisions to reach the
+actual spec. The revision cycles cost more total resources than building correctly the
+first time. Numbers in design docs are requirements, not suggestions. (And a feature
+isn't "shipped"/checked off until EVERY sub-item is automated + verified — no partial
+credit; a scaffold needing manual steps ≠ the feature.)
+
 **Before starting any session**
 1. Run `git status` and report what's there. If there are uncommitted changes,
    resolve them (commit or stash) before starting new work.

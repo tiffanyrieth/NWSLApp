@@ -341,7 +341,7 @@ NWSLApp/
 ├── NWSLAppApp.swift                   — app entry point; launches RootTabView; forces dark appearance app-wide; DEBUG `-resetOnboarding` launch arg → resets onboarding; `AppDelegate` (@UIApplicationDelegateAdaptor) captures the APNs token + handles foreground-present/tap → PushBridge (Tier 2)
 ├── NWSLApp.entitlements               — Sign in with Apple + `aps-environment` (development; Xcode flips to production on archive) for Tier-2 push
 ├── Config/                            — app configuration
-│   ├── AppConfig.swift                — base URLs; scoreboard + summary → Cloudflare proxy (0.3.1); DEBUG `-useESPNDirect`; `liveContentEnabled` flag (ON) + `teamVideosURL` (Home: YouTube + news + club Instagram) + `feedURL` (Feed: Bluesky + RSS news + player Instagram) + `spotlightURL` (Module 2: B2/0.3.8); shared `contentRouteURL`
+│   ├── AppConfig.swift                — base URLs; scoreboard + summary → Cloudflare proxy (0.3.1); DEBUG `-useESPNDirect`; `liveContentEnabled` flag (ON) + `teamVideosURL` (Home: YouTube + news + club Instagram) + `feedURL` (Feed: Bluesky + RSS news + player Instagram) + `spotlightURL` (Module 2: B2/0.3.8) + `triviaURL` (Daily Trivia, league-wide, no teams: 0.3.9); shared `contentRouteURL`
 │   ├── Secrets.swift                  — 🔒 GITIGNORED Supabase URL + anon key (not committed)
 │   └── Secrets.example                — checked-in template for Secrets.swift (non-`.swift` so it never compiles)
 ├── DesignSystem/                      — token layer mirroring the Claude Design handoff; the app-chrome palette (team colors stay dynamic via Color+Hex)
@@ -381,7 +381,8 @@ NWSLApp/
 │   ├── PredictionMatchProvider.swift  — ⚠️ Predict-the-XI SIMULATED LEADERBOARD only now (the match slate went LIVE 0.3.9; real multi-user board = Game Center item)
 │   ├── TeamContentProvider.swift      — ⚠️ Module-1 seed → [ContentCard]: 2 real YouTube videos/club + Bluesky/IG/social variants for marquee clubs
 │   ├── TeamSocialLinksProvider.swift  — ⚠️ per-team social-account URLs seed
-│   └── TriviaQuestionProvider.swift   — ⚠️ 55 hand-written NWSL trivia questions
+│   ├── TriviaService.swift            — Daily-Trivia client: `triviaQuestions()`→`/trivia` ([TriviaQuestion], league-wide, no teams param, 0.3.9); mirrors ContentService (gated by `liveContentEnabled` + DEBUG `-useSeedContent`); failure OR empty pool → seed (offline-first)
+│   └── TriviaQuestionProvider.swift   — ⚠️ 55 hand-written NWSL trivia questions — now the offline-first FALLBACK only (Daily Trivia is LIVE via `/trivia`, 0.3.9)
 ├── Stores/                            — @Observable shared state → UserDefaults, injected
 │   ├── AppRouter.swift                — tab selection (AppTab); RootTabView binds the TabView; Home's "Full schedule →" jumps tabs; `openMatch(eventID:)` + `pendingMatchEventID` for a live-push tap (TEMP seam: lands on Schedule); DEBUG `-startTab` init for in-sim verification
 │   ├── AuthStore.swift                — @MainActor; Sign in with Apple → Supabase user; profile upsert; cached displayName; deleteAccount (⚠️ TEMP — real auth-user deletion needs a server fn); knows nothing about follows
@@ -406,7 +407,7 @@ NWSLApp/
 │   ├── StandingsViewModel.swift       — one-shot fetchStandings
 │   ├── TeamsViewModel.swift           — thin reader over the shared ClubStore (feeds Onboarding too)
 │   ├── TeamDetailViewModel.swift      — roster + social links + real season stats/leaders (seasonStats)
-│   └── TriviaViewModel.swift          — one Daily-Trivia session (deterministic daily 5)
+│   └── TriviaViewModel.swift          — one Daily-Trivia session; questions ← `TriviaService` (live `/trivia`, seed fallback); `dailySelection` = deterministic NON-REPEATING daily 5 (id-sort → fixed-seed shuffle → day-paged; whole pool plays before repeat) — unit-tested (TriviaSelectionTests)
 ├── Views/                             — one screen per file
 │   ├── RootTabView.swift              — app root; 5-tab TabView (selection ← AppRouter); injects stores; restores session + FollowSyncCoordinator + NotificationSyncCoordinator; registers for remote notifications if authorized; routes a tapped live-push (PushBridge → AppRouter.openMatch)
 │   ├── HomeView.swift                 — your-teams hub: 4 modules + profile-avatar button (→ ProfileView sheet); spotlight carousel; onboarding-in-place
@@ -519,7 +520,13 @@ Per-screen behavior (full file detail in the File Map; specs in `Reference/Desig
   interleave seeded, byes, no same-team round-1), auto-tallies + advances rounds (hourly cron),
   and rotates creative (owner-curated library) ↔ stats editions. Verified end-to-end live
   (64-forward edition generated → app rendered → tally → Round of 32). Offline-first: app
-  caches the last real edition; no fabricated brackets. **Daily Trivia** (indigo) still ⚠️seed.
+  caches the last real edition; no fabricated brackets. **Daily Trivia** (indigo) — **LIVE**
+  (0.3.9): a league-wide question pool served from the proxy `/trivia` route (KV, owner-loaded
+  via `nwslapp-proxy` `scripts/load_trivia.mjs`); the app does a deterministic non-repeating
+  daily-5 selection. Pool is generated + adversarially fact-checked (workflow) → vetted JSON →
+  KV; the 55-question seed (`TriviaQuestionProvider`) is the offline-first fallback. Refreshable
+  with no app release (owner re-runs the loader). *First batch shipped at ~40 questions; growing
+  toward the ~500 spec via the same path.*
 - **Player Spotlight** (`spotlight-design-spec.md`) — one mini-profile/followed team →
   `PlayerSpotlightView`. **LIVE** (B2/0.3.8) via proxy `/spotlight`: real player + ESPN stats
   + a Haiku "why watch" blurb, weekly rotation. Seed = offline-first fallback.
@@ -567,9 +574,12 @@ all SHIPPED**.
 - **Fan Zone games (0.3.9):** swap the ⚠️seed games for live rounds, in order —
   ~~**Predict the XI** (LIVE)~~ ✅ → ~~**Bracket Battle** (LIVE, v2)~~ ✅ SHIPPED — the real
   64-player community-voting tournament with the auto-running proxy Worker engine (generate
-  from ESPN · tally + advance · rotate creative↔stats), verified end-to-end live. → **NEXT:
-  Daily Trivia** (question pool via Haiku batch or owner Claude-Max batch; still ⚠️seed
-  `TriviaQuestionProvider`) → **Game Center** (GameKit leaderboards across all three). Then
+  from ESPN · tally + advance · rotate creative↔stats), verified end-to-end live. →
+  ~~**Daily Trivia** (LIVE)~~ ✅ SHIPPED 0.3.9 — proxy `/trivia` route (KV pool, owner-loaded via
+  `scripts/load_trivia.mjs`) + app `TriviaService` (live-or-seed) + non-repeating daily-5;
+  questions generated + adversarially fact-checked via workflow. *First batch ~40; grow toward
+  ~500 spec via the same loader (re-run a vetted batch).* → **NEXT: Game Center** (GameKit
+  leaderboards across all three). Then
   **B4 final sweep** → ship **0.3.9** (QOL begins at 0.4.0). **Bracket follow-ups (optional,
   documented):** exact season-stat seeding for stat editions (currently team-interleave to fit
   the free Workers subrequest limit); more stat templates (GK/Mid/Def needs more stat fields);

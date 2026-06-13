@@ -8,10 +8,15 @@
 //  are NOT here — they live in TriviaStore; this only holds the transient state
 //  of the 5 questions being played right now.
 //
-//  Daily selection: the 5 questions are drawn from the pool by a DETERMINISTIC
-//  daily shuffle (a SplitMix64 RNG seeded by the local day number), so everyone
-//  gets a stable set all day and the pool rotates as days pass — no persistence
-//  needed, the day itself is the seed (spec §"Shuffle and serve 5 per day").
+//  Daily selection: the 5 questions are a DETERMINISTIC, NON-REPEATING slice of
+//  the pool. The pool is sorted by id (so the order is independent of however the
+//  backend returns it), shuffled ONCE by a fixed-seed SplitMix64 (the stable
+//  "cycle order", identical on every device), then paged by the local day number
+//  (day N → questions [N*5 ..< N*5+5], wrapping). So a ~500-question pool yields
+//  ~100 days of unique sets before any repeat — the whole point of a large live
+//  pool — while staying stable all day with no persistence (the day IS the index).
+//  (Earlier this re-shuffled the whole pool per day, which overlapped across days
+//  and squandered a large pool's longevity.)
 //
 //  Flow per question: select an option (changeable) → submit (locks + reveals
 //  correct/incorrect) → next (advance), matching the spec's "tap to select, tap
@@ -51,26 +56,32 @@ final class TriviaViewModel {
     /// How many questions to serve per day (spec: 5).
     private let dailyCount = 5
 
-    private let provider: TriviaQuestionProvider
+    /// Fixed seed for the one-time "cycle order" shuffle. Constant (not the day
+    /// number) so the pool's playback order is the same on every device and every
+    /// day; only the *page* into it advances daily. ("nWSLTRV1" as hex.)
+    private static let cycleSeed: UInt64 = 0x6E57_534C_5452_5631
+
+    private let service: TriviaService
     private let calendar: Calendar
     private let now: () -> Date
 
     init(
-        provider: TriviaQuestionProvider = TriviaQuestionProvider(),
+        service: TriviaService = TriviaService(),
         calendar: Calendar = .current,
         now: @escaping () -> Date = Date.init
     ) {
-        self.provider = provider
+        self.service = service
         self.calendar = calendar
         self.now = now
     }
 
     // MARK: - Loading
 
-    /// Load the question bank and lock in today's deterministic 5.
+    /// Load the question pool (live `/trivia`, seed fallback) and lock in today's
+    /// deterministic 5.
     func loadDaily() async {
         state = .loading
-        let all = await provider.questions()
+        let all = await service.triviaQuestions()
         guard !all.isEmpty else {
             state = .error("No trivia questions are available right now.")
             return
@@ -80,13 +91,32 @@ final class TriviaViewModel {
         state = .loaded
     }
 
-    /// Deterministic per-day pick: seed a SplitMix64 with the local day number,
-    /// shuffle the pool, take the first `dailyCount`. Stable all day; rotates daily.
+    /// Today's deterministic 5: derive the local day number, then delegate to the
+    /// pure `dailySelection` slice.
     private func dailyQuestions(from all: [TriviaQuestion]) -> [TriviaQuestion] {
         let startOfToday = calendar.startOfDay(for: now())
         let dayNumber = Int(startOfToday.timeIntervalSinceReferenceDate / 86_400)
-        var generator = SeededGenerator(seed: UInt64(bitPattern: Int64(dayNumber)))
-        return Array(all.shuffled(using: &generator).prefix(dailyCount))
+        return Self.dailySelection(from: all, dayNumber: dayNumber, count: dailyCount)
+    }
+
+    /// Pure, NON-REPEATING daily slice (factored out so it's unit-testable without
+    /// the network/clock). Sort by id (so the result is independent of the
+    /// backend's ordering), shuffle ONCE with a fixed seed (the stable cycle
+    /// order), then take the day-numbered block of `count`, wrapping at the end.
+    /// The whole pool plays before any question repeats.
+    static func dailySelection(from all: [TriviaQuestion], dayNumber: Int, count: Int) -> [TriviaQuestion] {
+        let n = all.count
+        guard n > 0, count > 0 else { return [] }
+
+        let ordered = all.sorted { $0.id < $1.id }
+        var generator = SeededGenerator(seed: cycleSeed)
+        let cycle = ordered.shuffled(using: &generator)
+
+        let take = min(count, n)
+        // day N → block N, wrapping. The extra `+ n) % n` keeps it non-negative
+        // for pre-2001 dates (negative day numbers).
+        let start = ((dayNumber * take) % n + n) % n
+        return (0..<take).map { cycle[(start + $0) % n] }
     }
 
     private func resetSession() {

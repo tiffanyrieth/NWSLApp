@@ -114,9 +114,21 @@ enum AppConfig {
         contentRouteURL("spotlight", teams: teams)
     }
 
-    /// Shared builder for the `?teams=…` content routes (`/team-videos`, `/feed`):
-    /// appends the path to the proxy host and the comma-joined team list, omitting
-    /// the query entirely when no teams are given. Returns nil on a malformed URL.
+    /// The proxy route powering Fan Zone Daily Trivia: `GET /trivia`. Unlike the
+    /// other content routes, Daily Trivia is **league-wide** (one shared question
+    /// pool, not team-scoped — see `games-design-spec.md`), so this builds with no
+    /// `teams` query at all. The Worker returns the owner-loaded `[TriviaQuestion]`
+    /// pool from KV; the app does the deterministic daily-5 selection client-side
+    /// and falls back to the bundled seed when the route is empty or unreachable.
+    /// Returns nil on a malformed URL (caller falls back to the seed).
+    static func triviaURL() -> URL? {
+        contentRouteURL("trivia", teams: [])
+    }
+
+    /// Shared builder for the content routes (`/team-videos`, `/feed`, `/spotlight`,
+    /// `/trivia`): appends the path to the proxy host and the comma-joined team list,
+    /// omitting the query entirely when no teams are given (as `/trivia` always is).
+    /// Returns nil on a malformed URL.
     private static func contentRouteURL(_ path: String, teams: [String]) -> URL? {
         let endpoint = scoreboardProxyBase.appendingPathComponent(path)
         guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {

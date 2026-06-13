@@ -242,6 +242,9 @@ struct XIPickerView: View {
             Button {
                 store.saveDraft(picker.toPrediction())   // persist the latest as a draft…
                 store.submit(fixtureID: fixture.id)       // …then flip it to submitted (one-way)
+                // Game Center (additive): "First Prediction" — idempotent, so firing
+                // on every submit is harmless. No-ops when not signed in.
+                GameCenterManager.shared.report(GameCenterID.Achievement.firstPrediction)
                 dismiss()
             } label: {
                 Text(picker.isComplete ? "Submit & lock in" : "Pick all 11 to submit (\(picker.assignedCount)/11)")

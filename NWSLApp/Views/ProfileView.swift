@@ -165,7 +165,12 @@ struct ProfileView: View {
         HStack(spacing: 0) {
             statCell("\(totalPoints)", "Points")
             statDivider
-            statCell(rankText, "Rank")
+            // The middle cell now opens the native Game Center dashboard (real
+            // cross-player ranks live there) instead of the old "—" rank placeholder.
+            Button { GameCenterManager.shared.showDashboard() } label: {
+                statCell("🏆", "Leaderboards")
+            }
+            .buttonStyle(.plain)
             statDivider
             statCell("🔥 \(trivia.streak)", "Streak")
         }
@@ -190,10 +195,9 @@ struct ProfileView: View {
         Rectangle().fill(Color.dsSeparator).frame(width: 1, height: 28)
     }
 
-    /// Points across the point-scoring games. Rank needs a real leaderboard
-    /// backend (#12), so it shows "—" until then.
+    /// Points across the point-scoring games (the middle cell now opens the native
+    /// Game Center dashboard for real cross-player ranks).
     private var totalPoints: Int { predict.seasonPoints + bracket.points }
-    private var rankText: String { "—" }
 
     // MARK: - Notification sections
 

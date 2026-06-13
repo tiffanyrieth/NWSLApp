@@ -186,6 +186,13 @@ struct DailyTriviaView: View {
                         viewModel.finish()
                         // Push the freshly-bumped best streak + refresh the board.
                         Task { await viewModel.refreshLeaderboard(store: store, auth: auth) }
+                        // Game Center (additive): streak board + achievements.
+                        GameCenterManager.shared.submit(store.bestStreak, to: GameCenterID.Leaderboard.triviaStreak)
+                        if viewModel.score == viewModel.questionCount {
+                            GameCenterManager.shared.report(GameCenterID.Achievement.triviaPerfectDay)
+                        }
+                        if store.bestStreak >= 7 { GameCenterManager.shared.report(GameCenterID.Achievement.triviaStreak7) }
+                        if store.bestStreak >= 30 { GameCenterManager.shared.report(GameCenterID.Achievement.triviaStreak30) }
                     }
                 } else {
                     Button("Next Question") { viewModel.advance() }

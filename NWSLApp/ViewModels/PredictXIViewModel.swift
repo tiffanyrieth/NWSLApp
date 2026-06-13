@@ -56,15 +56,24 @@ final class PredictXIViewModel {
     private var clubsByAbbr: [String: Club] = [:]
     private var rostersByTeam: [String: [Athlete]] = [:]
 
+    /// Real per-team standings fetched in `load`. One entry per active/scored team:
+    /// the team's abbreviation and its ranked rows (you spliced in from your live
+    /// local total). Empty until loaded.
+    private(set) var leaderboards: [(team: String, rows: [LeaderboardRow])] = []
+
     private let service: ESPNService
-    private let provider: PredictionMatchProvider
+    private let leaderboardService: PredictLeaderboardService
     private let now: () -> Date
 
+    /// The leaderboard season key (matches the Supabase column default). Dynamic
+    /// season detection is the same follow-up as `currentSeasonYear` elsewhere (#6).
+    private static let currentSeason = "2026"
+
     init(service: ESPNService = ESPNService(),
-         provider: PredictionMatchProvider = PredictionMatchProvider(),
+         leaderboardService: PredictLeaderboardService = PredictLeaderboardService(),
          now: @escaping () -> Date = Date.init) {
         self.service = service
-        self.provider = provider
+        self.leaderboardService = leaderboardService
         self.now = now
     }
 
@@ -74,7 +83,8 @@ final class PredictXIViewModel {
     /// whose match has now settled. Reads live data — but a thin/empty MatchStore
     /// simply yields an empty slate (a friendly "no upcoming matches" state), never
     /// an error.
-    func load(matches: MatchStore, clubs: ClubStore, following: FollowingStore, store: PredictionStore) async {
+    func load(matches: MatchStore, clubs: ClubStore, following: FollowingStore,
+              store: PredictionStore, auth: AuthStore) async {
         state = .loading
 
         clubsByAbbr = Dictionary(clubs.clubs.map { ($0.abbreviation, $0) }, uniquingKeysWith: { first, _ in first })
@@ -82,6 +92,7 @@ final class PredictXIViewModel {
         upcomingFixtures = buildUpcoming(matches: matches, clubs: clubs, following: following)
 
         await scoreSettledSubmissions(store: store)
+        await loadLeaderboards(store: store, auth: auth)
 
         state = .loaded
     }
@@ -198,7 +209,7 @@ final class PredictXIViewModel {
         return club?.shortName ?? club?.displayName ?? abbreviation
     }
 
-    // MARK: - Leaderboard (simulated — real multi-user board is the Game Center item)
+    // MARK: - Leaderboard (REAL, per-team via Supabase — Spirit fans vs Spirit fans)
 
     struct LeaderboardRow: Identifiable {
         let id = UUID()
@@ -208,20 +219,49 @@ final class PredictXIViewModel {
         let isYou: Bool
     }
 
-    func leaderboard(store: PredictionStore) -> [LeaderboardRow] {
-        var entries = provider.leaderboardOpponents().map { (name: $0.name, points: $0.points, isYou: false) }
-        entries.append((name: "You", points: store.seasonPoints, isYou: true))
-        entries.sort { lhs, rhs in
-            if lhs.points != rhs.points { return lhs.points > rhs.points }
-            return lhs.isYou && !rhs.isYou
+    /// Fetch the real per-team standings and build a board for each team the user is
+    /// actively predicting (in the slate) or has scored in. Signed-in users first
+    /// push their fresh per-team totals to Supabase (best-effort); then everyone
+    /// reads the world-readable standings and we splice the user's LIVE local total
+    /// in (fresher than any just-written row). No fabricated rivals — a sparse board
+    /// (just you) early on is the honest state.
+    private func loadLeaderboards(store: PredictionStore, auth: AuthStore) async {
+        let season = Self.currentSeason
+
+        if let userID = auth.userID {
+            for team in store.scoredTeams {
+                await leaderboardService.upsertScore(
+                    teamAbbreviation: team, points: store.points(forTeam: team),
+                    displayName: auth.displayName, userID: userID, season: season)
+            }
         }
-        return entries.enumerated().map { index, entry in
-            LeaderboardRow(rank: index + 1, name: entry.name, points: entry.points, isYou: entry.isYou)
+
+        // Boards to show: the teams you're predicting now (slate, soonest first) plus
+        // any extra team you've scored in.
+        var teams = upcomingFixtures.map(\.teamAbbreviation)
+        for team in store.scoredTeams where !teams.contains(team) { teams.append(team) }
+
+        var boards: [(team: String, rows: [LeaderboardRow])] = []
+        for team in teams {
+            let standings = await leaderboardService.standings(teamAbbreviation: team, season: season)
+            boards.append((team: team, rows: rankedRows(team: team, standings: standings, store: store, auth: auth)))
         }
+        leaderboards = boards
     }
 
-    func yourRank(store: PredictionStore) -> Int {
-        leaderboard(store: store).first(where: \.isYou)?.rank ?? 0
+    /// Rank a team's rivals + the user. Drops the user's OWN server row (we splice
+    /// their live local total instead) and ties break in the user's favour.
+    private func rankedRows(team: String, standings: [PredictLeaderboardService.Standing],
+                            store: PredictionStore, auth: AuthStore) -> [LeaderboardRow] {
+        let myID = auth.userID?.uuidString
+        var entries = standings
+            .filter { $0.userID != myID }
+            .map { (name: $0.name, points: $0.points, isYou: false) }
+        entries.append((name: auth.displayName ?? "You", points: store.points(forTeam: team), isYou: true))
+        entries.sort { $0.points != $1.points ? $0.points > $1.points : ($0.isYou && !$1.isYou) }
+        return entries.enumerated().map { i, e in
+            LeaderboardRow(rank: i + 1, name: e.name, points: e.points, isYou: e.isYou)
+        }
     }
 
     // MARK: - Helpers

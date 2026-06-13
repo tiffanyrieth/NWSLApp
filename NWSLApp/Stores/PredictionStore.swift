@@ -62,6 +62,23 @@ final class PredictionStore {
     func prediction(for fixtureID: String) -> XIPrediction? { predictions[fixtureID] }
     func score(for fixtureID: String) -> PredictionScore? { scores[fixtureID] }
 
+    /// Season points for ONE team — Σ of scored totals for fixtures of that team.
+    /// The leaderboard is per-team (you're ranked among fans of YOUR club), so this
+    /// breaks `seasonPoints` down by team. The fixtureID encodes the team, but we
+    /// join through the persisted prediction's `teamAbbreviation` (the authoritative
+    /// source) since predictions survive scoring (only `reset()` clears them).
+    func points(forTeam abbreviation: String) -> Int {
+        scores.reduce(0) { sum, entry in
+            predictions[entry.key]?.teamAbbreviation == abbreviation ? sum + entry.value.total : sum
+        }
+    }
+
+    /// Distinct teams the user has earned scored points in — drives which per-team
+    /// rows get pushed to Supabase.
+    var scoredTeams: Set<String> {
+        Set(scores.keys.compactMap { predictions[$0]?.teamAbbreviation })
+    }
+
     /// Fixture ids that are submitted but not yet scored — the view model fetches
     /// `/summary` for these once their match has settled.
     var submittedAwaitingScore: [String] {

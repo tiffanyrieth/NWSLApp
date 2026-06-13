@@ -25,6 +25,7 @@ struct PredictXIView: View {
     @Environment(MatchStore.self) private var matches
     @Environment(ClubStore.self) private var clubs
     @Environment(FollowingStore.self) private var following
+    @Environment(AuthStore.self) private var auth
 
     /// The fixture whose picker is open (nil = no sheet).
     @State private var activeFixture: PredictionFixture?
@@ -67,7 +68,7 @@ struct PredictXIView: View {
         // empty. In the normal flow these are already `.loaded` and this no-ops.
         if case .idle = matches.state { await matches.load() }
         if case .idle = clubs.state { await clubs.load() }
-        await viewModel.load(matches: matches, clubs: clubs, following: following, store: store)
+        await viewModel.load(matches: matches, clubs: clubs, following: following, store: store, auth: auth)
     }
 
     // MARK: - Loaded
@@ -94,7 +95,7 @@ struct PredictXIView: View {
                     ForEach(results) { resultCard($0) }
                 }
 
-                leaderboardCard
+                leaderboardSection
 
                 if store.hasPredicted {
                     resetButton
@@ -129,8 +130,6 @@ struct PredictXIView: View {
 
             HStack(spacing: 12) {
                 headerStat(value: "\(store.seasonPoints)", label: "season points")
-                Divider().frame(height: 34)
-                headerStat(value: "#\(viewModel.yourRank(store: store))", label: "leaderboard rank")
             }
         }
         .padding(18)
@@ -319,13 +318,27 @@ struct PredictXIView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: - Leaderboard
+    // MARK: - Leaderboard (REAL, per-team — you're ranked among fans of YOUR club)
 
-    private var leaderboardCard: some View {
+    /// One standings card per team you're predicting or have scored in. Empty (shows
+    /// nothing) when you have no active/scored team — the screen's own empty state
+    /// covers the no-activity case.
+    @ViewBuilder
+    private var leaderboardSection: some View {
+        ForEach(viewModel.leaderboards, id: \.team) { board in
+            teamLeaderboardCard(team: board.team, rows: board.rows)
+        }
+    }
+
+    private func teamLeaderboardCard(team: String, rows: [PredictXIViewModel.LeaderboardRow]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Leaderboard").font(.headline)
-            Text("Season standings").font(.caption).foregroundStyle(.secondary)
-            ForEach(viewModel.leaderboard(store: store)) { row in
+            HStack(spacing: 8) {
+                TeamLogo(urlString: viewModel.club(forAbbreviation: team)?.logoURL, size: 22)
+                Text(viewModel.teamLabel(team)).font(.headline)
+                Spacer()
+                Text("Predictors").font(.caption).foregroundStyle(.secondary)
+            }
+            ForEach(rows) { row in
                 HStack(spacing: 12) {
                     Text("\(row.rank)")
                         .font(.subheadline.weight(.bold).monospacedDigit())
@@ -334,6 +347,7 @@ struct PredictXIView: View {
                     Text(row.name)
                         .font(.subheadline.weight(row.isYou ? .bold : .regular))
                         .foregroundStyle(row.isYou ? accent : .primary)
+                        .lineLimit(1)
                     Spacer()
                     Text("\(row.points) pts").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
                 }
@@ -341,6 +355,12 @@ struct PredictXIView: View {
                 .padding(.horizontal, 10)
                 .background(row.isYou ? accent.opacity(0.12) : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            // Honest sparse state: the board is real, just new. (You're always a row.)
+            if rows.count == 1 {
+                Text("You're first in line — standings grow as more fans play.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .padding(.horizontal, 10).padding(.top, 2)
             }
         }
         .padding(16)

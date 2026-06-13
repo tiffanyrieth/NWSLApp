@@ -276,3 +276,33 @@ create policy "Users update own prediction score"
 -- (signed-out browsing); write: authenticated-only (the owner's own row).
 grant select on public.prediction_scores to anon, authenticated;
 grant select, insert, update on public.prediction_scores to authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Daily Trivia — best-streak leaderboard (Fan Zone game 3)
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Like prediction_scores, this is APP-writable (the score is computed on-device
+-- — the day-gated streak in TriviaStore) and world-readable for the standings.
+-- LEAGUE-WIDE (no team scope, unlike Predict): trivia has no club. The metric is
+-- BEST STREAK (consecutive days played) — it rewards daily consistency, not raw
+-- volume. One row per (user, season); `best_streak` is the user's personal best.
+create table public.trivia_scores (
+  user_id uuid references auth.users(id) on delete cascade,
+  season text not null default '2026',
+  display_name text,
+  best_streak int not null default 0,
+  updated_at timestamptz default now(),
+  primary key (user_id, season)  -- backs the upsert onConflict
+);
+
+alter table public.trivia_scores enable row level security;
+
+create policy "Anyone can read trivia scores"
+  on public.trivia_scores for select using (true);
+create policy "Users insert own trivia score"
+  on public.trivia_scores for insert with check (auth.uid() = user_id);
+create policy "Users update own trivia score"
+  on public.trivia_scores for update using (auth.uid() = user_id);
+
+-- Grants (42501 gotcha). Read: anon + authed; write: authenticated-only.
+grant select on public.trivia_scores to anon, authenticated;
+grant select, insert, update on public.trivia_scores to authenticated;

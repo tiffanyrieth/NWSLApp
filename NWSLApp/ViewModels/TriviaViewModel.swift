@@ -39,6 +39,10 @@ final class TriviaViewModel {
     /// Today's 5 questions (empty until `.loaded`).
     private(set) var questions: [TriviaQuestion] = []
 
+    /// Real league-wide best-streak standings, fetched in `refreshLeaderboard`.
+    /// You are spliced in from your live local best streak. Empty until loaded.
+    private(set) var leaderboard: [LeaderboardRow] = []
+
     // MARK: Session state (transient — reset each play)
 
     private(set) var currentIndex = 0
@@ -62,15 +66,21 @@ final class TriviaViewModel {
     private static let cycleSeed: UInt64 = 0x6E57_534C_5452_5631
 
     private let service: TriviaService
+    private let leaderboardService: TriviaLeaderboardService
     private let calendar: Calendar
     private let now: () -> Date
 
+    /// The league-wide best-streak season key (matches the Supabase column default).
+    private static let currentSeason = "2026"
+
     init(
         service: TriviaService = TriviaService(),
+        leaderboardService: TriviaLeaderboardService = TriviaLeaderboardService(),
         calendar: Calendar = .current,
         now: @escaping () -> Date = Date.init
     ) {
         self.service = service
+        self.leaderboardService = leaderboardService
         self.calendar = calendar
         self.now = now
     }
@@ -175,6 +185,42 @@ final class TriviaViewModel {
     func finish() {
         guard isRevealed, isLastQuestion else { return }
         isFinished = true
+    }
+
+    // MARK: - Leaderboard (REAL, league-wide best-streak via Supabase)
+
+    struct LeaderboardRow: Identifiable {
+        let id = UUID()
+        let rank: Int
+        let name: String
+        let streak: Int
+        let isYou: Bool
+    }
+
+    /// Push the user's best streak (signed-in only; best-effort) then read the
+    /// world-readable standings and splice the user's LIVE local best streak in
+    /// (fresher than any just-written row, and the only row when signed out). No
+    /// fabricated rivals — a sparse board (just you) early on is the honest state.
+    /// Safe to call on every results-screen appearance; idempotent.
+    func refreshLeaderboard(store: TriviaStore, auth: AuthStore) async {
+        let season = Self.currentSeason
+
+        if let userID = auth.userID {
+            await leaderboardService.upsertScore(
+                bestStreak: store.bestStreak, displayName: auth.displayName,
+                userID: userID, season: season)
+        }
+
+        let standings = await leaderboardService.standings(season: season)
+        let myID = auth.userID?.uuidString
+        var entries = standings
+            .filter { $0.userID != myID }
+            .map { (name: $0.name, streak: $0.bestStreak, isYou: false) }
+        entries.append((name: auth.displayName ?? "You", streak: store.bestStreak, isYou: true))
+        entries.sort { $0.streak != $1.streak ? $0.streak > $1.streak : ($0.isYou && !$1.isYou) }
+        leaderboard = entries.enumerated().map { i, e in
+            LeaderboardRow(rank: i + 1, name: e.name, streak: e.streak, isYou: e.isYou)
+        }
     }
 }
 

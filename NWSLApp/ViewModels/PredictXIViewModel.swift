@@ -94,6 +94,12 @@ final class PredictXIViewModel {
         await scoreSettledSubmissions(store: store)
         await loadLeaderboards(store: store, auth: auth)
 
+        // Game Center: push the (cross-team) season-points total. Best-effort,
+        // no-ops when not signed in to Game Center. Additive on top of Supabase.
+        await MainActor.run {
+            GameCenterManager.shared.submit(store.seasonPoints, to: GameCenterID.Leaderboard.predictSeasonPoints)
+        }
+
         state = .loaded
     }
 

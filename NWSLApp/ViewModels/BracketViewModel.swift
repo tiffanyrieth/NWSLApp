@@ -42,7 +42,11 @@ final class BracketViewModel {
     /// loaded with `edition == nil` (the game hides), never an error.
     func load(store: BracketStore, userID: UUID? = nil, displayName: String? = nil) async {
         state = .loading
-        guard let edition = await service.currentEdition() else {
+        let fetched = await service.currentEdition()
+        if let fetched { store.cacheEdition(fetched) }
+        // Offline-first: fall back to the last REAL edition the store cached (no
+        // fabricated sample). Nil only when nothing's ever been fetched + we're offline.
+        guard let edition = fetched ?? store.cachedEdition else {
             store.clearActiveEdition()
             self.edition = nil
             state = .loaded
@@ -146,5 +150,58 @@ final class BracketViewModel {
             if ms.contains(where: { $0.isResolved }) { return (round, ms) }
         }
         return nil
+    }
+
+    // MARK: - Rotating fandom flavor (one per edition, deterministic)
+
+    enum FandomFlavor { case upsetClosest, cinderella, nextEdition }
+
+    /// The single flavor feature this edition surfaces — stable across all its rounds,
+    /// rotating each new edition. Deterministic by edition id so everyone sees the same.
+    var flavor: FandomFlavor {
+        guard let id = edition?.id else { return .upsetClosest }
+        switch Self.stableHash(id) % 3 {
+        case 0: return .upsetClosest
+        case 1: return .cinderella
+        default: return .nextEdition
+        }
+    }
+
+    /// Biggest upset of the most-recent completed round: the community winner who was
+    /// the lower seed, by the largest seed gap. Nil if no upset (or no seeds/results).
+    var biggestUpset: (winner: BracketEntrant, loser: BracketEntrant)? {
+        guard let ms = completedResults()?.matchups else { return nil }
+        var best: (winner: BracketEntrant, loser: BracketEntrant, gap: Int)?
+        for m in ms {
+            guard let winnerID = m.communityWinnerID, let winner = m.entrant(winnerID) else { continue }
+            let loser = winner.id == m.entrantA.id ? m.entrantB : m.entrantA
+            guard let ws = winner.seed, let ls = loser.seed, ws > ls else { continue }
+            let gap = ws - ls
+            if best == nil || gap > best!.gap { best = (winner, loser, gap) }
+        }
+        return best.map { ($0.winner, $0.loser) }
+    }
+
+    /// Closest call of the most-recent completed round (winner % nearest 50).
+    var closestCall: (matchup: BracketMatchup, winnerPct: Int)? {
+        guard let ms = completedResults()?.matchups else { return nil }
+        return ms.compactMap { m in m.winnerPercent.map { (m, $0) } }
+            .min { abs($0.1 - 50) < abs($1.1 - 50) }
+            .map { (matchup: $0.0, winnerPct: $0.1) }
+    }
+
+    /// Lowest-ranked entrant still alive (a Cinderella run) — "alive" = in a current-
+    /// round matchup. Highest seed *number* = lowest rank.
+    var cinderella: BracketEntrant? {
+        guard let edition else { return nil }
+        let alive = edition.matchups(in: edition.currentRound).flatMap { [$0.entrantA, $0.entrantB] }
+        return alive.max { ($0.seed ?? 0) < ($1.seed ?? 0) }
+    }
+
+    /// A stable (launch-independent) hash for deterministic flavor selection.
+    private static func stableHash(_ s: String) -> Int {
+        var h = 5381
+        for byte in s.utf8 { h = ((h << 5) &+ h) &+ Int(byte) }
+        return abs(h)
     }
 }

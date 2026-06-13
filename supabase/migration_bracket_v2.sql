@@ -51,6 +51,20 @@ create policy "Anyone can read creative editions"
 -- the service role bypasses RLS for writes and needs no grant.
 grant select on public.bracket_creative_editions to anon, authenticated;
 
+-- ── 2b. Grants for the Worker (service_role) ─────────────────────────────────
+-- The proxy Worker writes editions/matchups/scores with the service-role key. RLS
+-- BYPASS is not the same as a table GRANT (the 42501 gotcha — see
+-- project memory supabase_rls_needs_grants): service_role still needs explicit table
+-- privileges. (The original schema granted only anon/authenticated.)
+grant select, insert, update, delete on
+  public.bracket_editions,
+  public.bracket_entrants,
+  public.bracket_matchups,
+  public.bracket_votes,
+  public.bracket_scores,
+  public.bracket_creative_editions
+to service_role;
+
 -- ── 3. Drop the v1 hand-seeded test edition ──────────────────────────────────
 -- The Worker generates real editions now; the 16-player "Top Forward" scaffold goes.
 -- Cascades to its entrants / matchups / votes.

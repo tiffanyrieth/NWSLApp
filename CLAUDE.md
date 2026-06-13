@@ -525,8 +525,9 @@ Per-screen behavior (full file detail in the File Map; specs in `Reference/Desig
   via `nwslapp-proxy` `scripts/load_trivia.mjs`); the app does a deterministic non-repeating
   daily-5 selection. Pool is generated + adversarially fact-checked (workflow) → vetted JSON →
   KV; the 55-question seed (`TriviaQuestionProvider`) is the offline-first fallback. Refreshable
-  with no app release (owner re-runs the loader). *First batch shipped at ~40 questions; growing
-  toward the ~500 spec via the same path.*
+  with no app release (owner re-runs the loader). *Pool intentionally starts small (~40) and
+  grows organically over time via the loader — the ~500 in `games-design-spec.md` is an
+  aspiration, NOT a launch gate (owner's call); don't treat the small pool as a spec shortfall.*
 - **Player Spotlight** (`spotlight-design-spec.md`) — one mini-profile/followed team →
   `PlayerSpotlightView`. **LIVE** (B2/0.3.8) via proxy `/spotlight`: real player + ESPN stats
   + a Haiku "why watch" blurb, weekly rotation. Seed = offline-first fallback.
@@ -577,8 +578,9 @@ all SHIPPED**.
   from ESPN · tally + advance · rotate creative↔stats), verified end-to-end live. →
   ~~**Daily Trivia** (LIVE)~~ ✅ SHIPPED 0.3.9 — proxy `/trivia` route (KV pool, owner-loaded via
   `scripts/load_trivia.mjs`) + app `TriviaService` (live-or-seed) + non-repeating daily-5;
-  questions generated + adversarially fact-checked via workflow. *First batch ~40; grow toward
-  ~500 spec via the same loader (re-run a vetted batch).* → **NEXT: Game Center** (GameKit
+  questions generated + adversarially fact-checked via workflow. *Pool intentionally starts
+  small (~40) and grows over time via the loader — not gated on the ~500 spec (owner's call).*
+  → **NEXT: Game Center** (GameKit
   leaderboards across all three). Then
   **B4 final sweep** → ship **0.3.9** (QOL begins at 0.4.0). **Bracket follow-ups (optional,
   documented):** exact season-stat seeding for stat editions (currently team-interleave to fit

@@ -25,6 +25,7 @@ import SwiftUI
 struct DailyTriviaView: View {
     @State private var viewModel = TriviaViewModel()
     @Environment(TriviaStore.self) private var store
+    @Environment(AuthStore.self) private var auth
 
     /// The game's signature accent (per the approved indigo theme).
     private let accent = Color.indigo
@@ -45,6 +46,9 @@ struct DailyTriviaView: View {
         .background(Color(.systemGroupedBackground))
         .task {
             if case .idle = viewModel.state { await viewModel.loadDaily() }
+            // Load the real standings (and self-heal the user's row) whenever the
+            // screen appears — the results screen reads `viewModel.leaderboard`.
+            await viewModel.refreshLeaderboard(store: store, auth: auth)
         }
     }
 
@@ -180,6 +184,8 @@ struct DailyTriviaView: View {
                     Button("See Results") {
                         store.recordCompletion(correct: viewModel.score, outOf: viewModel.questionCount)
                         viewModel.finish()
+                        // Push the freshly-bumped best streak + refresh the board.
+                        Task { await viewModel.refreshLeaderboard(store: store, auth: auth) }
                     }
                 } else {
                     Button("Next Question") { viewModel.advance() }
@@ -212,6 +218,8 @@ struct DailyTriviaView: View {
                 .padding(.top, 12)
 
                 scoreCard
+
+                leaderboardCard
 
                 if showRecap {
                     recapList
@@ -257,6 +265,50 @@ struct DailyTriviaView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    // Real league-wide best-streak standings (you highlighted). Always has at least
+    // your row on this screen, so it never renders empty.
+    private var leaderboardCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "flame.fill").foregroundStyle(.orange)
+                Text("Streak leaders").font(.headline)
+                Spacer()
+                Text("League-wide").font(.caption).foregroundStyle(.secondary)
+            }
+            ForEach(viewModel.leaderboard) { row in
+                HStack(spacing: 12) {
+                    Text("\(row.rank)")
+                        .font(.subheadline.weight(.bold).monospacedDigit())
+                        .foregroundStyle(row.isYou ? accent : .secondary)
+                        .frame(width: 28, alignment: .trailing)
+                    Text(row.name)
+                        .font(.subheadline.weight(row.isYou ? .bold : .regular))
+                        .foregroundStyle(row.isYou ? accent : .primary)
+                        .lineLimit(1)
+                    Spacer()
+                    HStack(spacing: 4) {
+                        Text("\(row.streak)").font(.subheadline.weight(.semibold))
+                        Image(systemName: "flame.fill").font(.caption2).foregroundStyle(.orange)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .background(row.isYou ? accent.opacity(0.12) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            if viewModel.leaderboard.count == 1 {
+                Text("You're on the board — leaders fill in as more fans play daily.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .padding(.horizontal, 10).padding(.top, 2)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
@@ -385,5 +437,6 @@ struct DailyTriviaView: View {
     NavigationStack {
         DailyTriviaView()
             .environment(TriviaStore())
+            .environment(AuthStore())
     }
 }

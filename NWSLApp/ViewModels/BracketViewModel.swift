@@ -75,6 +75,13 @@ final class BracketViewModel {
             guard resolved.contains(where: { $0.isResolved }) else { continue }
             let points = BracketScoring.roundPoints(picks: store.picks(for: round), matchups: resolved)
             store.recordScore(points, for: round)
+
+            // Game Center: push the banked total + the "Bracket Round Won" badge.
+            // Best-effort, no-ops when not signed in. Additive on top of Supabase.
+            await MainActor.run {
+                GameCenterManager.shared.submit(store.points, to: GameCenterID.Leaderboard.bracketTotalPoints)
+                if points > 0 { GameCenterManager.shared.report(GameCenterID.Achievement.bracketRoundWon) }
+            }
         }
     }
 

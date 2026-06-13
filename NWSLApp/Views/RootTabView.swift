@@ -23,6 +23,10 @@ import UIKit
 import UserNotifications
 
 struct RootTabView: View {
+    // Re-sync Game Center when the app returns to the foreground (scores earned
+    // offline get pushed once we're back online + authenticated).
+    @Environment(\.scenePhase) private var scenePhase
+
     // Tab selection lives in a shared AppRouter (injected below) so screens can
     // jump across tabs — e.g. Home's "Full schedule →". Lands on Home.
     @State private var router = AppRouter()
@@ -90,6 +94,9 @@ struct RootTabView: View {
     // NotificationSyncCoordinator).
     @State private var notificationSyncCoordinator: NotificationSyncCoordinator?
 
+    // Set the Game Center auth handler exactly once.
+    @State private var gameCenterStarted = false
+
     var body: some View {
         @Bindable var router = router
         TabView(selection: $router.selectedTab) {
@@ -128,6 +135,13 @@ struct RootTabView: View {
             // re-running .task (it can fire again on scene changes) doesn't build a
             // second coordinator.
             await auth.restoreSession()
+            // Sign in to Game Center (Fan Zone leaderboards/achievements, additive
+            // on top of the Supabase boards). The handler flips `isAuthenticated`,
+            // which triggers the first syncAll below.
+            if !gameCenterStarted {
+                GameCenterManager.shared.authenticate()
+                gameCenterStarted = true
+            }
             if syncCoordinator == nil {
                 let coordinator = FollowSyncCoordinator(following: following, auth: auth)
                 coordinator.start()
@@ -162,6 +176,19 @@ struct RootTabView: View {
             if let eventID {
                 router.openMatch(eventID: eventID)
                 PushBridge.shared.tappedEventID = nil
+            }
+        }
+        // Once Game Center auth resolves, push the current totals (Superfan combined
+        // + cross-game achievements live here, where all three stores are in reach).
+        .onChange(of: GameCenterManager.shared.isAuthenticated) { _, signedIn in
+            if signedIn {
+                GameCenterManager.shared.syncAll(trivia: trivia, predict: predict, bracket: bracket)
+            }
+        }
+        // Returning to the foreground re-syncs (covers scores earned while offline).
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                GameCenterManager.shared.syncAll(trivia: trivia, predict: predict, bracket: bracket)
             }
         }
     }

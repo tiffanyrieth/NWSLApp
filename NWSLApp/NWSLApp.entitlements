@@ -7,6 +7,15 @@
 		<string>Default</string>
 	</array>
 	<!--
+	  Game Center (GameKit) — Fan Zone leaderboards + achievements (0.3.9). Native
+	  cross-player ranking on top of the real Supabase boards. Free; requires the
+	  paid Developer Program (active). The leaderboard/achievement records are
+	  created in App Store Connect (see the IDs in GameCenterIDs.swift); this
+	  entitlement is what lets the build talk to Game Center. No Info.plist keys.
+	-->
+	<key>com.apple.developer.game-center</key>
+	<true/>
+	<!--
 	  Push notifications (Tier 2 / server push, 0.4.x). `development` selects the
 	  sandbox APNs environment for builds run from Xcode; Xcode automatically
 	  swaps this to `production` when it archives a distribution build (TestFlight

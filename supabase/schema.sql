@@ -239,3 +239,40 @@ grant select on public.bracket_entrants to anon, authenticated;
 grant select on public.bracket_matchups to anon, authenticated;
 grant select on public.bracket_scores   to anon, authenticated;
 grant select, insert, update on public.bracket_votes to authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Predict the XI — per-team leaderboard (Fan Zone game 1)
+-- ═══════════════════════════════════════════════════════════════════════════
+-- UNLIKE bracket_scores (written by the service-role tally job), Predict scores
+-- are computed ON-DEVICE — the app grades a submitted prediction against ESPN's
+-- real lineup, then writes its OWN row here. So this table is APP-writable
+-- (authenticated insert/update of one's own row), not service-role-only.
+--
+-- Scope is PER-TEAM: you predict YOUR followed team's XI, so you're ranked
+-- against other fans of that same club (Spirit fans vs Spirit fans), not the
+-- whole league. One row per (user, team, season); `points` is that user's
+-- season total for that team. World-readable so the standings show real rivals.
+create table public.prediction_scores (
+  user_id uuid references auth.users(id) on delete cascade,
+  team_abbreviation text not null,
+  season text not null default '2026',
+  display_name text,
+  points int not null default 0,
+  updated_at timestamptz default now(),
+  primary key (user_id, team_abbreviation, season)  -- backs the upsert onConflict
+);
+
+alter table public.prediction_scores enable row level security;
+
+-- Public reads (standings are browsable signed-out). Each user writes only their own row.
+create policy "Anyone can read prediction scores"
+  on public.prediction_scores for select using (true);
+create policy "Users insert own prediction score"
+  on public.prediction_scores for insert with check (auth.uid() = user_id);
+create policy "Users update own prediction score"
+  on public.prediction_scores for update using (auth.uid() = user_id);
+
+-- Grants (the 42501 gotcha — RLS does not imply privilege). Read: anon + authed
+-- (signed-out browsing); write: authenticated-only (the owner's own row).
+grant select on public.prediction_scores to anon, authenticated;
+grant select, insert, update on public.prediction_scores to authenticated;

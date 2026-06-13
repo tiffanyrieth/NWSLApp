@@ -1,0 +1,84 @@
+//
+//  PredictLeaderboardService.swift
+//  NWSLApp
+//
+//  The Supabase data client for the Predict the XI per-team leaderboard (Fan Zone
+//  game 1, 0.3.9) — the networking twin of FollowSyncService/BracketService.
+//
+//  UNLIKE BracketService (whose scores are written by the service-role tally job
+//  because community votes are tallied server-side), Predict scores are computed
+//  ON-DEVICE: PredictXIViewModel grades a submitted prediction against ESPN's real
+//  lineup, so the APP writes its OWN score row here, owner-scoped by RLS. Because
+//  we hold the user's display name (AuthStore), real rival names appear — not the
+//  anonymous "Fan" rows the bracket board falls back to.
+//
+//  Scope is PER-TEAM: a query filters by `team_abbreviation`, so a Spirit fan only
+//  sees other Spirit predictors. Reads are world-readable (browsable signed-out);
+//  writes need a signed-in user. A read failure returns an empty rival list — the
+//  caller still shows the user's own live total (offline-first; never fabricated).
+//
+
+import Foundation
+import Supabase
+
+struct PredictLeaderboardService {
+    private var client: SupabaseClient { SupabaseManager.client }
+
+    /// One other player's standing for a team (the signed-in user is excluded by
+    /// the caller and spliced in from their live local total instead).
+    struct Standing {
+        let userID: String
+        let name: String
+        let points: Int
+    }
+
+    /// Push the user's season total for ONE team. Best-effort: a failure leaves the
+    /// local score intact and the next load retries the push. Signed-in only (the
+    /// caller guards on `userID`).
+    func upsertScore(teamAbbreviation: String, points: Int,
+                     displayName: String?, userID: UUID, season: String) async {
+        let row = ScoreUpsert(user_id: userID, team_abbreviation: teamAbbreviation,
+                              season: season, display_name: displayName, points: points)
+        do {
+            try await client
+                .from("prediction_scores")
+                .upsert(row, onConflict: "user_id,team_abbreviation,season")
+                .execute()
+        } catch {
+            // Local store already holds the score; next load retries the push.
+        }
+    }
+
+    /// Everyone ranked for a team this season (raw — the caller filters out the
+    /// signed-in user and splices their fresher local total). Empty on any failure.
+    func standings(teamAbbreviation: String, season: String) async -> [Standing] {
+        do {
+            let rows: [ScoreRow] = try await client
+                .from("prediction_scores")
+                .select("user_id, display_name, points")
+                .eq("team_abbreviation", value: teamAbbreviation)
+                .eq("season", value: season)
+                .order("points", ascending: false)
+                .execute()
+                .value
+            return rows.map { Standing(userID: $0.user_id, name: $0.display_name ?? "Fan", points: $0.points) }
+        } catch {
+            return []
+        }
+    }
+}
+
+// snake_case to match the Postgres column names exactly (PostgREST maps 1:1).
+private struct ScoreRow: Decodable {
+    let user_id: String
+    let display_name: String?
+    let points: Int
+}
+
+private struct ScoreUpsert: Encodable {
+    let user_id: UUID
+    let team_abbreviation: String
+    let season: String
+    let display_name: String?
+    let points: Int
+}

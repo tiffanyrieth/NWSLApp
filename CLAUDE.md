@@ -1,67 +1,65 @@
 # NWSLApp — Project Context for Claude
 
-## ⚠️ PRIORITY FRAMEWORK — READ FIRST
+## ⚠️ WHAT THIS APP IS — READ FIRST
 
-This app's differentiator is NOT stats, scores, or schedules. Every sports app has those.
-This app exists because it feels ALIVE — fresh content every time you open it, fan engagement
-that brings people together, and a personal connection to your teams and players.
+**A women's soccer (NWSL) fandom app.** It's a lively hangout for fans: follow your
+clubs, keep up with your favorite soccer voices (reporters, club + player social),
+play and share Fan Zone mini-games (Bracket Battle, Predict the XI, Daily Trivia),
+and check scores, schedule, and standings. The **fandom** — community, the games,
+social sharing, live/"alive" content, and a personal connection to your teams — **is
+the product.** Scores/schedule/standings are table stakes that must work, but they are
+**not** the differentiator.
 
-PRIORITY ORDER (non-negotiable):
-1. ALIVE FEATURES — Live content pipelines (YouTube → Home, Bluesky/Reddit → Feed, Spotlight rotation, Fan Zone rounds)
-2. CORE FUNCTIONALITY — Scores, schedule, standings, stats (table stakes, must work, but not the differentiator)
-3. HARDENING — Bug fixes, decode tests, abbreviation fragility, pull-to-refresh polish
+**Anti-pattern to avoid (this matters):** do NOT treat this like a traditional
+sports/stats app (an ESPN/March-Madness clone) and shrink the fandom side. When a
+design plan (e.g. from Claude Design) emphasizes fandom, social, or playful content,
+**build it that way** — don't slot it into a stats-app mold or trim the fandom content
+down. The fandom half and the sports half are equally core; the fandom half is what
+makes the app worth opening.
 
-Never prioritize category 3 over category 1. If someone asks "what's next?", the answer
-is always the highest incomplete item in category 1 unless it's physically blocked.
+**The litmus test:** "Would I open this app today if I opened it yesterday?" If a
+surface looks identical because the data is static, that's a bug — the app is built to
+feel alive (fresh content every open, fan engagement, personal connection).
 
-The litmus test: "Would I open this app today if I opened it yesterday?"
-If the answer is no because the content hasn't changed, that's the #1 priority to fix.
+**Priority order when deciding what to work on:**
+1. **ALIVE features** — live content pipelines (YouTube/club news/Bluesky → Home & Feed,
+   Player Spotlight rotation, Fan Zone games) and fan engagement.
+2. **Core functionality** — scores, schedule, standings, stats (must work; not the differentiator).
+3. **Hardening** — bug fixes, tests, robustness. Never above category 1.
 
-## Overview
+**Owner:** Tiffany Rieth. Personal project to build production-quality iOS skills and
+ship a real consumer app; long-term goal is App Store distribution.
 
-**What:** A native iOS app for the NWSL (National Women's Soccer League) — live
-scores, full-season schedule, standings, team pages, and match details.
+---
 
-**This is a HYBRID sports + fandom app — not purely either.** Frame every feature this
-way. The "sports app" half (scores/schedule/standings/stats) is table stakes; the
-**fandom** half — community engagement, the Fan Zone games (Bracket Battle's community
-voting + creative editions, Predict the XI), social sharing, the live/"alive" content,
-and personal connection to your teams — is **equally core to the identity.** Defaulting to
-"it's a sports app" → ESPN-clone patterns is the failure mode to avoid; the differentiator
-is the fandom side (see the Priority Framework).
+## State of the app
 
-**Why:** Personal project to build production-quality iOS skills and ship a
-real consumer app. Long-term goal: App Store distribution.
+The app is **fully live and in production-quality state** (v0.3.9) — real data
+everywhere, used daily by the owner + testers as their primary NWSL app. There is **no
+demo/fake data** in normal operation; curated seed data survives only as an **offline
+fallback** (live data is always primary). Treat the app as a real, working product when
+building — never suggest a "demo" mode or scaled-down placeholder.
 
-**Scope:** A full-featured league app built incrementally over many releases —
-schedule, standings, teams, player and match detail, and personalization over
-time — not a single-screen demo. Architecture and conventions are chosen to
-grow with it.
-
-**Owner:** Tiffany Rieth
+Every surface pulls live: ESPN (scores/schedule/standings/teams/rosters/match detail
+via a caching proxy), the content pipeline (Home + Feed: YouTube · club-site news ·
+Bluesky · news RSS · Instagram · Player Spotlight, all via the proxy), the three Fan
+Zone games (real Supabase leaderboards), and Sign-in-with-Apple accounts (Supabase).
 
 ---
 
 ## Tech Stack
 
-- **Language:** Swift 5.9+
-- **UI:** SwiftUI (not UIKit)
-- **State:** `@Observable` (modern) over `ObservableObject` where possible
-- **Networking:** `URLSession` + `async/await`. No third-party HTTP libraries
-  unless justified.
-- **Persistence:** UserDefaults for small local state (follows, game stats);
-  Supabase (Postgres) as the durable per-user source of truth once signed in.
-  SwiftData still used nowhere.
-- **Auth / per-user backend:** Sign in with Apple → **Supabase**
-  (Postgres + native Apple auth + Row-Level Security). The project's **first and
-  only third-party dependency** is the **Supabase Swift SDK** (`supabase-swift`,
-  SPM) — justified because rolling raw URLSession calls would mean reimplementing
-  JWT refresh, RLS header injection, and session keychain storage. Credentials
-  live in a **gitignored `Config/Secrets.swift`** (template: `Secrets.example`);
-  the anon key is a public client key — RLS is the real boundary.
-- **Testing:** Swift Testing (`@Test` + `#expect()`), not XCTest
-- **Minimum iOS version:** iOS 17 (enables `@Observable`)
-- **Xcode version:** 26.5
+- **Language/UI:** Swift 5.9+, SwiftUI (not UIKit). Min iOS 17 (for `@Observable`). Xcode 26.5.
+- **State:** `@Observable` (modern) over `ObservableObject`.
+- **Networking:** `URLSession` + `async/await`. No third-party HTTP libraries.
+- **Persistence:** UserDefaults for small local state (follows, game stats); **Supabase**
+  (Postgres) as the durable per-user source of truth once signed in. SwiftData used nowhere.
+- **Auth / per-user backend:** Sign in with Apple → **Supabase** (Postgres + native Apple
+  auth + Row-Level Security). The project's **only** third-party dependency is the
+  **Supabase Swift SDK** (`supabase-swift`, SPM) — justified vs raw URLSession (JWT refresh,
+  RLS headers, keychain session). Credentials live in gitignored `Config/Secrets.swift`
+  (template `Secrets.example`); the anon key is a public client key — RLS is the real boundary.
+- **Testing:** Swift Testing (`@Test` + `#expect()`), not XCTest.
 
 ---
 
@@ -84,23 +82,25 @@ xcrun simctl launch  <SIM_ID> com.tiffanyrieth.nwslapp.NWSLApp
 DEBUG launch args: `-resetOnboarding`, `-useESPNDirect`, `-useSeedContent`,
 `-startTab <home|schedule|standings|teams|feed>`. Decode-only tests read
 `NWSLAppTests/Fixtures/*.json` off disk via `#filePath` (no bundle membership).
-**Driving the sim:** synthetic taps (cliclick) are unreliable for SwiftUI
-controls — the UIKit tab bar responds but NavigationLinks/Buttons/Pickers often
-don't, so in-sim verification uses temporary DEBUG deep-link/launch-arg scaffolds
-(then removed). `idb ui tap` (HID-level) is the more robust route if installed.
+**Driving the sim:** synthetic taps (cliclick) are unreliable for SwiftUI controls — the
+UIKit tab bar responds but NavigationLinks/Buttons/Pickers often don't, so in-sim
+verification uses temporary DEBUG deep-link/launch-arg scaffolds (then removed). `idb ui
+tap` (HID-level) is more robust if installed.
 
 ---
 
 ## Architecture
 
-**Pattern:** MVVM (Model–View–ViewModel) with strict separation.
-
-- `Models/` — `Codable` structs matching API responses; no UI or networking
-- `Services/` — API clients (e.g. `ESPNService.swift`); no UI logic
-- `ViewModels/` — `@Observable` classes that own view state; use the
-  state-enum pattern (`idle` / `loading` / `loaded` / `error`)
-- `Views/` — SwiftUI views, one screen per file; minimal logic
-- `Components/` — reusable view pieces (cards, badges, etc.)
+**MVVM** with strict separation:
+- `Models/` — `Codable` structs matching API responses; no UI or networking.
+- `Services/` — API clients (ESPN, Supabase, content); no UI logic.
+- `ViewModels/` — `@Observable` classes owning view state; state-enum pattern
+  (`idle`/`loading`/`loaded`/`error`).
+- `Stores/` — `@Observable` shared app state → UserDefaults, injected via `.environment`
+  (one fetch, many readers).
+- `Views/` — one screen per file; minimal logic. `Components/` — reusable pieces.
+- `DesignSystem/` — `DSColor`/`DSMetrics`/`DSText` token layer (dark-only). Team colors
+  stay dynamic via `Color+Hex`.
 
 Folders are created when their first real file lands, not preemptively.
 
@@ -108,523 +108,383 @@ Folders are created when their first real file lands, not preemptively.
 
 ## Data Source
 
-**Primary:** ESPN's unofficial NWSL endpoints (community reverse-engineered,
-not officially supported).
-
-- Base URL: `https://site.api.espn.com/apis/site/v2/sports/soccer/usa.nwsl/`
-- Scoreboard (full season):
-  `scoreboard?dates=YYYY0101-YYYY1231&limit=500`
-- Other endpoints to map as needed: standings, teams, news
+**Primary:** ESPN's unofficial NWSL endpoints (community reverse-engineered, unsupported).
+- Base: `https://site.api.espn.com/apis/site/v2/sports/soccer/usa.nwsl/`
+- Scoreboard (full season): `scoreboard?dates=YYYY0101-YYYY1231&limit=500`
 
 **Known quirks (decode defensively):**
 - Scores decode as `String` (`"0"`), not `Int`.
-- Event timestamps sometimes arrive without seconds — custom date parsing is
-  required (handled in `Event.kickoff`).
-- The default scoreboard response caps at ~100 events; `&limit=500` returns the
-  full season (~240 events for 2026).
-- Standings lives at `apis/v2/…` NOT the `apis/site/v2/…` base (the site path
-  returns `{}`).
-- Player headshots are null for every NWSL athlete — squad cards show a
-  jersey/initials monogram, not a photo (permanent, not a TODO).
-- Feed articles are legal-limited to headline + summary + link — never the
-  article body (reporter posts may carry full text).
-- Endpoints are unsupported and undocumented — they can change shape, break, or
-  rate-limit without notice. Fail gracefully.
+- Event timestamps sometimes lack seconds — custom parsing in `Event.kickoff`.
+- Default scoreboard caps ~100 events; `&limit=500` returns the full season.
+- Standings lives at `apis/v2/…` NOT the `apis/site/v2/…` base.
+- Player headshots are null for every NWSL athlete — squad cards show a jersey/initials
+  monogram, not a photo (permanent, not a TODO).
+- Feed articles are legal-limited to headline + summary + link — never the article body.
+- Endpoints can change shape, break, or rate-limit without notice. Fail gracefully.
 
-**Proxy (V2, 0.2.0):** A tiny Cloudflare Worker — `nwslapp-proxy` (sibling repo
-`~/Projects/nwslapp-proxy`, GitHub `tiffanyrieth/nwslapp-proxy`, live at
-`https://nwslapp-proxy.tiffany-rieth.workers.dev`). **Pass-through caching routes**
-(`proxyAndCache`, Workers Cache API, match-state-aware TTL): `GET /scoreboard` and
-`GET /summary?event={id}` (0.3.1) forward to ESPN and return bytes **unchanged** (app
-decoders untouched); summary TTL via `chooseSummaryTTL` (finished→1yr, live→30s,
-future→daily 7am UTC). **Content routes** (build + normalize to JSON): `/team-videos`,
-`/feed`, `/spotlight` (B2). Teams/roster/standings still hit ESPN directly. Base URLs
-in `Config/AppConfig.swift`; DEBUG `-useESPNDirect` falls back to ESPN. See
-`Reference/Sessions/2026-06-08_v2-kickoff-caching-proxy.md`.
+**Proxy (Cloudflare Worker `nwslapp-proxy`)** — sibling repo `~/Projects/nwslapp-proxy`
+(GitHub `tiffanyrieth/nwslapp-proxy`), live at `https://nwslapp-proxy.tiffany-rieth.workers.dev`.
+- **Pass-through caching:** `GET /scoreboard`, `GET /summary?event={id}` forward to ESPN
+  and return bytes **unchanged** (app decoders untouched); match-state-aware TTL.
+- **Content routes** (build + normalize to JSON `[ContentCard]` / models): `/team-videos`
+  (Home: YouTube + club OG news + club Instagram), `/feed` (Feed: Bluesky reporters/clubs +
+  news RSS + player Instagram), `/spotlight` (Player Spotlight), `/trivia` (Daily Trivia
+  KV pool). Server-side does Haiku relevance filtering (`claude-haiku-4-5`, KV-cached), a
+  flood cap, and dedupe.
+- **Bracket engine:** `src/bracket.ts` + `bracket-engine.ts` — auto-generate 64-player
+  editions from ESPN, tally votes + advance rounds on a cron, rotate creative↔stats editions.
+- Teams/roster/standings still hit ESPN directly. Base URLs in `Config/AppConfig.swift`;
+  DEBUG `-useESPNDirect` bypasses the proxy.
 
-**Per-user backend (V2, 0.2.x):** **Supabase** is the stateful/per-user layer
-(boundary: Workers = stateless/global; Supabase = stateful/per-user). **Sign in
-with Apple** creates a Supabase user; a `profiles` row and a `follows` row-set
-(team IDs, Row-Level-Security'd to the owner) persist per account. The app stays
-**offline-first**: UserDefaults is the immediate local cache and the app never
-blocks on the network to show follows; Supabase is the durable truth. On sign-in
-the local and server follow sets are **merged (union — never delete)**, written
-back down locally (covers new-device restore) and pushed up; afterwards each
-follow/unfollow mirrors to Supabase best-effort. Only **clubs** sync (not
-competitions yet). The Supabase client is built from the gitignored `Secrets`
-(see `Config/AppConfig.swift` sibling `Services/SupabaseManager.swift`). The
-Postgres schema (tables + RLS + the required `authenticated` grants) is checked
-in at `supabase/schema.sql` — RLS alone isn't enough; a missing table grant fails
-queries with `42501`. See `Reference/Sessions/2026-06-09_supabase-accounts-setup.md`.
-
-**Future:** Expand the proxy to more endpoints + response normalization as
-needed; leaderboard tables, competition-follow sync, and Tier-2 push build on
-this account system.
+**Per-user backend (Supabase):** boundary = Workers (stateless/global) vs Supabase
+(stateful/per-user). Sign in with Apple → a Supabase user; a `profiles` row + `follows`
+row-set (RLS'd to the owner) persist per account. **Offline-first:** UserDefaults is the
+immediate local cache; the app never blocks on the network to show follows. On sign-in
+local and server follow sets are **merged (union — never delete)**. Schema (tables + RLS +
+the required `authenticated` GRANTs) is checked in at `supabase/schema.sql`. **Gotcha:**
+RLS alone isn't enough — a new per-user table needs `grant … to authenticated` or signed-in
+queries silently fail with `42501`. The Supabase client is built from gitignored `Secrets`
+(see `Services/SupabaseManager.swift`).
 
 ---
 
 ## Workflow & Engineering Practices
 
-This project follows a deliberate, disciplined workflow. Treat the steps below
-as requirements, not suggestions. If a request would bypass one — even in the
-name of moving quickly — pause, flag it, and explain the trade-off before
-proceeding.
+Treat these as requirements. If a request would bypass one, pause, flag it, explain the
+trade-off before proceeding.
 
-**Build to spec, not to minimum.** If a design doc says 64 players, seed 64 players.
-Do not ship scaled-down test versions that require follow-up revisions to reach the
-actual spec. The revision cycles cost more total resources than building correctly the
-first time. Numbers in design docs are requirements, not suggestions. (And a feature
+**Build to spec, not to minimum.** Numbers in a design doc are requirements, not
+suggestions. Don't ship scaled-down versions that need follow-up to reach spec. A feature
 isn't "shipped"/checked off until EVERY sub-item is automated + verified — no partial
-credit; a scaffold needing manual steps ≠ the feature.)
+credit; a scaffold needing manual steps ≠ the feature. Don't reclassify required work as
+"deferred."
 
-**Before starting any session**
-1. Run `git status` and report what's there. If there are uncommitted changes,
-   resolve them (commit or stash) before starting new work.
-2. Check the current branch. Never work on `main` — create a
-   `feature/<short-description>` branch first. If the working branch is `main`,
-   stop and branch before making changes.
-3. State what we're about to do and which files you expect to touch.
+**Prove it live.** Verify "it works" with evidence (curl the proxy/REST, screenshot the
+sim, trace the code path) — never reason from an unverified assumption.
 
-**During work**
-4. For any change touching 3+ files or introducing a new pattern, present a
-   plan and get approval before editing.
-5. Don't add a dependency (Swift Package, library) without first explaining why
-   the built-in option won't work and getting approval.
-6. No force-unwraps (`!`) in Swift unless a comment explains why it's safe.
+**Before starting a session:** `git status` (resolve uncommitted changes first); never
+work on `main` — branch `feature/<desc>` first; state what you'll touch.
 
-**Before a feature is "done"**
-7. The app builds and runs in the iOS Simulator with no errors.
-8. The feature is manually verified in the simulator — confirmed working, not
-   just compiling.
-9. Commit messages are specific and present-tense, formatted
-   `<Area>: <what changed>` (e.g. `Schedule: Add loading state while fetching
-   matches`).
-10. Update the **File Map** and **Current State** sections below to reflect
-    what now exists.
-11. Confirm before pushing to the remote. Don't auto-push.
+**During work:** for a change touching 3+ files or a new pattern, present a plan and get
+approval first. Don't add a dependency without explaining why the built-in won't work +
+approval. No force-unwraps (`!`) unless a comment explains why it's safe. Temporary code
+that bends architecture carries a `TEMP` comment (what/why/when-removed).
 
-**Never**
-- Commit directly to `main`. Work on a feature branch and merge via PR.
-- Skip simulator verification. "It compiles" is not "it works."
-- Commit secrets, API keys, or tokens. Use a gitignored config or environment
-  variable.
+**Before "done":** app builds AND runs in the simulator with no errors; the feature is
+**manually verified in-sim** (compiling ≠ working); commit messages are specific,
+present-tense, `<Area>: <what changed>`; update the **File Map** + **Current State** below;
+confirm before pushing (don't auto-push).
 
-**Local enforcement:** the `hooks/` folder holds git hooks that back the
-branch rule on this machine — `pre-commit` blocks commits onto `main`, and
-`pre-push` blocks deleting/force-pushing `main` (warns on a direct push). They
-are local guardrails, not policy: bypass with `--no-verify`, and a fresh clone
-must run `git config core.hooksPath hooks` to enable them. (GitHub server-side
-protection needs Pro on a private repo.) See `hooks/README.md`.
+**Git:** never commit to `main` — work on a feature branch, merge via **squash-merge** PR
+(one commit on main; OK to combine related branches into one PR). Never commit secrets.
+Commits use the owner's GitHub no-reply email (`286203575+tiffanyrieth@users.noreply.github.com`).
+CLAUDE.md/commits/PRs/comments stay neutral/professional — never reveal owner preferences;
+use arbitrary teams for examples.
 
-**Known gotcha — `gh` auth expires mid-session.** The `gh` keyring token can go
-stale partway through a session: `git push` keeps working (separate credential
-helper) and `gh auth status` still reports "Logged in", but every `gh` API call
-(`gh pr create`/`merge`/`view`, `gh api`) fails with `HTTP 401: Requires
-authentication`. Fix: re-run `gh auth refresh -h github.com` (interactive —
-the user runs it), then retry. So when a push succeeds but the follow-up PR
-merge 401s, it's this, not a permissions problem.
+**Local hooks** (`hooks/`): `pre-commit` blocks commits onto `main`; `pre-push` blocks
+deleting/force-pushing `main`. Bypass with `--no-verify`; a fresh clone runs
+`git config core.hooksPath hooks` to enable. See `hooks/README.md`.
+
+**`gh` auth expires mid-session:** the token can go stale — `git push` keeps working but
+`gh` API calls (`gh pr create`/`merge`, `gh api`) fail `HTTP 401`. Fix: owner runs
+`gh auth refresh -h github.com`, then retry. So a push that succeeds but a follow-up PR
+merge that 401s is this, not a permissions problem.
 
 ---
 
 ## Collaboration Preferences
 
-This project doubles as a way to build durable iOS and software-engineering
-skills, so understanding each change matters as much as shipping it. When
-working in this repo:
-
-- Explain the reasoning behind non-obvious decisions and trade-offs as you go,
-  not just the resulting code.
-- When introducing a new file or folder, note why it's organized that way.
-- The first time a pattern appears (MVVM, state enums, `async`/`await`,
-  `Codable`), briefly explain how it works.
-- If a request reflects a misunderstanding or would introduce bad practice, say
-  so and propose the better approach instead of silently complying.
-- Favor idiomatic, maintainable Swift/SwiftUI over quick shortcuts.
+This project doubles as a way to build durable iOS/software-engineering skills —
+understanding each change matters as much as shipping it.
+- Explain the reasoning behind non-obvious decisions/trade-offs as you go.
+- When introducing a new file/folder, note why it's organized that way.
+- First time a pattern appears (MVVM, state enums, `async`/`await`, `Codable`), briefly
+  explain how it works.
+- If a request reflects a misunderstanding or would introduce bad practice, say so and
+  propose the better approach.
+- **Decision split:** the owner owns design/UX/product calls; defers fine engineering
+  logistics to Claude AFTER a reasoned explanation. Explain-then-recommend; don't over-ask
+  on low-level forks, but never guess product/cost calls.
+- **Nothing is impossible:** never answer "can we do X?" with "not possible / no API."
+  Research alternatives, present the menu of paths + costs/tradeoffs, let the owner decide.
 
 ---
 
 ## UI Requirements
 
-- Persistent UI (tab bars, nav bars) must never obscure scrollable content —
-  respect safe-area insets.
-- Every drilled-in view has an explicit back affordance; don't rely on the
-  edge-swipe gesture alone.
+- Persistent UI (tab/nav bars) must never obscure scrollable content — respect safe areas.
+- Every drilled-in view has an explicit back affordance; don't rely on edge-swipe alone.
 - Navigation state resets predictably (tapping a tab returns to its root).
-- Placeholder tabs/sections are allowed only as intentional structural
-  scaffolding — and only when they (a) show a clean "Coming soon" state (never a
-  blank or broken screen), and (b) are flagged as placeholders in the File Map.
-  The bar is: a placeholder must look deliberate, not forgotten.
-- The schedule displays the full season, not a rolling window.
-- Clarity over density — screens should breathe.
+- Placeholders allowed only as intentional scaffolding: a clean "Coming soon" state (never
+  blank/broken) AND flagged in the File Map. A placeholder must look deliberate, not forgotten.
+- The schedule shows the full season, not a rolling window.
+- Clarity over density — screens should breathe (~4–5 schedule cards/screen; avoid oversized
+  NWSL/MLB-style cards).
+- **Dark appearance app-wide**, no toggle (page `#1C1C1E`, cards `#2C2C2E`).
+- **Crest rule:** bare crests via `TeamLogo`, no ring (only player monograms get a ring).
+- **Team colors:** `DesignTeamColors` by abbreviation so ESPN near-black primaries stay legible.
+- **Team naming:** two teams together → abbreviations (WAS 1–0 ORL); one team as subject →
+  full club name (Gotham FC). ESPN has no nickname field.
 
 ---
 
 ## Navigation Identity
 
-Each tab has a distinct job. When adding or redesigning a feature, check that
-the *lens* matches the section and that adjacent sections stay consistent.
-Full rationale in `Reference/navigation-architecture.md`.
+Each tab has a distinct lens. When adding/redesigning, check the lens matches and neighbors
+stay consistent. Full rationale in `Reference/navigation-architecture.md`.
+- **Home** — your teams, right now. Personal + temporal. The engagement hub (live content,
+  Player Spotlight, Fan Zone games, "Coming up").
+- **Schedule** — when do they play / what happened? Full-season calendar.
+- **Standings** — where does your team sit?
+- **Teams** — the club directory + deep dives.
+- **Feed** — the conversation around your teams (reporter/journalist/social voices).
 
-- **Home** — your teams, right now. Personal + temporal. The engagement hub.
-- **Schedule** — when do they play, what happened? Full-season calendar.
-- **Standings** — where does your team sit? League position + competitive context.
-- **Teams** — the club directory + deep dives. Season-level, relational.
-- **Feed** — the conversation around your teams. Reporter/journalist voices.
-
-**Adjacency rule:** when you change a section, check its neighbors. Schedule
-cards and MatchDetailView share visual language. Team Page and MatchDetailView
-share player data through different lenses (season vs. match). Home Module 1
-(team content) and Feed (reporter content) are distinct voices — don't blur them.
+**Adjacency rule:** Home Module 1 (team content) and Feed (reporter/social voices) are
+distinct — don't blur them. Schedule cards and MatchDetailView share visual language.
 
 ---
 
-## Distribution
+## Versioning & Distribution
 
-- Simulator + Personal Team sideload (free Apple tier). App Store deferred
-  until the project reaches a presentable state.
-
----
-
-## Versioning
-
-Two separate numbering systems — don't conflate them.
-
-- **Phase names ("V1", "V2")** are internal chapters, not release numbers. V1 =
-  the vision prototype (seed data, no backend). V2 = the real-backend era
-  (proxy, accounts, live Feed). Use them in planning/notes only.
-- **Release numbers** follow semver (`MAJOR.MINOR.PATCH`) and the project is
-  **pre-1.0**: `0.x` means "not yet publicly released / still stabilizing."
-  - **A minor bump = a whole new CHAPTER of the app, not a single feature.**
-    0.1 set the grain: the *entire* prototype — all ~22 PRs, whole new tabs and
-    games included — is **0.1.x**, one minor. So the *entire* backend era (proxy
-    + accounts + Feed + push + player photos + every fix and surprise along the
-    way) is likewise **one chapter → 0.2.x**, however many PRs it takes.
-  - **Patch (third digit) = each shipped update inside the chapter.** Pre-1.0
-    this includes new features, not just bug fixes (strict "patch = bugfix only"
-    is a post-1.0 rule). The proxy (**0.2.0**), accounts, Feed, etc. are patch
-    steps climbing under 0.2.x — they do NOT each earn their own minor. *Worked
-    example:* proxy **0.2.0** → accounts ≈ **0.2.3** → live Feed ≈ **0.2.9** →
-    game backends ≈ **0.2.15**, all still inside 0.2.x.
-  - **A chapter's theme is a center of gravity, not a fence.** 0.2.x is *about*
-    the backend, but pre-1.0 it also absorbs the bug fixes and small unrelated
-    improvements that get shipped alongside — they ride the same 0.2.x patch
-    line rather than spawning their own minor. Only a genuinely new *era* (a
-    whole new tab, a major redesign, a distinct pre-launch beta) earns the next
-    minor. Routine fixes and polish do not.
-  - **Reserve 1.0.0 for the first public App Store launch.** Because a chapter
-    is one minor, you arrive at 1.0 from somewhere low (≈0.2–0.3) and never
-    balloon past it.
-  - **Current line (owner's call):** **0.3.x = the BACKBONE chapter** (demo →
-    live). **0.3.8** = the feed/content work (B1 News · B2 Spotlight · B3a chips ·
-    B3b Instagram). **0.3.9** = the rest of the backbone (Fan Zone games + B4
-    sweep). **0.4.x = QOL** — improving the *experience* of what's already alive,
-    not backbone infrastructure.
-- **Xcode has two fields, both required:** "Marketing Version"
-  (`CFBundleShortVersionString`, the human-facing `0.2.0`) and "Build"
-  (`CFBundleVersion`, a monotonic integer bumped on *every* TestFlight upload —
-  TestFlight rejects a duplicate build number even when the marketing version
-  is unchanged).
-- **Tag releases in git** at each milestone (`git tag v0.2.0`) so repo history
-  tracks the version line alongside the per-PR commits.
+- **Semver, pre-1.0.** A **minor bump = a whole chapter** of the app, not a single feature;
+  patches (third digit) are each shipped update inside the chapter (pre-1.0 this includes
+  features, not just fixes). Reserve **1.0.0** for the first public App Store launch.
+- **Chapters:** `0.1.x` was the offline prototype; `0.3.x` was the **backbone** (demo →
+  fully live, all real data) — **shipped at 0.3.9**. **`0.4.x` = QOL** — improving the
+  *experience* of what's already alive (content balancing, polish, UX), not new backbone
+  plumbing.
+- **Xcode fields:** "Marketing Version" (`CFBundleShortVersionString`, human-facing) +
+  "Build" (`CFBundleVersion`, a monotonic int bumped on every TestFlight upload). Tag
+  releases in git (`git tag v0.3.9`). Proxy-only changes don't bump the app version.
+- **Distribution:** Simulator + Personal Team sideload now; Dev Program is active (paid);
+  TestFlight (OTA) for tester install. App Store deferred until presentable.
 
 ---
 
 ## File Map (UPDATE THIS AFTER EVERY FEATURE)
 
-Markers: ⚠️ = TEMP scaffolding (curated static seed; swap for a real backend —
-the async signature is already shaped for it). 🔧 = intentional "coming soon"
-placeholder (looks deliberate per the UI rules). Design specs in
-`Reference/Design/*-spec.md` hold the full rationale.
+Marker: ↩︎ = curated seed used as an **offline-first fallback** (live data is primary; the
+seed serves only when the network fails or DEBUG `-useSeedContent` is set). 🔧 = intentional
+"coming soon" placeholder. Design specs in `Reference/Design/*-spec.md`.
 
 ```
 NWSLApp/
-├── NWSLAppApp.swift                   — app entry point; launches RootTabView; forces dark appearance app-wide; DEBUG `-resetOnboarding` launch arg → resets onboarding; `AppDelegate` (@UIApplicationDelegateAdaptor) captures the APNs token + handles foreground-present/tap → PushBridge (Tier 2)
-├── NWSLApp.entitlements               — Sign in with Apple + `aps-environment` (development; Xcode flips to production on archive) for Tier-2 push
-├── Config/                            — app configuration
-│   ├── AppConfig.swift                — base URLs; scoreboard + summary → Cloudflare proxy (0.3.1); DEBUG `-useESPNDirect`; `liveContentEnabled` flag (ON) + `teamVideosURL` (Home: YouTube + news + club Instagram) + `feedURL` (Feed: Bluesky + RSS news + player Instagram) + `spotlightURL` (Module 2: B2/0.3.8) + `triviaURL` (Daily Trivia, league-wide, no teams: 0.3.9); shared `contentRouteURL`
-│   ├── Secrets.swift                  — 🔒 GITIGNORED Supabase URL + anon key (not committed)
-│   └── Secrets.example                — checked-in template for Secrets.swift (non-`.swift` so it never compiles)
-├── DesignSystem/                      — token layer mirroring the Claude Design handoff; the app-chrome palette (team colors stay dynamic via Color+Hex)
-│   ├── DSColor.swift                  — `Color.ds*` tokens (bg/fg/accent/status/game/match-state); dark-only literal hex
-│   ├── DSMetrics.swift                — `enum DS` spacing, radii, avatar/crest sizes, game-card dims
-│   └── DSText.swift                   — modifiers: `.trackedCaps()`, `.sectionTitle()`, `.navigationContextLabel("…")` (left "‹ Label" on pushed screens), `Font.dsScore`
-├── Models/                            — Codable models (⚠️ = backed by a seed provider)
-│   ├── BracketEdition.swift           — Bracket Battle LIVE models (0.3.9): BracketRound (escalating points, any power-of-2 pool) · Entrant/Matchup/Edition (64→6 rounds, flat Codable)
-│   ├── Club.swift                     — flat Club + ESPN /teams decode wrappers (now decodes brand color/alternateColor → ring crests)
-│   ├── ContentCard.swift              — ⚠️ unified ALIVE-content model: 7 layouts (youtube/blueskyTeam·Text·Media/blueskyReporter/newsArticle/socialVideo/instagramFallback) + StalenessWindow (Home 72h / Feed 7d, each **6-card-floored** → never-empty, 0.3.7); Codable-shaped for the live pipeline; supersedes FeedItem+TeamContentItem
+├── NWSLAppApp.swift                   — app entry; launches RootTabView; forces dark; DEBUG `-resetOnboarding`; AppDelegate (APNs token + foreground/tap → PushBridge)
+├── NWSLApp.entitlements               — Sign in with Apple + aps-environment (push) + game-center (Game Center)
+├── Config/
+│   ├── AppConfig.swift                — base URLs; scoreboard/summary → proxy; DEBUG `-useESPNDirect`; `liveContentEnabled`; content route URLs (teamVideos/feed/spotlight/trivia)
+│   ├── Secrets.swift                  — 🔒 GITIGNORED Supabase URL + anon key
+│   └── Secrets.example                — checked-in template (non-.swift so it never compiles)
+├── DesignSystem/
+│   ├── DSColor.swift                  — `Color.ds*` tokens (dark-only hex)
+│   ├── DSMetrics.swift                — `enum DS` spacing/radii/avatar/crest/game-card dims
+│   └── DSText.swift                   — modifiers: `.trackedCaps()`, `.sectionTitle()`, `.navigationContextLabel("…")`, `Font.dsScore`
+├── Models/
+│   ├── BracketEdition.swift           — Bracket Battle: BracketRound/Entrant/Matchup/Edition (64→6 rounds, flat Codable)
+│   ├── Club.swift                     — flat Club + ESPN /teams decode (brand/alternate color → crests)
+│   ├── ContentCard.swift              — unified ALIVE-content model: 7 layouts + StalenessWindow (Home 72h / Feed 7d, 6-card-floored)
 │   ├── FollowedCompetition.swift      — international competitions list + follow model
-│   ├── AthleteStatistics.swift        — ESPN Core API /statistics decode: category→field flatten → PlayerSeasonStats
-│   ├── MatchSummary.swift             — ESPN /summary decode: lineups+formation, boxscore stats, key-events timeline
-│   ├── PlayerSpotlight.swift          — Home Module-2 player-of-week mini-profile; Codable; `espnAthleteId` + `seasonStatLine` carry the LIVE `/spotlight` data (B2/0.3.8); `statStrip` prefers real stats, else seed `demoSeasonStats`
-│   ├── PlayerStats.swift              — per-player season stats + team-leaders models (view-facing; real ESPN Core API data)
-│   ├── XIPrediction.swift             — LIVE Predict-the-XI model (Fan Zone game 1, 0.3.9): PositionGroup · Formation (string→11 slots) · PredictionFixture · XIPrediction (draft→submitted) · ActualResult (from /summary, w/ `make(from:)` builder) · PredictionScore breakdown. Two-phase: roster pre-match → /summary answer key post-match
+│   ├── AthleteStatistics.swift        — ESPN Core API /statistics → PlayerSeasonStats
+│   ├── MatchSummary.swift             — ESPN /summary: lineups+formation, boxscore, key-events timeline
+│   ├── PlayerSpotlight.swift          — Home Module-2 player-of-week; `espnAthleteId`+`seasonStatLine` carry live data; `statStrip` prefers real, else ↩︎`demoSeasonStats`
+│   ├── PlayerStats.swift              — per-player season stats + team-leaders (real ESPN data)
 │   ├── Roster.swift                   — squad + team profile from one roster fetch
 │   ├── Scoreboard.swift               — ESPN scoreboard structs + Event helpers
 │   ├── Standings.swift                — table rows (rank + Club + GP/W/D/L/PTS)
-│   ├── TeamSocialLinks.swift          — ⚠️ per-team social links for TeamDetail
-│   └── TriviaQuestion.swift           — ⚠️ one Daily-Trivia question (4 options)
-├── Services/                          — ESPNService + Supabase clients + ⚠️ curated async seed providers
-│   ├── BracketScoring.swift           — pure Bracket scorer: tiered per-round points (1·1·2·2·3·3, v2) + rule-derived max (81 for a 64-pool). Unit-tested (BracketScoringTests)
-│   ├── BracketService.swift           — Bracket data boundary: currentEdition/results/leaderboard/submit; ⚠️ Supabase reads/writes STUBBED (offline sample fallback) — next step
-│   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats by athlete+year (backs seasonStats)
-│   ├── ContentService.swift           — ALIVE content client: `homeCards(…)`→`/team-videos`, `feedCards(…)`→`/feed` ([ContentCard]), `spotlightCards(…)`→`/spotlight` ([PlayerSpotlight], B2/0.3.8); gated by `liveContentEnabled` (ON) + DEBUG `-useSeedContent`; failure → seed (offline-first)
-│   ├── ESPNService.swift              — async fetch: scoreboard + summary (proxy)/teams/roster/standings + seasonStats (Core API, parallel per-athlete, best-effort)
-│   ├── FollowSyncService.swift        — Supabase `follows` table client (fetch/push/add/remove); RLS-scoped per user
-│   ├── DeviceTokenService.swift       — Supabase `device_tokens` client (register/remove APNs token); RLS-scoped; modeled on FollowSyncService
-│   ├── NotificationPrefsSyncService.swift — Supabase `notification_preferences` client; whole-row upsert of the 9-flag snapshot so the watcher Worker honors "goals: off"
-│   ├── NotificationScheduler.swift    — @MainActor; owns LOCAL (Tier 1) scheduling: day-before reminder + weekly spotlight; cancel-all/rebuild, deterministic ids; observes matches/clubs/follows/prefs; not env-injected (prompt in ProfileView)
-│   ├── PushBridge.swift               — @MainActor @Observable `.shared` sink bridging UIKit AppDelegate (APNs token, notification tap) → the observable world (deliberate singleton; delegate can't be env-injected)
+│   ├── TeamSocialLinks.swift          — ↩︎ per-team social links for TeamDetail
+│   ├── TriviaQuestion.swift           — one Daily-Trivia question (4 options)
+│   └── XIPrediction.swift             — Predict the XI: PositionGroup · Formation · PredictionFixture · XIPrediction (draft→submitted) · ActualResult · PredictionScore
+├── Services/
+│   ├── BracketScoring.swift           — pure Bracket scorer (tiered per-round points). Unit-tested
+│   ├── BracketService.swift           — Bracket Supabase client: currentEdition/results/leaderboard/submit; offline-sample fallback
+│   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats
+│   ├── ContentService.swift           — ALIVE content client: homeCards→/team-videos, feedCards→/feed, spotlightCards→/spotlight; gated by `liveContentEnabled`; failure → ↩︎seed
+│   ├── ESPNService.swift              — async fetch: scoreboard + summary (proxy)/teams/roster/standings + seasonStats (Core API)
+│   ├── FollowSyncService.swift        — Supabase `follows` client (fetch/push/add/remove); RLS-scoped
+│   ├── DeviceTokenService.swift       — Supabase `device_tokens` client (APNs token); RLS-scoped
+│   ├── NotificationPrefsSyncService.swift — Supabase `notification_preferences` upsert
+│   ├── NotificationScheduler.swift    — @MainActor; LOCAL (Tier 1) scheduling: day-before reminder + weekly spotlight
+│   ├── PushBridge.swift               — @MainActor @Observable `.shared`; UIKit AppDelegate (APNs/tap) → observable world
 │   ├── SupabaseManager.swift          — the one shared SupabaseClient (built from Secrets)
-│   ├── FeedContentProvider.swift      — ⚠️ Feed seed → [ContentCard]: reporter/news/social, 16 clubs + league — now the offline-first FALLBACK only (Feed is LIVE via `/feed`, A2/0.3.6)
-│   ├── PlayerSpotlightProvider.swift  — ⚠️ one spotlight player per club (16) — now the offline-first FALLBACK only (Module 2 is LIVE via `/spotlight`, B2/0.3.8)
-│   ├── PredictionScoring.swift        — pure Predict-the-XI scorer: XIPrediction × ActualResult → PredictionScore (Mastermind partial; players+3/position+2/formation+5/exact+10/result+3/perfect+15; max 88). Unit-tested (PredictXIScoringTests)
-│   ├── PredictionMatchProvider.swift  — ⚠️ Predict-the-XI SIMULATED LEADERBOARD only now (the match slate went LIVE 0.3.9; real multi-user board = Game Center item)
-│   ├── TeamContentProvider.swift      — ⚠️ Module-1 seed → [ContentCard]: 2 real YouTube videos/club + Bluesky/IG/social variants for marquee clubs
-│   ├── TeamSocialLinksProvider.swift  — ⚠️ per-team social-account URLs seed
-│   ├── TriviaService.swift            — Daily-Trivia client: `triviaQuestions()`→`/trivia` ([TriviaQuestion], league-wide, no teams param, 0.3.9); mirrors ContentService (gated by `liveContentEnabled` + DEBUG `-useSeedContent`); failure OR empty pool → seed (offline-first)
-│   └── TriviaQuestionProvider.swift   — ⚠️ 55 hand-written NWSL trivia questions — now the offline-first FALLBACK only (Daily Trivia is LIVE via `/trivia`, 0.3.9)
+│   ├── GameCenterIDs.swift            — GameKit ID constants (4 leaderboards + 6 achievements) + pure cross-game score helpers (GameKit-free, unit-tested)
+│   ├── GameCenterManager.swift        — @MainActor @Observable `.shared`; auth + best-effort submit/report + syncAll + showDashboard (GKAccessPoint). The only file importing GameKit
+│   ├── PredictLeaderboardService.swift— Supabase per-team Predict board: upsertScore + standings(team); offline fallback to local you-row
+│   ├── TriviaLeaderboardService.swift — Supabase league-wide Trivia best-streak board: upsertScore + standings; offline fallback
+│   ├── PredictionScoring.swift        — pure Predict-the-XI scorer (Mastermind partial, max 88). Unit-tested
+│   ├── PredictionMatchProvider.swift  — ↩︎ Predict the XI simulated-leaderboard fallback only
+│   ├── FeedContentProvider.swift      — ↩︎ Feed seed → [ContentCard] (Feed is live via /feed)
+│   ├── PlayerSpotlightProvider.swift  — ↩︎ one spotlight player per club (live via /spotlight)
+│   ├── TeamContentProvider.swift      — ↩︎ Module-1 seed → [ContentCard] (live via /team-videos)
+│   ├── TeamSocialLinksProvider.swift  — ↩︎ per-team social-account URLs (stable reference list)
+│   ├── TriviaService.swift            — Daily-Trivia client: triviaQuestions→/trivia; live-or-↩︎seed
+│   └── TriviaQuestionProvider.swift   — ↩︎ 55 hand-written trivia questions (live via /trivia)
 ├── Stores/                            — @Observable shared state → UserDefaults, injected
-│   ├── AppRouter.swift                — tab selection (AppTab); RootTabView binds the TabView; Home's "Full schedule →" jumps tabs; `openMatch(eventID:)` + `pendingMatchEventID` for a live-push tap (TEMP seam: lands on Schedule); DEBUG `-startTab` init for in-sim verification
-│   ├── AuthStore.swift                — @MainActor; Sign in with Apple → Supabase user; profile upsert; cached displayName; deleteAccount (⚠️ TEMP — real auth-user deletion needs a server fn); knows nothing about follows
-│   ├── BracketStore.swift             — Bracket per-edition/round draft + one-way submit + banked points + cached edition summary (Home gate); `bracket.v2.*`
-│   ├── ClubStore.swift                — shared club directory; one fetch, many readers (ID/abbr lookups)
+│   ├── AppRouter.swift                — tab selection (AppTab); `openMatch(eventID:)` live-push tap; DEBUG `-startTab`
+│   ├── AuthStore.swift                — @MainActor; Sign in with Apple → Supabase user; profile upsert; cached displayName; deleteAccount
+│   ├── BracketStore.swift             — Bracket per-edition/round draft + one-way submit + banked points + cached edition (`bracket.v2.*`)
+│   ├── ClubStore.swift                — shared club directory; one fetch, many readers
 │   ├── FeedPreferencesStore.swift     — Feed content-type toggles + muted sources
-│   ├── FollowSyncCoordinator.swift    — @MainActor; the ONLY follows↔Supabase bridge (sign-in union-merge + ongoing sync); not env-injected
-│   ├── NotificationSyncCoordinator.swift — @MainActor; Tier-2 twin: the ONLY device-token + notif-prefs↔Supabase bridge; observes auth/prefs/PushBridge.deviceToken; pushes best-effort once signed in; not env-injected
-│   ├── FollowingStore.swift           — followed clubs + competitions + onboarding gate + sign-in-prompt flag; pure/offline-first; `onFollowsChanged`/`merge(ids:)` seams; DEBUG `debugResetState`
+│   ├── FollowSyncCoordinator.swift    — @MainActor; the ONLY follows↔Supabase bridge (sign-in union-merge + ongoing sync)
+│   ├── NotificationSyncCoordinator.swift — @MainActor; device-token + notif-prefs↔Supabase bridge
+│   ├── FollowingStore.swift           — followed clubs + competitions + onboarding gate; offline-first; DEBUG `debugResetState`
 │   ├── MatchStore.swift               — shared season store; one fetch, many readers
-│   ├── NotificationPreferencesStore.swift — Profile's 9 notif toggles; `onPreferenceChanged` → NotificationScheduler; `snapshot` → NotificationSyncCoordinator. LOCAL delivers day-before+spotlight; 6 live-event toggles mirror to Supabase once signed in; Fan Zone persists intent only
-│   ├── PredictionStore.swift          — Predict-the-XI durable state (0.3.9): predictions[fixtureID:XIPrediction] (draft/submitted) + scores[fixtureID:PredictionScore], JSON under `predict.v2.*`; submit is one-way; `seasonPoints`/`hasPredicted` preserved for Home/Profile readers
-│   └── TriviaStore.swift              — Daily-Trivia streak/accuracy + one-play/day gate
+│   ├── NotificationPreferencesStore.swift — Profile's 9 notif toggles; → NotificationScheduler / NotificationSyncCoordinator
+│   ├── PredictionStore.swift          — Predict-the-XI durable state: predictions+scores by fixtureID (`predict.v2.*`); `seasonPoints` + `points(forTeam:)` + `scoredTeams`
+│   └── TriviaStore.swift              — Daily-Trivia streak/bestStreak/accuracy + one-play/day gate
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
-│   ├── BracketViewModel.swift         — Bracket session: round phase (open/submitted/closed/scored), progress, results, leaderboard, settled-round scoring
-│   ├── FeedViewModel.swift            — content-type chips (All/News/Social — Social = reporter+club Bluesky+player IG/TikTok; B3a 0.3.8 folded "Reporters" in) + filtered [ContentCard] (follows∩ OR league, placement≠home, 7d staleness) + sources (prefs-aware); cards ← `ContentService.feedCards` (live `/feed`, seed fallback); clubs ← ClubStore
-│   ├── HomeViewModel.swift            — derives Home modules from MatchStore+ClubStore+Following; Module-1 via ContentService (live-or-seed)
-│   ├── MatchDetailViewModel.swift     — one match: temporalState (past/live/future) + /summary fetch + live refresh + preview
-│   ├── PredictXIViewModel.swift       — Predict the XI slate (0.3.9 LIVE): builds open fixtures (each followed team's next match) from MatchStore+ClubStore+Following; scores newly-settled SUBMITTED predictions via /summary; lazy per-team roster cache; simulated leaderboard
-│   ├── XIPickerViewModel.swift        — in-flight Predict the XI picker session: formation + slot→athlete + scoreline; hydrates from a draft, read-only once submitted; roster sheet groups (slot's band first)
-│   ├── ScheduleViewModel.swift        — day-grouped sections + filters from MatchStore; My-teams ← ClubStore (error/retry)
+│   ├── BracketViewModel.swift         — Bracket session: round phase, progress, results, leaderboard, settled-round scoring (+ Game Center submit)
+│   ├── FeedViewModel.swift            — content-type chips (All/News/Social) + filtered [ContentCard] (follows∩ OR league, 7d staleness); cards ← ContentService
+│   ├── HomeViewModel.swift            — derives Home modules from MatchStore+ClubStore+Following; Module-1 via ContentService
+│   ├── MatchDetailViewModel.swift     — one match: temporalState (past/live/future) + /summary + live refresh + preview
+│   ├── PredictXIViewModel.swift       — Predict slate (open fixtures per followed team) + scoring via /summary + real per-team leaderboards (+ Game Center submit)
+│   ├── XIPickerViewModel.swift        — in-flight XI picker: formation + slot→athlete + scoreline; read-only once submitted
+│   ├── ScheduleViewModel.swift        — day-grouped sections + filters from MatchStore
 │   ├── StandingsViewModel.swift       — one-shot fetchStandings
-│   ├── TeamsViewModel.swift           — thin reader over the shared ClubStore (feeds Onboarding too)
-│   ├── TeamDetailViewModel.swift      — roster + social links + real season stats/leaders (seasonStats)
-│   └── TriviaViewModel.swift          — one Daily-Trivia session; questions ← `TriviaService` (live `/trivia`, seed fallback); `dailySelection` = deterministic NON-REPEATING daily 5 (id-sort → fixed-seed shuffle → day-paged; whole pool plays before repeat) — unit-tested (TriviaSelectionTests)
+│   ├── TeamsViewModel.swift           — thin reader over the shared ClubStore
+│   ├── TeamDetailViewModel.swift      — roster + social links + real season stats/leaders
+│   └── TriviaViewModel.swift          — one Daily-Trivia session; questions ← TriviaService; non-repeating daily-5 (unit-tested); real best-streak leaderboard (+ Game Center submit)
 ├── Views/                             — one screen per file
-│   ├── RootTabView.swift              — app root; 5-tab TabView (selection ← AppRouter); injects stores; restores session + FollowSyncCoordinator + NotificationSyncCoordinator; registers for remote notifications if authorized; routes a tapped live-push (PushBridge → AppRouter.openMatch)
-│   ├── HomeView.swift                 — your-teams hub: 4 modules + profile-avatar button (→ ProfileView sheet); spotlight carousel; onboarding-in-place
-│   ├── ProfileView.swift              — account & settings sheet (from Home avatar): identity / Fan Zone stats / notif toggles (7 shown; lineup/subs hidden until Stage D) / My Teams / Account; offline-first (signed-out CTA); Tier-2 toggles `requiresSignIn` → NotificationAuthPromptView; grant → registerForRemoteNotifications
-│   ├── DailyTriviaView.swift          — Daily Trivia game (indigo); 5/day
-│   ├── BracketBattleView.swift        — Bracket Battle (teal, 0.3.9): 5 screens — Edition Intro · Voting · Save/Submit · Results · Bracket Overview; sign-in at submit
-│   ├── PredictXIView.swift            — Predict the XI game (pink, 0.3.9 LIVE): Open-for-predictions fixtures (draft/submitted/closed) + Results score breakdown + simulated leaderboard
-│   ├── XIPickerView.swift             — Predict the XI picker sheet: formation chips → pitch-grid slots (tap → roster sheet) → scoreline steppers → Save draft / Submit (lock at kickoff−2h, one-way)
+│   ├── RootTabView.swift              — app root; 5-tab TabView; injects stores; restores session + coordinators; Game Center authenticate + syncAll (launch/auth/foreground); routes live-push tap
+│   ├── HomeView.swift                 — your-teams hub: 4 modules + profile-avatar button; spotlight carousel; onboarding-in-place
+│   ├── ProfileView.swift              — account & settings sheet: identity / Fan Zone stats (🏆 Leaderboards → Game Center dashboard) / notif toggles / My Teams / Account
+│   ├── DailyTriviaView.swift          — Daily Trivia game (indigo); 5/day; results screen w/ best-streak leaderboard
+│   ├── BracketBattleView.swift        — Bracket Battle (teal): 5 screens — Edition Intro · Voting · Save/Submit · Results · Bracket Overview
+│   ├── PredictXIView.swift            — Predict the XI (pink): open fixtures + Results breakdown + per-team leaderboard cards
+│   ├── XIPickerView.swift             — Predict picker sheet: formation chips → pitch-grid slots → scoreline → Save/Submit (+ Game Center first-prediction)
 │   ├── OnboardingView.swift           — first-open team + competition follow picker
-│   ├── SignInPromptView.swift         — one-time post-onboarding "save your picks" sheet (official Sign-in-with-Apple button + skip)
-│   ├── NotificationAuthPromptView.swift — contextual "sign in for live alerts" half-sheet (Tier 2 requires sign-in); shown when a live-event toggle flips on while signed out; honest why-copy + skip
+│   ├── SignInPromptView.swift         — one-time post-onboarding "save your picks" sheet
+│   ├── NotificationAuthPromptView.swift — contextual "sign in for live alerts" half-sheet (Tier 2)
 │   ├── ScheduleView.swift             — full-season cards; 3 filters; sticky day headers
-│   ├── TeamsView.swift                — all-16 directory; Following floats to top; Follow-competitions row at bottom
-│   ├── CompetitionsView.swift         — follow international competitions (from TeamsView; reuses onboarding rows)
-│   ├── TeamDetailView.swift           — club page: header + social row + Squad·Stats tabs; accent ← design palette (dark-legible)
-│   ├── MatchDetailView.swift          — state-aware match (navy header + cyan/orange tab underline): past=Summary/Lineups/Stats, live=+30s poll & LIVE pill, future=info grid + How-to-Watch + season comparison + form
-│   ├── CombinedPitchView.swift        — BOTH teams' XIs on ONE pitch (home top / away bottom), reuses FormationPitchView placement; Lineups default
-│   ├── FormationPitchView.swift       — single-team XI on a pitch (by formation string); the per-team list fallback when a side can't be placed
+│   ├── TeamsView.swift                — all-16 directory; Following floats up; follow-competitions row
+│   ├── CompetitionsView.swift         — follow international competitions
+│   ├── TeamDetailView.swift           — club page: header + social row + Squad·Stats tabs
+│   ├── MatchDetailView.swift          — state-aware match: past=Summary/Lineups/Stats, live=poll & LIVE pill, future=info grid + How-to-Watch + comparison + form
+│   ├── CombinedPitchView.swift        — BOTH teams' XIs on ONE pitch; Lineups default
+│   ├── FormationPitchView.swift       — single-team XI on a pitch; per-team list fallback
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
-│   ├── PlayerSpotlightView.swift      — editorial spotlight: ghosted jersey # + split-name hero, This Season grid (real stats via `statStrip`), Story (Haiku blurb), Fast Facts + Watch (hidden when empty — live cards)
-│   ├── StandingsView.swift            — 16-team table (abbr · PTS·GP·W·L·D); pinned column header (no title overlap); followed-row tint
+│   ├── PlayerSpotlightView.swift      — editorial spotlight: ghosted jersey # + hero, This Season grid, Story (Haiku blurb), Fast Facts + Watch
+│   ├── StandingsView.swift            — 16-team table (abbr · PTS·GP·W·L·D); pinned header; followed-row tint
 │   ├── FeedView.swift                 — Feed tab: content-type chip bar + chronological ContentCardViews
 │   └── FeedSourcesView.swift          — Feed content preferences: toggles + mute sources
-├── Components/                        — reusable view pieces
-│   ├── BroadcastInfo.swift            — "How to Watch" database (per-partner note + per-device steps), ported from the handoff BROADCAST_INFO
-│   ├── BroadcastLink.swift            — broadcast name → streaming-service watch URL (unknown→nil); backs the tappable 📺
-│   ├── Chip.swift                     — pill filter chip (active=accent / inactive=card); for Schedule + Feed chip bars
-│   ├── ContentCardView.swift          — single entry point; routes a ContentCard by layout → the 3 card views below (Home + Feed call only this)
-│   ├── ThumbnailContentCard.swift     — ⚠️ thumbnail-forward cards (layouts 1 youtube / 6 socialVideo) + ThumbnailHeader (bg image-or-gradient + stripe/play/duration/crest/platform overlay slots)
-│   ├── AvatarContentCard.swift        — ⚠️ avatar-led cards (layouts 2/3/4/7) + shared atoms TeamRingAvatar, EngagementRow, CTARow
-│   ├── ArticleContentCard.swift       — news-article card (layout 5): source row (club crest / article-badge) + time, headline, blurb, optional 80×80 thumb, team-color top stripe (matches video cards); LIVE on Home via club-site OG news (0.3.5)
-│   ├── PlatformBadge.swift            — shared rounded platform glyph (YT/Bluesky/TikTok/IG/article/reddit color+SF-Symbol)
-│   ├── FormBadge.swift                — W/D/L form badge (token-colored)
-│   ├── GameCard.swift                 — Fan Zone game tile (170×138, game-accent border + emoji + status + badge)
-│   ├── HowToWatchCard.swift           — future-match expandable broadcast guide (service tile + "Find it" → device rows)
-│   ├── MDInfoCard.swift               — future-match info tile (emoji + tracked label + value) for Venue/Broadcast/Competition
-│   ├── PitchDot.swift                 — one player marker (team-colored disc + jersey + last name); Formation/Combined pitch
-│   ├── ComingUpRow.swift              — Module-4 row: crest-vs-crest + team-colored abbrs + time/result
-│   ├── EventTimelineRow.swift         — one timeline entry: minute + icon (goal/card/sub) + player(s) + assist + abbr
-│   ├── FlowLayout.swift               — wrapping Layout (iOS16) — backs the Lineups substitute chips
-│   ├── ImageCache.swift               — in-memory NSCache singleton; backs TeamLogo (no re-download)
-│   ├── MatchCard.swift                — V2: bare TeamLogo crests + hairline status column + orange live clock + venue/📺; → MatchDetailView
-│   ├── PlayerDot.swift                — Bracket player chip: team-ring jersey monogram + name/abbr (no headshots); backs the matchup cards
-│   ├── PlayerCard.swift               — Squad-grid card; team-color monogram + position
-│   ├── StatComparisonBar.swift        — head-to-head split bar (team-colored values | tracked-caps label | split track); past + future
-│   ├── PlayerSpotlightCard.swift      — Module-2 profile card: PLAYER OF THE WEEK + jersey + hook + stat strip (`statStrip` = real-or-demo) + Read-spotlight
-│   ├── SocialLinkButton.swift         — circular team-tinted social icon; opens account
-│   └── TeamLogo.swift                 — team crest via the shared ImageCache (cached; placeholder fallback)
+├── Components/
+│   ├── BroadcastInfo.swift / BroadcastLink.swift — "How to Watch" DB + broadcast→watch-URL
+│   ├── Chip.swift                     — pill filter chip (Schedule + Feed chip bars)
+│   ├── ContentCardView.swift          — single entry point; routes a ContentCard by layout → the 3 card views
+│   ├── ThumbnailContentCard.swift / AvatarContentCard.swift / ArticleContentCard.swift — the ContentCard layouts
+│   ├── PlatformBadge.swift            — platform glyph (YT/Bluesky/TikTok/IG/article/reddit)
+│   ├── FormBadge.swift                — W/D/L form badge
+│   ├── GameCard.swift                 — Fan Zone game tile (game-accent border + emoji + status + badge)
+│   ├── HowToWatchCard.swift / MDInfoCard.swift / StatComparisonBar.swift — match-detail tiles
+│   ├── PitchDot.swift / PlayerDot.swift / PlayerCard.swift — player markers/cards (team-color monogram, no headshots)
+│   ├── ComingUpRow.swift / EventTimelineRow.swift / FlowLayout.swift — Home/match rows + wrapping layout
+│   ├── ImageCache.swift / TeamLogo.swift — cached team crests
+│   ├── MatchCard.swift                — schedule card → MatchDetailView
+│   ├── PlayerSpotlightCard.swift      — Module-2 profile card
+│   └── SocialLinkButton.swift         — circular team-tinted social icon
 ├── Extensions/
-│   ├── Color+Hex.swift                — Color(hex:) init (for DSColor); teamAccent/teamFillOnDark (lifts dark brands); resolveMatchColors → two distinct, dark-legible team colors
-│   ├── Date+RelativeAgo.swift         — shared "2h ago" RelativeDateTimeFormatter (5 of 7 content cards)
-│   ├── Club+BrandColor.swift          — Club → brandHex/accentColor (design palette → id-override → ESPN); team-color accents for Home/ComingUp
-│   ├── DesignTeamColors.swift         — the handoff's curated 16-team palette by abbreviation (authoritative; fixes ESPN near-black primaries → gray)
-│   └── TeamBrandColors.swift          — per-team-id brand-color overrides for clubs ESPN gets wrong (e.g. Angel City Sol Rosa coral); consulted before ESPN's hexes
+│   ├── Color+Hex.swift                — Color(hex:); teamAccent/teamFillOnDark; resolveMatchColors
+│   ├── Date+RelativeAgo.swift         — shared "2h ago" formatter
+│   ├── Club+BrandColor.swift          — Club → brandHex/accentColor (design palette → id-override → ESPN)
+│   ├── DesignTeamColors.swift         — curated 16-team palette by abbreviation (authoritative)
+│   └── TeamBrandColors.swift          — per-team-id brand-color overrides for clubs ESPN gets wrong
 └── Assets.xcassets/                   — app icons, accent color
+
+supabase/schema.sql                    — Postgres schema: profiles, follows, device_tokens, notification_preferences, bracket_*, prediction_scores, trivia_scores (tables + RLS + authenticated GRANTs)
 ```
 
 ---
 
 ## Current State
 
-Root is `RootTabView` — a 5-tab bar (**Home · Schedule · Standings · Teams ·
-Feed**), each its own `NavigationStack`; **lands on Home**. **Dark appearance
-app-wide**; no toggle. Following persists via `UserDefaults` (`FollowingStore`);
-SwiftData used **nowhere**. The season (`MatchStore`) + club directory (`ClubStore`)
-are each fetched **once and shared app-wide** via `.environment`; the My-teams schedule
-filter surfaces a real error + retry if the directory fails. Features are built per
-`Reference/Design/*-spec.md` and **verified in-sim** via a temporary screenshot scaffold
-(see Commands), then removed.
+Root is `RootTabView` — a 5-tab bar (**Home · Schedule · Standings · Teams · Feed**), each
+its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (`MatchStore`)
++ club directory (`ClubStore`) are each fetched once and shared app-wide via `.environment`.
 
-**Design-system redesign (0.3.x — its own chapter, all 6 phases shipped)** — fidelity pass
-vs the Claude Design handoff (`Reference/nwslapp-design-system/`). The `DesignSystem/` token
-layer (dark-only hex; page `#1C1C1E`, cards `#2C2C2E`) backs every screen. **Crest rule:**
-bare via `TeamLogo`, no ring (only player monograms get one). **Team colors:**
-`DesignTeamColors` by abbreviation, so ESPN near-black primaries stay legible. **Nav:**
-pushed screens show a left "‹ Label" via `.navigationContextLabel(…)`.
-
-**Accounts & follow sync** (`…/2026-06-09_supabase-accounts-setup.md`) — Sign in with Apple →
-a **Supabase** user (`AuthStore` upserts `profiles`; `RootTabView` restores the session +
-starts `FollowSyncCoordinator`). **Optional/offline-first**: skippable post-onboarding
-`SignInPromptView`; skipping leaves the app fully working on the UserDefaults cache. Sync
-mechanics (union-merge, RLS, clubs-only) → Architecture / Per-user backend.
-
-**Notifications — Tier 1 / LOCAL** (0.3.2; `local-notifications-spec.md`) —
-`NotificationScheduler` (held alive by `RootTabView`) delivers two phone-scheduled alerts:
-**day-before match reminder** (−24h) + **weekly Player Spotlight** (Mon 10am); permission on
-first toggle-on. **Tier 2 / SERVER push** → What's-Next #12.
-
-Per-screen behavior (full file detail in the File Map; specs in `Reference/Design/*-spec.md`):
-
-- **Home** (`home-tab-design-spec.md`) — your-teams hub; pre-onboarding renders
-  `OnboardingView` in place. Four `HomeViewModel` modules: (1) "From your teams" (Content
-  Cards, LIVE), (2) spotlights (LIVE), (3) "Fan Zone" games, (4) "Coming up". Games ordered
-  Predict → Bracket → Trivia (**Predict only when ≥1 club followed**); no-follows re-presents
-  the picker.
-- **Fan Zone games** (`games-design-spec.md`) — **Predict the XI** (pink) **LIVE** (0.3.9):
-  pick a followed team's XI + formation + scoreline pre-match, auto-scored Mastermind-style
-  vs ESPN `/summary` (max 88; Draft→Submit one-way, closes kickoff−2h, only submitted score).
-  **Visibility rule (all games):** hidden EVERYWHERE (Home card + screen) when nothing
-  active/upcoming — Predict's gate = followed-team fixture **within 28 days**; the module
-  hides when no game is visible. **Bracket Battle** (teal) — **LIVE** (0.3.9, v2): a
-  league-wide **fandom** community-voting tournament (NOT March Madness) — a themed edition
-  (Best Forward, or owner-curated CREATIVE like Best Goal Celebration) seeds a real **64-player
-  / 6-round** bracket; you predict who the crowd advances, scored on real Supabase votes (tiered
-  1·1·2·2·3·3, max 81). 5 screens (Edition Intro · Voting · Save/Submit · Results · Bracket
-  Overview), warm group-chat voice, collapsed results → "See stats" donut + CLOSE CALL/RUNAWAY
-  badges, share card, rotating flavor (upset/Cinderella/teaser), draft→submit one-way, sign-in
-  at submit. **The proxy Worker engine** (`~/Projects/nwslapp-proxy` `src/bracket.ts` +
-  `bracket-engine.ts`) auto-generates editions from ESPN (all players of a position, team-
-  interleave seeded, byes, no same-team round-1), auto-tallies + advances rounds (hourly cron),
-  and rotates creative (owner-curated library) ↔ stats editions. Verified end-to-end live
-  (64-forward edition generated → app rendered → tally → Round of 32). Offline-first: app
-  caches the last real edition; no fabricated brackets. **Daily Trivia** (indigo) — **LIVE**
-  (0.3.9): a league-wide question pool served from the proxy `/trivia` route (KV, owner-loaded
-  via `nwslapp-proxy` `scripts/load_trivia.mjs`); the app does a deterministic non-repeating
-  daily-5 selection. Pool is generated + adversarially fact-checked (workflow) → vetted JSON →
-  KV; the 55-question seed (`TriviaQuestionProvider`) is the offline-first fallback. Refreshable
-  with no app release (owner re-runs the loader). *Pool intentionally starts small (~40) and
-  grows organically over time via the loader — the ~500 in `games-design-spec.md` is an
-  aspiration, NOT a launch gate (owner's call); don't treat the small pool as a spec shortfall.*
-- **Player Spotlight** (`spotlight-design-spec.md`) — one mini-profile/followed team →
-  `PlayerSpotlightView`. **LIVE** (B2/0.3.8) via proxy `/spotlight`: real player + ESPN stats
-  + a Haiku "why watch" blurb, weekly rotation. Seed = offline-first fallback.
-- **Feed** (`feed-tab-design-spec.md`) — reporters + news + social filtered to followed
-  teams + league (distinct from Home Module 1). **Content-type** chip bar (All/News/Social —
-  Social = every individual voice; B3a/0.3.8 folded "Reporters" in) over the LIVE `/feed`
-  cards; gear → `FeedSourcesView` (type toggles + per-source mute).
-- **Content Cards** (`we-are-going-to-iridescent-otter.md`) — one `ContentCard` model +
-  `ContentCardView` router back BOTH Home Module 1 and the Feed via 7 layouts. Placement
-  gate (Home = team voices; Feed = wider; `.both` either) + staleness (Home 72h / Feed 7d,
-  6-card-floored, 0.3.7). **All LIVE** via `ContentService` → proxy (seed = fallback).
-  **Home** ← `/team-videos` = YouTube + club OG news + club IG. **Feed** ← `/feed` = Bluesky
-  map (reporters + league + 13/16 clubs; club Bluesky is `.feed`) + News + player IG.
-  Server-side: Haiku relevance filter (`claude-haiku-4-5`, KV-cached), 3/account flood cap,
-  `dedupeByContent`. B-item detail (B1 News RSS→Haiku-gate→OG-enrich · B2 `/spotlight` · B3a
-  chips · B3b Apify IG cron→KV, TikTok deferred) → File Map + `Reference/Feed update/…handoff`.
-- **Teams + Following** — `TeamsView` lists all 16 (followed float up); onboarding + a bottom
-  row offer **international competitions** (persisted; schedule not competition-aware yet, #13).
-- **Team detail** (`teams-tab-design-spec.md`) — pinned header + social row
-  (⚠️`TeamSocialLinksProvider`) over **Squad · Stats**. Squad = `PlayerCard` grid (FWD→GK) →
-  `PlayerDetailView`. Stats = season summary + Goals/Assists/Clean-Sheets leaders from **real
-  ESPN stats** (`ESPNService.seasonStats`, actor-cached) (#8).
-- **Standings** (`standings-tab-design-spec.md`) — full 16-team table (**PTS·GP·W·L·D**);
-  followed rows tinted → `TeamDetailView`.
-- **Schedule** (`schedule-tab-design-spec.md`) — full season in one `fetchScoreboard(year:)`;
-  sticky day headers; 3 `MatchStore` filters; cards carry 📍 venue · 📺 broadcast; scrolls
-  to today.
-- **Match detail V2** (`match-detail-v2-spec.md`, `-polish.md`) — `MatchDetailView` + VM
-  adapt to temporal state (Past/Live/Future); header from the `Event`, `/summary` (proxy)
-  layers the rest (failure → header-only); `resolveMatchColors` keeps sides distinct.
+- **Home** (`home-tab-design-spec.md`) — your-teams hub; pre-onboarding renders `OnboardingView`
+  in place. Four modules: (1) "From your teams" content cards, (2) Player Spotlight, (3) Fan
+  Zone games, (4) "Coming up". All live.
+- **Fan Zone games** (`games-design-spec.md`) — all three LIVE with **real Supabase
+  leaderboards**:
+  - **Predict the XI** (pink): pick a followed team's XI + formation + scoreline pre-match,
+    auto-scored Mastermind-style vs ESPN `/summary` (max 88; Draft→Submit one-way, closes
+    kickoff−2h). **Per-team leaderboard** (`prediction_scores`) — you're ranked among fans of
+    your own club. Gate: a followed-team fixture within 28 days.
+  - **Bracket Battle** (teal): a league-wide **fandom** community-voting tournament (NOT March
+    Madness) — a themed 64-player/6-round edition (Best Forward, or owner-curated creative like
+    Best Goal Celebration); you predict who the crowd advances, scored on real Supabase votes
+    (`bracket_scores`). The proxy Worker engine auto-generates editions, tallies + advances
+    rounds (cron), and rotates creative↔stats. Gate: an active/upcoming edition.
+  - **Daily Trivia** (indigo): a league-wide pool served from the proxy `/trivia` route (KV,
+    owner-loaded via `nwslapp-proxy scripts/load_trivia.mjs`); deterministic non-repeating
+    daily-5. **League-wide best-streak leaderboard** (`trivia_scores`). Pool starts small (~40)
+    and grows over time via the loader — the ~500 in the spec is an aspiration, not a launch gate.
+  - **Visibility rule (all games):** a game with nothing active/upcoming is hidden everywhere
+    (Home card + screen); the Fan Zone module hides when none is visible.
+  - **Game Center** (GameKit) is layered on top: native leaderboards/achievements (4 boards +
+    6 achievements) via `GameCenterManager`/`GKAccessPoint`, additive on the Supabase boards
+    (best-effort, no-ops when not signed in). *App-side shipped; going live needs the owner's
+    App Store Connect config (enable Game Center + create the records per
+    `Reference/game-center-app-store-connect-checklist.md`) + a sandbox-account verify.*
+- **Player Spotlight** (`spotlight-design-spec.md`) — one mini-profile per followed team, live
+  via `/spotlight` (real player + ESPN stats + a Haiku "why watch" blurb, weekly rotation).
+- **Feed** (`feed-tab-design-spec.md`) — reporters + news + social filtered to followed teams +
+  league. Content-type chip bar (All/News/Social) over the live `/feed` cards; gear →
+  `FeedSourcesView`.
+- **Content Cards** — one `ContentCard` model + `ContentCardView` router back BOTH Home Module 1
+  and Feed via 7 layouts, with a placement gate (Home = team voices; Feed = wider) + staleness
+  (Home 72h / Feed 7d, 6-card-floored). All live via `ContentService` → proxy.
+- **Teams + Following** — `TeamsView` lists all 16 (followed float up); onboarding + a bottom row
+  offer international competitions (persisted; schedule not competition-aware yet).
+- **Team detail** (`teams-tab-design-spec.md`) — pinned header + social row over Squad · Stats.
+  Squad = `PlayerCard` grid → `PlayerDetailView`; Stats = season summary + leaders from real ESPN
+  stats (actor-cached).
+- **Standings / Schedule** — full 16-team table (PTS·GP·W·L·D, followed-row tint); full season in
+  one `fetchScoreboard(year:)`, sticky day headers, 3 filters, scrolls to today.
+- **Match detail** (`match-detail-v2-spec.md`) — `MatchDetailView` adapts to temporal state
+  (Past/Live/Future); header from the `Event`, `/summary` layers the rest.
+- **Accounts** — Sign in with Apple → a Supabase user (`AuthStore`); skippable post-onboarding
+  `SignInPromptView`; the app stays fully working on the UserDefaults cache when signed out.
+- **Notifications — Tier 1 / LOCAL** (`local-notifications-spec.md`) — `NotificationScheduler`
+  delivers a day-before match reminder + a weekly Player Spotlight; permission on first toggle-on.
 
 ---
 
 ## What's Next
 
-Completed work lives in **Current State**; only pending work here. Item numbers are kept so
-cross-references stay valid. **Ordered by the PRIORITY FRAMEWORK** — Category 1 (ALIVE)
-always outranks 2/3.
+Completed work lives in **Current State**; only pending work here. Ordered by the priority order
+at the top (ALIVE > core > hardening).
 
-**Category 1 — ALIVE features (TOP PRIORITY).** Do these before any Category 2/3 work and
-before any TestFlight ship. The content pipeline is LIVE end-to-end (Home + Feed; YouTube ·
-club OG news · Bluesky · News RSS · Instagram · Player Spotlight). **Backbone sequence**
-(`Reference/BACKBONE.md` + `Reference/Feed update/` handoff): A1/A2 · B1 · B2 · B3a · **B3b
-all SHIPPED**.
-- **Fan Zone games (0.3.9):** swap the ⚠️seed games for live rounds, in order —
-  ~~**Predict the XI** (LIVE)~~ ✅ → ~~**Bracket Battle** (LIVE, v2)~~ ✅ SHIPPED — the real
-  64-player community-voting tournament with the auto-running proxy Worker engine (generate
-  from ESPN · tally + advance · rotate creative↔stats), verified end-to-end live. →
-  ~~**Daily Trivia** (LIVE)~~ ✅ SHIPPED 0.3.9 — proxy `/trivia` route (KV pool, owner-loaded via
-  `scripts/load_trivia.mjs`) + app `TriviaService` (live-or-seed) + non-repeating daily-5;
-  questions generated + adversarially fact-checked via workflow. *Pool intentionally starts
-  small (~40) and grows over time via the loader — not gated on the ~500 spec (owner's call).*
-  → **NEXT: Game Center** (GameKit
-  leaderboards across all three). Then
-  **B4 final sweep** → ship **0.3.9** (QOL begins at 0.4.0). **Bracket follow-ups (optional,
-  documented):** exact season-stat seeding for stat editions (currently team-interleave to fit
-  the free Workers subrequest limit); more stat templates (GK/Mid/Def needs more stat fields);
-  the Swift Alert-style full bracket-TREE graphic (its own Claude Design mockup pass).
-- **A3 Reddit → Feed** — DEFERRED (noisy; subreddits live in Teams). IG now via Apify (B3b).
+**Owner-gated (to fully close 0.3.9):**
+- **Game Center go-live** — owner enables Game Center in App Store Connect + creates the 4
+  leaderboards + 6 achievements (`Reference/game-center-app-store-connect-checklist.md`), then a
+  joint sandbox-account live-verify. App side is shipped + handles the not-yet-enabled state gracefully.
 
-**Category 3 — HARDENING** (cleanup/robustness — do AFTER Category 1, never above it)
-3. **(Polish)** Keep the list visible during pull-to-refresh (spinner only on first load),
-   not flipping `state` to `.loading` full-screen.
-4. Capture a real ESPN response → `NWSLAppTests/Fixtures/scoreboard.json` + a decode-only
-   test for `Scoreboard`/Event helpers (date parsing, `dayKey` TZ).
-6. **Match-detail V2 follow-ups (remaining):** `/headshots` route + NWSL-GUID↔ESPN-id map →
-   headshots on pitch dots/`PlayerCard`; future-preview season averages; dynamic
-   `currentSeasonYear`.
-9. **(Fragility)** `MatchStore.matches(for:)` joins club↔game by `abbreviation` (no id
-   on ESPN competitors); a rename silently empties a schedule. Fix: a normalized id map.
-18. **Weather API + kickoff-temp header slot** — its own push (API key in Secrets,
-    venue→coords, fetch-at-kickoff). The header info row already renders conditionally, so
-    re-adding the 🌡 slot is a one-line change.
+**QOL (0.4.x — the current chapter): improving the experience of what's already alive.** See
+`Reference/Feed update/QOL Update Handoff.md`. Examples: content balancing (some teams post more
+than others), follow-vs-alerts UX, richer filter chips, polish. Plus, as they come up from real use:
+- **Pull-to-refresh polish** — keep the list visible during refresh (spinner only on first load),
+  not flipping `state` to `.loading` full-screen.
+- **Bracket follow-ups (optional):** exact season-stat seeding for stat editions; more stat
+  templates (GK/Mid/Def); a full bracket-TREE graphic (its own design pass). Owner still to curate
+  the Best Goal Celebration creative edition (loads as data via `scripts/load_creative_edition.mjs`).
+- **Home Module follow-ups:** "See all" content destination + refetch-on-follows-change; spotlight
+  no-repeat-per-season + opt-in weekly notif.
 
-**Feature follow-ups (from shipped redesigns)**
-- **Team-detail Stats + PlayerDetailView** — on **real** ESPN stats (#8). Remaining: a
-  most-recent-formation pitch.
-- **(Data/Verify) Team social links** — ⚠️`TeamSocialLinksProvider` seed; verify Reddit
-  (**KC** `r/KCCurrent`, **CHI** `r/redstars` vs `r/ChicagoStars`; **BOS/DEN/LOU** none).
-- **Follow-confirmation sheet** — first-time "what following buys you" on the header star.
-- **Home Module 1** — LIVE. Remaining: a "See all" destination + refetch-on-follows-change.
-- **Home Module 2 spotlight** — LIVE (B2/0.3.8). Remaining: no-repeat-per-season,
-  player-video match, opt-in weekly notif, badge, refetch-on-follows-change.
-- **Home Module 3 games** — the live swap is the **Fan Zone (0.3.9)** work in Category 1.
+**Hardening (do after ALIVE work):**
+- Capture a real ESPN response → `Fixtures/scoreboard.json` + a decode-only test for
+  `Scoreboard`/Event helpers (date parsing, `dayKey` TZ).
+- `MatchStore.matches(for:)` joins club↔game by `abbreviation` (no id on ESPN competitors) — a
+  rename silently empties a schedule. Fix: a normalized id map.
+- Headshots: `/headshots` route + NWSL-GUID↔ESPN-id map → headshots on pitch dots/`PlayerCard`.
+- Team social links — verify a couple of subreddit handles (KC `r/KCCurrent`; CHI `r/redstars`
+  vs `r/ChicagoStars`; BOS/DEN/LOU none).
 
-**Longer-term (vision — see `Reference/Sessions/`)**
-11. **Feed backend** — Bluesky + Haiku filter LIVE. Remaining: user-added sources; richer
-    filtering. (Reddit/A3 deferred.)
-12. **Push notifications.** Tier 1 (LOCAL) shipped 0.3.2. Tier 2 (SERVER push)
-    code-complete through Stage C (≈0.4.x; PR #32) — app side + Worker (private sibling
-    `~/Projects/nwslapp-match-watcher`: 1-min cron, KV state-diff via `/scoreboard`, APNs
-    `.p8` JWT; detects kickoff · goal · halftime · full-time). Infra provisioned + APNs
-    verified 2026-06-10 (`push_infra_provisioned` memory). **Remaining:** flip `APNS_HOST`
-    sandbox→production at TestFlight; on-device E2E (waits on July break). **Stage D (next):
-    subs + lineup-posted** (needs per-match `/summary`). (See `…/2026-06-04_server-pulls-and-push.md`.)
-13. **Competition-aware schedule.** Groundwork: 3 Schedule filters, `MatchCard`'s dormant
-    `CompetitionBadge`, `FollowedCompetition` + follow set. Remaining: a competition field
-    on `Event` + a follow-edit surface.
-14. **Engagement / Home hub** — spotlights, community links, prediction games. Home modules
-    first; a tab only if earned.
+**Longer-term:**
+- **Push — Tier 2 (SERVER push)** — code-complete through Stage C (app side + Worker
+  `~/Projects/nwslapp-match-watcher`: 1-min cron, KV state-diff, APNs `.p8` JWT; kickoff · goal ·
+  halftime · full-time). Infra provisioned + APNs verified. Remaining: flip `APNS_HOST`
+  sandbox→production at TestFlight; on-device E2E; Stage D (subs + lineup-posted).
+- **Competition-aware schedule** — groundwork exists (3 filters, dormant `CompetitionBadge`,
+  `FollowedCompetition`). Remaining: a competition field on `Event` + a follow-edit surface.
+- **Feed** — user-added sources; richer filtering. (Reddit deferred — noisy.)
+- **Weather** — kickoff-temp header slot (API key, venue→coords, fetch-at-kickoff).

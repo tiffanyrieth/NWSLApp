@@ -3,10 +3,10 @@
 //  NWSLApp
 //
 //  The Teams tab: a directory of all NWSL clubs, each with a Follow toggle.
-//  Following is the app's personalization lens (see FollowingStore) — so a
-//  "Following" section floats followed clubs to the top, making the lens
-//  visible the moment you tap a star. The full roster always shows below,
-//  end-to-end (UI rule: no truncation).
+//  Following is the app's personalization lens (see FollowingStore) — followed
+//  clubs are marked with a tint + star + bell, but the directory always lists all
+//  16 clubs in A–Z order (no following-first float: with 16 teams a stable
+//  alphabetical order scans better than a list that reshuffles as you follow).
 //
 //  The FollowingStore arrives via the SwiftUI environment (injected once in
 //  RootTabView), not constructed here — so this screen and future ones share
@@ -78,17 +78,18 @@ struct TeamsView: View {
     }
 
     private var directory: some View {
-        // One continuous list (no "Following" / "All Clubs" headers): followed teams
-        // float to the top (tint + star + bell), unfollowed below — each club once.
-        // The blue tint + star + bell already mark the followed set, so the divider
-        // headers were clutter. The "{N} teams · Manage" line sits at the boundary.
-        let followed = viewModel.clubs.filter { following.isFollowing($0) }
-        let unfollowed = viewModel.clubs.filter { !following.isFollowing($0) }
+        // One continuous, ALWAYS-ALPHABETICAL list of all 16 clubs. Followed teams keep
+        // their tint + star + bell in place but are NOT floated to the top: with only 16
+        // clubs, a stable A–Z order is easier to scan than a list that reshuffles as you
+        // follow/unfollow (you always know where Spirit is). The "{N} teams · Manage" alerts
+        // line sits at the foot of the list.
+        let clubs = viewModel.clubs.sorted {
+            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
         return List {
             Section {
-                ForEach(followed) { row(for: $0) }
+                ForEach(clubs) { row(for: $0) }
                 if teamAlerts.enabledCount > 0 { matchAlertsLine }
-                ForEach(unfollowed) { row(for: $0) }
             } header: {
                 // The subtitle (sentence case, never truncated) — same role as Home's
                 // "From your teams". `textCase(nil)` stops the default header uppercasing.
@@ -161,7 +162,7 @@ struct TeamsView: View {
                                : "Turn on match alerts for \(club.displayName)")
     }
 
-    // The "{N} team(s) with match alerts · Manage" line under Following → the hub.
+    // The "{N} team(s) with match alerts · Manage" line at the foot of the list → the hub.
     private var matchAlertsLine: some View {
         let n = teamAlerts.enabledCount
         return Button { path.append(NotificationsRoute.hub) } label: {

@@ -24,8 +24,9 @@ struct MDInfoCard: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Color.dsFgPrimary)
                 .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
+                // Always reserve two lines so a long Venue and a one-word Broadcast
+                // produce the SAME card height — the grid stays even (bug #8).
+                .lineLimit(2, reservesSpace: true)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)

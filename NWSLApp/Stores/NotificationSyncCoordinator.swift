@@ -98,6 +98,9 @@ final class NotificationSyncCoordinator {
 
         // Identity transition: a sign-out or a switch to a different user.
         if newID != lastUserID {
+            // A real sign-out (had a user, now none) — not the initial signed-out
+            // launch (lastUserID already nil).
+            let signedOut = newID == nil && lastUserID != nil
             if let oldID = lastUserID, let token = bridge.deviceToken {
                 // Detach this device's token from the account we're leaving, so a
                 // shared phone stops getting the previous user's alerts.
@@ -106,6 +109,15 @@ final class NotificationSyncCoordinator {
             lastUploadedToken = nil
             lastPushedSnapshot = nil
             lastUserID = newID
+            if signedOut {
+                // Tier-2 types can't be delivered without an account (the token is
+                // detached above), so don't leave them showing "on". Tier-1 locals
+                // stay. The user re-enables Tier-2 from the hub after signing back
+                // in — gate-free, since they're signed in. (This mutates the snapshot
+                // the observer watches; the re-fired sync() skips this branch — the
+                // ids now match — so there's no loop.)
+                preferences.resetServerPushTypes()
+            }
         }
 
         // Tier 2 requires sign-in: nothing to mirror while signed out.

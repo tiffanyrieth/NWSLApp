@@ -18,6 +18,8 @@
 //
 
 import SwiftUI
+import UIKit
+import UserNotifications
 
 struct TeamsView: View {
     @State private var viewModel = TeamsViewModel()
@@ -26,6 +28,12 @@ struct TeamsView: View {
     // The shared club directory (injected in RootTabView); the view model reads
     // its state/clubs through this.
     @Environment(ClubStore.self) private var clubStore
+    // Per-team match-alert on/off — drives the row bells + the "{N} teams" line.
+    @Environment(TeamAlertStore.self) private var teamAlerts
+
+    // The one extra route on this stack (besides Club → TeamDetailView): the
+    // notifications hub, pushed from the nav-bar bell + the "Manage" line.
+    private enum NotificationsRoute: Hashable { case hub }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -34,7 +42,19 @@ struct TeamsView: View {
                 .navigationDestination(for: Club.self) { club in
                     TeamDetailView(club: club)
                 }
-                .refreshable { await viewModel.load() }
+                .navigationDestination(for: NotificationsRoute.self) { _ in
+                    NotificationsView()
+                }
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { path.append(NotificationsRoute.hub) } label: {
+                            Image(systemName: "bell")
+                                .foregroundStyle(Color.dsAccent)
+                        }
+                        .accessibilityLabel("Notifications")
+                    }
+                }
+                // No pull-to-refresh: the club directory is static; nothing to refetch.
         }
         // Load once on first appearance; don't refetch every time the tab is
         // re-selected (pull-to-refresh covers manual reloads).
@@ -58,15 +78,26 @@ struct TeamsView: View {
     }
 
     private var directory: some View {
+        // One continuous list (no "Following" / "All Clubs" headers): followed teams
+        // float to the top (tint + star + bell), unfollowed below — each club once.
+        // The blue tint + star + bell already mark the followed set, so the divider
+        // headers were clutter. The "{N} teams · Manage" line sits at the boundary.
         let followed = viewModel.clubs.filter { following.isFollowing($0) }
+        let unfollowed = viewModel.clubs.filter { !following.isFollowing($0) }
         return List {
-            if !followed.isEmpty {
-                Section("Following") {
-                    ForEach(followed) { row(for: $0) }
-                }
-            }
-            Section("All Clubs") {
-                ForEach(viewModel.clubs) { row(for: $0) }
+            Section {
+                ForEach(followed) { row(for: $0) }
+                if teamAlerts.enabledCount > 0 { matchAlertsLine }
+                ForEach(unfollowed) { row(for: $0) }
+            } header: {
+                // The subtitle (sentence case, never truncated) — same role as Home's
+                // "From your teams". `textCase(nil)` stops the default header uppercasing.
+                Text("Tap any club to explore their squad and stats")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .textCase(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 4)
             }
 
             // A way back into international competitions for anyone who skipped
@@ -104,10 +135,47 @@ struct TeamsView: View {
             }
             .buttonStyle(.plain)
 
+            // A quick match-alert on/off for followed teams (same state as the
+            // Notifications hub). Only followed teams can have alerts.
+            if isFollowing { bellButton(for: club) }
             followButton(for: club)
         }
         // Followed rows get a soft blue tint so the Following lens is visible.
         .listRowBackground(isFollowing ? Color.dsFollowTint : nil)
+    }
+
+    private func bellButton(for club: Club) -> some View {
+        let on = teamAlerts.alertsEnabled(for: club.id)
+        return Button {
+            teamAlerts.toggle(for: club.id)
+            // Turning a team on may need notification permission (its day-before is
+            // delivered locally). Gate-free — no sign-in needed for the on/off itself.
+            if !on { Task { await requestNotificationPermission() } }
+        } label: {
+            Image(systemName: on ? "bell.fill" : "bell")
+                .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
+                .imageScale(.large)
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(on ? "Turn off match alerts for \(club.displayName)"
+                               : "Turn on match alerts for \(club.displayName)")
+    }
+
+    // The "{N} team(s) with match alerts · Manage" line under Following → the hub.
+    private var matchAlertsLine: some View {
+        let n = teamAlerts.enabledCount
+        return Button { path.append(NotificationsRoute.hub) } label: {
+            HStack(spacing: 4) {
+                Text("\(n) team\(n == 1 ? "" : "s") with match alerts ·")
+                    .foregroundStyle(Color.dsFgSecondary)
+                Text("Manage")
+                    .foregroundStyle(Color.dsAccent)
+                Spacer(minLength: 0)
+            }
+            .font(.system(size: 13))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func followButton(for club: Club) -> some View {
@@ -122,6 +190,18 @@ struct TeamsView: View {
         // .borderless so only the star toggles — not the whole row.
         .buttonStyle(.borderless)
         .accessibilityLabel(isFollowing ? "Unfollow \(club.displayName)" : "Follow \(club.displayName)")
+    }
+
+    /// Request notification permission on the gesture (never at launch), so a
+    /// bell-on team's day-before reminder can actually be delivered.
+    private func requestNotificationPermission() async {
+        let center = UNUserNotificationCenter.current()
+        if await center.notificationSettings().authorizationStatus == .notDetermined {
+            _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+        }
+        if await center.notificationSettings().authorizationStatus == .authorized {
+            UIApplication.shared.registerForRemoteNotifications()
+        }
     }
 
     private func errorView(_ message: String) -> some View {

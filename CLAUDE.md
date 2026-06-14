@@ -34,7 +34,7 @@ ship a real consumer app; long-term goal is App Store distribution.
 
 ## State of the app
 
-The app is **fully live and in production-quality state** (v0.3.9) — real data
+The app is **fully live and in production-quality state** (v0.4.0) — real data
 everywhere, used daily by the owner + testers as their primary NWSL app. There is **no
 demo/fake data** in normal operation; curated seed data survives only as an **offline
 fallback** (live data is always primary). Treat the app as a real, working product when
@@ -246,16 +246,22 @@ distinct — don't blur them. Schedule cards and MatchDetailView share visual la
 
 ## Versioning & Distribution
 
-- **Semver, pre-1.0.** A **minor bump = a whole chapter** of the app, not a single feature;
-  patches (third digit) are each shipped update inside the chapter (pre-1.0 this includes
-  features, not just fixes). Reserve **1.0.0** for the first public App Store launch.
-- **Chapters:** `0.1.x` was the offline prototype; `0.3.x` was the **backbone** (demo →
-  fully live, all real data) — **shipped at 0.3.9**. **`0.4.x` = QOL** — improving the
-  *experience* of what's already alive (content balancing, polish, UX), not new backbone
-  plumbing.
-- **Xcode fields:** "Marketing Version" (`CFBundleShortVersionString`, human-facing) +
-  "Build" (`CFBundleVersion`, a monotonic int bumped on every TestFlight upload). Tag
-  releases in git (`git tag v0.3.9`). Proxy-only changes don't bump the app version.
+- **Versioning model (owner's, NOT classic semver — follow this).** A **`minor.0` (e.g.
+  `0.4.0`) is a big flagship release**, like Apple shipping iOS **26.0** — it bundles a pile of
+  features and can span **several TestFlight builds** under the *same* marketing version (e.g.
+  0.4.0 build 9 = QOL, build 10 = headshots). **Do NOT bump the patch digit for a new feature** —
+  features stay at `.0`. **Patches (`0.4.1`, `0.4.2`…) are reserved for BUG FIXES** discovered
+  after the big release. A **minor bump (`0.4` → `0.5`)** starts the next big release era. Reserve
+  **1.0.0** for the first public App Store launch.
+- **Releases so far:** `0.1.x` offline prototype; `0.3.x` the **backbone** (demo → fully live, all
+  real data, capped at 0.3.9). **`0.4.0` = the "fully-working app" flagship** — shipping as
+  successive builds: **build 9 = QOL** (Home round-robin + per-team chips, the Notifications hub,
+  Support, polish); **headshots is a later 0.4.0 build**, not a new version. 0.4.1+ would be bug-fix
+  follow-ups.
+- **Xcode fields:** "Marketing Version" (`CFBundleShortVersionString`, human-facing — stays `0.4.0`
+  across the flagship's builds) + "Build" (`CFBundleVersion`, a monotonic int bumped on every
+  TestFlight upload — this is what increments per feature build). Tag releases in git. Proxy-only
+  changes don't bump the app version.
 - **Distribution:** Simulator + Personal Team sideload now; Dev Program is active (paid);
   TestFlight (OTA) for tester install. App Store deferred until presentable.
 
@@ -296,6 +302,7 @@ NWSLApp/
 │   └── XIPrediction.swift             — Predict the XI: PositionGroup · Formation · PredictionFixture · XIPrediction (draft→submitted) · ActualResult · PredictionScore
 ├── Services/
 │   ├── BracketScoring.swift           — pure Bracket scorer (tiered per-round points). Unit-tested
+│   ├── ContentRoundRobin.swift        — pure Home Module-1 fair-share: `balanced` (guaranteed-per-team round-robin + content-type interleave + chronological fill + follow-scaled cap) + `advancedOffsets` (pull-refresh rotation). Unit-tested
 │   ├── BracketService.swift           — Bracket Supabase client: currentEdition/results/leaderboard/submit; offline-sample fallback
 │   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats
 │   ├── ContentService.swift           — ALIVE content client: homeCards→/team-videos, feedCards→/feed, spotlightCards→/spotlight; gated by `liveContentEnabled`; failure → ↩︎seed
@@ -303,11 +310,13 @@ NWSLApp/
 │   ├── FollowSyncService.swift        — Supabase `follows` client (fetch/push/add/remove); RLS-scoped
 │   ├── DeviceTokenService.swift       — Supabase `device_tokens` client (APNs token); RLS-scoped
 │   ├── NotificationPrefsSyncService.swift — Supabase `notification_preferences` upsert
-│   ├── NotificationScheduler.swift    — @MainActor; LOCAL (Tier 1) scheduling: day-before reminder + weekly spotlight
+│   ├── NotificationScheduler.swift    — @MainActor; LOCAL (Tier 1) scheduling: day-before reminder (global type ∩ teams with alerts on) + weekly spotlight (global)
 │   ├── PushBridge.swift               — @MainActor @Observable `.shared`; UIKit AppDelegate (APNs/tap) → observable world
 │   ├── SupabaseManager.swift          — the one shared SupabaseClient (built from Secrets)
 │   ├── GameCenterIDs.swift            — GameKit ID constants (4 leaderboards + 6 achievements) + pure cross-game score helpers (GameKit-free, unit-tested)
 │   ├── GameCenterManager.swift        — @MainActor @Observable `.shared`; auth + best-effort submit/report + syncAll + showDashboard (GKAccessPoint). The only file importing GameKit
+│   ├── TeamAlertPrefsSyncService.swift— Supabase `team_alert_preferences` client (per-team on/off upsert/fetchAll, composite key); RLS-scoped
+│   ├── SupportStore.swift             — @MainActor @Observable StoreKit 2 layer for Support: 4 tip tiers (one-time consumables + monthly subs), load/purchase/restore, `purchased` thank-you flag
 │   ├── PredictLeaderboardService.swift— Supabase per-team Predict board: upsertScore + standings(team); offline fallback to local you-row
 │   ├── TriviaLeaderboardService.swift — Supabase league-wide Trivia best-streak board: upsertScore + standings; offline fallback
 │   ├── PredictionScoring.swift        — pure Predict-the-XI scorer (Mastermind partial, max 88). Unit-tested
@@ -326,6 +335,8 @@ NWSLApp/
 │   ├── FeedPreferencesStore.swift     — Feed content-type toggles + muted sources
 │   ├── FollowSyncCoordinator.swift    — @MainActor; the ONLY follows↔Supabase bridge (sign-in union-merge + ongoing sync)
 │   ├── NotificationSyncCoordinator.swift — @MainActor; device-token + notif-prefs↔Supabase bridge
+│   ├── TeamAlertStore.swift           — @Observable; per-team match-alert ON/OFF (`enabledTeamIDs: Set<String>`) → UserDefaults; `migrateFromGlobalIfNeeded` seeds followed teams iff a global match-day toggle was on; `onAlertChanged` sync seam
+│   ├── TeamAlertSyncCoordinator.swift — @MainActor; per-team on/off↔Supabase bridge + clears a team's alerts when it leaves the followed set (alerts require following)
 │   ├── FollowingStore.swift           — followed clubs + competitions + onboarding gate; offline-first; DEBUG `debugResetState`
 │   ├── MatchStore.swift               — shared season store; one fetch, many readers
 │   ├── NotificationPreferencesStore.swift — Profile's 9 notif toggles; → NotificationScheduler / NotificationSyncCoordinator
@@ -345,8 +356,11 @@ NWSLApp/
 │   └── TriviaViewModel.swift          — one Daily-Trivia session; questions ← TriviaService; non-repeating daily-5 (unit-tested); real best-streak leaderboard (+ Game Center submit)
 ├── Views/                             — one screen per file
 │   ├── RootTabView.swift              — app root; 5-tab TabView; injects stores; restores session + coordinators; Game Center authenticate + syncAll (launch/auth/foreground); routes live-push tap
-│   ├── HomeView.swift                 — your-teams hub: 4 modules + profile-avatar button; spotlight carousel; onboarding-in-place
-│   ├── ProfileView.swift              — account & settings sheet: identity / Fan Zone stats (🏆 Leaderboards → Game Center dashboard) / notif toggles / My Teams / Account
+│   ├── HomeView.swift                 — your-teams hub: 4 modules + profile-avatar button; spotlight carousel; onboarding-in-place; Module-1 round-robin + per-team chips (2+ teams) + adaptive card labels (1 team) + "See more →"; refetch on pull + follows-change
+│   ├── HomeContentListView.swift      — "See more from your teams" full firehose: ALL followed-team content, no cap, reverse-chron, respects the active team chip (+ `HomeTeamChips` bar: [All] + per-team)
+│   ├── ProfileView.swift              — account & settings sheet: identity / Fan Zone stats (🏆 Leaderboards → Game Center dashboard) / Settings (Notifications row → hub · Support row → SupportView) / My Teams / Account
+│   ├── NotificationsView.swift        — the ONE notifications hub (QOL v2): §Match alerts (per-team on/off) · §Alert types (5 global, dimmed when no team on) · §Activity; tier-aware sign-in gate; pushed from Teams bell/Manage + Profile row
+│   ├── SupportView.swift              — "Support NWSLApp" (StoreKit tips): hero · one-time/monthly toggle · 4 tip tiers · CTA · Restore · "Where it goes" · thank-you state
 │   ├── DailyTriviaView.swift          — Daily Trivia game (indigo); 5/day; results screen w/ best-streak leaderboard
 │   ├── BracketBattleView.swift        — Bracket Battle (teal): 5 screens — Edition Intro · Voting · Save/Submit · Results · Bracket Overview
 │   ├── PredictXIView.swift            — Predict the XI (pink): open fixtures + Results breakdown + per-team leaderboard cards
@@ -355,9 +369,9 @@ NWSLApp/
 │   ├── SignInPromptView.swift         — one-time post-onboarding "save your picks" sheet
 │   ├── NotificationAuthPromptView.swift — contextual "sign in for live alerts" half-sheet (Tier 2)
 │   ├── ScheduleView.swift             — full-season cards; 3 filters; sticky day headers
-│   ├── TeamsView.swift                — all-16 directory; Following floats up; follow-competitions row
+│   ├── TeamsView.swift                — all-16 directory: ONE continuous list (followed floated to top, no section headers) + subtitle; follow-competitions row; per-row 🔔 alert toggles (followed) + "{N} teams · Manage" line at the followed/unfollowed boundary + nav-bar 🔔 → NotificationsView
 │   ├── CompetitionsView.swift         — follow international competitions
-│   ├── TeamDetailView.swift           — club page: header + social row + Squad·Stats tabs
+│   ├── TeamDetailView.swift           — club page: header (⭐ follow) + social row + Squad·Stats tabs
 │   ├── MatchDetailView.swift          — state-aware match: past=Summary/Lineups/Stats, live=poll & LIVE pill, future=info grid + How-to-Watch + comparison + form
 │   ├── CombinedPitchView.swift        — BOTH teams' XIs on ONE pitch; Lineups default
 │   ├── FormationPitchView.swift       — single-team XI on a pitch; per-team list fallback
@@ -371,6 +385,7 @@ NWSLApp/
 │   ├── Chip.swift                     — pill filter chip (Schedule + Feed chip bars)
 │   ├── ContentCardView.swift          — single entry point; routes a ContentCard by layout → the 3 card views
 │   ├── ThumbnailContentCard.swift / AvatarContentCard.swift / ArticleContentCard.swift — the ContentCard layouts
+│   ├── SettingsToggleRow.swift        — shared settings primitives: `SettingsToggleRow` + `SettingsGroup` (optional subtitle) + `SettingsRowDivider` (NotificationsView)
 │   ├── PlatformBadge.swift            — platform glyph (YT/Bluesky/TikTok/IG/article/reddit)
 │   ├── FormBadge.swift                — W/D/L form badge
 │   ├── GameCard.swift                 — Fan Zone game tile (game-accent border + emoji + status + badge)
@@ -389,7 +404,8 @@ NWSLApp/
 │   └── TeamBrandColors.swift          — per-team-id brand-color overrides for clubs ESPN gets wrong
 └── Assets.xcassets/                   — app icons, accent color
 
-supabase/schema.sql                    — Postgres schema: profiles, follows, device_tokens, notification_preferences, bracket_*, prediction_scores, trivia_scores (tables + RLS + authenticated GRANTs)
+supabase/schema.sql                    — Postgres schema: profiles, follows, device_tokens, notification_preferences, team_alert_preferences (on/off), bracket_*, prediction_scores, trivia_scores (tables + RLS + authenticated GRANTs)
+NWSLApp.storekit                       — local StoreKit 2 config (4 tip consumables + monthly subs) for in-sim Support testing; referenced by the shared scheme. ASC products owner-gated
 ```
 
 ---
@@ -402,7 +418,13 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
 
 - **Home** (`home-tab-design-spec.md`) — your-teams hub; pre-onboarding renders `OnboardingView`
   in place. Four modules: (1) "From your teams" content cards, (2) Player Spotlight, (3) Fan
-  Zone games, (4) "Coming up". All live.
+  Zone games, (4) "Coming up". All live. Module 1 uses a **round-robin fair-share** (every
+  followed team a guaranteed minimum, interleaved across teams AND content types so a quiet club
+  or club news isn't buried by a loud team's clips), **per-team chips** ([All] + each followed
+  club's abbreviation — shown only at 2+ teams; at 1 team the chips hide and cards drop their
+  redundant team badge/name), and a **"See more →"** full-firehose screen; pull-to-refresh
+  refetches + rotates the window when nothing's new, and a follows change refetches (see
+  `ContentRoundRobin`).
 - **Fan Zone games** (`games-design-spec.md`) — all three LIVE with **real Supabase
   leaderboards**:
   - **Predict the XI** (pink): pick a followed team's XI + formation + scoreline pre-match,
@@ -446,6 +468,21 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
   `SignInPromptView`; the app stays fully working on the UserDefaults cache when signed out.
 - **Notifications — Tier 1 / LOCAL** (`local-notifications-spec.md`) — `NotificationScheduler`
   delivers a day-before match reminder + a weekly Player Spotlight; permission on first toggle-on.
+- **Notifications hub — Follow vs Alerts** (QOL v2 `Reference/Feed update/QOL v2 - Notification
+  Redesign + Support.md`) — every notification setting lives on ONE screen (`NotificationsView`),
+  reached from three doors (Teams nav-bar 🔔, Teams "{N} teams · Manage" line, Profile "Notifications"
+  row). Following a club (⭐) and match alerts for it (🔔) are independent: per-team is a simple
+  **ON/OFF** bell (on the Teams rows + hub §1, `TeamAlertStore` = `Set<String>` → UserDefaults +
+  Supabase `team_alert_preferences`); the **alert TYPES are global** (hub §2, `NotificationPreferencesStore`:
+  day-before[Tier 1] + kickoff/goals/halftime/full-time[Tier 2]), dimmed+inert when no team is on.
+  §3 Activity (Fan Zone, Spotlight) is global. Tier-2 toggles present an honest sign-in gate
+  (`NotificationAuthPromptView`) when signed out and don't flip until sign-in; **sign-out resets the
+  4 Tier-2 types OFF** (they can't deliver without an account). Migration seeds a followed team ON
+  only if a global match-day toggle was on. Unfollow clears a team's alerts. lineup/subs/cards not shown.
+- **Support NWSLApp** (QOL v2 §5) — optional StoreKit tips (`SupportView` + `SupportStore`) from the
+  Profile Settings group: 4 tiers (Corner Kick/Free Kick/Penalty Kick/Hat Trick), one-time or monthly,
+  "where it goes" + thank-you state. App stays free; supporters get no extra features. Local
+  `NWSLApp.storekit` config (+ scheme ref) makes it sim-testable; ASC product creation is owner-gated.
 
 ---
 
@@ -459,16 +496,25 @@ at the top (ALIVE > core > hardening).
   leaderboards + 6 achievements (`Reference/game-center-app-store-connect-checklist.md`), then a
   joint sandbox-account live-verify. App side is shipped + handles the not-yet-enabled state gracefully.
 
-**QOL (0.4.x — the current chapter): improving the experience of what's already alive.** See
-`Reference/Feed update/QOL Update Handoff.md`. Examples: content balancing (some teams post more
-than others), follow-vs-alerts UX, richer filter chips, polish. Plus, as they come up from real use:
+**QOL — 0.4.0 build 9 (first build of the flagship):** improving the experience of what's already
+alive. Handoffs: `Reference/Feed update/QOL Update Handoff.md` (Changes 1+3) + `QOL v2 - Notification
+Redesign + Support.md` (the notification redesign, which superseded the original Change 2). **Shipped**:
+Home round-robin balancing + pull-to-refresh rotation + "See more →"; Home per-team chips; the
+one-screen **Notifications hub** (per-team on/off bells + global alert types + honest sign-in gate +
+sign-out Tier-2 reset); the **Support** (StoreKit tips) screen. Owner-gated to finish: drop the old
+per-type columns on the live `team_alert_preferences` table (run the alter in `supabase/schema.sql`);
+create the Support IAP products + subscription group in App Store Connect (ids in the v2 spec §5) +
+enable the in-app-purchase capability. Still pending, as they come up from real use:
 - **Pull-to-refresh polish** — keep the list visible during refresh (spinner only on first load),
   not flipping `state` to `.loading` full-screen.
+- **Server-push per-team targeting** — the match-watcher Worker still reads the global
+  `notification_preferences`; repoint it to read `team_alert_preferences` per team when Tier 2 goes
+  live (the app side already writes per-team intent).
 - **Bracket follow-ups (optional):** exact season-stat seeding for stat editions; more stat
   templates (GK/Mid/Def); a full bracket-TREE graphic (its own design pass). Owner still to curate
   the Best Goal Celebration creative edition (loads as data via `scripts/load_creative_edition.mjs`).
-- **Home Module follow-ups:** "See all" content destination + refetch-on-follows-change; spotlight
-  no-repeat-per-season + opt-in weekly notif.
+- **Home Module follow-ups:** spotlight no-repeat-per-season + opt-in weekly notif. (✓ "See more"
+  destination + refetch-on-follows-change shipped in 0.4.0.)
 
 **Hardening (do after ALIVE work):**
 - Capture a real ESPN response → `Fixtures/scoreboard.json` + a decode-only test for

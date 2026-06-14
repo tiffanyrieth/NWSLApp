@@ -126,6 +126,52 @@ grant select, insert, update          on public.notification_preferences to auth
 
 
 -- ═════════════════════════════════════════════════════════════════════════════
+-- Per-team match alerts — Follow vs Alerts (QOL v2, 0.4.x)
+-- ═════════════════════════════════════════════════════════════════════════════
+--
+-- WHICH teams buzz your phone on match day. Following a club (⭐) and getting match
+-- alerts for it (🔔) are independent: a user can follow five clubs for content but
+-- push for only one. Per-team is just ON/OFF — WHAT you're alerted about (kickoff,
+-- goals, …) is the GLOBAL `notification_preferences` row, applied to every team with
+-- alerts on. One row per (user, team), keyed by ESPN team id (same key as `follows`).
+-- The match-watcher Worker joins this (service-role) with the global prefs to decide,
+-- for a team's event, which followers to push.
+--
+-- NOTE (migration from the earlier v2 branch): an earlier cut of this table carried
+-- per-type columns (day_before, kickoff, …, cards). Those are dropped — per-team is
+-- on/off only. On an existing project, run:
+--   alter table public.team_alert_preferences
+--     drop column if exists day_before, drop column if exists kickoff,
+--     drop column if exists goals, drop column if exists halftime,
+--     drop column if exists full_time, drop column if exists lineup_posted,
+--     drop column if exists substitutions, drop column if exists cards;
+-- (or drop + recreate the table from the definition below).
+
+create table public.team_alert_preferences (
+  user_id uuid references auth.users(id) on delete cascade not null,
+  team_id text not null,                 -- ESPN team id (matches follows.team_id)
+  alerts_enabled boolean not null default false,
+  updated_at timestamptz default now(),
+  primary key (user_id, team_id)         -- backs the app's upsert onConflict
+);
+
+alter table public.team_alert_preferences enable row level security;
+
+create policy "Users read own team alert prefs"
+  on public.team_alert_preferences for select using (auth.uid() = user_id);
+create policy "Users insert own team alert prefs"
+  on public.team_alert_preferences for insert with check (auth.uid() = user_id);
+create policy "Users update own team alert prefs"
+  on public.team_alert_preferences for update using (auth.uid() = user_id);
+create policy "Users delete own team alert prefs"
+  on public.team_alert_preferences for delete using (auth.uid() = user_id);
+
+-- Grants (the 42501 gotcha — RLS does not imply privilege). Private per-user table;
+-- authenticated only, never anon.
+grant select, insert, update, delete on public.team_alert_preferences to authenticated;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
 -- Bracket Battle — community-voting tournament (Fan Zone game 2, 0.3.9)
 -- ═════════════════════════════════════════════════════════════════════════════
 --

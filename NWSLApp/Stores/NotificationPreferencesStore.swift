@@ -94,4 +94,17 @@ final class NotificationPreferencesStore {
     private func persist(_ value: Bool, _ key: String) {
         defaults.set(value, forKey: Self.prefix + key)
     }
+
+    /// Turn off every Tier-2 (server-push) alert type — kickoff, goals, halftime,
+    /// full-time. Called on sign-out: these can't be delivered without an account
+    /// (the APNs token is detached too), so leaving them "on" would be a lie. The
+    /// Tier-1 locals (day-before, Player Spotlight) stay — they work signed-out. On
+    /// sign-in the user re-enables Tier-2 from the hub with no gate (they're signed
+    /// in now). Each setter persists + fires `onPreferenceChanged`.
+    func resetServerPushTypes() {
+        kickoff = false
+        goals = false
+        halftime = false
+        fullTime = false
+    }
 }

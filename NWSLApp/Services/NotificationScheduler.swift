@@ -37,6 +37,7 @@ final class NotificationScheduler {
     private let following: FollowingStore
     private let clubs: ClubStore
     private let preferences: NotificationPreferencesStore
+    private let alerts: TeamAlertStore
 
     /// Deterministic identifier prefix so every rebuild replaces the prior set
     /// cleanly (see `nwsl.{eventID}.dayBefore`, `nwsl.spotlight.weekly`).
@@ -46,12 +47,14 @@ final class NotificationScheduler {
         matches: MatchStore,
         following: FollowingStore,
         clubs: ClubStore,
-        preferences: NotificationPreferencesStore
+        preferences: NotificationPreferencesStore,
+        alerts: TeamAlertStore
     ) {
         self.matches = matches
         self.following = following
         self.clubs = clubs
         self.preferences = preferences
+        self.alerts = alerts
     }
 
     /// Wire up rescheduling. Call once, after the session restores, from RootTabView.
@@ -75,6 +78,11 @@ final class NotificationScheduler {
             _ = matches.state
             _ = clubs.state
             _ = following.followedIDs
+            // A team's 🔔 on/off must reschedule too. The store's onAlertChanged
+            // closure is owned by TeamAlertSyncCoordinator, so we observe the set
+            // directly (same reason we watch followedIDs, not onFollowsChanged). The
+            // global day-before TYPE toggle reschedules via preferences.onPreferenceChanged.
+            _ = alerts.enabledTeamIDs
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -106,7 +114,9 @@ final class NotificationScheduler {
 
     private func buildRequests() -> [UNNotificationRequest] {
         var requests: [UNNotificationRequest] = []
-        if preferences.dayBefore { requests.append(contentsOf: dayBeforeRequests()) }
+        // Day-before is gated per-team inside (alertsEnabled && dayBefore), so it's
+        // always considered here — the empty-set guard handles "nobody opted in".
+        requests.append(contentsOf: dayBeforeRequests())
         if preferences.playerSpotlight { requests.append(weeklySpotlightRequest()) }
         return requests
     }
@@ -114,15 +124,21 @@ final class NotificationScheduler {
     // MARK: - Day-before reminders
 
     private func dayBeforeRequests() -> [UNNotificationRequest] {
-        // Followed clubs' abbreviations — scoreboard competitors carry an
-        // abbreviation, not a club id, so we resolve through the directory
-        // (the same fragile-but-verified join MatchStore.matches(for:) uses).
-        let followedAbbreviations = Set(
+        // Abbreviations of followed clubs that get the day-before reminder: the
+        // team's 🔔 is on AND the GLOBAL day-before alert type is on (v2: per-team is
+        // on/off, the alert TYPES are global). Scoreboard competitors carry an
+        // abbreviation, not a club id, so we resolve through the directory (the same
+        // fragile-but-verified join MatchStore.matches(for:) uses).
+        let alertingAbbreviations = Set(
             clubs.clubs
-                .filter { following.followedIDs.contains($0.id) }
+                .filter {
+                    following.followedIDs.contains($0.id)
+                        && alerts.alertsEnabled(for: $0.id)
+                        && preferences.dayBefore
+                }
                 .map { $0.abbreviation }
         )
-        guard !followedAbbreviations.isEmpty else { return [] }
+        guard !alertingAbbreviations.isEmpty else { return [] }
 
         return matches.events.compactMap { event in
             // Upcoming only, and only if the day-before moment is still in the
@@ -133,7 +149,7 @@ final class NotificationScheduler {
 
             guard let home = event.homeCompetitor?.team?.abbreviation,
                   let away = event.awayCompetitor?.team?.abbreviation,
-                  followedAbbreviations.contains(home) || followedAbbreviations.contains(away)
+                  alertingAbbreviations.contains(home) || alertingAbbreviations.contains(away)
             else { return nil }
 
             let content = UNMutableNotificationContent()

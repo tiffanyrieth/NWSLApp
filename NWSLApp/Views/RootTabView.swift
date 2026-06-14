@@ -71,9 +71,14 @@ struct RootTabView: View {
     // same signed-in state (see AuthStore).
     @State private var auth = AuthStore()
 
-    // Notification preferences (the Profile screen's 9 toggles), shared so the
-    // Profile reads/writes the same persisted intent (see NotificationPreferencesStore).
+    // Notification preferences (the global Activity toggles + the migration seed for
+    // per-team alerts), shared so Profile reads/writes the same persisted intent.
     @State private var notifications = NotificationPreferencesStore()
+
+    // Per-team match-alert prefs (QOL Change 2: Follow vs Alerts), shared so each
+    // club's detail sheet and the Profile summary read the same state. Keyed by ESPN
+    // team id, like FollowingStore (see TeamAlertStore).
+    @State private var teamAlerts = TeamAlertStore()
 
     // Bridges local follows ⟷ Supabase once signed in. Not injected into the
     // environment — no view needs it; RootTabView just holds it alive and starts
@@ -93,6 +98,11 @@ struct RootTabView: View {
     // not injected; the match-watcher Worker reads what it writes (see
     // NotificationSyncCoordinator).
     @State private var notificationSyncCoordinator: NotificationSyncCoordinator?
+
+    // Mirrors per-team alert prefs ⟷ Supabase once signed in, and clears a team's
+    // alerts when it leaves the followed set. Held alive here, not injected (see
+    // TeamAlertSyncCoordinator).
+    @State private var teamAlertSyncCoordinator: TeamAlertSyncCoordinator?
 
     // Set the Game Center auth handler exactly once.
     @State private var gameCenterStarted = false
@@ -130,6 +140,7 @@ struct RootTabView: View {
         .environment(feedPreferences)
         .environment(auth)
         .environment(notifications)
+        .environment(teamAlerts)
         .task {
             // Restore any saved Supabase session, then start follow sync. Guard so
             // re-running .task (it can fire again on scene changes) doesn't build a
@@ -147,12 +158,22 @@ struct RootTabView: View {
                 coordinator.start()
                 syncCoordinator = coordinator
             }
+            // One-time seed of per-team alerts from the old GLOBAL Match Day toggles,
+            // so existing testers don't silently lose alerts on upgrade. Idempotent
+            // (self-guards on a sentinel); must run before the alert sync coordinator's
+            // first reconcile so the seeded prefs mirror up. FollowingStore has loaded
+            // its ids by now (in its init), so the followed set is ready.
+            teamAlerts.migrateFromGlobalIfNeeded(
+                global: notifications.snapshot,
+                followedIDs: following.followedIDs
+            )
             if notificationScheduler == nil {
                 let scheduler = NotificationScheduler(
                     matches: matches,
                     following: following,
                     clubs: clubs,
-                    preferences: notifications
+                    preferences: notifications,
+                    alerts: teamAlerts
                 )
                 scheduler.start()
                 notificationScheduler = scheduler
@@ -161,6 +182,15 @@ struct RootTabView: View {
                 let coordinator = NotificationSyncCoordinator(auth: auth, preferences: notifications)
                 coordinator.start()
                 notificationSyncCoordinator = coordinator
+            }
+            if teamAlertSyncCoordinator == nil {
+                let coordinator = TeamAlertSyncCoordinator(
+                    auth: auth,
+                    alerts: teamAlerts,
+                    following: following
+                )
+                coordinator.start()
+                teamAlertSyncCoordinator = coordinator
             }
             // If the user already granted notification permission in a prior launch,
             // re-register for remote notifications so APNs hands us a fresh device

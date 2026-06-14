@@ -92,7 +92,7 @@ struct TeamDetailView: View {
 
     private var header: some View {
         HStack(spacing: 16) {
-            TeamLogo(urlString: club.logoURL, size: 56)
+            TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 56)
             VStack(alignment: .leading, spacing: 4) {
                 Text(club.displayName)
                     .font(.title2.weight(.bold))

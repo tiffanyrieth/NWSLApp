@@ -249,7 +249,7 @@ struct PlayerSpotlightView: View {
         ZStack {
             LinearGradient(colors: [Color.dsBgTertiary, Color.dsBgCard],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
-            TeamLogo(urlString: club?.logoURL, size: 72).opacity(0.9)
+            TeamLogo(urlString: club?.logoURL, teamAbbreviation: club?.abbreviation, size: 72).opacity(0.9)
         }
     }
 

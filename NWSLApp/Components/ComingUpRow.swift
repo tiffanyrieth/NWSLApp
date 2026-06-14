@@ -55,11 +55,11 @@ struct ComingUpRow: View {
     // Mini home-v-away crests (bare logos — a team crest never gets a ring).
     private var crests: some View {
         HStack(spacing: 6) {
-            TeamLogo(urlString: event.homeCompetitor?.team?.logo, size: 28)
+            TeamLogo(urlString: event.homeCompetitor?.team?.logo, teamAbbreviation: event.homeCompetitor?.team?.abbreviation, size: 28)
             Text("v")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(Color.dsFgQuaternary)
-            TeamLogo(urlString: event.awayCompetitor?.team?.logo, size: 28)
+            TeamLogo(urlString: event.awayCompetitor?.team?.logo, teamAbbreviation: event.awayCompetitor?.team?.abbreviation, size: 28)
         }
     }
 

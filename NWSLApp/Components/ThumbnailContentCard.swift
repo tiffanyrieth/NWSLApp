@@ -208,7 +208,7 @@ struct ThumbnailHeader: View {
     @ViewBuilder
     private var crestFallback: some View {
         if let logo = club?.logoURL {
-            TeamLogo(urlString: logo, size: 56).opacity(0.9)
+            TeamLogo(urlString: logo, teamAbbreviation: club?.abbreviation, size: 56).opacity(0.9)
         }
     }
 

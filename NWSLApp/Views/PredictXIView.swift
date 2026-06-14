@@ -312,7 +312,7 @@ struct PredictXIView: View {
 
     private func teamColumn(_ abbreviation: String) -> some View {
         VStack(spacing: 6) {
-            TeamLogo(urlString: viewModel.club(forAbbreviation: abbreviation)?.logoURL, size: 38)
+            TeamLogo(urlString: viewModel.club(forAbbreviation: abbreviation)?.logoURL, teamAbbreviation: abbreviation, size: 38)
             Text(abbreviation).font(.caption.weight(.bold))
         }
         .frame(maxWidth: .infinity)
@@ -333,7 +333,7 @@ struct PredictXIView: View {
     private func teamLeaderboardCard(team: String, rows: [PredictXIViewModel.LeaderboardRow]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                TeamLogo(urlString: viewModel.club(forAbbreviation: team)?.logoURL, size: 22)
+                TeamLogo(urlString: viewModel.club(forAbbreviation: team)?.logoURL, teamAbbreviation: team, size: 22)
                 Text(viewModel.teamLabel(team)).font(.headline)
                 Spacer()
                 Text("Predictors").font(.caption).foregroundStyle(.secondary)

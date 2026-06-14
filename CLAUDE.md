@@ -131,6 +131,16 @@ Folders are created when their first real file lands, not preemptively.
   news RSS + player Instagram), `/spotlight` (Player Spotlight), `/trivia` (Daily Trivia
   KV pool). Server-side does Haiku relevance filtering (`claude-haiku-4-5`, KV-cached), a
   flood cap, and dedupe.
+- **Headshots** (`src/headshots.ts`): `GET /headshots` serves an `{espnAthleteId: nwslGuid}`
+  map (built from the public NWSL SDP JSON API name-matched to ESPN rosters, ~98%; weekly cron
+  + admin `POST /headshots/run`; union-merged in KV with an `unmatched`/`overrides`/`meta`
+  audit). The app builds the NWSL Cloudinary headshot URL on-device. Pure mapping — no image bytes.
+- **Crests** (`GET /crest?team=WAS`): serves a team's crest as a transparent PNG from KV
+  (`crest:{ABBR}`). The NWSL CDN is named-transform-only (no client-side transparent PNG) and
+  returns SVG for ~11 of 16 teams, so `scripts/load_crests.mjs` rasterizes all 16 OFFLINE via
+  `sharp` (SVG + PNG sources → 384px, uniform modest padding) and loads them to KV. `TeamLogo`
+  prefers this, ESPN PNG fallback on 404. 5 teams (CHI/KC/BOS/DEN/GFC) have no vector source —
+  lateral vs ESPN; the 11 SVG teams gain real crispness. Re-run the loader if a club rebrands.
 - **Bracket engine:** `src/bracket.ts` + `bracket-engine.ts` — auto-generate 64-player
   editions from ESPN, tally votes + advance rounds on a cron, rotate creative↔stats editions.
 - Teams/roster/standings still hit ESPN directly. Base URLs in `Config/AppConfig.swift`;
@@ -313,6 +323,7 @@ NWSLApp/
 │   ├── NotificationScheduler.swift    — @MainActor; LOCAL (Tier 1) scheduling: day-before reminder (global type ∩ teams with alerts on) + weekly spotlight (global)
 │   ├── PushBridge.swift               — @MainActor @Observable `.shared`; UIKit AppDelegate (APNs/tap) → observable world
 │   ├── SupabaseManager.swift          — the one shared SupabaseClient (built from Secrets)
+│   ├── HeadshotStore.swift            — @MainActor @Observable `.shared`; fetches the `/headshots` map (espnAthleteId→NWSL GUID) once per launch; `guid(forAthleteID:)`; best-effort (failure → monograms)
 │   ├── GameCenterIDs.swift            — GameKit ID constants (4 leaderboards + 6 achievements) + pure cross-game score helpers (GameKit-free, unit-tested)
 │   ├── GameCenterManager.swift        — @MainActor @Observable `.shared`; auth + best-effort submit/report + syncAll + showDashboard (GKAccessPoint). The only file importing GameKit
 │   ├── TeamAlertPrefsSyncService.swift— Supabase `team_alert_preferences` client (per-team on/off upsert/fetchAll, composite key); RLS-scoped
@@ -392,8 +403,9 @@ NWSLApp/
 │   ├── HowToWatchCard.swift / MDInfoCard.swift / StatComparisonBar.swift — match-detail tiles
 │   ├── PitchDot.swift / PlayerDot.swift / PlayerCard.swift — player markers/cards (team-color monogram, no headshots)
 │   ├── ComingUpRow.swift / EventTimelineRow.swift / FlowLayout.swift — Home/match rows + wrapping layout
-│   ├── ImageCache.swift / TeamLogo.swift — cached team crests
+│   ├── ImageCache.swift / TeamLogo.swift — cached team crests; TeamLogo's `teamAbbreviation` prefers the crisp NWSL crest (proxy `/crest`) with the ESPN PNG as fallback
 │   ├── MatchCard.swift                — schedule card → MatchDetailView
+│   ├── PlayerHeadshot.swift           — circular player headshot via HeadshotStore→Cloudinary (ImageCache), jersey-monogram fallback; wraps the monogram on all 6 avatar surfaces (a 404/unmapped keeps the monogram)
 │   ├── PlayerSpotlightCard.swift      — Module-2 profile card
 │   └── SocialLinkButton.swift         — circular team-tinted social icon
 ├── Extensions/
@@ -449,6 +461,17 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
     TestFlight build.*
 - **Player Spotlight** (`spotlight-design-spec.md`) — one mini-profile per followed team, live
   via `/spotlight` (real player + ESPN stats + a Haiku "why watch" blurb, weekly rotation).
+- **Player headshots** (`Reference/Feed update/Player Headshots Handoff.md`, Phase A) — real
+  player photos replace the jersey-number monograms on all 6 avatar surfaces (squad cards,
+  player detail, Player Spotlight, formation pitch dots, Bracket matchup dots, Predict-XI
+  picker slots) via `PlayerHeadshot` + `HeadshotStore`. The proxy `/headshots` route serves an
+  espnAthleteId→NWSL-GUID map (SDP JSON API name-matched to ESPN rosters, ~98%, weekly cron);
+  the app builds the NWSL Cloudinary URL on-device (`t_w_240`/`t_w_480`) and loads via
+  `ImageCache`. A player with no photo (404) or no mapping keeps the monogram.
+- **Team crests — NWSL source (Phase B3)** — all 16 crests now come from NWSL via the proxy
+  `/crest` route (crisper than ESPN's raster for the 11 vector teams; lateral for the 5
+  PNG-only teams), wired into every `TeamLogo` surface with the ESPN PNG as a safe fallback.
+  Uniform modest padding. (Phase B2 Team Detail *banners* deferred pending a licensing review.)
 - **Feed** (`feed-tab-design-spec.md`) — reporters + news + social filtered to followed teams +
   league. Content-type chip bar (All/News/Social) over the live `/feed` cards; gear →
   `FeedSourcesView`.
@@ -491,16 +514,18 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
 Completed work lives in **Current State**; only pending work here. Ordered by the priority order
 at the top (ALIVE > core > hardening).
 
-**Owner-gated App Store Connect / backend setup (status):**
+**Owner-gated App Store Connect / backend setup — ✅ ALL DONE (2026-06-14):**
 - ✅ **Game Center** — the 4 leaderboards + 6 achievements are created in App Store Connect
   (status "Prepare for Submission"), matching the ids in `GameCenterIDs.swift`. App side shipped.
   (The sandbox/live-verify happens naturally on the next TestFlight build.)
-- ⬜ **Create the Support IAP products** — 4 consumables + a monthly subscription group in App Store
-  Connect (ids in `NWSLApp.storekit` / QOL v2 spec §5). Until then Support shows fallback prices and
-  purchases only work against the local `.storekit` config in Xcode.
-- ⬜ **Enable the In-App Purchase capability** (Xcode Signing & Capabilities + the ASC agreement).
-- ⬜ **Drop the old per-type columns** on the live `team_alert_preferences` Supabase table (run the
-  `alter` in `supabase/schema.sql`) so signed-in per-team alerts sync (offline-first works regardless).
+- ✅ **Support IAP products** — the 4 consumables + 4 monthly subs are created in App Store Connect
+  (ids in `NWSLApp.storekit` / QOL v2 spec §5). They show "Missing Metadata" until the app is
+  submitted (the first subscription must ship attached to a new app version) — expected, not a blocker.
+- ✅ **In-App Purchase capability** enabled (Xcode Signing & Capabilities + the ASC Paid Apps agreement).
+- ✅ **`team_alert_preferences` Supabase table** — CREATED (it never existed; the old-column `alter`
+  was a no-op, so it was created fresh with RLS + the `authenticated` grant per `supabase/schema.sql`).
+  Code-verified: `TeamAlertPrefsSyncService` upserts `user_id/team_id/alerts_enabled` on the composite
+  key, matching the table. Signed-in per-team alert sync is now live end-to-end.
 
 **QOL — 0.4.0 build 9 (first build of the flagship):** improving the experience of what's already
 alive. Handoffs: `Reference/Feed update/QOL Update Handoff.md` (Changes 1+3) + `QOL v2 - Notification
@@ -515,21 +540,25 @@ checklist above.) Still pending, as they come up from real use:
   a bar-free thumbnail / crop the content region in `nwslapp-proxy`). Not started.
 - **Pull-to-refresh polish** — keep the list visible during refresh (spinner only on first load),
   not flipping `state` to `.loading` full-screen.
-- **Server-push per-team targeting** — the match-watcher Worker still reads the global
-  `notification_preferences`; repoint it to read `team_alert_preferences` per team when Tier 2 goes
-  live (the app side already writes per-team intent).
+- ✅ **Server-push per-team targeting (done 2026-06-14)** — the match-watcher Worker now gates pushes
+  on `team_alert_preferences(alerts_enabled=true)` per team (the bell), ∩ the global
+  `notification_preferences` type toggle — so a push reaches only users who enabled alerts for THAT
+  team, not every follower. Deployed (`nwslapp-match-watcher` `src/supabase.ts`).
 - **Bracket follow-ups (optional):** exact season-stat seeding for stat editions; more stat
   templates (GK/Mid/Def); a full bracket-TREE graphic (its own design pass). Owner still to curate
   the Best Goal Celebration creative edition (loads as data via `scripts/load_creative_edition.mjs`).
 - **Home Module follow-ups:** spotlight no-repeat-per-season + opt-in weekly notif. (✓ "See more"
   destination + refetch-on-follows-change shipped in 0.4.0.)
+- **Player headshots — Phase B2 banners (DEFERRED — licensing):** the Team Detail banner image
+  (`team-player-header/{teamGUID}`, WebP) is on hold while the owner reviews whether a full club
+  graphic crosses a licensing line that crests/names don't (the disclaimer model covers
+  names/logos). B1 mechanics are proven; revisit later.
 
 **Hardening (do after ALIVE work):**
 - Capture a real ESPN response → `Fixtures/scoreboard.json` + a decode-only test for
   `Scoreboard`/Event helpers (date parsing, `dayKey` TZ).
 - `MatchStore.matches(for:)` joins club↔game by `abbreviation` (no id on ESPN competitors) — a
   rename silently empties a schedule. Fix: a normalized id map.
-- Headshots: `/headshots` route + NWSL-GUID↔ESPN-id map → headshots on pitch dots/`PlayerCard`.
 - Team social links — verify a couple of subreddit handles (KC `r/KCCurrent`; CHI `r/redstars`
   vs `r/ChicagoStars`; BOS/DEN/LOU none).
 

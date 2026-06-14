@@ -158,21 +158,28 @@ struct XIPickerView: View {
             activeSlot = SlotRef(id: slot.index)
         } label: {
             VStack(spacing: 5) {
-                ZStack {
-                    Circle()
-                        .fill(athlete != nil ? accent : Color.white.opacity(0.14))
-                        .frame(width: 46, height: 46)
-                    Circle()
-                        .stroke(Color.white.opacity(0.35), lineWidth: 1)
-                        .frame(width: 46, height: 46)
+                Group {
                     if let athlete {
-                        Text(athlete.jersey ?? "—")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.white)
+                        // Filled slot → the player's headshot, jersey-number monogram fallback.
+                        PlayerHeadshot(athleteID: athlete.id, size: 46) {
+                            ZStack {
+                                Circle().fill(accent)
+                                Text(athlete.jersey ?? "—")
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(.white)
+                            }
+                            .frame(width: 46, height: 46)
+                        }
                     } else {
-                        Image(systemName: "plus").foregroundStyle(.white.opacity(0.8))
+                        // Empty slot → the "add" affordance.
+                        ZStack {
+                            Circle().fill(Color.white.opacity(0.14))
+                            Image(systemName: "plus").foregroundStyle(.white.opacity(0.8))
+                        }
+                        .frame(width: 46, height: 46)
                     }
                 }
+                .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 1))
                 Text(athlete.map { lastName($0) } ?? slot.group.shortLabel)
                     .font(.caption2.weight(athlete != nil ? .semibold : .regular))
                     .foregroundStyle(.white.opacity(athlete != nil ? 1 : 0.7))

@@ -85,7 +85,7 @@ struct OnboardingView: View {
             following.toggle(club)
         } label: {
             HStack(spacing: 12) {
-                TeamLogo(urlString: club.logoURL, size: 32)
+                TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 32)
                 Text(club.displayName)
                     .foregroundStyle(.primary)
                 Spacer(minLength: 8)

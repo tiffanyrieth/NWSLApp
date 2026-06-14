@@ -153,6 +153,9 @@ struct RootTabView: View {
                 GameCenterManager.shared.authenticate()
                 gameCenterStarted = true
             }
+            // Warm the player-headshot map once (best-effort) so squad grids, the pitch, and
+            // the Fan Zone show real photos instead of monograms. Self-guards on re-fire.
+            await HeadshotStore.shared.load()
             if syncCoordinator == nil {
                 let coordinator = FollowSyncCoordinator(following: following, auth: auth)
                 coordinator.start()

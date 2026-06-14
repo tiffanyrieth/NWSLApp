@@ -82,7 +82,7 @@ struct MatchCard: View {
     private func teamRow(_ competitor: Competitor?) -> some View {
         let abbr = competitor?.team?.abbreviation ?? competitor?.team?.shortDisplayName ?? "—"
         HStack(spacing: DS.space5) {
-            TeamLogo(urlString: competitor?.team?.logo, size: 34)
+            TeamLogo(urlString: competitor?.team?.logo, teamAbbreviation: competitor?.team?.abbreviation, size: 34)
             // Fixed minWidth keeps home/away abbreviations aligned regardless of
             // crest load state — no horizontal shift as logos resolve.
             Text(abbr)

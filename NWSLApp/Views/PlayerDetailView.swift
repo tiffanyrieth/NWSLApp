@@ -29,16 +29,18 @@ struct PlayerDetailView: View {
         let accent = Color.teamAccent(hex: accentHex)
         ScrollView {
             VStack(spacing: 20) {
-                ZStack {
-                    Circle().fill(accent.fill)
-                    Text(monogram)
-                        .font(.largeTitle.weight(.bold))
-                        .foregroundStyle(accent.on)
-                        .minimumScaleFactor(0.5)
-                        .lineLimit(1)
-                        .padding(10)
+                PlayerHeadshot(athleteID: athlete.id, size: 96, kind: .detail) {
+                    ZStack {
+                        Circle().fill(accent.fill)
+                        Text(monogram)
+                            .font(.largeTitle.weight(.bold))
+                            .foregroundStyle(accent.on)
+                            .minimumScaleFactor(0.5)
+                            .lineLimit(1)
+                            .padding(10)
+                    }
+                    .frame(width: 96, height: 96)
                 }
-                .frame(width: 96, height: 96)
 
                 VStack(spacing: 4) {
                     Text(athlete.name)

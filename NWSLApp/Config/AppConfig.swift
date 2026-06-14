@@ -125,6 +125,18 @@ enum AppConfig {
         contentRouteURL("trivia", teams: [])
     }
 
+    // MARK: - Team crests
+
+    /// The proxy route serving a team's NWSL crest as a transparent PNG: `GET /crest?team=WAS`.
+    /// `TeamLogo` prefers this crisp crest and falls back to the ESPN raster when the team isn't
+    /// loaded (404). Keyed by the app's team abbreviation. Returns nil on a malformed URL.
+    static func crestURL(abbreviation: String) -> URL? {
+        guard var components = URLComponents(url: scoreboardProxyBase.appendingPathComponent("crest"),
+                                             resolvingAgainstBaseURL: false) else { return nil }
+        components.queryItems = [URLQueryItem(name: "team", value: abbreviation.uppercased())]
+        return components.url
+    }
+
     // MARK: - Player headshots
 
     /// The proxy route returning the `{ espnAthleteId: nwslGuid }` headshot map as JSON:

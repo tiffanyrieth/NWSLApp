@@ -135,6 +135,12 @@ Folders are created when their first real file lands, not preemptively.
   map (built from the public NWSL SDP JSON API name-matched to ESPN rosters, ~98%; weekly cron
   + admin `POST /headshots/run`; union-merged in KV with an `unmatched`/`overrides`/`meta`
   audit). The app builds the NWSL Cloudinary headshot URL on-device. Pure mapping — no image bytes.
+- **Crests** (`GET /crest?team=WAS`): serves a team's crest as a transparent PNG from KV
+  (`crest:{ABBR}`). The NWSL CDN is named-transform-only (no client-side transparent PNG) and
+  returns SVG for ~11 of 16 teams, so `scripts/load_crests.mjs` rasterizes all 16 OFFLINE via
+  `sharp` (SVG + PNG sources → 384px, uniform modest padding) and loads them to KV. `TeamLogo`
+  prefers this, ESPN PNG fallback on 404. 5 teams (CHI/KC/BOS/DEN/GFC) have no vector source —
+  lateral vs ESPN; the 11 SVG teams gain real crispness. Re-run the loader if a club rebrands.
 - **Bracket engine:** `src/bracket.ts` + `bracket-engine.ts` — auto-generate 64-player
   editions from ESPN, tally votes + advance rounds on a cron, rotate creative↔stats editions.
 - Teams/roster/standings still hit ESPN directly. Base URLs in `Config/AppConfig.swift`;
@@ -397,7 +403,7 @@ NWSLApp/
 │   ├── HowToWatchCard.swift / MDInfoCard.swift / StatComparisonBar.swift — match-detail tiles
 │   ├── PitchDot.swift / PlayerDot.swift / PlayerCard.swift — player markers/cards (team-color monogram, no headshots)
 │   ├── ComingUpRow.swift / EventTimelineRow.swift / FlowLayout.swift — Home/match rows + wrapping layout
-│   ├── ImageCache.swift / TeamLogo.swift — cached team crests
+│   ├── ImageCache.swift / TeamLogo.swift — cached team crests; TeamLogo's `teamAbbreviation` prefers the crisp NWSL crest (proxy `/crest`) with the ESPN PNG as fallback
 │   ├── MatchCard.swift                — schedule card → MatchDetailView
 │   ├── PlayerHeadshot.swift           — circular player headshot via HeadshotStore→Cloudinary (ImageCache), jersey-monogram fallback; wraps the monogram on all 6 avatar surfaces (a 404/unmapped keeps the monogram)
 │   ├── PlayerSpotlightCard.swift      — Module-2 profile card
@@ -461,8 +467,11 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
   picker slots) via `PlayerHeadshot` + `HeadshotStore`. The proxy `/headshots` route serves an
   espnAthleteId→NWSL-GUID map (SDP JSON API name-matched to ESPN rosters, ~98%, weekly cron);
   the app builds the NWSL Cloudinary URL on-device (`t_w_240`/`t_w_480`) and loads via
-  `ImageCache`. A player with no photo (404) or no mapping keeps the monogram. Phase B (Team
-  Detail banner + ESPN→NWSL crest swap) is the next owner-gated step.
+  `ImageCache`. A player with no photo (404) or no mapping keeps the monogram.
+- **Team crests — NWSL source (Phase B3)** — all 16 crests now come from NWSL via the proxy
+  `/crest` route (crisper than ESPN's raster for the 11 vector teams; lateral for the 5
+  PNG-only teams), wired into every `TeamLogo` surface with the ESPN PNG as a safe fallback.
+  Uniform modest padding. (Phase B2 Team Detail *banners* deferred pending a licensing review.)
 - **Feed** (`feed-tab-design-spec.md`) — reporters + news + social filtered to followed teams +
   league. Content-type chip bar (All/News/Social) over the live `/feed` cards; gear →
   `FeedSourcesView`.
@@ -537,11 +546,10 @@ checklist above.) Still pending, as they come up from real use:
   the Best Goal Celebration creative edition (loads as data via `scripts/load_creative_edition.mjs`).
 - **Home Module follow-ups:** spotlight no-repeat-per-season + opt-in weekly notif. (✓ "See more"
   destination + refetch-on-follows-change shipped in 0.4.0.)
-- **Player headshots — Phase B (owner-gated, after Phase A confirmed):** B1 Team Detail banner
-  (Spirit test → B2 roll out to 16, NWSL `team-player-header/{teamGUID}`, WebP) → B3 swap team
-  crests ESPN PNG → NWSL vector SVG via a proxy `/crest` rasterization route (the CDN is
-  named-transform-only, so transparent PNG must be produced server-side; ESPN PNG stays the
-  fallback). 16-team abbr→NWSL-GUID table is checked-in static data. (Phase A shipped.)
+- **Player headshots — Phase B2 banners (DEFERRED — licensing):** the Team Detail banner image
+  (`team-player-header/{teamGUID}`, WebP) is on hold while the owner reviews whether a full club
+  graphic crosses a licensing line that crests/names don't (the disclaimer model covers
+  names/logos). B1 mechanics are proven; revisit later.
 
 **Hardening (do after ALIVE work):**
 - Capture a real ESPN response → `Fixtures/scoreboard.json` + a decode-only test for

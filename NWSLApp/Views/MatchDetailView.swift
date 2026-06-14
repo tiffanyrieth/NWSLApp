@@ -717,7 +717,7 @@ struct MatchDetailView: View {
             // Real crest shown bare on the dark panel — no ring. A team crest is a
             // self-contained shape, so it never gets a ring bubble (unlike a player
             // monogram); the header's team-color wash carries the team identity.
-            TeamLogo(urlString: competitor?.team?.logo, size: 64)
+            TeamLogo(urlString: competitor?.team?.logo, teamAbbreviation: competitor?.team?.abbreviation, size: 64)
             Text(name(for: competitor))
                 .font(.headline)
                 .multilineTextAlignment(.center)

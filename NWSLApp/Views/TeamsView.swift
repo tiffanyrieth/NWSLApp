@@ -125,7 +125,7 @@ struct TeamsView: View {
                 path.append(club)
             } label: {
                 HStack(spacing: 12) {
-                    TeamLogo(urlString: club.logoURL, size: 32)
+                    TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 32)
                     // Full name — the directory is the one place full names show.
                     Text(club.displayName)
                         .foregroundStyle(isFollowing ? Color.dsAccent : Color.dsFgPrimary)

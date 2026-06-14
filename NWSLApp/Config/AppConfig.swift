@@ -125,10 +125,44 @@ enum AppConfig {
         contentRouteURL("trivia", teams: [])
     }
 
+    // MARK: - Player headshots
+
+    /// The proxy route returning the `{ espnAthleteId: nwslGuid }` headshot map as JSON:
+    /// `GET /headshots`. League-wide (no `teams`), like `/trivia`. The Worker name-matches
+    /// NWSL players to ESPN athlete ids on a weekly cron; the app fetches this map once
+    /// (`HeadshotStore`) and builds the Cloudinary image URL on-device (`headshotImageURL`).
+    /// Returns nil on a malformed URL (caller then shows monograms everywhere).
+    static func headshotsMapURL() -> URL? {
+        contentRouteURL("headshots", teams: [])
+    }
+
+    /// The on-device size for a headshot, mapped to a Cloudinary width transform. The CDN is
+    /// named-transform-only, so these are the *verified-working* widths: `t_w_240` covers the
+    /// ≤48pt circular avatars (3× Retina), `t_w_480` the 96pt player-detail hero. (`t_w_360`
+    /// 400s — do NOT add it.)
+    enum HeadshotSize {
+        case card   // ≤48pt avatars: squad cards, Spotlight, pitch/bracket dots, picker slots
+        case detail // 96pt PlayerDetailView hero
+
+        var cloudinaryWidth: Int {
+            switch self {
+            case .card: return 240
+            case .detail: return 480
+            }
+        }
+    }
+
+    /// Build the NWSL Cloudinary headshot URL for a player GUID at a given size. A player with
+    /// no photo on file 404s, so `ImageCache` returns nil and the caller keeps its monogram —
+    /// no fallbacklogo detection needed. Returns nil on a malformed URL.
+    static func headshotImageURL(guid: String, size: HeadshotSize) -> URL? {
+        URL(string: "https://images.nwslsoccer.com/image/private/t_w_\(size.cloudinaryWidth)/prd/assets/widgets/players/\(guid)")
+    }
+
     /// Shared builder for the content routes (`/team-videos`, `/feed`, `/spotlight`,
-    /// `/trivia`): appends the path to the proxy host and the comma-joined team list,
-    /// omitting the query entirely when no teams are given (as `/trivia` always is).
-    /// Returns nil on a malformed URL.
+    /// `/trivia`, `/headshots`): appends the path to the proxy host and the comma-joined team
+    /// list, omitting the query entirely when no teams are given (as `/trivia`/`/headshots`
+    /// always are). Returns nil on a malformed URL.
     private static func contentRouteURL(_ path: String, teams: [String]) -> URL? {
         let endpoint = scoreboardProxyBase.appendingPathComponent(path)
         guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {

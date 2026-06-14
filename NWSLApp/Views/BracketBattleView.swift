@@ -244,7 +244,7 @@ struct BracketBattleView: View {
         } label: {
             VStack(spacing: 6) {
                 PlayerDot(name: e.playerName, jersey: e.jerseyNumber, teamAbbreviation: e.teamAbbreviation,
-                          accent: accentColor(e.teamAbbreviation), size: 44, showLabels: false)
+                          accent: accentColor(e.teamAbbreviation), athleteID: e.id, size: 44, showLabels: false)
                 Text(e.playerName).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
                 Text(e.teamAbbreviation).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.dsFgTertiary)
                 if picked { Text("YOUR PICK ✓").font(.system(size: 10, weight: .bold)).foregroundStyle(accent) }
@@ -410,7 +410,7 @@ struct BracketBattleView: View {
     private func resultSide(_ e: BracketEntrant, won: Bool, isYour: Bool) -> some View {
         VStack(spacing: 5) {
             PlayerDot(name: e.playerName, jersey: e.jerseyNumber, teamAbbreviation: e.teamAbbreviation,
-                      accent: accentColor(e.teamAbbreviation), size: 40, showLabels: false)
+                      accent: accentColor(e.teamAbbreviation), athleteID: e.id, size: 40, showLabels: false)
             Text(e.playerName).font(.system(size: 13, weight: won ? .bold : .medium))
                 .foregroundStyle(won ? .white : Color.dsFgTertiary).strikethrough(!won).lineLimit(1)
             Text(e.teamAbbreviation + (isYour ? " · your pick" : ""))

@@ -514,16 +514,18 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
 Completed work lives in **Current State**; only pending work here. Ordered by the priority order
 at the top (ALIVE > core > hardening).
 
-**Owner-gated App Store Connect / backend setup (status):**
+**Owner-gated App Store Connect / backend setup — ✅ ALL DONE (2026-06-14):**
 - ✅ **Game Center** — the 4 leaderboards + 6 achievements are created in App Store Connect
   (status "Prepare for Submission"), matching the ids in `GameCenterIDs.swift`. App side shipped.
   (The sandbox/live-verify happens naturally on the next TestFlight build.)
-- ⬜ **Create the Support IAP products** — 4 consumables + a monthly subscription group in App Store
-  Connect (ids in `NWSLApp.storekit` / QOL v2 spec §5). Until then Support shows fallback prices and
-  purchases only work against the local `.storekit` config in Xcode.
-- ⬜ **Enable the In-App Purchase capability** (Xcode Signing & Capabilities + the ASC agreement).
-- ⬜ **Drop the old per-type columns** on the live `team_alert_preferences` Supabase table (run the
-  `alter` in `supabase/schema.sql`) so signed-in per-team alerts sync (offline-first works regardless).
+- ✅ **Support IAP products** — the 4 consumables + 4 monthly subs are created in App Store Connect
+  (ids in `NWSLApp.storekit` / QOL v2 spec §5). They show "Missing Metadata" until the app is
+  submitted (the first subscription must ship attached to a new app version) — expected, not a blocker.
+- ✅ **In-App Purchase capability** enabled (Xcode Signing & Capabilities + the ASC Paid Apps agreement).
+- ✅ **`team_alert_preferences` Supabase table** — CREATED (it never existed; the old-column `alter`
+  was a no-op, so it was created fresh with RLS + the `authenticated` grant per `supabase/schema.sql`).
+  Code-verified: `TeamAlertPrefsSyncService` upserts `user_id/team_id/alerts_enabled` on the composite
+  key, matching the table. Signed-in per-team alert sync is now live end-to-end.
 
 **QOL — 0.4.0 build 9 (first build of the flagship):** improving the experience of what's already
 alive. Handoffs: `Reference/Feed update/QOL Update Handoff.md` (Changes 1+3) + `QOL v2 - Notification

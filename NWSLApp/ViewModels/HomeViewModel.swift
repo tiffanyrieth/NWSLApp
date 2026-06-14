@@ -28,6 +28,15 @@ final class HomeViewModel {
     // derived `spotlights(following:)` below.
     private(set) var allSpotlights: [PlayerSpotlight] = []
 
+    // Change 3: the active content-type chip on Module 1. In-memory only — never
+    // persisted, and reset to `.all` on pull-to-refresh (per spec).
+    var selectedFilter: HomeContentFilter = .all
+
+    // Change 1: per-team rotation offsets for pull-to-refresh. In-memory (the spec
+    // doesn't ask them to survive launches). Advanced when a refresh finds no new
+    // content, so the user discovers cards they hadn't seen.
+    private(set) var windowOffsets: [String: Int] = [:]
+
     // The shared season + club stores, handed in by the view (mirrors
     // ScheduleViewModel): Home derives its modules from the same events Schedule
     // renders and the same directory Teams lists — no re-downloading.
@@ -54,17 +63,47 @@ final class HomeViewModel {
     /// live route is scoped to followed teams; the seed ignores the arg and returns
     /// all, leaving the per-follow filtering to `teamContent`).
     ///
-    /// ⚠️ TEMP seam: idempotent on first load. Once `liveContentEnabled` is true,
-    /// a newly-followed team's live content won't appear until a refresh because
-    /// the guard skips a refetch (the seed is unaffected — it loads all + filters).
-    /// Wire a refetch on follows-change when the live route lands (Part 2 Step 1).
-    func loadContent(following: FollowingStore) async {
-        guard teamContentItems.isEmpty else { return }
+    /// `force == false` loads once (the first-open `.task`); `force == true` refetches
+    /// (pull-to-refresh + a follows change), so a newly-followed team's content appears
+    /// without relaunching. (Replaces the old idempotent-only TEMP guard.)
+    func loadContent(following: FollowingStore, force: Bool = false) async {
+        guard force || teamContentItems.isEmpty else { return }
         let followed = followedAbbreviations(following)
         teamContentItems = await contentService.homeCards(followedAbbreviations: followed)
         // Live `/spotlight` (one real player per followed team) or the seed fallback;
         // spotlights(following:) below picks one per team from whatever this returns.
         allSpotlights = await contentService.spotlightCards(followedAbbreviations: followed)
+    }
+
+    /// Pull-to-refresh: refetch, reset the chip to All, then either lead with the new
+    /// content (offsets cleared so newest surfaces) or — when nothing new arrived —
+    /// advance the rotation window so the user still sees cards they hadn't seen.
+    func refresh(following: FollowingStore) async {
+        let previousIDs = Set(teamContentItems.map(\.id))
+        await loadContent(following: following, force: true)
+        selectedFilter = .all
+        let newIDs = Set(teamContentItems.map(\.id))
+        if newIDs == previousIDs {
+            advanceRotation(following: following)
+        } else {
+            windowOffsets = [:]
+        }
+    }
+
+    /// Shift each followed team's window forward by one page (`guaranteed`), wrapping,
+    /// over its fresh content pool. Pure logic lives in ContentRoundRobin.
+    private func advanceRotation(following: FollowingStore) {
+        let ordered = orderedFollowedAbbreviations(following)
+        var counts: [String: Int] = [:]
+        for card in freshFollowedCards(following: following) {
+            if let abbr = card.teamAbbreviation { counts[abbr, default: 0] += 1 }
+        }
+        let (guaranteed, _) = ContentRoundRobin.tier(ordered.count)
+        windowOffsets = ContentRoundRobin.advancedOffsets(
+            current: windowOffsets,
+            availableCounts: counts,
+            guaranteed: guaranteed
+        )
     }
 
     /// Proxies the shared club store's state so HomeView's error/ready checks over
@@ -87,11 +126,24 @@ final class HomeViewModel {
 
     // MARK: - Module 1: From your teams
 
-    /// The latest team-content cards across all followed clubs, newest first,
-    /// capped so the hook stays scannable above the rest of the hub. Home shows
-    /// only the teams' OWN voices, so feed-only cards are gated out (placement),
-    /// and only same-day-ish content survives the 72h Home staleness window.
-    func teamContent(following: FollowingStore, limit: Int = 6) -> [ContentCard] {
+    /// The balanced "From your teams" module: round-robin fair-share across followed
+    /// clubs (every team a guaranteed minimum, interleaved so a quiet club sits beside
+    /// a loud one), the active chip applied, capped by follow count. Returns the cards
+    /// AND the overflow count (drives the "See more →" link). Home shows only teams'
+    /// OWN voices (feed-only cards gated out), within the 72h staleness window.
+    ///
+    /// Returns a value (no stored state) so it's side-effect-free to call from `body`.
+    func teamContent(following: FollowingStore) -> ContentRoundRobin.Result {
+        ContentRoundRobin.balanced(
+            cards: eligibleTeamCards(following: following),
+            followedAbbreviations: orderedFollowedAbbreviations(following),
+            windowOffsets: windowOffsets
+        )
+    }
+
+    /// Followed teams' own fresh cards (placement + follow + 72h window), BEFORE the
+    /// chip filter — the rotation pool and the pre-filter base.
+    private func freshFollowedCards(following: FollowingStore) -> [ContentCard] {
         let followed = followedAbbreviations(following)
         return teamContentItems
             .filter { card in
@@ -100,9 +152,37 @@ final class HomeViewModel {
                 return followed.contains(abbr)
             }
             .fresh(.home, now: now())
+    }
+
+    /// `freshFollowedCards` with the active content-type chip applied — what the
+    /// round-robin balances.
+    private func eligibleTeamCards(following: FollowingStore) -> [ContentCard] {
+        freshFollowedCards(following: following)
+            .filter { ContentRoundRobin.passes($0, filter: selectedFilter) }
+    }
+
+    /// The full firehose for the "See more from your teams" screen: ALL followed-team
+    /// content (no cap, no staleness floor, no round-robin), reverse-chron, honoring
+    /// the active chip.
+    func allFollowedTeamContent(following: FollowingStore) -> [ContentCard] {
+        let followed = followedAbbreviations(following)
+        return teamContentItems
+            .filter { card in
+                guard card.placement != .feed,
+                      let abbr = card.teamAbbreviation else { return false }
+                return followed.contains(abbr)
+            }
+            .filter { ContentRoundRobin.passes($0, filter: selectedFilter) }
             .sorted { $0.timestamp > $1.timestamp }
-            .prefix(limit)
-            .map { $0 }
+    }
+
+    /// Followed clubs' abbreviations in a STABLE (alphabetical) order — the
+    /// deterministic interleave order the round-robin needs.
+    private func orderedFollowedAbbreviations(_ following: FollowingStore) -> [String] {
+        clubs
+            .filter { following.followedIDs.contains($0.id) }
+            .map(\.abbreviation)
+            .sorted()
     }
 
     // MARK: - Module 2: Get to know your players

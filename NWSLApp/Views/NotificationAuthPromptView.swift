@@ -12,10 +12,11 @@
 //  on a live alert, with an honest "why" before the Apple sheet (the "Swift Alert"
 //  pattern, not the "ESPN wall").
 //
-//  Reuses SignInPromptView's half-sheet shape (Apple button + "Not now"). The
-//  toggle has already flipped on and persisted intent locally; signing in just
-//  lets that intent reach the server so the alert can actually be delivered.
-//  Declining leaves the toggle on but undelivered — honest, not broken.
+//  Reuses SignInPromptView's half-sheet shape (Apple button + "Not now"). v2 gate
+//  contract: the toggle has NOT flipped yet — it stays off until sign-in succeeds.
+//  On success we call `onSignedIn` (the caller flips the toggle on + requests iOS
+//  permission), then dismiss. "Not now" leaves the toggle off — honest: a live alert
+//  genuinely can't be delivered without an account, so we don't fake an on state.
 //
 
 import AuthenticationServices
@@ -26,6 +27,11 @@ struct NotificationAuthPromptView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var errorMessage: String?
 
+    /// Invoked after sign-in succeeds, before dismiss — the caller flips the pending
+    /// Tier-2 toggle on and requests notification permission. Defaults to a no-op so
+    /// older call sites (if any) still compile.
+    var onSignedIn: () -> Void = {}
+
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
@@ -35,10 +41,10 @@ struct NotificationAuthPromptView: View {
                 .foregroundStyle(Color.accentColor)
 
             VStack(spacing: 10) {
-                Text("Sign in for live alerts")
+                Text("Live alerts need a sign-in")
                     .font(.title2.weight(.bold))
                     .multilineTextAlignment(.center)
-                Text("Live game alerts are sent from our servers to your phone the moment they happen — so we need to know it's your device. Sign in with Apple keeps it private; we only store your team follows and alert settings.")
+                Text("These run through Apple's notification system, which needs a signed-in account to know where to send them.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -77,8 +83,10 @@ struct NotificationAuthPromptView: View {
     private func complete(_ result: Result<ASAuthorization, Error>) async {
         do {
             try await auth.handleSignIn(result)
-            // Signed in — NotificationSyncCoordinator (watching auth.userID) now
-            // pushes prefs + registers the device token. Close the sheet.
+            // Signed in — flip the pending toggle on + request permission (the
+            // caller's job), then close. NotificationSyncCoordinator (watching
+            // auth.userID) pushes prefs + registers the device token.
+            onSignedIn()
             dismiss()
         } catch {
             // User-cancelled is expected — don't surface it as an error.

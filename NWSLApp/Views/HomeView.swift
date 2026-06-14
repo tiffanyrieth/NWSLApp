@@ -70,6 +70,12 @@ struct HomeView: View {
             await viewModel.loadContent(following: following)
             await loadBracketSummary()
         }
+        // A newly-followed (or unfollowed) team should change Module 1 without a
+        // manual refresh — refetch the live content scoped to the new followed set
+        // (the deferred "refetch-on-follows-change" item).
+        .onChange(of: following.followedIDs) {
+            Task { await viewModel.loadContent(following: following, force: true) }
+        }
         .sheet(isPresented: $showTeamPicker) {
             NavigationStack { OnboardingView() }
         }
@@ -166,21 +172,52 @@ struct HomeView: View {
 
     @ViewBuilder
     private var fromYourTeams: some View {
-        let items = viewModel.teamContent(following: following)
+        let result = viewModel.teamContent(following: following)
         section("From your teams") {
-            if items.isEmpty {
+            // Prompt only when on "All" with nothing to show (no follows / no fresh
+            // content). A non-All filter that comes up empty is a filter miss, not an
+            // empty home — show the chips + a filter-empty note, not the follow prompt.
+            if result.cards.isEmpty && viewModel.selectedFilter == .all {
                 followPrompt
             } else {
                 VStack(spacing: 14) {
-                    ForEach(items) { card in
-                        ContentCardView(
-                            card: card,
-                            club: viewModel.club(forAbbreviation: card.teamAbbreviation ?? "")
-                        )
+                    HomeContentChips(viewModel: viewModel)
+                    if result.cards.isEmpty {
+                        Text("No \(viewModel.selectedFilter.label.lowercased()) from your teams right now.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.dsFgSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        ForEach(result.cards) { card in
+                            ContentCardView(
+                                card: card,
+                                club: viewModel.club(forAbbreviation: card.teamAbbreviation ?? "")
+                            )
+                        }
                     }
+                    if result.overflowCount > 0 { seeMoreLink }
                 }
             }
         }
+    }
+
+    // Opens the full chronological list of all followed-team content (Change 1),
+    // respecting the active chip. Appears only when the balanced module is capping
+    // content off.
+    private var seeMoreLink: some View {
+        NavigationLink {
+            HomeContentListView(viewModel: viewModel)
+        } label: {
+            HStack {
+                Text("See more from your teams →")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.dsAccent)
+                Spacer()
+            }
+            .contentShape(Rectangle())
+            .padding(.top, 2)
+        }
+        .buttonStyle(.plain)
     }
 
     // Shown when the user follows nobody (so the lead module has nothing to show).
@@ -450,6 +487,9 @@ struct HomeView: View {
     private func reload() async {
         await matchStore.load()
         await clubStore.load()
+        // Refetch Module-1 content, reset the chip to All, and rotate the window if
+        // nothing new arrived (Change 1 pull-to-refresh behavior).
+        await viewModel.refresh(following: following)
     }
 
     private func errorView(_ message: String) -> some View {

@@ -175,23 +175,4 @@ struct ContentRoundRobinTests {
         let cards = (0..<5).map { card("V\($0)", "A", secondsAgo: Double($0)) }   // all youtube
         #expect(ContentRoundRobin.typeInterleaved(cards).map(\.id) == cards.map(\.id))
     }
-
-    // MARK: - Filter keeps balancing active
-
-    @Test func balancingStaysActiveUnderFilter() {
-        // 3 teams each with one video + two news. Filtering to videos must still show
-        // all three teams' videos (not just the loudest team's).
-        var cards: [ContentCard] = []
-        for t in ["A", "B", "C"] {
-            cards.append(card("\(t)-vid", t, secondsAgo: 1, layout: .youtube))
-            cards.append(card("\(t)-n1", t, secondsAgo: 2, layout: .newsArticle))
-            cards.append(card("\(t)-n2", t, secondsAgo: 3, layout: .newsArticle))
-        }
-        let videos = cards.filter { ContentRoundRobin.passes($0, filter: .videos) }
-
-        let result = ContentRoundRobin.balanced(cards: videos, followedAbbreviations: ["A", "B", "C"])
-
-        #expect(result.cards.count == 3)
-        #expect(Set(abbrs(result)) == ["A", "B", "C"])
-    }
 }

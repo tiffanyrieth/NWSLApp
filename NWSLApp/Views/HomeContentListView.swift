@@ -13,17 +13,20 @@ import SwiftUI
 
 struct HomeContentListView: View {
     /// The same HomeViewModel instance as Home, so the list shares its fetched cards
-    /// AND its `selectedFilter` (the link "respects the active filter").
+    /// AND its `selectedTeam` (the link respects the active per-team chip).
     let viewModel: HomeViewModel
     @Environment(FollowingStore.self) private var following
 
     var body: some View {
+        let teams = viewModel.followedTeamAbbreviations(following: following)
         let cards = viewModel.allFollowedTeamContent(following: following)
         ScrollView {
             LazyVStack(spacing: 14) {
-                HomeContentChips(viewModel: viewModel)
+                if teams.count >= 2 {
+                    HomeTeamChips(viewModel: viewModel, teams: teams)
+                }
                 if cards.isEmpty {
-                    Text("Nothing here right now — try a different filter.")
+                    Text(emptyText)
                         .font(.system(size: 13))
                         .foregroundStyle(Color.dsFgSecondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -32,7 +35,8 @@ struct HomeContentListView: View {
                     ForEach(cards) { card in
                         ContentCardView(
                             card: card,
-                            club: viewModel.club(forAbbreviation: card.teamAbbreviation ?? "")
+                            club: viewModel.club(forAbbreviation: card.teamAbbreviation ?? ""),
+                            hideTeamIdentity: teams.count <= 1
                         )
                     }
                 }
@@ -44,26 +48,29 @@ struct HomeContentListView: View {
         .navigationTitle("From your teams")
         .navigationBarTitleDisplayMode(.inline)
     }
+
+    private var emptyText: String {
+        if let team = viewModel.selectedTeam { return "No content from \(team) right now." }
+        return "Nothing here right now."
+    }
 }
 
-/// The Home content-type chip bar ([All][Videos][News][Social]) — the same pill
-/// component + pattern as the Feed tab, so users learn it once. Shared by Home
-/// Module 1 and the See-more list; both drive the one `selectedFilter` on the
-/// HomeViewModel they share.
-struct HomeContentChips: View {
+/// The Home per-team chip bar: [All] + one chip per followed team (abbreviations).
+/// Drives the shared HomeViewModel's `selectedTeam` (nil = All). A plain HStack, NOT
+/// a horizontal ScrollView — a nested scroll inside the hub scroll is the thing that
+/// caused the chip tap-leak, and the few short chips fit any iPhone width.
+struct HomeTeamChips: View {
     let viewModel: HomeViewModel
+    let teams: [String]
 
     var body: some View {
-        // A plain HStack, NOT a horizontal ScrollView. The four short fixed chips fit
-        // any iPhone width, and the nested horizontal ScrollView (inside the vertical
-        // hub ScrollView) leaked chip taps straight through to the first content
-        // card's button — tapping a chip opened that card's URL in the browser instead
-        // of filtering (bug #3). Without the nested scroll, the chips are ordinary
-        // sibling buttons and capture their own taps.
         HStack(spacing: 8) {
-            ForEach(HomeContentFilter.allCases, id: \.self) { filter in
-                Chip(label: filter.label, isActive: viewModel.selectedFilter == filter) {
-                    viewModel.selectedFilter = filter
+            Chip(label: "All", isActive: viewModel.selectedTeam == nil) {
+                viewModel.selectedTeam = nil
+            }
+            ForEach(teams, id: \.self) { abbr in
+                Chip(label: abbr, isActive: viewModel.selectedTeam == abbr) {
+                    viewModel.selectedTeam = abbr
                 }
             }
             Spacer(minLength: 0)

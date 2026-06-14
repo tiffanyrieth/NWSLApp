@@ -22,6 +22,8 @@ struct ThumbnailContentCard: View {
     var club: Club?
     /// YouTube only: the compact 120pt thumbnail instead of the 180pt hero.
     var compact: Bool = false
+    /// Following one team → drop the team crest badge on the thumbnail (redundant).
+    var hideTeamIdentity: Bool = false
     @Environment(\.openURL) private var openURL
 
     /// Team accent for the stripe/badges/gradient. A creator clip with no team
@@ -63,7 +65,7 @@ struct ThumbnailContentCard: View {
                 // we resolved a team color — no team → no stripe (not a blue fallback).
                 topStripe: club != nil,
                 playSize: 52,
-                crestBadge: card.teamAbbreviation.map {
+                crestBadge: hideTeamIdentity ? nil : card.teamAbbreviation.map {
                     ThumbnailHeader.BadgeSlot(abbreviation: $0, alignment: .bottomLeading)
                 },
                 platformChip: ThumbnailHeader.ChipSlot(
@@ -75,7 +77,7 @@ struct ThumbnailContentCard: View {
                 thumbnailURL: card.thumbnailURL, height: compact ? 120 : 180,
                 teamColor: teamColor, club: club,
                 topStripe: club != nil, playSize: compact ? 40 : 52, duration: card.duration,
-                crestBadge: card.teamAbbreviation.map {
+                crestBadge: hideTeamIdentity ? nil : card.teamAbbreviation.map {
                     ThumbnailHeader.BadgeSlot(abbreviation: $0, alignment: .topLeading)
                 }
             )

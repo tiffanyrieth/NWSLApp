@@ -72,8 +72,10 @@ struct HomeView: View {
         }
         // A newly-followed (or unfollowed) team should change Module 1 without a
         // manual refresh — refetch the live content scoped to the new followed set
-        // (the deferred "refetch-on-follows-change" item).
+        // (the deferred "refetch-on-follows-change" item). Also reset the per-team
+        // chip if the team it pointed at was just unfollowed.
         .onChange(of: following.followedIDs) {
+            viewModel.reconcileSelectedTeam(following: following)
             Task { await viewModel.loadContent(following: following, force: true) }
         }
         .sheet(isPresented: $showTeamPicker) {
@@ -172,18 +174,23 @@ struct HomeView: View {
 
     @ViewBuilder
     private var fromYourTeams: some View {
+        let teams = viewModel.followedTeamAbbreviations(following: following)
         let result = viewModel.teamContent(following: following)
         section("From your teams") {
-            // Prompt only when on "All" with nothing to show (no follows / no fresh
-            // content). A non-All filter that comes up empty is a filter miss, not an
-            // empty home — show the chips + a filter-empty note, not the follow prompt.
-            if result.cards.isEmpty && viewModel.selectedFilter == .all {
+            // Follow prompt only when on "All" with nothing to show (no follows / no
+            // fresh content). A per-team chip coming up empty is a quiet team, not an
+            // empty home — show the chips + a "No content from X" note instead.
+            if result.cards.isEmpty && viewModel.selectedTeam == nil {
                 followPrompt
             } else {
                 VStack(spacing: 14) {
-                    HomeContentChips(viewModel: viewModel)
+                    // Per-team chips only when following 2+ teams — with one team
+                    // there's nothing to filter (chip redesign).
+                    if teams.count >= 2 {
+                        HomeTeamChips(viewModel: viewModel, teams: teams)
+                    }
                     if result.cards.isEmpty {
-                        Text("No \(viewModel.selectedFilter.label.lowercased()) from your teams right now.")
+                        Text("No content from \(viewModel.selectedTeam ?? "") right now.")
                             .font(.system(size: 13))
                             .foregroundStyle(Color.dsFgSecondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -191,7 +198,10 @@ struct HomeView: View {
                         ForEach(result.cards) { card in
                             ContentCardView(
                                 card: card,
-                                club: viewModel.club(forAbbreviation: card.teamAbbreviation ?? "")
+                                club: viewModel.club(forAbbreviation: card.teamAbbreviation ?? ""),
+                                // Following one team → drop the redundant team badge +
+                                // name on every card (chip redesign, adaptive labels).
+                                hideTeamIdentity: teams.count <= 1
                             )
                         }
                     }

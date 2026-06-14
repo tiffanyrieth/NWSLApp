@@ -18,22 +18,6 @@
 
 import Foundation
 
-/// The Home content-type chips (Change 3). A superset of the Feed's filter — Home
-/// adds `videos`, and (deliberately, unlike Feed) treats a social video clip as a
-/// Video, not Social.
-enum HomeContentFilter: String, CaseIterable, Hashable {
-    case all, videos, news, social
-
-    var label: String {
-        switch self {
-        case .all:    return "All"
-        case .videos: return "Videos"
-        case .news:   return "News"
-        case .social: return "Social"
-        }
-    }
-}
-
 enum ContentRoundRobin {
 
     /// The balanced module plus how many eligible cards didn't fit — the latter
@@ -140,30 +124,6 @@ enum ContentRoundRobin {
             next[abbr] = (cur + guaranteed) % count
         }
         return next
-    }
-
-    /// The content-type chip → which layouts it admits (Change 3). Mirrors the Feed's
-    /// classifier but adds `.videos`, and routes `.socialVideo` to Videos (the Feed
-    /// counts it as Social) — a deliberate divergence: on Home, a clip is a video.
-    static func passes(_ card: ContentCard, filter: HomeContentFilter) -> Bool {
-        switch filter {
-        case .all:
-            return true
-        case .videos:
-            switch card.layout {
-            case .youtube, .socialVideo: return true
-            default: return false
-            }
-        case .news:
-            return card.layout == .newsArticle
-        case .social:
-            switch card.layout {
-            case .blueskyTeamText, .blueskyTeamMedia, .blueskyReporter, .instagramFallback:
-                return true
-            default:
-                return false
-            }
-        }
     }
 
     // MARK: - Helpers

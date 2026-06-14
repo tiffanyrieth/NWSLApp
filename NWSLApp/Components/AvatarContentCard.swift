@@ -24,6 +24,8 @@ import SwiftUI
 struct AvatarContentCard: View {
     let card: ContentCard
     var club: Club?
+    /// Following one team → drop the team name from the header (just platform + time).
+    var hideTeamIdentity: Bool = false
     @Environment(\.openURL) private var openURL
 
     private var teamColor: Color { club?.accentColor ?? .dsAccent }
@@ -89,12 +91,16 @@ struct AvatarContentCard: View {
 
     private var header: some View {
         HStack(spacing: 6) {
-            Text(card.authorName ?? club?.displayName ?? "")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(Color.dsFgPrimary)
-                .lineLimit(1)
+            // Team name is dropped when following one team (redundant); the platform
+            // badge + timestamp stay so the card still reads as "<platform> · 2d ago".
+            if !hideTeamIdentity {
+                Text(card.authorName ?? club?.displayName ?? "")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Color.dsFgPrimary)
+                    .lineLimit(1)
+            }
             PlatformBadge(platform: card.platform, size: 14)
-            Text(metaLine)
+            Text(hideTeamIdentity ? card.timestamp.relativeAgo : metaLine)
                 .font(.system(size: 12))
                 .foregroundStyle(Color.dsFgTertiary)
                 .lineLimit(1)

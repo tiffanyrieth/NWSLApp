@@ -59,9 +59,9 @@ struct ThumbnailContentCard: View {
         case .socialVideo:
             ThumbnailHeader(
                 thumbnailURL: card.thumbnailURL, height: 200, teamColor: teamColor, club: club,
-                // Carry the 3px team accent line like the YouTube card, so a team's
-                // clip reads as the same family (bug #1).
-                topStripe: card.teamAbbreviation != nil,
+                // Carry the 3px team accent line like the YouTube card, but ONLY when
+                // we resolved a team color — no team → no stripe (not a blue fallback).
+                topStripe: club != nil,
                 playSize: 52,
                 crestBadge: card.teamAbbreviation.map {
                     ThumbnailHeader.BadgeSlot(abbreviation: $0, alignment: .bottomLeading)
@@ -74,7 +74,7 @@ struct ThumbnailContentCard: View {
             ThumbnailHeader(
                 thumbnailURL: card.thumbnailURL, height: compact ? 120 : 180,
                 teamColor: teamColor, club: club,
-                topStripe: true, playSize: compact ? 40 : 52, duration: card.duration,
+                topStripe: club != nil, playSize: compact ? 40 : 52, duration: card.duration,
                 crestBadge: card.teamAbbreviation.map {
                     ThumbnailHeader.BadgeSlot(abbreviation: $0, alignment: .topLeading)
                 }

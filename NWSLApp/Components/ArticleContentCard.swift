@@ -45,10 +45,14 @@ struct ArticleContentCard: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.dsBgCard)
-        // Team-color top stripe, matching the thumbnail cards (clipped to the
-        // card's rounded corners by the clipShape below).
+        // Team-color top stripe — ONLY when the article is tagged to a team we
+        // resolved a color for. League / international articles (The Equalizer, The
+        // Guardian, untagged) have no team, so they get no stripe instead of a
+        // meaningless blue fallback (bug: blue regardless of which team you follow).
         .overlay(alignment: .top) {
-            Rectangle().fill(teamColor).frame(height: 3)
+            if club != nil {
+                Rectangle().fill(teamColor).frame(height: 3)
+            }
         }
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
         .contentShape(Rectangle())

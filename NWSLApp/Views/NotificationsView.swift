@@ -86,7 +86,7 @@ struct NotificationsView: View {
 
     private func teamAlertRow(_ club: Club) -> some View {
         HStack(spacing: 12) {
-            TeamLogo(urlString: club.logoURL, size: DS.avatarMd)
+            TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: DS.avatarMd)
             Text(club.displayName)
                 .font(.system(size: 15))
                 .foregroundStyle(Color.dsFgPrimary)

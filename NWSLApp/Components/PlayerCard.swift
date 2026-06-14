@@ -29,16 +29,18 @@ struct PlayerCard: View {
                 .frame(height: 3)
 
             VStack(spacing: 8) {
-                ZStack {
-                    Circle().fill(accent.fill)
-                    Text(badgeLabel)
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(accent.on)
-                        .minimumScaleFactor(0.6)
-                        .lineLimit(1)
-                        .padding(6)
+                PlayerHeadshot(athleteID: athlete.id, size: 48) {
+                    ZStack {
+                        Circle().fill(accent.fill)
+                        Text(badgeLabel)
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(accent.on)
+                            .minimumScaleFactor(0.6)
+                            .lineLimit(1)
+                            .padding(6)
+                    }
+                    .frame(width: 48, height: 48)
                 }
-                .frame(width: 48, height: 48)
 
                 Text(athlete.shortName ?? athlete.name)
                     .font(.subheadline.weight(.semibold))

@@ -23,15 +23,24 @@ import SwiftUI
 /// shown beside it already identifies the club.
 struct TeamLogo: View {
     let urlString: String?
+    /// When set, the crisp NWSL crest (proxy `/crest?team=…`) is tried FIRST, with the ESPN
+    /// `urlString` as the fallback if it isn't loaded (404) or fails. Nil keeps ESPN-only.
+    var teamAbbreviation: String? = nil
     var size: CGFloat = 24
 
     // The decoded crest, once resolved. Seeded synchronously from the cache (see
     // body) so a cached image is shown on the first frame.
     @State private var image: UIImage?
 
-    // Guard nil/empty strings here so an absent logo goes straight to the
-    // placeholder instead of spinning on an invalid URL.
-    private var url: URL? {
+    // The preferred NWSL crest URL (nil when no abbreviation given).
+    private var nwslURL: URL? {
+        guard let abbr = teamAbbreviation, !abbr.isEmpty else { return nil }
+        return AppConfig.crestURL(abbreviation: abbr)
+    }
+
+    // The ESPN crest URL (the fallback, and the only source when no abbreviation is set).
+    // Guard nil/empty strings so an absent logo goes straight to the placeholder.
+    private var espnURL: URL? {
         guard let urlString, !urlString.isEmpty else { return nil }
         return URL(string: urlString)
     }
@@ -48,18 +57,27 @@ struct TeamLogo: View {
         }
         .frame(width: size, height: size)           // fixed BEFORE load → no reflow
         .accessibilityHidden(true)                  // abbreviation already names the team
-        // Keyed to the URL so a recycled cell re-targets the right crest. Seed
-        // synchronously from the cache first (no flash on scroll-back), then fetch
-        // only on a miss.
-        .task(id: url) {
-            guard let url else { image = nil; return }
-            if let hit = ImageCache.shared.cached(url) {
-                image = hit
-                return
+        // Keyed to both URLs so a recycled cell re-targets the right crest. Try the NWSL crest
+        // first (synchronous cache hit → no flash, then fetch), then fall back to ESPN — both
+        // through the shared ImageCache.
+        .task(id: taskID) {
+            for candidate in [nwslURL, espnURL] {
+                guard let candidate else { continue }
+                if let hit = ImageCache.shared.cached(candidate) {
+                    image = hit
+                    return
+                }
+                if let fetched = await ImageCache.shared.image(for: candidate) {
+                    image = fetched
+                    return
+                }
             }
-            image = await ImageCache.shared.image(for: url)
+            image = nil                             // both unavailable → neutral placeholder
         }
     }
+
+    // A stable identity for the load task: re-runs only when the target crest changes.
+    private var taskID: String { "\(nwslURL?.absoluteString ?? "")|\(espnURL?.absoluteString ?? "")" }
 
     private var placeholder: some View {
         RoundedRectangle(cornerRadius: 4, style: .continuous)

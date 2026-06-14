@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		985531582FDF54490039EF87 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 985531572FDF54480039EF87 /* StoreKit.framework */; };
 		98745F412FD842C700832FA4 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 98745F402FD842C700832FA4 /* Supabase */; };
 /* End PBXBuildFile section */
 
@@ -28,6 +29,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		985531572FDF54480039EF87 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		98CF00C52FBD66B5008435E1 /* NWSLApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NWSLApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		98CF00D22FBD66B6008435E1 /* NWSLAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NWSLAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		98CF00DC2FBD66B6008435E1 /* NWSLAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NWSLAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -57,6 +59,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				98745F412FD842C700832FA4 /* Supabase in Frameworks */,
+				985531582FDF54490039EF87 /* StoreKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -77,12 +80,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		985531562FDF54480039EF87 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				985531572FDF54480039EF87 /* StoreKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		98CF00BC2FBD66B5008435E1 = {
 			isa = PBXGroup;
 			children = (
 				98CF00C72FBD66B5008435E1 /* NWSLApp */,
 				98CF00D52FBD66B6008435E1 /* NWSLAppTests */,
 				98CF00DF2FBD66B6008435E1 /* NWSLAppUITests */,
+				985531562FDF54480039EF87 /* Frameworks */,
 				98CF00C62FBD66B5008435E1 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -404,7 +416,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = NWSLApp/NWSLApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = 24BGA36VVW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -437,7 +449,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = NWSLApp/NWSLApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = 24BGA36VVW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -468,7 +480,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 0.4.0;
@@ -489,7 +501,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 0.4.0;
@@ -509,7 +521,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 0.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tiffanyrieth.nwslapp.NWSLAppUITests;
@@ -528,7 +540,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 0.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tiffanyrieth.nwslapp.NWSLAppUITests;

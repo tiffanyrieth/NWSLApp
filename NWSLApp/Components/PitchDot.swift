@@ -2,13 +2,12 @@
 //  PitchDot.swift
 //  NWSLApp
 //
-//  One player marker on a formation pitch: a team-colored disc with the jersey
-//  number, and the player's last name beneath. Shared by FormationPitchView
-//  (single team) and CombinedPitchView (both teams).
+//  One player marker on a formation pitch: a team-colored disc with the player's
+//  headshot (jersey-number monogram fallback), and the last name beneath. Shared by
+//  FormationPitchView (single team) and CombinedPitchView (both teams).
 //
-//  TEMP (headshots): the disc is a jersey-number monogram for now — a follow-up
-//  swaps the fill for a real headshot photo (the frame + monogram stay as the
-//  fallback). See match-detail-v2-spec §7c/§8a.
+//  The white ring is the caller's overlay (not part of the fill) so it frames the
+//  photo and the monogram identically. See match-detail-v2-spec §7c/§8a.
 //
 
 import SwiftUI
@@ -19,15 +18,17 @@ struct PitchDot: View {
 
     var body: some View {
         VStack(spacing: 3) {
-            ZStack {
-                Circle().fill(accent.fill)
-                Circle().stroke(.white.opacity(0.7), lineWidth: 1.5)
-                Text(player.jersey ?? "")
-                    .font(.caption.weight(.heavy))
-                    .monospacedDigit()
-                    .foregroundStyle(accent.onText)
+            PlayerHeadshot(athleteID: player.athlete?.id, size: 34) {
+                ZStack {
+                    Circle().fill(accent.fill)
+                    Text(player.jersey ?? "")
+                        .font(.caption.weight(.heavy))
+                        .monospacedDigit()
+                        .foregroundStyle(accent.onText)
+                }
+                .frame(width: 34, height: 34)
             }
-            .frame(width: 34, height: 34)
+            .overlay(Circle().stroke(.white.opacity(0.7), lineWidth: 1.5))
             Text(Self.lastName(player))
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.white)

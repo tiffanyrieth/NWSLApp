@@ -26,7 +26,7 @@ struct ArticleContentCard: View {
     /// (e.g. a future Google-News outlet) falls back to the generic article badge.
     @ViewBuilder private var sourceIcon: some View {
         if let club {
-            TeamLogo(urlString: club.logoURL, size: 18)
+            TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 18)
         } else {
             PlatformBadge(platform: .article, size: 18)
         }

@@ -57,14 +57,16 @@ struct PlayerSpotlightCard: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            ZStack {
-                Circle().fill(jersey.fill)
-                Text("\(spotlight.jerseyNumber)")
-                    .font(.system(size: 18, weight: .heavy))
-                    .monospacedDigit()
-                    .foregroundStyle(jersey.on)
+            PlayerHeadshot(athleteID: spotlight.espnAthleteId, size: 48) {
+                ZStack {
+                    Circle().fill(jersey.fill)
+                    Text("\(spotlight.jerseyNumber)")
+                        .font(.system(size: 18, weight: .heavy))
+                        .monospacedDigit()
+                        .foregroundStyle(jersey.on)
+                }
+                .frame(width: 48, height: 48)
             }
-            .frame(width: 48, height: 48)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(spotlight.playerName)

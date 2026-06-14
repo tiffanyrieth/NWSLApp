@@ -135,7 +135,7 @@ struct StandingsView: View {
                     .frame(width: Col.rank, alignment: .leading)
 
                 HStack(spacing: 8) {
-                    TeamLogo(urlString: row.club.logoURL, size: 24)
+                    TeamLogo(urlString: row.club.logoURL, teamAbbreviation: row.club.abbreviation, size: 24)
                     // Abbreviation, not the full name — full names get truncated on
                     // a phone (matches the app-wide abbreviation convention).
                     Text(row.club.abbreviation)

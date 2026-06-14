@@ -246,17 +246,22 @@ distinct — don't blur them. Schedule cards and MatchDetailView share visual la
 
 ## Versioning & Distribution
 
-- **Semver, pre-1.0.** A **minor bump = a whole chapter** of the app, not a single feature;
-  patches (third digit) are each shipped update inside the chapter (pre-1.0 this includes
-  features, not just fixes). Reserve **1.0.0** for the first public App Store launch.
-- **Chapters:** `0.1.x` was the offline prototype; `0.3.x` was the **backbone** (demo →
-  fully live, all real data) — **shipped at 0.3.9**. **`0.4.x` = QOL** — improving the
-  *experience* of what's already alive (content balancing, polish, UX), not new backbone
-  plumbing; **0.4.0** landed the handoff's three changes (Home round-robin balancing + chips,
-  per-team Follow vs Alerts).
-- **Xcode fields:** "Marketing Version" (`CFBundleShortVersionString`, human-facing) +
-  "Build" (`CFBundleVersion`, a monotonic int bumped on every TestFlight upload). Tag
-  releases in git (`git tag v0.3.9`). Proxy-only changes don't bump the app version.
+- **Versioning model (owner's, NOT classic semver — follow this).** A **`minor.0` (e.g.
+  `0.4.0`) is a big flagship release**, like Apple shipping iOS **26.0** — it bundles a pile of
+  features and can span **several TestFlight builds** under the *same* marketing version (e.g.
+  0.4.0 build 9 = QOL, build 10 = headshots). **Do NOT bump the patch digit for a new feature** —
+  features stay at `.0`. **Patches (`0.4.1`, `0.4.2`…) are reserved for BUG FIXES** discovered
+  after the big release. A **minor bump (`0.4` → `0.5`)** starts the next big release era. Reserve
+  **1.0.0** for the first public App Store launch.
+- **Releases so far:** `0.1.x` offline prototype; `0.3.x` the **backbone** (demo → fully live, all
+  real data, capped at 0.3.9). **`0.4.0` = the "fully-working app" flagship** — shipping as
+  successive builds: **build 9 = QOL** (Home round-robin + per-team chips, the Notifications hub,
+  Support, polish); **headshots is a later 0.4.0 build**, not a new version. 0.4.1+ would be bug-fix
+  follow-ups.
+- **Xcode fields:** "Marketing Version" (`CFBundleShortVersionString`, human-facing — stays `0.4.0`
+  across the flagship's builds) + "Build" (`CFBundleVersion`, a monotonic int bumped on every
+  TestFlight upload — this is what increments per feature build). Tag releases in git. Proxy-only
+  changes don't bump the app version.
 - **Distribution:** Simulator + Personal Team sideload now; Dev Program is active (paid);
   TestFlight (OTA) for tester install. App Store deferred until presentable.
 
@@ -491,9 +496,9 @@ at the top (ALIVE > core > hardening).
   leaderboards + 6 achievements (`Reference/game-center-app-store-connect-checklist.md`), then a
   joint sandbox-account live-verify. App side is shipped + handles the not-yet-enabled state gracefully.
 
-**QOL (0.4.x — the current chapter): improving the experience of what's already alive.** Handoffs:
-`Reference/Feed update/QOL Update Handoff.md` (Changes 1+3) + `QOL v2 - Notification Redesign +
-Support.md` (the notification redesign, which superseded the original Change 2). **Shipped at 0.4.0**:
+**QOL — 0.4.0 build 9 (first build of the flagship):** improving the experience of what's already
+alive. Handoffs: `Reference/Feed update/QOL Update Handoff.md` (Changes 1+3) + `QOL v2 - Notification
+Redesign + Support.md` (the notification redesign, which superseded the original Change 2). **Shipped**:
 Home round-robin balancing + pull-to-refresh rotation + "See more →"; Home per-team chips; the
 one-screen **Notifications hub** (per-team on/off bells + global alert types + honest sign-in gate +
 sign-out Tier-2 reset); the **Support** (StoreKit tips) screen. Owner-gated to finish: drop the old

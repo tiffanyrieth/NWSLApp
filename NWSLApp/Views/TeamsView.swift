@@ -78,16 +78,26 @@ struct TeamsView: View {
     }
 
     private var directory: some View {
+        // One continuous list (no "Following" / "All Clubs" headers): followed teams
+        // float to the top (tint + star + bell), unfollowed below — each club once.
+        // The blue tint + star + bell already mark the followed set, so the divider
+        // headers were clutter. The "{N} teams · Manage" line sits at the boundary.
         let followed = viewModel.clubs.filter { following.isFollowing($0) }
+        let unfollowed = viewModel.clubs.filter { !following.isFollowing($0) }
         return List {
-            if !followed.isEmpty {
-                Section("Following") {
-                    ForEach(followed) { row(for: $0) }
-                    if teamAlerts.enabledCount > 0 { matchAlertsLine }
-                }
-            }
-            Section("All Clubs") {
-                ForEach(viewModel.clubs) { row(for: $0) }
+            Section {
+                ForEach(followed) { row(for: $0) }
+                if teamAlerts.enabledCount > 0 { matchAlertsLine }
+                ForEach(unfollowed) { row(for: $0) }
+            } header: {
+                // The subtitle (sentence case, never truncated) — same role as Home's
+                // "From your teams". `textCase(nil)` stops the default header uppercasing.
+                Text("Tap any club to explore their squad and stats")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .textCase(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 4)
             }
 
             // A way back into international competitions for anyone who skipped

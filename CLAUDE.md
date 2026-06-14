@@ -364,7 +364,7 @@ NWSLApp/
 │   ├── SignInPromptView.swift         — one-time post-onboarding "save your picks" sheet
 │   ├── NotificationAuthPromptView.swift — contextual "sign in for live alerts" half-sheet (Tier 2)
 │   ├── ScheduleView.swift             — full-season cards; 3 filters; sticky day headers
-│   ├── TeamsView.swift                — all-16 directory; Following floats up; follow-competitions row; per-row 🔔 alert toggles (followed) + "{N} teams · Manage" line + nav-bar 🔔 → NotificationsView
+│   ├── TeamsView.swift                — all-16 directory: ONE continuous list (followed floated to top, no section headers) + subtitle; follow-competitions row; per-row 🔔 alert toggles (followed) + "{N} teams · Manage" line at the followed/unfollowed boundary + nav-bar 🔔 → NotificationsView
 │   ├── CompetitionsView.swift         — follow international competitions
 │   ├── TeamDetailView.swift           — club page: header (⭐ follow) + social row + Squad·Stats tabs
 │   ├── MatchDetailView.swift          — state-aware match: past=Summary/Lineups/Stats, live=poll & LIVE pill, future=info grid + How-to-Watch + comparison + form

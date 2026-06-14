@@ -297,7 +297,7 @@ NWSLApp/
 │   └── XIPrediction.swift             — Predict the XI: PositionGroup · Formation · PredictionFixture · XIPrediction (draft→submitted) · ActualResult · PredictionScore
 ├── Services/
 │   ├── BracketScoring.swift           — pure Bracket scorer (tiered per-round points). Unit-tested
-│   ├── ContentRoundRobin.swift        — pure Home Module-1 fair-share: `balanced` (guaranteed-per-team round-robin + chronological fill + follow-scaled cap) + `advancedOffsets` (pull-refresh rotation) + `passes` (content-type chip classifier) + `HomeContentFilter`. Unit-tested
+│   ├── ContentRoundRobin.swift        — pure Home Module-1 fair-share: `balanced` (guaranteed-per-team round-robin + content-type interleave + chronological fill + follow-scaled cap) + `advancedOffsets` (pull-refresh rotation). Unit-tested
 │   ├── BracketService.swift           — Bracket Supabase client: currentEdition/results/leaderboard/submit; offline-sample fallback
 │   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats
 │   ├── ContentService.swift           — ALIVE content client: homeCards→/team-videos, feedCards→/feed, spotlightCards→/spotlight; gated by `liveContentEnabled`; failure → ↩︎seed
@@ -351,8 +351,8 @@ NWSLApp/
 │   └── TriviaViewModel.swift          — one Daily-Trivia session; questions ← TriviaService; non-repeating daily-5 (unit-tested); real best-streak leaderboard (+ Game Center submit)
 ├── Views/                             — one screen per file
 │   ├── RootTabView.swift              — app root; 5-tab TabView; injects stores; restores session + coordinators; Game Center authenticate + syncAll (launch/auth/foreground); routes live-push tap
-│   ├── HomeView.swift                 — your-teams hub: 4 modules + profile-avatar button; spotlight carousel; onboarding-in-place; Module-1 round-robin + content-type chips + "See more →"; refetch on pull + follows-change
-│   ├── HomeContentListView.swift      — "See more from your teams" full firehose: ALL followed-team content, no cap, reverse-chron, respects the active chip (+ shared `HomeContentChips` bar)
+│   ├── HomeView.swift                 — your-teams hub: 4 modules + profile-avatar button; spotlight carousel; onboarding-in-place; Module-1 round-robin + per-team chips (2+ teams) + adaptive card labels (1 team) + "See more →"; refetch on pull + follows-change
+│   ├── HomeContentListView.swift      — "See more from your teams" full firehose: ALL followed-team content, no cap, reverse-chron, respects the active team chip (+ `HomeTeamChips` bar: [All] + per-team)
 │   ├── ProfileView.swift              — account & settings sheet: identity / Fan Zone stats (🏆 Leaderboards → Game Center dashboard) / Settings (Notifications row → hub · Support row → SupportView) / My Teams / Account
 │   ├── NotificationsView.swift        — the ONE notifications hub (QOL v2): §Match alerts (per-team on/off) · §Alert types (5 global, dimmed when no team on) · §Activity; tier-aware sign-in gate; pushed from Teams bell/Manage + Profile row
 │   ├── SupportView.swift              — "Support NWSLApp" (StoreKit tips): hero · one-time/monthly toggle · 4 tip tiers · CTA · Restore · "Where it goes" · thank-you state
@@ -414,10 +414,12 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
 - **Home** (`home-tab-design-spec.md`) — your-teams hub; pre-onboarding renders `OnboardingView`
   in place. Four modules: (1) "From your teams" content cards, (2) Player Spotlight, (3) Fan
   Zone games, (4) "Coming up". All live. Module 1 uses a **round-robin fair-share** (every
-  followed team a guaranteed minimum, interleaved so a quiet club isn't buried by a loud one),
-  **content-type chips** ([All][Videos][News][Social], in-memory, reset on refresh), and a
-  **"See more →"** full-firehose screen; pull-to-refresh refetches + rotates the window when
-  nothing's new, and a follows change refetches (see `ContentRoundRobin`).
+  followed team a guaranteed minimum, interleaved across teams AND content types so a quiet club
+  or club news isn't buried by a loud team's clips), **per-team chips** ([All] + each followed
+  club's abbreviation — shown only at 2+ teams; at 1 team the chips hide and cards drop their
+  redundant team badge/name), and a **"See more →"** full-firehose screen; pull-to-refresh
+  refetches + rotates the window when nothing's new, and a follows change refetches (see
+  `ContentRoundRobin`).
 - **Fan Zone games** (`games-design-spec.md`) — all three LIVE with **real Supabase
   leaderboards**:
   - **Predict the XI** (pink): pick a followed team's XI + formation + scoreline pre-match,
@@ -492,7 +494,7 @@ at the top (ALIVE > core > hardening).
 **QOL (0.4.x — the current chapter): improving the experience of what's already alive.** Handoffs:
 `Reference/Feed update/QOL Update Handoff.md` (Changes 1+3) + `QOL v2 - Notification Redesign +
 Support.md` (the notification redesign, which superseded the original Change 2). **Shipped at 0.4.0**:
-Home round-robin balancing + pull-to-refresh rotation + "See more →"; Home content-type chips; the
+Home round-robin balancing + pull-to-refresh rotation + "See more →"; Home per-team chips; the
 one-screen **Notifications hub** (per-team on/off bells + global alert types + honest sign-in gate +
 sign-out Tier-2 reset); the **Support** (StoreKit tips) screen. Owner-gated to finish: drop the old
 per-type columns on the live `team_alert_preferences` table (run the alter in `supabase/schema.sql`);

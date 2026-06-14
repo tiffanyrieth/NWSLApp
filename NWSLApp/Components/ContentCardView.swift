@@ -18,13 +18,17 @@ struct ContentCardView: View {
     /// reporter/league/creator cards have no team, and the views degrade to the
     /// app accent.
     var club: Club?
+    /// When the user follows exactly one team, team identification on the card is
+    /// redundant noise — Home passes `true` to drop the team badge + name (keeping the
+    /// platform badge + accent line). Feed never sets it.
+    var hideTeamIdentity: Bool = false
 
     var body: some View {
         switch card.layout {
         case .youtube, .socialVideo:
-            ThumbnailContentCard(card: card, club: club)
+            ThumbnailContentCard(card: card, club: club, hideTeamIdentity: hideTeamIdentity)
         case .blueskyTeamText, .blueskyTeamMedia, .blueskyReporter, .instagramFallback:
-            AvatarContentCard(card: card, club: club)
+            AvatarContentCard(card: card, club: club, hideTeamIdentity: hideTeamIdentity)
         case .newsArticle:
             ArticleContentCard(card: card, club: club)
         }

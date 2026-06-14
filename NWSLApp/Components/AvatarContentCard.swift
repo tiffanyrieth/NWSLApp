@@ -24,14 +24,23 @@ import SwiftUI
 struct AvatarContentCard: View {
     let card: ContentCard
     var club: Club?
+    /// Following one team → drop the team name from the header (just platform + time).
+    var hideTeamIdentity: Bool = false
     @Environment(\.openURL) private var openURL
 
     private var teamColor: Color { club?.accentColor ?? .dsAccent }
 
     var body: some View {
-        Button {
-            if let url = card.url { openURL(url) }
-        } label: {
+        // `.onTapGesture`, not a `Button` — see ThumbnailContentCard for why (a chip
+        // tap on Home could otherwise be re-delivered to the first card's Button; #3).
+        VStack(spacing: 0) {
+            // 3px team-color accent line at the top edge — the same marker the
+            // YouTube/clip cards carry, so team posts (Bluesky, IG) read as the
+            // same family (bug #1). Only team cards get it; reporter cards (no
+            // club, the Feed's own voice) stay stripe-less.
+            if club != nil {
+                Rectangle().fill(teamColor).frame(height: 3)
+            }
             HStack(alignment: .top, spacing: 10) {
                 avatar
                 VStack(alignment: .leading, spacing: columnGap) {
@@ -42,11 +51,14 @@ struct AvatarContentCard: View {
                 }
             }
             .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.dsBgCard)
-            .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let url = card.url { openURL(url) }
+        }
     }
 
     private var columnGap: CGFloat { card.layout == .blueskyTeamText ? 8 : 10 }
@@ -79,12 +91,16 @@ struct AvatarContentCard: View {
 
     private var header: some View {
         HStack(spacing: 6) {
-            Text(card.authorName ?? club?.displayName ?? "")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(Color.dsFgPrimary)
-                .lineLimit(1)
+            // Team name is dropped when following one team (redundant); the platform
+            // badge + timestamp stay so the card still reads as "<platform> · 2d ago".
+            if !hideTeamIdentity {
+                Text(card.authorName ?? club?.displayName ?? "")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Color.dsFgPrimary)
+                    .lineLimit(1)
+            }
             PlatformBadge(platform: card.platform, size: 14)
-            Text(metaLine)
+            Text(hideTeamIdentity ? card.timestamp.relativeAgo : metaLine)
                 .font(.system(size: 12))
                 .foregroundStyle(Color.dsFgTertiary)
                 .lineLimit(1)
@@ -148,11 +164,8 @@ struct AvatarContentCard: View {
         ZStack {
             LinearGradient(colors: [gradientTop, Color.dsBgTertiary],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
-            if let url = card.thumbnailURL {
-                AsyncImage(url: url) { phase in
-                    if let image = phase.image { image.resizable().scaledToFill() }
-                }
-            }
+            // Cached so the frame survives a tab switch (bug #5); miss → the gradient.
+            CachedThumbnail(url: card.thumbnailURL) { Color.clear }
         }
         .frame(maxWidth: .infinity)
         .frame(height: height)

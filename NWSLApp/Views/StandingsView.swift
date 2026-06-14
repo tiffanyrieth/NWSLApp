@@ -47,9 +47,11 @@ struct StandingsView: View {
                 .navigationDestination(for: Club.self) { club in
                     TeamDetailView(club: club)
                 }
-                .refreshable { await viewModel.load() }
+                // No pull-to-refresh: standings only change after matches, and the
+                // fetch-on-appear below is enough. (Column header pins via the
+                // section header so it stays put as rows scroll.)
         }
-        // Load once on first appearance; pull-to-refresh covers manual reloads.
+        // Load once on first appearance.
         .task {
             if case .idle = viewModel.state { await viewModel.load() }
         }

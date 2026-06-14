@@ -1,0 +1,171 @@
+{
+  "identifier" : "B1A2C3D4-0000-0000-0000-NWSLAPPTIPS1",
+  "nonRenewingSubscriptions" : [],
+  "products" : [
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "100001",
+      "localizations" : [
+        {
+          "description" : "Covers a day of API calls",
+          "displayName" : "Corner Kick",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.tiffanyrieth.nwslapp.tip.corner",
+      "referenceName" : "Corner Kick",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "2.99",
+      "familyShareable" : false,
+      "internalID" : "100002",
+      "localizations" : [
+        {
+          "description" : "Keeps the servers running for a week",
+          "displayName" : "Free Kick",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.tiffanyrieth.nwslapp.tip.freekick",
+      "referenceName" : "Free Kick",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "100003",
+      "localizations" : [
+        {
+          "description" : "Covers a month of match data",
+          "displayName" : "Penalty Kick",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.tiffanyrieth.nwslapp.tip.penalty",
+      "referenceName" : "Penalty Kick",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "9.99",
+      "familyShareable" : false,
+      "internalID" : "100004",
+      "localizations" : [
+        {
+          "description" : "Funds a full month of development",
+          "displayName" : "Hat Trick",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.tiffanyrieth.nwslapp.tip.hattrick",
+      "referenceName" : "Hat Trick",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6740000000",
+    "_developerTeamID" : "24BGA36VVW",
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : []
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "200000",
+      "localizations" : [],
+      "name" : "Monthly Support",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "0.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "200001",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Covers a day of API calls, every month",
+              "displayName" : "Corner Kick (Monthly)",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.tiffanyrieth.nwslapp.tip.corner.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Corner Kick Monthly",
+          "subscriptionGroupID" : "200000",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "2.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "200002",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Keeps the servers running, every month",
+              "displayName" : "Free Kick (Monthly)",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.tiffanyrieth.nwslapp.tip.freekick.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Free Kick Monthly",
+          "subscriptionGroupID" : "200000",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "4.99",
+          "familyShareable" : false,
+          "groupNumber" : 3,
+          "internalID" : "200003",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Covers a month of match data, every month",
+              "displayName" : "Penalty Kick (Monthly)",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.tiffanyrieth.nwslapp.tip.penalty.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Penalty Kick Monthly",
+          "subscriptionGroupID" : "200000",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "9.99",
+          "familyShareable" : false,
+          "groupNumber" : 4,
+          "internalID" : "200004",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Funds development, every month",
+              "displayName" : "Hat Trick (Monthly)",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.tiffanyrieth.nwslapp.tip.hattrick.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Hat Trick Monthly",
+          "subscriptionGroupID" : "200000",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

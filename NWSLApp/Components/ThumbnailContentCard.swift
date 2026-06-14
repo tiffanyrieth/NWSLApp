@@ -22,6 +22,8 @@ struct ThumbnailContentCard: View {
     var club: Club?
     /// YouTube only: the compact 120pt thumbnail instead of the 180pt hero.
     var compact: Bool = false
+    /// Following one team → drop the team crest badge on the thumbnail (redundant).
+    var hideTeamIdentity: Bool = false
     @Environment(\.openURL) private var openURL
 
     /// Team accent for the stripe/badges/gradient. A creator clip with no team
@@ -32,18 +34,23 @@ struct ThumbnailContentCard: View {
     }
 
     var body: some View {
-        Button {
-            if let url = card.url { openURL(url) }
-        } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                thumbnail
-                footer
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.dsBgCard)
-            .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+        // Whole-card tap via `.onTapGesture`, NOT a `Button`: on Home the chip filter
+        // bar and these cards share one scroll, and a chip Button's tap could be
+        // re-delivered to the first card *Button* on the filter-change rebuild —
+        // flashing it pressed and opening its URL (bug #3). With no card Button there's
+        // nothing to mis-fire. (Feed avoids it by isolating its chips in a separate
+        // scroll; Home can't, so it fixes it here.)
+        VStack(alignment: .leading, spacing: 0) {
+            thumbnail
+            footer
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let url = card.url { openURL(url) }
+        }
     }
 
     // MARK: - Thumbnail (per layout)
@@ -54,8 +61,11 @@ struct ThumbnailContentCard: View {
         case .socialVideo:
             ThumbnailHeader(
                 thumbnailURL: card.thumbnailURL, height: 200, teamColor: teamColor, club: club,
+                // Carry the 3px team accent line like the YouTube card, but ONLY when
+                // we resolved a team color — no team → no stripe (not a blue fallback).
+                topStripe: club != nil,
                 playSize: 52,
-                crestBadge: card.teamAbbreviation.map {
+                crestBadge: hideTeamIdentity ? nil : card.teamAbbreviation.map {
                     ThumbnailHeader.BadgeSlot(abbreviation: $0, alignment: .bottomLeading)
                 },
                 platformChip: ThumbnailHeader.ChipSlot(
@@ -66,8 +76,8 @@ struct ThumbnailContentCard: View {
             ThumbnailHeader(
                 thumbnailURL: card.thumbnailURL, height: compact ? 120 : 180,
                 teamColor: teamColor, club: club,
-                topStripe: true, playSize: compact ? 40 : 52, duration: card.duration,
-                crestBadge: card.teamAbbreviation.map {
+                topStripe: club != nil, playSize: compact ? 40 : 52, duration: card.duration,
+                crestBadge: hideTeamIdentity ? nil : card.teamAbbreviation.map {
                     ThumbnailHeader.BadgeSlot(abbreviation: $0, alignment: .topLeading)
                 }
             )
@@ -189,17 +199,9 @@ struct ThumbnailHeader: View {
         ZStack {
             LinearGradient(colors: [teamColor.opacity(0.15), Color.dsBgTertiary],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
-            if let thumbnailURL {
-                AsyncImage(url: thumbnailURL) { phase in
-                    if let image = phase.image {
-                        image.resizable().scaledToFill()
-                    } else {
-                        crestFallback   // loading / failure → crest over the gradient
-                    }
-                }
-            } else {
-                crestFallback
-            }
+            // Cached so a tab-switch return doesn't flash back to the crest while the
+            // frame reloads (bug #5). Miss/failure → crest over the gradient.
+            CachedThumbnail(url: thumbnailURL) { crestFallback }
         }
     }
 

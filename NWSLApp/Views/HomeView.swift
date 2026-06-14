@@ -70,6 +70,14 @@ struct HomeView: View {
             await viewModel.loadContent(following: following)
             await loadBracketSummary()
         }
+        // A newly-followed (or unfollowed) team should change Module 1 without a
+        // manual refresh — refetch the live content scoped to the new followed set
+        // (the deferred "refetch-on-follows-change" item). Also reset the per-team
+        // chip if the team it pointed at was just unfollowed.
+        .onChange(of: following.followedIDs) {
+            viewModel.reconcileSelectedTeam(following: following)
+            Task { await viewModel.loadContent(following: following, force: true) }
+        }
         .sheet(isPresented: $showTeamPicker) {
             NavigationStack { OnboardingView() }
         }
@@ -166,21 +174,60 @@ struct HomeView: View {
 
     @ViewBuilder
     private var fromYourTeams: some View {
-        let items = viewModel.teamContent(following: following)
+        let teams = viewModel.followedTeamAbbreviations(following: following)
+        let result = viewModel.teamContent(following: following)
         section("From your teams") {
-            if items.isEmpty {
+            // Follow prompt only when on "All" with nothing to show (no follows / no
+            // fresh content). A per-team chip coming up empty is a quiet team, not an
+            // empty home — show the chips + a "No content from X" note instead.
+            if result.cards.isEmpty && viewModel.selectedTeam == nil {
                 followPrompt
             } else {
                 VStack(spacing: 14) {
-                    ForEach(items) { card in
-                        ContentCardView(
-                            card: card,
-                            club: viewModel.club(forAbbreviation: card.teamAbbreviation ?? "")
-                        )
+                    // Per-team chips only when following 2+ teams — with one team
+                    // there's nothing to filter (chip redesign).
+                    if teams.count >= 2 {
+                        HomeTeamChips(viewModel: viewModel, teams: teams)
                     }
+                    if result.cards.isEmpty {
+                        Text("No content from \(viewModel.selectedTeam ?? "") right now.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.dsFgSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        ForEach(result.cards) { card in
+                            ContentCardView(
+                                card: card,
+                                club: viewModel.club(forAbbreviation: card.teamAbbreviation ?? ""),
+                                // Following one team → drop the redundant team badge +
+                                // name on every card (chip redesign, adaptive labels).
+                                hideTeamIdentity: teams.count <= 1
+                            )
+                        }
+                    }
+                    if result.overflowCount > 0 { seeMoreLink }
                 }
             }
         }
+    }
+
+    // Opens the full chronological list of all followed-team content (Change 1),
+    // respecting the active chip. Appears only when the balanced module is capping
+    // content off.
+    private var seeMoreLink: some View {
+        NavigationLink {
+            HomeContentListView(viewModel: viewModel)
+        } label: {
+            HStack {
+                Text("See more from your teams →")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.dsAccent)
+                Spacer()
+            }
+            .contentShape(Rectangle())
+            .padding(.top, 2)
+        }
+        .buttonStyle(.plain)
     }
 
     // Shown when the user follows nobody (so the lead module has nothing to show).
@@ -450,6 +497,9 @@ struct HomeView: View {
     private func reload() async {
         await matchStore.load()
         await clubStore.load()
+        // Refetch Module-1 content, reset the chip to All, and rotate the window if
+        // nothing new arrived (Change 1 pull-to-refresh behavior).
+        await viewModel.refresh(following: following)
     }
 
     private func errorView(_ message: String) -> some View {

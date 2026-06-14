@@ -37,24 +37,22 @@ struct TeamsView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            content
-                .navigationTitle("Teams")
-                .navigationDestination(for: Club.self) { club in
-                    TeamDetailView(club: club)
-                }
-                .navigationDestination(for: NotificationsRoute.self) { _ in
-                    NotificationsView()
-                }
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button { path.append(NotificationsRoute.hub) } label: {
-                            Image(systemName: "bell")
-                                .foregroundStyle(Color.dsAccent)
-                        }
-                        .accessibilityLabel("Notifications")
-                    }
-                }
-                // No pull-to-refresh: the club directory is static; nothing to refetch.
+            VStack(spacing: 0) {
+                header
+                content
+            }
+            // The bell lives inline on the title row (see `header`), so the system
+            // nav bar is hidden on this root — a nav-bar toolbar button gets pinned
+            // up against the status bar; inline gives it breathing room. Pushed
+            // destinations (TeamDetailView, the hub) keep their own nav bars + back.
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: Club.self) { club in
+                TeamDetailView(club: club)
+            }
+            .navigationDestination(for: NotificationsRoute.self) { _ in
+                NotificationsView()
+            }
+            // No pull-to-refresh: the club directory is static; nothing to refetch.
         }
         // Load once on first appearance; don't refetch every time the tab is
         // re-selected (pull-to-refresh covers manual reloads).
@@ -62,6 +60,27 @@ struct TeamsView: View {
             viewModel.clubStore = clubStore
             if case .idle = clubStore.state { await viewModel.load() }
         }
+    }
+
+    // The "Teams" large title with the notifications bell inline on the SAME row,
+    // right-aligned — rather than a nav-bar toolbar item (which the system pins up
+    // by the status bar). Gives the bell breathing room and balances it with the title.
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Teams")
+                .font(.largeTitle.weight(.bold))
+                .foregroundStyle(Color.dsFgPrimary)
+            Spacer()
+            Button { path.append(NotificationsRoute.hub) } label: {
+                Image(systemName: "bell")
+                    .font(.title2)
+                    .foregroundStyle(Color.dsAccent)
+            }
+            .accessibilityLabel("Notifications")
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder

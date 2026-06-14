@@ -33,27 +33,28 @@ struct ArticleContentCard: View {
     }
 
     var body: some View {
-        Button {
-            if let url = card.url { openURL(url) }
-        } label: {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .top, spacing: 12) {
-                    textColumn
-                    if card.thumbnailURL != nil { thumbnail }
-                }
-                CTARow(label: card.ctaLabel)
+        // `.onTapGesture`, not a `Button` — see ThumbnailContentCard for why (a chip
+        // tap on Home could otherwise be re-delivered to the first card's Button; #3).
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                textColumn
+                if card.thumbnailURL != nil { thumbnail }
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.dsBgCard)
-            // Team-color top stripe, matching the thumbnail cards (clipped to the
-            // card's rounded corners by the clipShape below).
-            .overlay(alignment: .top) {
-                Rectangle().fill(teamColor).frame(height: 3)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+            CTARow(label: card.ctaLabel)
         }
-        .buttonStyle(.plain)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgCard)
+        // Team-color top stripe, matching the thumbnail cards (clipped to the
+        // card's rounded corners by the clipShape below).
+        .overlay(alignment: .top) {
+            Rectangle().fill(teamColor).frame(height: 3)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let url = card.url { openURL(url) }
+        }
     }
 
     private var textColumn: some View {

@@ -63,13 +63,7 @@ struct HomeContentChips: View {
         HStack(spacing: 8) {
             ForEach(HomeContentFilter.allCases, id: \.self) { filter in
                 Chip(label: filter.label, isActive: viewModel.selectedFilter == filter) {
-                    // Defer the filter change one runloop tick. Mutating it
-                    // synchronously inside the tap closure rebuilds the card list
-                    // WHILE the tap is still being processed, and SwiftUI mis-delivers
-                    // the tap's completion to the (rebuilt) first card's button — so
-                    // tapping a chip flashes + opens the first card's URL (bug #3).
-                    let selected = filter
-                    DispatchQueue.main.async { viewModel.selectedFilter = selected }
+                    viewModel.selectedFilter = filter
                 }
             }
             Spacer(minLength: 0)

@@ -29,33 +29,34 @@ struct AvatarContentCard: View {
     private var teamColor: Color { club?.accentColor ?? .dsAccent }
 
     var body: some View {
-        Button {
-            if let url = card.url { openURL(url) }
-        } label: {
-            VStack(spacing: 0) {
-                // 3px team-color accent line at the top edge — the same marker the
-                // YouTube/clip cards carry, so team posts (Bluesky, IG) read as the
-                // same family (bug #1). Only team cards get it; reporter cards (no
-                // club, the Feed's own voice) stay stripe-less.
-                if club != nil {
-                    Rectangle().fill(teamColor).frame(height: 3)
-                }
-                HStack(alignment: .top, spacing: 10) {
-                    avatar
-                    VStack(alignment: .leading, spacing: columnGap) {
-                        header
-                        postBody
-                        media
-                        bottomRow
-                    }
-                }
-                .padding(14)
+        // `.onTapGesture`, not a `Button` — see ThumbnailContentCard for why (a chip
+        // tap on Home could otherwise be re-delivered to the first card's Button; #3).
+        VStack(spacing: 0) {
+            // 3px team-color accent line at the top edge — the same marker the
+            // YouTube/clip cards carry, so team posts (Bluesky, IG) read as the
+            // same family (bug #1). Only team cards get it; reporter cards (no
+            // club, the Feed's own voice) stay stripe-less.
+            if club != nil {
+                Rectangle().fill(teamColor).frame(height: 3)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.dsBgCard)
-            .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+            HStack(alignment: .top, spacing: 10) {
+                avatar
+                VStack(alignment: .leading, spacing: columnGap) {
+                    header
+                    postBody
+                    media
+                    bottomRow
+                }
+            }
+            .padding(14)
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let url = card.url { openURL(url) }
+        }
     }
 
     private var columnGap: CGFloat { card.layout == .blueskyTeamText ? 8 : 10 }

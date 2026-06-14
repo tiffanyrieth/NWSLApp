@@ -32,18 +32,23 @@ struct ThumbnailContentCard: View {
     }
 
     var body: some View {
-        Button {
-            if let url = card.url { openURL(url) }
-        } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                thumbnail
-                footer
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.dsBgCard)
-            .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+        // Whole-card tap via `.onTapGesture`, NOT a `Button`: on Home the chip filter
+        // bar and these cards share one scroll, and a chip Button's tap could be
+        // re-delivered to the first card *Button* on the filter-change rebuild —
+        // flashing it pressed and opening its URL (bug #3). With no card Button there's
+        // nothing to mis-fire. (Feed avoids it by isolating its chips in a separate
+        // scroll; Home can't, so it fixes it here.)
+        VStack(alignment: .leading, spacing: 0) {
+            thumbnail
+            footer
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let url = card.url { openURL(url) }
+        }
     }
 
     // MARK: - Thumbnail (per layout)

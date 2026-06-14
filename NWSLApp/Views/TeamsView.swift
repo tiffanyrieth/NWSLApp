@@ -54,7 +54,7 @@ struct TeamsView: View {
                         .accessibilityLabel("Notifications")
                     }
                 }
-                .refreshable { await viewModel.load() }
+                // No pull-to-refresh: the club directory is static; nothing to refetch.
         }
         // Load once on first appearance; don't refetch every time the tab is
         // re-selected (pull-to-refresh covers manual reloads).

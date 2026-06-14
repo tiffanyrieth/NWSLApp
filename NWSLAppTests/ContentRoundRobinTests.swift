@@ -152,6 +152,30 @@ struct ContentRoundRobinTests {
         #expect(a2! < a0!)
     }
 
+    // MARK: - Type variety within a team (bug #4)
+
+    @Test func teamSlotsMixContentTypesNotJustVideos() {
+        // A team with a flood of videos + one older news article. The news must land
+        // in the team's guaranteed slots (not be buried under the newer clips), so
+        // Home stays a varied feed rather than a video channel.
+        var cards: [ContentCard] = []
+        for i in 0..<10 { cards.append(card("V\(i)", "A", secondsAgo: Double(i), layout: .youtube)) }
+        cards.append(card("NEWS", "A", secondsAgo: 100, layout: .newsArticle))   // older than all videos
+
+        let result = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A"])
+
+        // tier(1) guarantees 4; with type-interleaving the news sits at slot 1
+        // (newest video, then the one news article).
+        #expect(result.cards.first?.id == "V0")
+        #expect(result.cards.count >= 2)
+        #expect(result.cards[1].id == "NEWS")
+    }
+
+    @Test func typeInterleavedIsNoOpForSingleType() {
+        let cards = (0..<5).map { card("V\($0)", "A", secondsAgo: Double($0)) }   // all youtube
+        #expect(ContentRoundRobin.typeInterleaved(cards).map(\.id) == cards.map(\.id))
+    }
+
     // MARK: - Filter keeps balancing active
 
     @Test func balancingStaysActiveUnderFilter() {

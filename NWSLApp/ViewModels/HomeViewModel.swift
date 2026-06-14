@@ -141,17 +141,21 @@ final class HomeViewModel {
         )
     }
 
-    /// Followed teams' own fresh cards (placement + follow + 72h window), BEFORE the
-    /// chip filter — the rotation pool and the pre-filter base.
+    /// Followed teams' own fresh cards (placement + follow + freshness), BEFORE the
+    /// chip filter — the rotation pool and the pre-filter base. News articles get the
+    /// longer 7-day window (the Feed's): club news posts a few times a week, so under
+    /// the tight 72h window a 4-day-old article is buried by the day's clip flood and
+    /// Home reads like a video channel (bug #4). Social/video keep the 72h window.
     private func freshFollowedCards(following: FollowingStore) -> [ContentCard] {
         let followed = followedAbbreviations(following)
-        return teamContentItems
-            .filter { card in
-                guard card.placement != .feed,
-                      let abbr = card.teamAbbreviation else { return false }
-                return followed.contains(abbr)
-            }
-            .fresh(.home, now: now())
+        let owned = teamContentItems.filter { card in
+            guard card.placement != .feed,
+                  let abbr = card.teamAbbreviation else { return false }
+            return followed.contains(abbr)
+        }
+        let news = owned.filter { $0.layout == .newsArticle }.fresh(.feed, now: now())
+        let rest = owned.filter { $0.layout != .newsArticle }.fresh(.home, now: now())
+        return news + rest
     }
 
     /// `freshFollowedCards` with the active content-type chip applied — what the

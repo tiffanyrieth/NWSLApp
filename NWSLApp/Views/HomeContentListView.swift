@@ -54,15 +54,20 @@ struct HomeContentChips: View {
     let viewModel: HomeViewModel
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(HomeContentFilter.allCases, id: \.self) { filter in
-                    Chip(label: filter.label, isActive: viewModel.selectedFilter == filter) {
-                        viewModel.selectedFilter = filter
-                    }
+        // A plain HStack, NOT a horizontal ScrollView. The four short fixed chips fit
+        // any iPhone width, and the nested horizontal ScrollView (inside the vertical
+        // hub ScrollView) leaked chip taps straight through to the first content
+        // card's button — tapping a chip opened that card's URL in the browser instead
+        // of filtering (bug #3). Without the nested scroll, the chips are ordinary
+        // sibling buttons and capture their own taps.
+        HStack(spacing: 8) {
+            ForEach(HomeContentFilter.allCases, id: \.self) { filter in
+                Chip(label: filter.label, isActive: viewModel.selectedFilter == filter) {
+                    viewModel.selectedFilter = filter
                 }
             }
-            .padding(.vertical, 2)
+            Spacer(minLength: 0)
         }
+        .padding(.vertical, 2)
     }
 }

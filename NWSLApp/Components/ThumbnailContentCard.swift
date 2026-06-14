@@ -54,6 +54,9 @@ struct ThumbnailContentCard: View {
         case .socialVideo:
             ThumbnailHeader(
                 thumbnailURL: card.thumbnailURL, height: 200, teamColor: teamColor, club: club,
+                // Carry the 3px team accent line like the YouTube card, so a team's
+                // clip reads as the same family (bug #1).
+                topStripe: card.teamAbbreviation != nil,
                 playSize: 52,
                 crestBadge: card.teamAbbreviation.map {
                     ThumbnailHeader.BadgeSlot(abbreviation: $0, alignment: .bottomLeading)
@@ -189,17 +192,9 @@ struct ThumbnailHeader: View {
         ZStack {
             LinearGradient(colors: [teamColor.opacity(0.15), Color.dsBgTertiary],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
-            if let thumbnailURL {
-                AsyncImage(url: thumbnailURL) { phase in
-                    if let image = phase.image {
-                        image.resizable().scaledToFill()
-                    } else {
-                        crestFallback   // loading / failure → crest over the gradient
-                    }
-                }
-            } else {
-                crestFallback
-            }
+            // Cached so a tab-switch return doesn't flash back to the crest while the
+            // frame reloads (bug #5). Miss/failure → crest over the gradient.
+            CachedThumbnail(url: thumbnailURL) { crestFallback }
         }
     }
 

@@ -32,16 +32,25 @@ struct AvatarContentCard: View {
         Button {
             if let url = card.url { openURL(url) }
         } label: {
-            HStack(alignment: .top, spacing: 10) {
-                avatar
-                VStack(alignment: .leading, spacing: columnGap) {
-                    header
-                    postBody
-                    media
-                    bottomRow
+            VStack(spacing: 0) {
+                // 3px team-color accent line at the top edge — the same marker the
+                // YouTube/clip cards carry, so team posts (Bluesky, IG) read as the
+                // same family (bug #1). Only team cards get it; reporter cards (no
+                // club, the Feed's own voice) stay stripe-less.
+                if club != nil {
+                    Rectangle().fill(teamColor).frame(height: 3)
                 }
+                HStack(alignment: .top, spacing: 10) {
+                    avatar
+                    VStack(alignment: .leading, spacing: columnGap) {
+                        header
+                        postBody
+                        media
+                        bottomRow
+                    }
+                }
+                .padding(14)
             }
-            .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
@@ -148,11 +157,8 @@ struct AvatarContentCard: View {
         ZStack {
             LinearGradient(colors: [gradientTop, Color.dsBgTertiary],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
-            if let url = card.thumbnailURL {
-                AsyncImage(url: url) { phase in
-                    if let image = phase.image { image.resizable().scaledToFill() }
-                }
-            }
+            // Cached so the frame survives a tab switch (bug #5); miss → the gradient.
+            CachedThumbnail(url: card.thumbnailURL) { Color.clear }
         }
         .frame(maxWidth: .infinity)
         .frame(height: height)

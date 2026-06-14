@@ -79,14 +79,17 @@ enum ContentRoundRobin {
 
         let (guaranteed, cap) = tier(followedAbbreviations.count)
 
-        // 2. Per team: rotate by its window offset, reserve the first `guaranteed`,
-        //    spill the rest into the shared leftover pool.
+        // 2. Per team: rotate by its window offset, interleave content TYPES so a
+        //    team's guaranteed slots aren't all videos (a club article or a Bluesky
+        //    post sits alongside the clips — Home stays a varied feed, not a video
+        //    channel; bug #4), reserve the first `guaranteed`, spill the rest into the
+        //    shared leftover pool.
         var reservedByTeam: [String: [ContentCard]] = [:]
         var leftover: [ContentCard] = []
         for abbr in followedAbbreviations {
             let all = byTeam[abbr] ?? []
             guard !all.isEmpty else { continue }
-            let rotated = rotate(all, by: windowOffsets[abbr] ?? 0)
+            let rotated = typeInterleaved(rotate(all, by: windowOffsets[abbr] ?? 0))
             reservedByTeam[abbr] = Array(rotated.prefix(guaranteed))
             leftover.append(contentsOf: rotated.dropFirst(guaranteed))
         }
@@ -170,6 +173,42 @@ enum ContentRoundRobin {
     private static func newestFirst(_ lhs: ContentCard, _ rhs: ContentCard) -> Bool {
         if lhs.timestamp != rhs.timestamp { return lhs.timestamp > rhs.timestamp }
         return lhs.id > rhs.id
+    }
+
+    /// Reorder a team's cards (incoming newest-first) to mix content TYPES: round-robin
+    /// across categories — news / video / social — pulling the newest of each in turn.
+    /// The newest card overall still leads (categories cycle in order of their newest
+    /// item), but a team's top slots now span types instead of being all videos. A
+    /// single-category list is returned unchanged. Deterministic.
+    static func typeInterleaved(_ cards: [ContentCard]) -> [ContentCard] {
+        guard cards.count > 1 else { return cards }
+        var buckets: [Int: [ContentCard]] = [:]
+        var order: [Int] = []            // categories, in order of first (newest) appearance
+        for card in cards {
+            let cat = category(card)
+            if buckets[cat] == nil { buckets[cat] = []; order.append(cat) }
+            buckets[cat]!.append(card)
+        }
+        guard order.count > 1 else { return cards }   // one type → nothing to interleave
+        var result: [ContentCard] = []
+        var depth = 0
+        while result.count < cards.count {
+            for cat in order where depth < buckets[cat]!.count {
+                result.append(buckets[cat]![depth])
+            }
+            depth += 1
+        }
+        return result
+    }
+
+    /// Content category for type-interleaving: news / video / social. Mirrors the
+    /// chip groupings (a clip is a Video, like the `.videos` filter).
+    private static func category(_ card: ContentCard) -> Int {
+        switch card.layout {
+        case .newsArticle:           return 0   // news
+        case .youtube, .socialVideo: return 1   // video
+        default:                     return 2   // social / text
+        }
     }
 
     /// Rotate so element `offset` becomes first, wrapping around. `offset` is taken

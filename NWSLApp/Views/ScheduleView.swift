@@ -184,7 +184,8 @@ struct ScheduleView: View {
         .scrollPosition(id: $scrollTarget, anchor: .top)
         .contentMargins(.horizontal, 16, for: .scrollContent)
         .background(Color.dsBgGrouped)
-        .refreshable { await viewModel.load() }
+        // No pull-to-refresh: the season loads once a year and live scores already
+        // update in-card in real time, so a manual refresh has nothing to fetch.
     }
 
     // "My teams" with nothing followed yet — a gentle nudge, per the spec.

@@ -444,9 +444,9 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
     (Home card + screen); the Fan Zone module hides when none is visible.
   - **Game Center** (GameKit) is layered on top: native leaderboards/achievements (4 boards +
     6 achievements) via `GameCenterManager`/`GKAccessPoint`, additive on the Supabase boards
-    (best-effort, no-ops when not signed in). *App-side shipped; going live needs the owner's
-    App Store Connect config (enable Game Center + create the records per
-    `Reference/game-center-app-store-connect-checklist.md`) + a sandbox-account verify.*
+    (best-effort, no-ops when not signed in). *App-side shipped; the 4 boards + 6 achievements are
+    created in App Store Connect (status "Prepare for Submission") — live-verify happens on the next
+    TestFlight build.*
 - **Player Spotlight** (`spotlight-design-spec.md`) — one mini-profile per followed team, live
   via `/spotlight` (real player + ESPN stats + a Haiku "why watch" blurb, weekly rotation).
 - **Feed** (`feed-tab-design-spec.md`) — reporters + news + social filtered to followed teams +
@@ -491,20 +491,28 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
 Completed work lives in **Current State**; only pending work here. Ordered by the priority order
 at the top (ALIVE > core > hardening).
 
-**Owner-gated (to fully close 0.3.9):**
-- **Game Center go-live** — owner enables Game Center in App Store Connect + creates the 4
-  leaderboards + 6 achievements (`Reference/game-center-app-store-connect-checklist.md`), then a
-  joint sandbox-account live-verify. App side is shipped + handles the not-yet-enabled state gracefully.
+**Owner-gated App Store Connect / backend setup (status):**
+- ✅ **Game Center** — the 4 leaderboards + 6 achievements are created in App Store Connect
+  (status "Prepare for Submission"), matching the ids in `GameCenterIDs.swift`. App side shipped.
+  (The sandbox/live-verify happens naturally on the next TestFlight build.)
+- ⬜ **Create the Support IAP products** — 4 consumables + a monthly subscription group in App Store
+  Connect (ids in `NWSLApp.storekit` / QOL v2 spec §5). Until then Support shows fallback prices and
+  purchases only work against the local `.storekit` config in Xcode.
+- ⬜ **Enable the In-App Purchase capability** (Xcode Signing & Capabilities + the ASC agreement).
+- ⬜ **Drop the old per-type columns** on the live `team_alert_preferences` Supabase table (run the
+  `alter` in `supabase/schema.sql`) so signed-in per-team alerts sync (offline-first works regardless).
 
 **QOL — 0.4.0 build 9 (first build of the flagship):** improving the experience of what's already
 alive. Handoffs: `Reference/Feed update/QOL Update Handoff.md` (Changes 1+3) + `QOL v2 - Notification
 Redesign + Support.md` (the notification redesign, which superseded the original Change 2). **Shipped**:
 Home round-robin balancing + pull-to-refresh rotation + "See more →"; Home per-team chips; the
 one-screen **Notifications hub** (per-team on/off bells + global alert types + honest sign-in gate +
-sign-out Tier-2 reset); the **Support** (StoreKit tips) screen. Owner-gated to finish: drop the old
-per-type columns on the live `team_alert_preferences` table (run the alter in `supabase/schema.sql`);
-create the Support IAP products + subscription group in App Store Connect (ids in the v2 spec §5) +
-enable the in-app-purchase capability. Still pending, as they come up from real use:
+sign-out Tier-2 reset); the **Support** (StoreKit tips) screen; Teams single-list + subtitle;
+Feed/content-card polish. (App Store Connect / backend setup to finish it is the owner-gated
+checklist above.) Still pending, as they come up from real use:
+- **YouTube Shorts thumbnail pillarbox (#2)** — DEFERRED by owner (revisiting). Vertical Shorts'
+  static `hqdefault.jpg` has baked-in side bars the client can't crop; the fix is proxy-side (choose
+  a bar-free thumbnail / crop the content region in `nwslapp-proxy`). Not started.
 - **Pull-to-refresh polish** — keep the list visible during refresh (spinner only on first load),
   not flipping `state` to `.loading` full-screen.
 - **Server-push per-team targeting** — the match-watcher Worker still reads the global

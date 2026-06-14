@@ -540,9 +540,10 @@ checklist above.) Still pending, as they come up from real use:
   a bar-free thumbnail / crop the content region in `nwslapp-proxy`). Not started.
 - **Pull-to-refresh polish** — keep the list visible during refresh (spinner only on first load),
   not flipping `state` to `.loading` full-screen.
-- **Server-push per-team targeting** — the match-watcher Worker still reads the global
-  `notification_preferences`; repoint it to read `team_alert_preferences` per team when Tier 2 goes
-  live (the app side already writes per-team intent).
+- ✅ **Server-push per-team targeting (done 2026-06-14)** — the match-watcher Worker now gates pushes
+  on `team_alert_preferences(alerts_enabled=true)` per team (the bell), ∩ the global
+  `notification_preferences` type toggle — so a push reaches only users who enabled alerts for THAT
+  team, not every follower. Deployed (`nwslapp-match-watcher` `src/supabase.ts`).
 - **Bracket follow-ups (optional):** exact season-stat seeding for stat editions; more stat
   templates (GK/Mid/Def); a full bracket-TREE graphic (its own design pass). Owner still to curate
   the Best Goal Celebration creative edition (loads as data via `scripts/load_creative_edition.mjs`).

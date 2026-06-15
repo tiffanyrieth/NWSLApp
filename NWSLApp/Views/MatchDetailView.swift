@@ -46,7 +46,7 @@ struct MatchDetailView: View {
     }
 
     private enum DetailTab: String, CaseIterable, Hashable {
-        case summary = "Summary"
+        case summary = "Play by Play"
         case lineups = "Lineups"
         case stats = "Stats"
     }
@@ -136,11 +136,7 @@ struct MatchDetailView: View {
         viewModel.temporalState == .live ? .dsStateClock : .dsStateKickoff
     }
 
-    /// Live relabels the events tab to "Events"; otherwise the raw case name.
-    private func tabLabel(_ tab: DetailTab) -> String {
-        if tab == .summary && viewModel.temporalState == .live { return "Events" }
-        return tab.rawValue
-    }
+    private func tabLabel(_ tab: DetailTab) -> String { tab.rawValue }
 
     @ViewBuilder
     private var tabContent: some View {
@@ -181,26 +177,34 @@ struct MatchDetailView: View {
     private func summaryTab(_ summary: MatchSummary) -> some View {
         let events = summary.timelineEvents
         let homeID = summary.homeBoxscore?.team?.id ?? summary.homeRoster?.team?.id
-        let awayID = summary.awayBoxscore?.team?.id ?? summary.awayRoster?.team?.id
-        let homeAbbr = summary.homeBoxscore?.team?.abbreviation ?? summary.homeRoster?.team?.abbreviation
-        let awayAbbr = summary.awayBoxscore?.team?.abbreviation ?? summary.awayRoster?.team?.abbreviation
+        // Crest + abbreviation per side for each event row's left color box.
+        let homeCrest = event.homeCompetitor?.team?.logo
+        let awayCrest = event.awayCompetitor?.team?.logo
+        let homeAbbr = event.homeCompetitor?.team?.abbreviation ?? summary.homeRoster?.team?.abbreviation
+        let awayAbbr = event.awayCompetitor?.team?.abbreviation ?? summary.awayRoster?.team?.abbreviation
+        // Running scoreline per goal (chronological events).
+        let scorelines = goalScorelines(events, homeID: homeID)
 
         VStack(spacing: 14) {
             if events.isEmpty {
                 emptyState("No key events yet.")
             } else {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(events.enumerated()), id: \.offset) { index, event in
+                VStack(spacing: 0) {
+                    ForEach(Array(events.enumerated()), id: \.offset) { index, ev in
+                        let isHome = ev.team?.id == homeID
                         EventTimelineRow(
-                            event: event,
-                            homeTeamID: homeID, awayTeamID: awayID,
-                            homeAbbr: homeAbbr, awayAbbr: awayAbbr,
-                            minuteColor: underlineColor
+                            event: ev,
+                            minuteColor: underlineColor,
+                            teamColor: isHome ? matchColors.home.fill : matchColors.away.fill,
+                            crestURL: isHome ? homeCrest : awayCrest,
+                            crestAbbr: isHome ? homeAbbr : awayAbbr,
+                            score: scorelines[index]
                         )
-                        if index < events.count - 1 { Divider() }
+                        if index < events.count - 1 { Divider().padding(.leading, 2) }
                     }
                 }
-                .padding()
+                .padding(.vertical, 4)
+                .padding(.horizontal, 14)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.dsBgCard)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -223,6 +227,20 @@ struct MatchDetailView: View {
             .compactMap { $0.displayName ?? $0.fullName }
         guard !names.isEmpty else { return nil }
         return "Officials: " + names.joined(separator: " · ")
+    }
+
+    /// Running scoreline ("home–away") at each goal, keyed by event index. Walks
+    /// the chronological events, crediting the scoring side by `team.id`.
+    private func goalScorelines(_ events: [KeyEvent], homeID: String?) -> [Int: String] {
+        var home = 0, away = 0
+        var map: [Int: String] = [:]
+        for (index, ev) in events.enumerated() {
+            let isGoal = ev.scoringPlay == true || (ev.type?.type ?? "").contains("goal")
+            guard isGoal else { continue }
+            if ev.team?.id == homeID { home += 1 } else { away += 1 }
+            map[index] = "\(home)\u{2013}\(away)"   // en dash
+        }
+        return map
     }
 
     // MARK: - Lineups tab (starters + substitutes)
@@ -531,19 +549,40 @@ struct MatchDetailView: View {
     }
 
     private func seasonComparison(_ preview: MatchPreview) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 16) {
             Text("Season comparison")
                 .font(.system(size: 17, weight: .bold))
                 .foregroundStyle(Color.dsFgPrimary)
-            comparisonBar("Goals / Match", preview.home.goalsPerMatch, preview.away.goalsPerMatch)
-            comparisonBar("Conceded / Match", preview.home.concededPerMatch, preview.away.concededPerMatch)
-            comparisonBar("Points / Game", preview.home.pointsPerGame, preview.away.pointsPerGame)
+            // Crest + abbreviation per side (two-team context — never full names).
+            HStack {
+                crestAbbr(event.homeCompetitor, color: matchColors.home.fill)
+                Spacer()
+                crestAbbr(event.awayCompetitor, color: matchColors.away.fill)
+            }
+            VStack(spacing: 18) {
+                comparisonBar("Goals / Match", preview.home.goalsPerMatch, preview.away.goalsPerMatch)
+                comparisonBar("Conceded / Match", preview.home.concededPerMatch, preview.away.concededPerMatch)
+                comparisonBar("Points / Game", preview.home.pointsPerGame, preview.away.pointsPerGame)
+            }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, 20)
+    }
+
+    /// Crest + abbreviation in the team's color — the two-team-context identity
+    /// (CLAUDE.md: never full club names, never crest-less text in a matchup).
+    private func crestAbbr(_ competitor: Competitor?, color: Color) -> some View {
+        HStack(spacing: 7) {
+            TeamLogo(urlString: competitor?.team?.logo,
+                     teamAbbreviation: competitor?.team?.abbreviation, size: 22)
+            Text(competitor?.team?.abbreviation ?? "—")
+                .font(.system(size: 14, weight: .bold))
+                .tracking(0.3)
+                .foregroundStyle(color)
+        }
     }
 
     private func comparisonBar(_ label: String, _ home: Double, _ away: Double) -> some View {
@@ -559,8 +598,8 @@ struct MatchDetailView: View {
             Text("Recent form")
                 .font(.system(size: 17, weight: .bold))
                 .foregroundStyle(Color.dsFgPrimary)
-            formRow(name: name(for: event.homeCompetitor), form: preview.home)
-            formRow(name: name(for: event.awayCompetitor), form: preview.away)
+            formRow(event.homeCompetitor, color: matchColors.home.fill, form: preview.home)
+            formRow(event.awayCompetitor, color: matchColors.away.fill, form: preview.away)
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -569,11 +608,9 @@ struct MatchDetailView: View {
         .padding(.horizontal, 20)
     }
 
-    private func formRow(name: String, form: TeamSeasonForm) -> some View {
+    private func formRow(_ competitor: Competitor?, color: Color, form: TeamSeasonForm) -> some View {
         HStack(spacing: 10) {
-            Text(name)
-                .font(.subheadline.weight(.medium))
-                .lineLimit(1)
+            crestAbbr(competitor, color: color)
             Spacer(minLength: 8)
             if form.recent.isEmpty {
                 Text("No matches yet")

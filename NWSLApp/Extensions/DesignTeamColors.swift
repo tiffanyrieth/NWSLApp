@@ -27,10 +27,10 @@ enum DesignTeamColors {
         "GFC": "7FD4C1",  // Gotham FC (ESPN's abbr; the design table's "NJ" was the pre-2021 NY/NJ Sky Blue mark)
         "HOU": "FF8A3D",  // Houston Dash
         "KC": "30C7E8",   // Kansas City Current
-        "NC": "B79B5B",   // North Carolina Courage
+        "NC": "E0354B",   // North Carolina Courage (club red — was an unjustified gold override)
         "SEA": "6E7FFF",  // OL Reign / Seattle
         "ORL": "B07CE8",  // Orlando Pride
-        "POR": "E8D26B",  // Portland Thorns
+        "POR": "FF4D6D",  // Portland Thorns (club red — was an unjustified gold override)
         "LOU": "C7A8FF",  // Racing Louisville
         "SD": "FFB340",   // San Diego Wave
         "UTA": "FFD60A",  // Utah Royals

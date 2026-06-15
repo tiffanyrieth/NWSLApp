@@ -242,8 +242,14 @@ understanding each change matters as much as shipping it.
 - **Dark appearance app-wide**, no toggle (page `#1C1C1E`, cards `#2C2C2E`).
 - **Crest rule:** bare crests via `TeamLogo`, no ring (only player monograms get a ring).
 - **Team colors:** `DesignTeamColors` by abbreviation so ESPN near-black primaries stay legible.
-- **Team naming:** two teams together → abbreviations (WAS 1–0 ORL); one team as subject →
-  full club name (Gotham FC). ESPN has no nickname field.
+  **Always use each club's default brand colors; do not add manual color overrides (e.g. the
+  Portland→gold override) unless there's a documented rendering conflict. Remove existing overrides
+  that aren't justified.**
+- **Team naming:** one team as subject → full club name (Gotham FC). **Two-team contexts (match
+  cards, match detail, head-to-head/season comparisons, standings rows, recent form in a matchup)
+  always use CREST + ABBREVIATION (e.g. WAS) — never full club names and never crest-less text. Full
+  club names appear only in single-club contexts (club page, Teams directory, following lists). Crests
+  are never dropped in favor of text.** ESPN has no nickname field.
 
 ---
 
@@ -393,7 +399,7 @@ NWSLApp/
 │   ├── TeamsView.swift                — all-16 directory: ONE continuous list (followed floated to top, no section headers) + subtitle; follow-competitions row; per-row 🔔 alert toggles (followed) + "{N} teams · Manage" line at the followed/unfollowed boundary + nav-bar 🔔 → NotificationsView
 │   ├── CompetitionsView.swift         — follow international competitions
 │   ├── TeamDetailView.swift           — club page: header (⭐ follow) + social row + Squad·Stats tabs
-│   ├── MatchDetailView.swift          — state-aware match (color-block redesign): full-bleed scaled-Card-C header (team wash under a transparent nav bar, 72pt crests, score under each crest, temporal-state center) + `origin`-driven "‹ {parent}" back button; past=Summary/Lineups/Stats (cyan/orange tab underline, cyan minute markers, green-up/red-down sub glyph, formation pitch + BENCH), live=poll & LIVE pill, future=info grid + How-to-Watch + comparison + form. All cards `dsBgCard`
+│   ├── MatchDetailView.swift          — state-aware match (color-block redesign): full-bleed scaled-Card-C header (team wash under a transparent nav bar, 72pt crests, score under each crest, temporal-state center) + `origin`-driven "‹ {parent}" back button; past=Play-by-Play/Lineups/Stats (cyan/orange tab underline; Play-by-Play rows = left team-color crest box + cyan minute + glyph (soccerball.inverse goal / colored card / green-up-red-down sub "on for {out}") + running scoreline on goals + goal wash; formation pitch + BENCH), live=poll & LIVE pill, future=info grid + How-to-Watch + comparison + form. All cards `dsBgCard`
 │   ├── CombinedPitchView.swift        — BOTH teams' XIs on ONE pitch; Lineups default
 │   ├── FormationPitchView.swift       — single-team XI on a pitch; per-team list fallback
 │   ├── PlayerDetailView.swift         — roster bio + season stat block

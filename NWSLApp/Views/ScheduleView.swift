@@ -81,10 +81,12 @@ struct ScheduleView: View {
             if case .idle = matchStore.state { await matchStore.load() }
             if case .idle = clubStore.state { await clubStore.load() }
         }
-        // First-load scroll-to-today, off the idle/loading -> loaded edge.
-        .onChange(of: viewModel.isLoaded) { _, loaded in
-            if loaded { anchorIfNeeded() }
-        }
+        // NOTE: the first-load scroll-to-today is driven by the match list's own
+        // `onAppear` (see `matchList`), NOT an `onChange(isLoaded)` edge. The edge
+        // is unreliable: when the store was preloaded by Home it fires before the
+        // list mounts (bumping the scroll nonce with no observer to catch it) yet
+        // still burns the one-shot. `onAppear` fires once the list is on screen, so
+        // it works whether Schedule or Home loaded the season.
         // The "My teams" filter also needs the club directory (it resolves a
         // beat after the season). When it lands, retry the first-load anchor —
         // otherwise My teams would open stuck at the season opener.
@@ -235,6 +237,10 @@ struct ScheduleView: View {
                     proxy.scrollTo(target, anchor: .top)
                 }
             }
+            // The list just mounted (loaded content is on screen, proxy + the nonce
+            // observer above are live) — anchor to today. This is the reliable
+            // first-open trigger when the store was preloaded by Home. One-shot.
+            .onAppear { anchorIfNeeded() }
         }
         // No pull-to-refresh: the season loads once a year and live scores already
         // update in-card in real time, so a manual refresh has nothing to fetch.

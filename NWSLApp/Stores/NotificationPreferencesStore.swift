@@ -45,6 +45,14 @@ final class NotificationPreferencesStore {
     var fanZoneRounds: Bool  { didSet { persist(fanZoneRounds, "fanZoneRounds"); onPreferenceChanged?() } }
     var playerSpotlight: Bool { didSet { persist(playerSpotlight, "playerSpotlight"); onPreferenceChanged?() } }
 
+    /// Whether the user has visited the Notifications hub at least once. Gates the
+    /// per-team bell on the Teams rows: the FIRST bell tap (while this is false) is a
+    /// *doorway* into the hub — so the user sees what "alerts" mean + the alert types
+    /// — not a silent enable-all. Once they've seen the hub, the bell becomes a quick
+    /// on/off. Persisted under the spec key `notifications.hubVisited`; set via
+    /// `markHubVisited(isSignedIn:)` from the hub's `onAppear`.
+    private(set) var hubVisited: Bool
+
     /// All nine toggles as a value snapshot. Reading it touches every flag, so it
     /// also doubles as the single property NotificationSyncCoordinator observes via
     /// withObservationTracking to mirror any change up to Supabase.
@@ -71,24 +79,53 @@ final class NotificationPreferencesStore {
 
     private let defaults: UserDefaults
     private static let prefix = "notif."
+    // The hub-visited flag uses the spec-named key (not the `notif.` prefix), per
+    // Bell-Tap First-Time Flow Fix.md.
+    private static let hubVisitedKey = "notifications.hubVisited"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        // Default-on for the high-signal alerts; off for the noisier ones (matches
-        // the design's defaults). `object(forKey:)` so an unset pref takes the
-        // default, not `bool(forKey:)`'s false.
+        // `object(forKey:)` so an unset pref takes the default, not `bool(forKey:)`'s
+        // false. Invariant (QOL v2 / Bell-Tap fix): **Tier 2 ON ⟹ signed in**. The
+        // baked init defaults therefore keep every Tier-2 SERVER-PUSH type (kickoff,
+        // goals, halftime, full-time + the not-yet-surfaced lineup/subs) OFF — a
+        // signed-out (first-run) user can't receive them, so defaulting them on would
+        // be a lie. Only the Tier-1 LOCAL types default ON (they deliver signed-out).
+        // A signed-IN user gets the Tier-2 types defaulted ON on first hub visit (see
+        // `markHubVisited(isSignedIn:)`). Sign-out forces them back OFF
+        // (`resetServerPushTypes()`); turning one on signed-out hits the hub gate.
         func load(_ key: String, default value: Bool) -> Bool {
             defaults.object(forKey: Self.prefix + key) as? Bool ?? value
         }
-        dayBefore = load("dayBefore", default: true)
-        lineupPosted = load("lineupPosted", default: true)
-        kickoff = load("kickoff", default: true)
-        goals = load("goals", default: true)
-        halftime = load("halftime", default: false)
-        fullTime = load("fullTime", default: true)
-        substitutions = load("substitutions", default: false)
-        fanZoneRounds = load("fanZoneRounds", default: true)
-        playerSpotlight = load("playerSpotlight", default: true)
+        dayBefore = load("dayBefore", default: true)          // Tier 1 (local)
+        playerSpotlight = load("playerSpotlight", default: true)  // Tier 1 (local)
+        fanZoneRounds = load("fanZoneRounds", default: true)  // activity (local intent)
+        kickoff = load("kickoff", default: false)             // Tier 2 (server push)
+        goals = load("goals", default: false)                 // Tier 2 (server push)
+        halftime = load("halftime", default: false)           // Tier 2 (server push)
+        fullTime = load("fullTime", default: false)           // Tier 2 (server push)
+        lineupPosted = load("lineupPosted", default: false)   // Tier 2 (server, Stage D)
+        substitutions = load("substitutions", default: false) // Tier 2 (server, Stage D)
+        hubVisited = defaults.bool(forKey: Self.hubVisitedKey)
+    }
+
+    /// Record the first visit to the Notifications hub (flips the per-team bell from
+    /// "doorway" to "quick toggle"). On that FIRST visit only, it also establishes the
+    /// auth-aware Tier-2 defaults: a signed-IN user gets the live-match types
+    /// (kickoff/goals/halftime/full-time) defaulted ON; a signed-OUT user keeps them
+    /// OFF (upholding `Tier 2 ON ⟹ signed in` — they opt in later via the hub's
+    /// sign-in gate). Idempotent. Not a `didSet` property so loading the flag in
+    /// `init` never fires this.
+    func markHubVisited(isSignedIn: Bool) {
+        guard !hubVisited else { return }
+        hubVisited = true
+        defaults.set(true, forKey: Self.hubVisitedKey)
+        if isSignedIn {
+            kickoff = true
+            goals = true
+            halftime = true
+            fullTime = true
+        }
     }
 
     private func persist(_ value: Bool, _ key: String) {

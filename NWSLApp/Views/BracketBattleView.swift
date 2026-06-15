@@ -46,6 +46,9 @@ struct BracketBattleView: View {
         .navigationContextLabel("Bracket Battle")
         .background(Color.dsBgPrimary.ignoresSafeArea())
         .task {
+            // Start Game Center auth here (a game screen) rather than at launch, so
+            // the GC banner only shows when the user is about to play. Idempotent.
+            GameCenterManager.shared.authenticate()
             if case .idle = viewModel.state {
                 await viewModel.load(store: store, userID: auth.userID, displayName: auth.displayName)
             }

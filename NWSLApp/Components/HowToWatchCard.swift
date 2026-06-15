@@ -45,7 +45,7 @@ struct HowToWatchCard: View {
                 .padding(.bottom, 14)
             }
         }
-        .background(Color.dsMdCard)
+        .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous)

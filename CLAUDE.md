@@ -224,6 +224,15 @@ understanding each change matters as much as shipping it.
 
 - Persistent UI (tab/nav bars) must never obscure scrollable content — respect safe areas.
 - Every drilled-in view has an explicit back affordance; don't rely on edge-swipe alone.
+- **Back-button = PARENT, not self.** A drill-in's back chevron must read the screen you came
+  FROM ("‹ Schedule", "‹ Home", "‹ Standings"), never the current screen's name. The pushing
+  screen passes its own name as an `origin`/label; the child renders it via `navigationContextLabel`.
+  (SwiftUI's automatic back-title doesn't propagate here because the tab roots hide their bars for
+  custom headers, so the parent name is passed explicitly.) Don't hardcode the current screen's name.
+  On full-bleed detail screens the header (crests + score, etc.) carries identity, so there's **no
+  centered nav title** — just the parent back button. *(Migration note: `TeamDetailView` still
+  hardcodes "Teams"; switch it to the pushed-in `origin` when the Club page is redesigned so a tap
+  from Standings reads "‹ Standings".)*
 - Navigation state resets predictably (tapping a tab returns to its root).
 - Placeholders allowed only as intentional scaffolding: a clean "Coming soon" state (never
   blank/broken) AND flagged in the File Map. A placeholder must look deliberate, not forgotten.

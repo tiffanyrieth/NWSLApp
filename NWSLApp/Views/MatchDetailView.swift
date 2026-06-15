@@ -25,6 +25,10 @@ import SwiftUI
 
 struct MatchDetailView: View {
     @State private var viewModel: MatchDetailViewModel
+    /// The screen this was pushed FROM, for the parent-reflecting back button
+    /// ("‹ Schedule"). Provided by the pusher so it reflects origin, not this
+    /// screen's name (CLAUDE.md nav rule).
+    private let origin: String
     /// nil for ordinary NWSL matches (the only kind today). Mirrors MatchCard's
     /// dormant competition tag; renders if a value is ever supplied.
     private let badge: CompetitionBadge?
@@ -35,8 +39,9 @@ struct MatchDetailView: View {
     @State private var pulse = false
     @Namespace private var tabUnderline
 
-    init(event: Event, badge: CompetitionBadge? = nil) {
+    init(event: Event, origin: String = "Schedule", badge: CompetitionBadge? = nil) {
         _viewModel = State(initialValue: MatchDetailViewModel(event: event))
+        self.origin = origin
         self.badge = badge
     }
 
@@ -56,9 +61,19 @@ struct MatchDetailView: View {
             }
         }
         .background(Color.dsBgPrimary)
-        // Left-aligned "‹ Match Details" context label (the header below shows the
-        // crests + score, so the nav bar is just a where-am-I reminder).
-        .navigationContextLabel("Match Details")
+        // Back button reflects the PARENT screen you came from (the `origin` the
+        // pushing screen passed — "Schedule", "Home", …), NEVER this screen's name.
+        // No centered title: the full-bleed header (crests + score) carries the
+        // identity. We use navigationContextLabel rather than the system auto-back-
+        // title because the tab roots hide their bars for custom headers, so SwiftUI
+        // doesn't propagate the parent title to a pushed child. (CLAUDE.md nav rule.)
+        .navigationContextLabel(origin)
+        // Transparent nav bar so the team-color wash reads full-bleed up to the top.
+        // Deliberately TRANSPARENT, not hidden: hiding the bar is what breaks the
+        // interactive swipe-back gesture (the classic gotcha) — keeping the bar
+        // present preserves the swipe while the wash shows through behind it.
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .task {
             // First load (shows a spinner), then poll silently every 30s while
             // the match is live so events/score/clock fill in — the proxy's TTL
@@ -179,14 +194,15 @@ struct MatchDetailView: View {
                         EventTimelineRow(
                             event: event,
                             homeTeamID: homeID, awayTeamID: awayID,
-                            homeAbbr: homeAbbr, awayAbbr: awayAbbr
+                            homeAbbr: homeAbbr, awayAbbr: awayAbbr,
+                            minuteColor: underlineColor
                         )
                         if index < events.count - 1 { Divider() }
                     }
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.dsMdCard)
+                .background(Color.dsBgCard)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
 
@@ -252,7 +268,7 @@ struct MatchDetailView: View {
         CombinedPitchView(home: side(home, matchColors.home), away: side(away, matchColors.away))
             .padding()
             .frame(maxWidth: .infinity)
-            .background(Color.dsMdCard)
+            .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -270,7 +286,7 @@ struct MatchDetailView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.dsMdCard)
+        .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -302,7 +318,7 @@ struct MatchDetailView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.dsMdCard)
+        .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -423,7 +439,7 @@ struct MatchDetailView: View {
             }
             .padding()
             .frame(maxWidth: .infinity)
-            .background(Color.dsMdCard)
+            .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .padding()
         }
@@ -522,7 +538,7 @@ struct MatchDetailView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.dsMdCard)
+        .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, 20)
     }
@@ -544,7 +560,7 @@ struct MatchDetailView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.dsMdCard)
+        .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, 20)
     }
@@ -585,47 +601,54 @@ struct MatchDetailView: View {
         VStack(spacing: 16) {
             if let badge { badgePill(badge) }
 
-            stateLine
-
+            // Scaled-up Card C: crest (hero) + club name + score on each side, the
+            // temporal state in the center column between them.
             HStack(alignment: .top, spacing: 8) {
                 teamColumn(event.homeCompetitor)
                 centerColumn
                 teamColumn(event.awayCompetitor)
             }
 
-            // Past/live show venue · broadcast · attendance inline here (future
-            // keeps its own info card below the preview).
-            if viewModel.temporalState != .future, hasCompactInfo {
-                compactInfoRow
-            }
+            // Broadcast color chip + venue (+ attendance for past) — the same rail
+            // as the schedule card, shown across every state.
+            if hasCompactInfo { compactInfoRow }
         }
         .padding(.horizontal, 20)
-        .padding(.top, 16)
+        .padding(.top, 12)
         .padding(.bottom, 20)
         .frame(maxWidth: .infinity)
-        .background(headerBackground)
+        // Bleed the wash up under the transparent nav bar so the header reads
+        // edge-to-edge (the §0 "card grows into the page" full-bleed).
+        .background(alignment: .top) {
+            headerBackground.ignoresSafeArea(edges: .top)
+        }
     }
 
     private var hasCompactInfo: Bool {
         event.venueName != nil || event.broadcastName != nil || attendanceText != nil
     }
 
-    // 📍 venue · 📺 broadcast · 👥 attendance — emoji glyphs match the mockup.
-    // (Weather 🌡 is deferred to its own feature push — see CLAUDE.md What's-Next.)
+    // Broadcast color chip + venue (+ attendance for a finished match) — the
+    // schedule card's rail, scaled into the header.
     private var compactInfoRow: some View {
-        HStack(spacing: 14) {
-            if let venue = event.venueName {
-                Text("📍 \(venue)").lineLimit(1)
-            }
+        HStack(spacing: 10) {
             if let channel = event.broadcastName {
-                Text("📺 \(channel)").lineLimit(1)
+                BroadcastChip(name: channel)
             }
-            if let attendance = attendanceText {
-                Text("👥 \(attendance)").lineLimit(1)
+            if let venue = event.venueName {
+                Text(venue)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .lineLimit(1)
+            }
+            if viewModel.temporalState == .past, let attendance = attendanceText {
+                Circle().fill(Color.dsFgQuaternary).frame(width: 3, height: 3)
+                Text("\(attendance) attending")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .lineLimit(1)
             }
         }
-        .font(.system(size: 11))
-        .foregroundStyle(Color.dsFgSecondary)
     }
 
     private var attendanceText: String? {
@@ -652,44 +675,6 @@ struct MatchDetailView: View {
         )
     }
 
-    @ViewBuilder
-    private var stateLine: some View {
-        switch viewModel.temporalState {
-        case .live:
-            VStack(spacing: 4) {
-                liveIndicator
-                if let clockLine {
-                    Text(clockLine)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Color.dsStateClock)   // orange live clock
-                }
-            }
-        case .future:
-            VStack(spacing: 4) {
-                Text("Kickoff")
-                    .trackedCaps(size: 11, tracking: 1.5, color: .dsStateKickoff)
-                Text(kickoffTimeText)
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundStyle(Color.dsStateKickoff)
-                if let date = dateHeadline {
-                    Text(date)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.dsFgSecondary)
-                }
-            }
-        case .past:
-            // "FT · Saturday, June 7" — the result tag in green.
-            HStack(spacing: 0) {
-                Text(event.status?.type?.shortDetail ?? "FT")
-                    .foregroundStyle(Color.dsStateFinal)
-                if let date = dateHeadline {
-                    Text(" · \(date)").foregroundStyle(Color.dsFgSecondary)
-                }
-            }
-            .font(.system(size: 13, weight: .semibold))
-        }
-    }
-
     private var liveIndicator: some View {
         HStack(spacing: 6) {
             Circle()
@@ -713,38 +698,64 @@ struct MatchDetailView: View {
     }
 
     private func teamColumn(_ competitor: Competitor?) -> some View {
-        VStack(spacing: 12) {
-            // Real crest shown bare on the dark panel — no ring. A team crest is a
-            // self-contained shape, so it never gets a ring bubble (unlike a player
-            // monogram); the header's team-color wash carries the team identity.
-            TeamLogo(urlString: competitor?.team?.logo, teamAbbreviation: competitor?.team?.abbreviation, size: 64)
+        VStack(spacing: 10) {
+            // The crest is the hero (§0): 72pt, bare/ring-free on the dark wash.
+            TeamLogo(urlString: competitor?.team?.logo, teamAbbreviation: competitor?.team?.abbreviation, size: 72)
             Text(name(for: competitor))
-                .font(.headline)
+                .font(.system(size: 15, weight: .semibold))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+            // Score under each crest, on that team's side. A fixed band so a future
+            // match (no score) keeps the same header height as past/live.
+            ZStack {
+                if showScores, let score = competitor?.score {
+                    Text(score)
+                        .font(.dsScore)
+                        .foregroundStyle(Color.dsFgPrimary)
+                }
+            }
+            .frame(height: 44)
         }
         .frame(maxWidth: .infinity)
     }
 
+    // The center column carries the temporal state between the two crests.
     @ViewBuilder
     private var centerColumn: some View {
-        VStack(spacing: 6) {
-            if showScores {
-                // Score only — the "FT" tag now lives in the state line above.
-                Text(scoreLine)
-                    .font(.dsScore)
-                    .foregroundStyle(Color.dsFgPrimary)
-            } else {
-                // Future: "VS" between the crests (the kickoff time is in the
-                // state line above).
-                Text("VS")
-                    .font(.system(size: 13, weight: .semibold))
-                    .tracking(1)
-                    .foregroundStyle(Color.dsFgTertiary)
+        VStack(spacing: 8) {
+            switch viewModel.temporalState {
+            case .live:
+                liveIndicator
+                if let clockLine {
+                    Text(clockLine)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.dsStateClock)   // orange live clock
+                        .multilineTextAlignment(.center)
+                }
+            case .past:
+                Text("FULL TIME")
+                    .font(.system(size: 12, weight: .bold))
+                    .tracking(0.6)
+                    .foregroundStyle(Color.dsStateFinal)
+            case .future:
+                Text("KICKOFF")
+                    .font(.system(size: 12, weight: .bold))
+                    .tracking(0.6)
+                    .foregroundStyle(Color.dsStateKickoff)
+                Text(kickoffTimeText)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.dsStateKickoff)
+                if let date = dateHeadline {
+                    Text(date)
+                        .font(.caption)
+                        .foregroundStyle(Color.dsFgSecondary)
+                        .multilineTextAlignment(.center)
+                }
             }
         }
-        .frame(minWidth: 84)
-        .padding(.top, 18)
+        .frame(minWidth: 72)
+        .padding(.top, 28)
     }
 
     // MARK: - Small shared pieces
@@ -825,12 +836,6 @@ struct MatchDetailView: View {
             ?? competitor?.team?.shortDisplayName
             ?? competitor?.team?.abbreviation
             ?? "—"
-    }
-
-    private var scoreLine: String {
-        let home = event.homeCompetitor?.score ?? "–"
-        let away = event.awayCompetitor?.score ?? "–"
-        return "\(home) – \(away)"
     }
 
     private var dateHeadline: String? {

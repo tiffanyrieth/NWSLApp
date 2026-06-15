@@ -31,7 +31,7 @@ struct MDInfoCard: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
         .padding(.horizontal, 10)
-        .background(Color.dsMdCard)
+        .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous)

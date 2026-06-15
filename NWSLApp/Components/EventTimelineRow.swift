@@ -22,18 +22,19 @@ struct EventTimelineRow: View {
     var awayTeamID: String? = nil
     var homeAbbr: String? = nil
     var awayAbbr: String? = nil
+    /// Minute-marker tint — the match's temporal-state accent (cyan past/future,
+    /// orange live). Defaults to secondary so other callers are unaffected.
+    var minuteColor: Color = .secondary
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Text(minute)
                 .font(.caption.weight(.bold))
                 .monospacedDigit()
-                .foregroundStyle(.secondary)
+                .foregroundStyle(minuteColor)
                 .frame(width: 40, alignment: .trailing)
 
-            Image(systemName: icon)
-                .font(.subheadline)
-                .foregroundStyle(iconColor)
+            iconView
                 .frame(width: 20)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -95,13 +96,25 @@ struct EventTimelineRow: View {
         return names.dropFirst().joined(separator: ", ")
     }
 
+    // A substitution gets the standard soccer glyph (green arrow in / red arrow
+    // out); everything else is an SF Symbol tinted by type.
+    @ViewBuilder
+    private var iconView: some View {
+        if (event.type?.type ?? "").contains("substitution") {
+            SubstitutionArrows()
+        } else {
+            Image(systemName: icon)
+                .font(.subheadline)
+                .foregroundStyle(iconColor)
+        }
+    }
+
     private var icon: String {
         switch event.type?.type ?? "" {
-        case let t where t.contains("goal"):         return "soccerball"
-        case let t where t.contains("yellow"):       return "rectangle.portrait.fill"
-        case let t where t.contains("red"):          return "rectangle.portrait.fill"
-        case let t where t.contains("substitution"): return "arrow.left.arrow.right"
-        default:                                      return "circle.fill"
+        case let t where t.contains("goal"):   return "soccerball"
+        case let t where t.contains("yellow"): return "rectangle.portrait.fill"
+        case let t where t.contains("red"):    return "rectangle.portrait.fill"
+        default:                                return "circle.fill"
         }
     }
 
@@ -112,6 +125,18 @@ struct EventTimelineRow: View {
         case let t where t.contains("goal"):   return .primary
         default:                                return .secondary
         }
+    }
+}
+
+/// The standard substitution marker: a green up-arrow (coming on) beside a red
+/// down-arrow (going off) — replaces the old flat two-headed arrow.
+private struct SubstitutionArrows: View {
+    var body: some View {
+        HStack(spacing: 0) {
+            Image(systemName: "arrow.up").foregroundStyle(Color.dsSuccess)
+            Image(systemName: "arrow.down").foregroundStyle(Color.dsError)
+        }
+        .font(.system(size: 11, weight: .bold))
     }
 }
 

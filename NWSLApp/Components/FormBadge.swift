@@ -12,6 +12,33 @@ import SwiftUI
 struct FormBadge: View {
     enum Result { case win, draw, loss }
     let result: Result
+    /// Badge edge length. Defaults to the original 22pt (MatchDetail's Recent Form);
+    /// Standings passes a smaller value for its dense Last-5 column.
+    var size: CGFloat = 22
+    /// Letter point size. Defaults to 11pt (the original look at size 22).
+    var fontSize: CGFloat = 11
+
+    init(result: Result, size: CGFloat = 22, fontSize: CGFloat = 11) {
+        self.result = result
+        self.size = size
+        self.fontSize = fontSize
+    }
+
+    /// Convenience over the shared `MatchResult` domain type, so callers holding a
+    /// `MatchResult` (e.g. `RecentForm`) don't repeat the mapping.
+    init(_ matchResult: MatchResult, size: CGFloat = 22, fontSize: CGFloat = 11) {
+        let mapped: Result
+        switch matchResult {
+        case .win: mapped = .win
+        case .draw: mapped = .draw
+        case .loss: mapped = .loss
+        }
+        self.init(result: mapped, size: size, fontSize: fontSize)
+    }
+
+    // Corner radius scales with the badge so it reads the same at any size
+    // (size 22 → 5 = DS.radiusXs; size 13 → 3, matching the mock).
+    private var cornerRadius: CGFloat { (size * 0.23).rounded() }
 
     private var letter: String {
         switch result {
@@ -31,10 +58,10 @@ struct FormBadge: View {
 
     var body: some View {
         Text(letter)
-            .font(.system(size: 11, weight: .bold))
+            .font(.system(size: fontSize, weight: .bold))
             .foregroundStyle(.white)
-            .frame(width: 22, height: 22)
-            .background(color, in: RoundedRectangle(cornerRadius: DS.radiusXs, style: .continuous))
+            .frame(width: size, height: size)
+            .background(color, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }
 

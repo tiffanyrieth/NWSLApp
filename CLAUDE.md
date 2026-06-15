@@ -331,6 +331,7 @@ NWSLApp/
 │   ├── PredictLeaderboardService.swift— Supabase per-team Predict board: upsertScore + standings(team); offline fallback to local you-row
 │   ├── TriviaLeaderboardService.swift — Supabase league-wide Trivia best-streak board: upsertScore + standings; offline fallback
 │   ├── PredictionScoring.swift        — pure Predict-the-XI scorer (Mastermind partial, max 88). Unit-tested
+│   ├── RecentForm.swift               — pure last-5 W/D/L per club from the season (MatchStore); feeds Standings "Last 5". Unit-tested
 │   ├── PredictionMatchProvider.swift  — ↩︎ Predict the XI simulated-leaderboard fallback only
 │   ├── FeedContentProvider.swift      — ↩︎ Feed seed → [ContentCard] (Feed is live via /feed)
 │   ├── PlayerSpotlightProvider.swift  — ↩︎ one spotlight player per club (live via /spotlight)
@@ -388,7 +389,7 @@ NWSLApp/
 │   ├── FormationPitchView.swift       — single-team XI on a pitch; per-team list fallback
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
 │   ├── PlayerSpotlightView.swift      — editorial spotlight: ghosted jersey # + hero, This Season grid, Story (Haiku blurb), Fast Facts + Watch
-│   ├── StandingsView.swift            — 16-team table (abbr · PTS·GP·W·L·D); pinned header; followed-row tint
+│   ├── StandingsView.swift            — color-block table (redesign): inline header + "TOP 8 ADVANCE" pill; one rounded card; team-color left edge + color-coded abbr per row; PTS hero; cols # · TEAM · PTS · GP · W · D · L · LAST 5; cyan PLAYOFF LINE (top-8) dims below; followed-row tint/★; Last-5 derived from MatchStore via RecentForm
 │   ├── FeedView.swift                 — Feed tab: content-type chip bar + chronological ContentCardViews
 │   └── FeedSourcesView.swift          — Feed content preferences: toggles + mute sources
 ├── Components/
@@ -398,7 +399,7 @@ NWSLApp/
 │   ├── ThumbnailContentCard.swift / AvatarContentCard.swift / ArticleContentCard.swift — the ContentCard layouts
 │   ├── SettingsToggleRow.swift        — shared settings primitives: `SettingsToggleRow` + `SettingsGroup` (optional subtitle) + `SettingsRowDivider` (NotificationsView)
 │   ├── PlatformBadge.swift            — platform glyph (YT/Bluesky/TikTok/IG/article/reddit)
-│   ├── FormBadge.swift                — W/D/L form badge
+│   ├── FormBadge.swift                — W/D/L form badge (optional `size`/`fontSize`, default 22; `MatchResult` convenience init)
 │   ├── GameCard.swift                 — Fan Zone game tile (game-accent border + emoji + status + badge)
 │   ├── HowToWatchCard.swift / MDInfoCard.swift / StatComparisonBar.swift — match-detail tiles
 │   ├── PitchDot.swift / PlayerDot.swift / PlayerCard.swift — player markers/cards (team-color monogram, no headshots)
@@ -485,8 +486,13 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
 - **Team detail** (`teams-tab-design-spec.md`) — pinned header + social row over Squad · Stats.
   Squad = `PlayerCard` grid → `PlayerDetailView`; Stats = season summary + leaders from real ESPN
   stats (actor-cached).
-- **Standings / Schedule** — full 16-team table (PTS·GP·W·L·D, followed-row tint); full season in
-  one `fetchScoreboard(year:)`, sticky day headers, 3 filters, scrolls to today.
+- **Standings** (redesign — `design-handoff/standings.jsx`) — color-block table: inline header +
+  "TOP {N} ADVANCE" pill, one rounded card, a team-color left edge + color-coded abbreviation per row, PTS
+  as the hero number, cols `# · TEAM · PTS · GP · W · D · L · LAST 5`, a cyan PLAYOFF LINE at the `playoffSpots`
+  (8) cutoff with rows below dimmed, followed-row tint + ★. The **Last 5** column has no ESPN source, so it's
+  derived from the shared season (`MatchStore`) via the pure `RecentForm` helper. (GP kept vs the mock — owner.)
+- **Schedule** — full 16-team table (PTS·GP·W·L·D, followed-row tint); full season in
+  one `fetchScoreboard(year:)`, sticky day headers, 3 filters, scrolls to today. *(Color-block redesign pending.)*
 - **Match detail** (`match-detail-v2-spec.md`) — `MatchDetailView` adapts to temporal state
   (Past/Live/Future); header from the `Event`, `/summary` layers the rest.
 - **Accounts** — Sign in with Apple → a Supabase user (`AuthStore`). Sign-in is **never**

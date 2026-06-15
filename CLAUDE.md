@@ -340,7 +340,7 @@ NWSLApp/
 │   ├── PredictLeaderboardService.swift— Supabase per-team Predict board: upsertScore + standings(team); offline fallback to local you-row
 │   ├── TriviaLeaderboardService.swift — Supabase league-wide Trivia best-streak board: upsertScore + standings; offline fallback
 │   ├── PredictionScoring.swift        — pure Predict-the-XI scorer (Mastermind partial, max 88). Unit-tested
-│   ├── RecentForm.swift               — pure last-5 W/D/L per club from the season (MatchStore); feeds Standings "Last 5". Unit-tested
+│   ├── RecentForm.swift               — pure last-5 W/D/L per club from the season (MatchStore); feeds Standings "Last 5"; `result(scored:conceded:)` is the one shared W/D/L rule (MatchDetailViewModel.form reuses it). Unit-tested
 │   ├── PredictionMatchProvider.swift  — ↩︎ Predict the XI simulated-leaderboard fallback only
 │   ├── FeedContentProvider.swift      — ↩︎ Feed seed → [ContentCard] (Feed is live via /feed)
 │   ├── PlayerSpotlightProvider.swift  — ↩︎ one spotlight player per club (live via /spotlight)
@@ -393,7 +393,7 @@ NWSLApp/
 │   ├── TeamsView.swift                — all-16 directory: ONE continuous list (followed floated to top, no section headers) + subtitle; follow-competitions row; per-row 🔔 alert toggles (followed) + "{N} teams · Manage" line at the followed/unfollowed boundary + nav-bar 🔔 → NotificationsView
 │   ├── CompetitionsView.swift         — follow international competitions
 │   ├── TeamDetailView.swift           — club page: header (⭐ follow) + social row + Squad·Stats tabs
-│   ├── MatchDetailView.swift          — state-aware match: past=Summary/Lineups/Stats, live=poll & LIVE pill, future=info grid + How-to-Watch + comparison + form
+│   ├── MatchDetailView.swift          — state-aware match (color-block redesign): full-bleed scaled-Card-C header (team wash under a transparent nav bar, 72pt crests, score under each crest, temporal-state center) + `origin`-driven "‹ {parent}" back button; past=Summary/Lineups/Stats (cyan/orange tab underline, cyan minute markers, green-up/red-down sub glyph, formation pitch + BENCH), live=poll & LIVE pill, future=info grid + How-to-Watch + comparison + form. All cards `dsBgCard`
 │   ├── CombinedPitchView.swift        — BOTH teams' XIs on ONE pitch; Lineups default
 │   ├── FormationPitchView.swift       — single-team XI on a pitch; per-team list fallback
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
@@ -411,7 +411,7 @@ NWSLApp/
 │   ├── PlatformBadge.swift            — platform glyph (YT/Bluesky/TikTok/IG/article/reddit)
 │   ├── FormBadge.swift                — W/D/L form badge (optional `size`/`fontSize`, default 22; `MatchResult` convenience init)
 │   ├── GameCard.swift                 — Fan Zone game tile (game-accent border + emoji + status + badge)
-│   ├── HowToWatchCard.swift / MDInfoCard.swift / StatComparisonBar.swift — match-detail tiles
+│   ├── HowToWatchCard.swift / MDInfoCard.swift / StatComparisonBar.swift — match-detail tiles (redesign: HowToWatch = title + FREE/SUBSCRIPTION badge + BroadcastChip + access + tip + "Find it" → verbatim per-device steps from BroadcastInfo; MDInfoCard = label/value, no emoji)
 │   ├── PitchDot.swift / PlayerDot.swift / PlayerCard.swift — player markers/cards (team-color monogram, no headshots)
 │   ├── ComingUpRow.swift / EventTimelineRow.swift / FlowLayout.swift — Home/match rows + wrapping layout
 │   ├── ImageCache.swift / TeamLogo.swift — cached team crests; TeamLogo's `teamAbbreviation` prefers the crisp NWSL crest (proxy `/crest`) with the ESPN PNG as fallback
@@ -509,8 +509,15 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
   International** (International is wired but data-less → a designed "coming soon" empty state until the
   schedule goes competition-aware). Opens scrolled to today; **tapping the active Schedule tab snaps back
   to today** (`AppRouter.reselectNonce`).
-- **Match detail** (`match-detail-v2-spec.md`) — `MatchDetailView` adapts to temporal state
-  (Past/Live/Future); header from the `Event`, `/summary` layers the rest.
+- **Match detail** (redesign — `design-handoff/match-detail.jsx`) — a scaled-up Card C: a full-bleed
+  team-color wash header (transparent nav bar, 72pt ring-free crests, score under each crest, temporal
+  state in the center), a parent-reflecting "‹ {origin}" back button, and one card surface (`dsBgCard`).
+  Adapts to temporal state (Past/Live/Future): past/live = Summary/Lineups/Stats tabs (cyan/orange
+  underline; cyan/orange minute markers; green-up/red-down sub glyph; **the formation pitch with real
+  headshots — the crown jewel, unchanged**; BENCH-labelled bench), future = info grid + How-to-Watch
+  (verbatim per-device tips) + season comparison + recent form. Header from the `Event`, `/summary`
+  layers the rest. (The supports() pitch-relaxation was investigated and **skipped** — all 93 real past
+  matches already render the pitch; nothing falls back to the text list.)
 - **Accounts** — Sign in with Apple → a Supabase user (`AuthStore`). Sign-in is **never**
   auto-prompted (no post-onboarding nag); `SignInPromptView` appears only when the user taps
   something that genuinely requires an account (Fan Zone submit, Tier-2 notifications). The app

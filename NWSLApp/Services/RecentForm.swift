@@ -48,7 +48,9 @@ enum RecentForm {
         lastFiveByAbbreviation(in: season)[abbreviation] ?? []
     }
 
-    private static func result(scored: Int, conceded: Int) -> MatchResult {
+    /// The one W/D/L classification rule, shared so MatchDetailViewModel's season
+    /// aggregation doesn't duplicate it.
+    static func result(scored: Int, conceded: Int) -> MatchResult {
         scored > conceded ? .win : (scored == conceded ? .draw : .loss)
     }
 }

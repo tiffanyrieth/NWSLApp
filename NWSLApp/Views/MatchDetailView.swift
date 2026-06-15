@@ -274,7 +274,9 @@ struct MatchDetailView: View {
 
     private func substitutesCard(_ roster: MatchRoster) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("\(roster.team?.abbreviation ?? "—") SUBSTITUTES")
+            // "BENCH" — the unused/used substitutes. ("Substitutes" was a mislabel for
+            // a finished match: it's the bench, not who came on.)
+            Text("\((roster.team?.displayName ?? roster.team?.abbreviation ?? "—").uppercased()) BENCH")
                 .font(.caption.weight(.semibold))
                 .tracking(0.5)
                 .foregroundStyle(.secondary)
@@ -332,7 +334,7 @@ struct MatchDetailView: View {
     // player who came on. Reuses FlowLayout so they wrap across lines.
     private func substituteChips(_ subs: [MatchPlayer]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("SUBSTITUTES")
+            Text("BENCH")
                 .font(.caption.weight(.semibold))
                 .tracking(0.5)
                 .foregroundStyle(.secondary)
@@ -516,22 +518,23 @@ struct MatchDetailView: View {
     private var futureInfoGrid: some View {
         HStack(spacing: 10) {
             if let venue = venueText {
-                MDInfoCard(icon: "📍", label: "Venue", value: venue)
+                MDInfoCard(label: "Venue", value: venue)
             }
             if let channel = event.broadcastName {
-                MDInfoCard(icon: "📺", label: "Broadcast", value: channel)
+                MDInfoCard(label: "Broadcast", value: channel)
             }
             // TEMP: no Competition model yet — every fetched match is NWSL regular
             // season. Lights up properly when competition-aware (#13).
-            MDInfoCard(icon: "🏆", label: "Competition", value: "NWSL Regular")
+            MDInfoCard(label: "Competition", value: "NWSL Regular")
         }
         .padding(.horizontal, 20)
     }
 
     private func seasonComparison(_ preview: MatchPreview) -> some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("Season Comparison")
-                .font(.headline)
+            Text("Season comparison")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(Color.dsFgPrimary)
             comparisonBar("Goals / Match", preview.home.goalsPerMatch, preview.away.goalsPerMatch)
             comparisonBar("Conceded / Match", preview.home.concededPerMatch, preview.away.concededPerMatch)
             comparisonBar("Points / Game", preview.home.pointsPerGame, preview.away.pointsPerGame)
@@ -553,8 +556,9 @@ struct MatchDetailView: View {
 
     private func recentForm(_ preview: MatchPreview) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Recent Form")
-                .font(.headline)
+            Text("Recent form")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(Color.dsFgPrimary)
             formRow(name: name(for: event.homeCompetitor), form: preview.home)
             formRow(name: name(for: event.awayCompetitor), form: preview.away)
         }

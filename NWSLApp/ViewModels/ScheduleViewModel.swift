@@ -175,6 +175,11 @@ final class ScheduleViewModel {
     // Today's section if present, otherwise the first future section, within the
     // given filter. Returns nil if everything in that filter is in the past.
     // Used both for the one-time scroll-to-today and to re-anchor on filter change.
+    // The section the schedule rests at on open: today's matchday, or the next
+    // upcoming one if today has no match. Paired with `.scrollPosition` this lands
+    // the schedule showing the most recent result at the top with the upcoming
+    // fixtures just below (so it's obvious history is scrollable above), instead of
+    // the season opener. Computed live from `today`, so it advances on its own.
     func initialScrollSectionID(for filter: Filter) -> String? {
         let today = todayKey()
         let ids = sections(for: filter).map(\.id)

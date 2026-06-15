@@ -38,13 +38,14 @@ struct StandingsView: View {
     private let playoffSpots = 8
 
     // Shared fixed column widths + gap so the (non-pinned) header lines up with the
-    // rows. Tightened from the mock to fit GP + Last-5 on one phone width with no
-    // horizontal scroll.
+    // rows. Per the §0 crest rule, secondary elements (gaps, the W/D/L columns, the
+    // Last-5 width) are kept tight so the 32pt crest + abbreviation + ★ never clip.
     private enum Col {
-        static let rank: CGFloat = 18
+        static let rank: CGFloat = 16
         static let pts: CGFloat = 34
-        static let stat: CGFloat = 20    // GP · W · D · L
-        static let form: CGFloat = 78    // five 13pt badges + 3pt gaps
+        static let gp: CGFloat = 22
+        static let wdl: CGFloat = 19     // W · D · L
+        static let form: CGFloat = 60    // five 11pt badges + 1pt gaps
         static let gap: CGFloat = 5
     }
     // Row content insets (inside the card) and the card's own side margin. The
@@ -52,10 +53,10 @@ struct StandingsView: View {
     // that's what keeps the header cells aligned over the row cells.
     private enum Inset {
         static let cardMargin: CGFloat = DS.pagePadding   // 16
-        static let rowLead: CGFloat = 14
-        static let rowTrail: CGFloat = 12
-        static var headerLead: CGFloat { cardMargin + rowLead }   // 30
-        static var headerTrail: CGFloat { cardMargin + rowTrail } // 28
+        static let rowLead: CGFloat = 18
+        static let rowTrail: CGFloat = 14
+        static var headerLead: CGFloat { cardMargin + rowLead }   // 34
+        static var headerTrail: CGFloat { cardMargin + rowTrail } // 30
     }
 
     var body: some View {
@@ -146,10 +147,10 @@ struct StandingsView: View {
             Text("#").frame(width: Col.rank, alignment: .leading)
             Text("Team").frame(maxWidth: .infinity, alignment: .leading)
             Text("PTS").frame(width: Col.pts, alignment: .trailing)
-            Text("GP").frame(width: Col.stat, alignment: .trailing)
-            Text("W").frame(width: Col.stat, alignment: .trailing)
-            Text("D").frame(width: Col.stat, alignment: .trailing)
-            Text("L").frame(width: Col.stat, alignment: .trailing)
+            Text("GP").frame(width: Col.gp, alignment: .trailing)
+            Text("W").frame(width: Col.wdl, alignment: .trailing)
+            Text("D").frame(width: Col.wdl, alignment: .trailing)
+            Text("L").frame(width: Col.wdl, alignment: .trailing)
             Text("Last 5").frame(width: Col.form, alignment: .trailing)
         }
         .trackedCaps(size: 11, tracking: 0.4, weight: .semibold, color: .dsFgTertiary)
@@ -221,24 +222,25 @@ struct StandingsView: View {
                     .frame(width: Col.rank, alignment: .leading)
 
                 HStack(spacing: 7) {
+                    // The crest is the hero (§0): 32pt, ring-free. Secondary elements
+                    // around it stay tight so it never has to shrink.
                     TeamLogo(urlString: row.club.logoURL,
                              teamAbbreviation: row.club.abbreviation,
-                             size: DS.avatarSm)
+                             size: DS.avatarTeams)
+                    // Abbreviation demoted to a 14pt label beside the crest.
                     Text(row.club.abbreviation)
-                        .font(.system(size: 16, weight: .heavy))
+                        .font(.system(size: 14, weight: .bold))
                         .tracking(0.3)
                         .foregroundStyle(accent)
-                        // The "pop on dark" glow — the single biggest lever per the
-                        // design language. Subtle so the letters stay crisp.
-                        .shadow(color: accent.opacity(0.27), radius: 6)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .fixedSize()
                     if isFollowing {
                         Text("★")
                             .font(.system(size: 12))
                             .foregroundStyle(Color.dsFollowStar)
+                            .fixedSize()
                     }
-                    Spacer(minLength: 4)
+                    Spacer(minLength: 2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -247,22 +249,22 @@ struct StandingsView: View {
                     .monospacedDigit()
                     .foregroundStyle(Color.dsFgPrimary)
                     .frame(width: Col.pts, alignment: .trailing)
-                statCell(row.gamesPlayed)
-                statCell(row.wins)
-                statCell(row.draws)
-                statCell(row.losses)
+                statCell(row.gamesPlayed, width: Col.gp)
+                statCell(row.wins, width: Col.wdl)
+                statCell(row.draws, width: Col.wdl)
+                statCell(row.losses, width: Col.wdl)
                 formCell(recent)
             }
             .padding(.leading, Inset.rowLead)
             .padding(.trailing, Inset.rowTrail)
-            .frame(height: 50)
+            .frame(height: 60)
             .background(isFollowing ? Color.dsFollowTint : Color.clear)
             // 3px team-color left edge, inset from the rounded card corners.
             .overlay(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .fill(accent)
                     .frame(width: 3)
-                    .padding(.vertical, 9)
+                    .padding(.vertical, 11)
             }
             // Teams below the playoff line read quieter.
             .opacity(playoff ? 1 : 0.6)
@@ -271,20 +273,20 @@ struct StandingsView: View {
         .buttonStyle(.plain)
     }
 
-    private func statCell(_ value: Int) -> some View {
+    private func statCell(_ value: Int, width: CGFloat) -> some View {
         Text("\(value)")
             .font(.system(size: 14, weight: .medium))
             .monospacedDigit()
             .foregroundStyle(Color.dsFgSecondary)
-            .frame(width: Col.stat, alignment: .trailing)
+            .frame(width: width, alignment: .trailing)
     }
 
     /// Up to five W/D/L badges, oldest → newest (newest on the right). Teams with
     /// fewer than five completed matches show only what they have — no padding.
     private func formCell(_ recent: [MatchResult]) -> some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 1) {
             ForEach(Array(recent.enumerated()), id: \.offset) { _, result in
-                FormBadge(result, size: 13, fontSize: 8)
+                FormBadge(result, size: 11, fontSize: 7)
             }
         }
         .frame(width: Col.form, alignment: .trailing)

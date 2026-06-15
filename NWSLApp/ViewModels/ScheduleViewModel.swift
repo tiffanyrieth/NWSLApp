@@ -27,18 +27,19 @@ final class ScheduleViewModel {
     struct DaySection: Identifiable {
         let id: String       // "yyyy-MM-dd"
         let label: String    // "Today" or "Saturday, June 6"
+        let isToday: Bool     // drives the date-header TODAY chip + white treatment
         let events: [Event]
     }
 
     /// The three always-visible filter tabs (per the schedule design spec).
     enum Filter: String, CaseIterable, Identifiable {
-        case nwsl, myTeams, allMatches
+        case nwsl, myTeams, international
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .nwsl:       return "NWSL"
-            case .myTeams:    return "My teams"
-            case .allMatches: return "All matches"
+            case .nwsl:          return "NWSL"
+            case .myTeams:       return "My teams"
+            case .international: return "International"
             }
         }
     }
@@ -116,11 +117,8 @@ final class ScheduleViewModel {
     private func events(for filter: Filter) -> [Event] {
         let all = store?.events ?? []
         switch filter {
-        case .nwsl, .allMatches:
-            // Every match the app tracks today is NWSL, so these two tabs show
-            // the same set. They diverge once non-NWSL competition data exists:
-            // NWSL = NWSL + the user's *followed* competitions; All = *every*
-            // competition the app tracks. Structurally distinct, identical now.
+        case .nwsl:
+            // Every match on the scoreboard today is NWSL regular season.
             return all
         case .myTeams:
             let abbreviations = followedAbbreviations
@@ -132,16 +130,33 @@ final class ScheduleViewModel {
                    abbreviations.contains(away) { return true }
                 return false
             }
+        case .international:
+            // The international / national-team-window bucket. The ESPN scoreboard
+            // Event carries no competition field yet, so nothing qualifies and the
+            // view shows the designed "coming soon" empty state. When competition-
+            // aware schedule data lands (FollowedCompetition + a competition id on
+            // Event), filter here — NWSL stays the domestic league, International the
+            // cups/windows; they never overlap (so this is NOT a duplicate of NWSL).
+            return all.filter(isInternational)
         }
     }
 
+    /// Whether a match belongs to the International bucket. No competition metadata
+    /// rides on the scoreboard Event yet, so this is always false today — the hook
+    /// that lights up when competition-aware data lands.
+    private func isInternational(_ event: Event) -> Bool {
+        false
+    }
+
     private func sections(from events: [Event]) -> [DaySection] {
+        let today = todayKey()
         let grouped = Dictionary(grouping: events.filter { $0.dayKey != nil }) { $0.dayKey! }
         return grouped
             .map { (key, events) in
                 DaySection(
                     id: key,
                     label: label(forDayKey: key),
+                    isToday: key == today,
                     events: events.sorted { ($0.kickoff ?? .distantFuture) < ($1.kickoff ?? .distantFuture) }
                 )
             }

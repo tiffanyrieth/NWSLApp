@@ -340,7 +340,7 @@ NWSLApp/
 │   ├── TriviaService.swift            — Daily-Trivia client: triviaQuestions→/trivia; live-or-↩︎seed
 │   └── TriviaQuestionProvider.swift   — ↩︎ 55 hand-written trivia questions (live via /trivia)
 ├── Stores/                            — @Observable shared state → UserDefaults, injected
-│   ├── AppRouter.swift                — tab selection (AppTab); `openMatch(eventID:)` live-push tap; DEBUG `-startTab`
+│   ├── AppRouter.swift                — tab selection (AppTab); `openMatch(eventID:)` live-push tap; `tabReselected`/`reselectNonce` (re-tap-active-tab signal → Schedule snaps to today); DEBUG `-startTab`
 │   ├── AuthStore.swift                — @MainActor; Sign in with Apple → Supabase user; profile upsert; cached displayName; deleteAccount
 │   ├── BracketStore.swift             — Bracket per-edition/round draft + one-way submit + banked points + cached edition (`bracket.v2.*`)
 │   ├── ClubStore.swift                — shared club directory; one fetch, many readers
@@ -380,7 +380,7 @@ NWSLApp/
 │   ├── OnboardingView.swift           — first-open team + competition follow picker
 │   ├── SignInPromptView.swift         — sign-in half-sheet shown ONLY on a genuine sign-in-required action (Bracket submit); never auto-presented post-onboarding
 │   ├── NotificationAuthPromptView.swift — contextual "sign in for live alerts" half-sheet (Tier 2)
-│   ├── ScheduleView.swift             — full-season cards; 3 filters; sticky day headers
+│   ├── ScheduleView.swift             — color-block redesign: full-season cards; compact filter chips (NWSL · My teams · International); "SAT · MAR 14" date headers + TODAY chip; scroll-to-today + tap-active-tab→today; International shows a designed "coming soon" empty state (no comp data yet)
 │   ├── TeamsView.swift                — all-16 directory: ONE continuous list (followed floated to top, no section headers) + subtitle; follow-competitions row; per-row 🔔 alert toggles (followed) + "{N} teams · Manage" line at the followed/unfollowed boundary + nav-bar 🔔 → NotificationsView
 │   ├── CompetitionsView.swift         — follow international competitions
 │   ├── TeamDetailView.swift           — club page: header (⭐ follow) + social row + Squad·Stats tabs
@@ -394,7 +394,8 @@ NWSLApp/
 │   └── FeedSourcesView.swift          — Feed content preferences: toggles + mute sources
 ├── Components/
 │   ├── BroadcastInfo.swift / BroadcastLink.swift — "How to Watch" DB + broadcast→watch-URL
-│   ├── Chip.swift                     — pill filter chip (Schedule + Feed chip bars)
+│   ├── Chip.swift                     — pill filter chip (Schedule + Feed chip bars); optional `compact` (13pt) for the redesigned Schedule bar
+│   ├── BroadcastChip.swift            — color-coded broadcast pill (handoff palette, substring-matched); schedule cards now, match detail at #2 (separate from BroadcastInfo's color DB)
 │   ├── ContentCardView.swift          — single entry point; routes a ContentCard by layout → the 3 card views
 │   ├── ThumbnailContentCard.swift / AvatarContentCard.swift / ArticleContentCard.swift — the ContentCard layouts
 │   ├── SettingsToggleRow.swift        — shared settings primitives: `SettingsToggleRow` + `SettingsGroup` (optional subtitle) + `SettingsRowDivider` (NotificationsView)
@@ -405,7 +406,7 @@ NWSLApp/
 │   ├── PitchDot.swift / PlayerDot.swift / PlayerCard.swift — player markers/cards (team-color monogram, no headshots)
 │   ├── ComingUpRow.swift / EventTimelineRow.swift / FlowLayout.swift — Home/match rows + wrapping layout
 │   ├── ImageCache.swift / TeamLogo.swift — cached team crests; TeamLogo's `teamAbbreviation` prefers the crisp NWSL crest (proxy `/crest`) with the ESPN PNG as fallback
-│   ├── MatchCard.swift                — schedule card → MatchDetailView
+│   ├── MatchCard.swift                — schedule card → MatchDetailView; color-block redesign (CardC): team-color wash from both edges, 60pt ring-free crests, scores under crests, center temporal state (cyan KICKOFF+time / pulsing LIVE+orange clock / green FT), broadcast chip + venue rail, uniform height across states. (`CompetitionBadge` struct kept here — used by MatchDetailView.)
 │   ├── PlayerHeadshot.swift           — circular player headshot via HeadshotStore→Cloudinary (ImageCache), jersey-monogram fallback; wraps the monogram on all 6 avatar surfaces (a 404/unmapped keeps the monogram)
 │   ├── PlayerSpotlightCard.swift      — Module-2 profile card
 │   └── SocialLinkButton.swift         — circular team-tinted social icon
@@ -491,8 +492,14 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
   as the hero number, cols `# · TEAM · PTS · GP · W · D · L · LAST 5`, a cyan PLAYOFF LINE at the `playoffSpots`
   (8) cutoff with rows below dimmed, followed-row tint + ★. The **Last 5** column has no ESPN source, so it's
   derived from the shared season (`MatchStore`) via the pure `RecentForm` helper. (GP kept vs the mock — owner.)
-- **Schedule** — full 16-team table (PTS·GP·W·L·D, followed-row tint); full season in
-  one `fetchScoreboard(year:)`, sticky day headers, 3 filters, scrolls to today. *(Color-block redesign pending.)*
+- **Schedule** (redesign — `design-handoff/schedule-cards.jsx`, "Color Block") — full season in one
+  `fetchScoreboard(year:)`. Cards: team-color wash from both edges, 60pt ring-free crests, scores under
+  each crest, a temporal-state center column (cyan KICKOFF + cyan time / pulsing red LIVE + orange clock /
+  green FT + "FULL TIME"), and a broadcast color-chip + venue rail (kept on past games too). Uniform card
+  height across states. "SAT · MAR 14" date headers with a TODAY chip. Filters **NWSL · My teams ·
+  International** (International is wired but data-less → a designed "coming soon" empty state until the
+  schedule goes competition-aware). Opens scrolled to today; **tapping the active Schedule tab snaps back
+  to today** (`AppRouter.reselectNonce`).
 - **Match detail** (`match-detail-v2-spec.md`) — `MatchDetailView` adapts to temporal state
   (Past/Live/Future); header from the `Event`, `/summary` layers the rest.
 - **Accounts** — Sign in with Apple → a Supabase user (`AuthStore`). Sign-in is **never**

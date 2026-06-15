@@ -36,6 +36,8 @@ struct ScheduleView: View {
     @Environment(ClubStore.self) private var clubStore
     // The personalization lens, for the "My teams" filter + its empty prompt.
     @Environment(FollowingStore.self) private var following
+    // For the tap-the-active-tab → scroll-to-today behavior (re-tap signal).
+    @Environment(AppRouter.self) private var router
 
     // Which filter tab is selected. Defaults to NWSL (the full league) so fans
     // can discover other games — NOT "My teams" (see the spec).
@@ -90,13 +92,40 @@ struct ScheduleView: View {
         .onChange(of: selectedFilter) { _, _ in
             anchor(to: viewModel.initialScrollSectionID(for: selectedFilter))
         }
+        // Tapping the already-active Schedule tab snaps the list back to today
+        // (the re-tap signal RootTabView's selection binding records).
+        .onChange(of: router.reselectNonce) { _, _ in
+            guard router.reselectedTab == .schedule else { return }
+            anchor(to: viewModel.initialScrollSectionID(for: selectedFilter))
+        }
+    }
+
+    // International is wired but has no data yet (no competition field on Event) —
+    // a deliberate, designed "coming soon" state rather than a blank "No matches".
+    private var internationalComingSoon: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "globe")
+                .font(.system(size: 40))
+                .foregroundStyle(Color.dsStateKickoff)
+            Text("International fixtures coming soon")
+                .font(.headline)
+                .foregroundStyle(Color.dsFgPrimary)
+                .multilineTextAlignment(.center)
+            Text("National-team windows and continental cups will appear here once the schedule goes competition-aware.")
+                .font(.subheadline)
+                .foregroundStyle(Color.dsFgSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.dsBgGrouped)
     }
 
     // Large "Schedule" title + the filter chips, drawn as one pinned header.
     private var scheduleHeader: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Schedule")
-                .font(.system(size: 34, weight: .bold))
+                .font(.system(size: 32, weight: .bold))
                 .foregroundStyle(Color.dsFgPrimary)
                 .padding(.horizontal, 16)
                 .padding(.top, 4)
@@ -110,7 +139,7 @@ struct ScheduleView: View {
     private var filterPicker: some View {
         HStack(spacing: 8) {
             ForEach(ScheduleViewModel.Filter.allCases) { filter in
-                Chip(label: filter.title, isActive: selectedFilter == filter) {
+                Chip(label: filter.title, isActive: selectedFilter == filter, compact: true) {
                     selectedFilter = filter
                 }
             }
@@ -150,7 +179,11 @@ struct ScheduleView: View {
         } else {
             let sections = viewModel.sections(for: selectedFilter)
             if sections.isEmpty {
-                emptyState
+                if selectedFilter == .international {
+                    internationalComingSoon
+                } else {
+                    emptyState
+                }
             } else {
                 matchList(sections)
             }
@@ -174,7 +207,7 @@ struct ScheduleView: View {
                             .buttonStyle(.plain)
                         }
                     } header: {
-                        DayHeader(label: section.label)
+                        DayHeader(dayKey: section.id, isToday: section.isToday)
                             .id(section.id)   // scroll-to anchor
                     }
                 }
@@ -258,22 +291,50 @@ struct ScheduleView: View {
     }
 }
 
-/// Sticky day label between groups of cards. Uses an opaque `.bar` background
-/// so cards scrolling underneath don't bleed through while it's pinned.
+/// Sticky day label between groups of cards (redesign): "SAT · MAR 14" with a
+/// cyan TODAY chip on the current day and a trailing hairline rule. Opaque page
+/// background so cards scrolling underneath don't bleed through while pinned.
 private struct DayHeader: View {
-    let label: String
+    let dayKey: String     // "yyyy-MM-dd"
+    let isToday: Bool
 
     var body: some View {
-        HStack {
-            Text(label)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Spacer()
+        HStack(spacing: 8) {
+            Text(formatted)
+                .font(.system(size: 12, weight: .bold))
+                .tracking(0.6)
+                .foregroundStyle(isToday ? Color.dsFgPrimary : Color.dsFgSecondary)
+            if isToday {
+                Text("TODAY")
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(0.5)
+                    .foregroundStyle(Color.dsStateKickoff)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(Color.dsStateKickoff.opacity(0.14), in: Capsule())
+            }
+            Rectangle()
+                .fill(Color.dsSeparator)
+                .frame(height: 1)
         }
         .padding(.vertical, 6)
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 2)
         .frame(maxWidth: .infinity)
-        .background(.bar)
+        .background(Color.dsBgGrouped)
+    }
+
+    // "SAT · MAR 14" from the yyyy-MM-dd section key.
+    private var formatted: String {
+        let parser = DateFormatter()
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        parser.timeZone = .current
+        parser.dateFormat = "yyyy-MM-dd"
+        guard let date = parser.date(from: dayKey) else { return dayKey }
+        let out = DateFormatter()
+        out.locale = .current
+        out.timeZone = .current
+        out.dateFormat = "EEE '·' MMM d"
+        return out.string(from: date).uppercased()
     }
 }
 
@@ -282,4 +343,5 @@ private struct DayHeader: View {
         .environment(MatchStore())
         .environment(ClubStore())
         .environment(FollowingStore())
+        .environment(AppRouter())
 }

@@ -2,29 +2,29 @@
 //  MatchCard.swift
 //  NWSLApp
 //
-//  One game as a self-contained card in ScheduleView (MLS-app style). V2 design
-//  refresh (design handoff `UIComponents.jsx` → `UIMatchCard`): team-color RING
-//  CRESTS echo the MatchDetail header at card scale, the status column is set off
-//  by a full-height hairline, and the live clock burns orange.
+//  One game as a self-contained card in ScheduleView — the redesign's "Color
+//  Block" card (design-handoff `schedule-cards.jsx` → CardC). A team-color wash
+//  bleeds in from each edge over the one card surface; big ring-free crests sit on
+//  their own color side with the score beneath; the center column carries the
+//  temporal state (cyan kickoff, pulsing red LIVE + orange clock, green FT). A
+//  broadcast color chip + venue anchor the bottom rail.
 //
-//  Left: stacked home/away rows, each the club crest (shown bare via TeamLogo —
-//  a team crest is a self-contained shape, no ring) + abbreviation, plus scores
-//  once the match is in progress or final. Right (hairline-separated): kickoff
-//  time for upcoming, "LIVE" + clock for in-progress, or "FT" for finished.
+//  Uniform height across states: the score band reserves its slot and the center
+//  column holds a min height, so future cards match past/live cards down the list.
 //
-//  Honors design rule #1: lives entirely inside its card, no overlays.
+//  Honors design rule #1 (lives inside its card, no persistent overlays) and §0
+//  (crest is the hero — 60pt, ring-free).
 //
 
 import SwiftUI
 
-/// A non-NWSL competition tag for a match card (CONCACAF W, etc.): a colored
-/// left accent + a pill at the top of the card.
+/// A non-NWSL competition tag for a match (CONCACAF W, etc.): a colored accent +
+/// pill. Still consumed by `MatchDetailView`; dormant on the schedule card (the
+/// redesign omits the competition label until non-default competition data exists,
+/// per the handoff flag). Kept here as the shared definition.
 ///
-/// TEMP / placeholder-ready (per the schedule design spec's "competition-aware
-/// from day one" intent): MatchCard renders this fully, but nothing constructs a
-/// non-nil value yet — every match we fetch today is NWSL, and there's no
-/// Competition data model. When non-NWSL data exists, build the badge from it
-/// and the dormant rendering below lights up with no card-layout changes.
+/// TEMP / placeholder-ready: nothing constructs a non-nil value yet — every match
+/// we fetch today is NWSL regular season, and there's no Competition data model.
 struct CompetitionBadge {
     let label: String   // e.g. "CONCACAF W — Semifinal"
     let color: Color
@@ -32,140 +32,161 @@ struct CompetitionBadge {
 
 struct MatchCard: View {
     let event: Event
-    /// nil for ordinary NWSL matches (the only kind today). See CompetitionBadge.
-    var badge: CompetitionBadge? = nil
 
-    @Environment(\.openURL) private var openURL
+    // Drives the pulsing LIVE dot (live matches only).
+    @State private var pulse = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.space6) {
-            if let badge { badgePill(badge) }
-            HStack(spacing: DS.space6) {
-                VStack(alignment: .leading, spacing: DS.space7) {
-                    teamRow(event.homeCompetitor)
-                    teamRow(event.awayCompetitor)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // Full-height hairline divider, then the fixed status column.
-                Rectangle()
-                    .fill(Color.dsSeparator)
-                    .frame(width: DS.hairline)
-                statusView
-                    .frame(width: 52)
-                    .frame(maxHeight: .infinity)
+        VStack(spacing: 13) {
+            HStack(alignment: .center, spacing: 0) {
+                side(event.homeCompetitor, color: homeColor)
+                centerColumn
+                side(event.awayCompetitor, color: awayColor)
             }
-            .fixedSize(horizontal: false, vertical: true)
-            if hasInfoLine { infoLine }
+            if hasRail { rail }
         }
-        .padding(DS.cardPadding)
-        .background(Color.dsBgCard)
-        // 3px competition-color left accent, clipped to the rounded corners.
-        // Dormant until a badge is supplied (see CompetitionBadge).
-        .overlay(alignment: .leading) {
-            if let badge {
-                badge.color.frame(width: 3)
+        .padding(14)
+        .frame(maxWidth: .infinity)
+        .background {
+            ZStack {
+                Color.dsBgCard
+                // The team-color wash (the sanctioned match gradient at card scale):
+                // home @18% bleeds from the left, away @18% from the right, clear
+                // through the middle. ~100° direction (horizontal, tilted slightly).
+                LinearGradient(
+                    stops: [
+                        .init(color: homeColor.opacity(0.18), location: 0.0),
+                        .init(color: homeColor.opacity(0.0), location: 0.34),
+                        .init(color: awayColor.opacity(0.0), location: 0.66),
+                        .init(color: awayColor.opacity(0.18), location: 1.0),
+                    ],
+                    startPoint: UnitPoint(x: 0, y: 0.42),
+                    endPoint: UnitPoint(x: 1, y: 0.58)
+                )
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+        .onAppear { if event.statusState == "in" { pulse = true } }
     }
 
-    private func badgePill(_ badge: CompetitionBadge) -> some View {
-        Text(badge.label)
-            .font(.caption2.weight(.semibold))
-            .padding(.horizontal, DS.space4)
-            .padding(.vertical, 3)
-            .background(badge.color.opacity(0.18), in: Capsule())
-            .foregroundStyle(badge.color)
+    // MARK: - Sides (crest hero + score beneath)
+
+    private func side(_ competitor: Competitor?, color: Color) -> some View {
+        VStack(spacing: 10) {
+            TeamLogo(urlString: competitor?.team?.logo,
+                     teamAbbreviation: competitor?.team?.abbreviation,
+                     size: 60)
+            // Fixed-height score band — reserved even on future cards so every state
+            // is the same height.
+            ZStack {
+                if showScores, let score = competitor?.score {
+                    Text(score)
+                        .font(.system(size: 32, weight: .heavy, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(Color.dsFgPrimary)
+                }
+            }
+            .frame(height: 34)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Center (temporal state)
+
+    private var centerColumn: some View {
+        VStack(spacing: 7) {
+            statePill
+            switch event.statusState {
+            case "in":
+                EmptyView()
+            case "post":
+                Text("FULL TIME")
+                    .font(.system(size: 11))
+                    .tracking(0.3)
+                    .foregroundStyle(Color.dsFgTertiary)
+            default:
+                // Cyan kickoff time — completes the temporal-color set with the
+                // orange live clock and green FT.
+                Text(kickoffTimeText)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.dsStateKickoff)
+            }
+        }
+        .frame(minHeight: 104)
     }
 
     @ViewBuilder
-    private func teamRow(_ competitor: Competitor?) -> some View {
-        let abbr = competitor?.team?.abbreviation ?? competitor?.team?.shortDisplayName ?? "—"
-        HStack(spacing: DS.space5) {
-            TeamLogo(urlString: competitor?.team?.logo, teamAbbreviation: competitor?.team?.abbreviation, size: 34)
-            // Fixed minWidth keeps home/away abbreviations aligned regardless of
-            // crest load state — no horizontal shift as logos resolve.
-            Text(abbr)
-                .font(.system(size: 20, weight: .medium))
-                .frame(minWidth: 44, alignment: .leading)
-            if showScores, let score = competitor?.score {
-                Text(score)
-                    .font(.system(size: 17, weight: .bold))
-                    .monospacedDigit()
+    private var statePill: some View {
+        switch event.statusState {
+        case "in":
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(Color.dsStateLive)
+                    .frame(width: 7, height: 7)
+                    .opacity(pulse ? 0.3 : 1)
+                    .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: pulse)
+                Text("LIVE")
+                    .font(.system(size: 11, weight: .bold))
+                    .tracking(0.6)
+                    .foregroundStyle(Color.dsStateLive)
+                if let clock = event.status?.displayClock {
+                    Text(clock)
+                        .font(.system(size: 11, weight: .bold))
+                        .monospacedDigit()
+                        .foregroundStyle(Color.dsStateClock)
+                }
             }
+        case "post":
+            Text("FT")
+                .font(.system(size: 11, weight: .bold))
+                .tracking(0.6)
+                .foregroundStyle(Color.dsStateFinal)
+        default:
+            Text("KICKOFF")
+                .font(.system(size: 11, weight: .bold))
+                .tracking(0.6)
+                .foregroundStyle(Color.dsStateKickoff)
         }
     }
+
+    // MARK: - Bottom rail (broadcast chip + venue)
+
+    // Kept on all states, including finished games: the broadcast chip helps fans
+    // find (and re-find) where a match aired — NWSL games are hard to track down.
+    private var hasRail: Bool {
+        event.broadcastName != nil || event.venueName != nil
+    }
+
+    private var rail: some View {
+        HStack(spacing: 10) {
+            if let channel = event.broadcastName {
+                BroadcastChip(name: channel)
+            }
+            if let venue = event.venueName {
+                Text(venue)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Helpers
 
     private var showScores: Bool {
         event.statusState == "in" || event.statusState == "post"
     }
 
-    @ViewBuilder
-    private var statusView: some View {
-        switch event.statusState {
-        case "in":
-            VStack(spacing: 2) {
-                Text("LIVE")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(Color.dsLive)
-                if let clock = event.status?.displayClock {
-                    Text(clock)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Color.dsStateClock)   // orange live clock
-                        .monospacedDigit()
-                }
-            }
-        case "post":
-            Text(event.status?.type?.shortDetail ?? "FT")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color.dsFgSecondary)
-        default:
-            Text(kickoffTimeText)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color.dsFgPrimary)
-        }
-    }
+    // Team colors resolved by abbreviation via the design palette — the same
+    // authoritative source as Standings (the scoreboard competitor carries no
+    // color of its own).
+    private var homeColor: Color { teamColor(event.homeCompetitor) }
+    private var awayColor: Color { teamColor(event.awayCompetitor) }
 
-    // Venue (always, when known) + broadcast (upcoming/live only — a finished
-    // game's channel is moot). 📍/📺 emoji match the design mockups.
-    private var hasInfoLine: Bool {
-        event.venueName != nil || (event.statusState != "post" && event.broadcastName != nil)
-    }
-
-    private var infoLine: some View {
-        HStack(spacing: DS.space7) {
-            if let venue = event.venueName {
-                Text("📍 \(venue)")
-                    .lineLimit(1)
-                    .foregroundStyle(Color.dsFgSecondary)
-            }
-            if event.statusState != "post", let channel = event.broadcastName {
-                broadcastLabel(channel)
-            }
-            Spacer(minLength: 0)
-        }
-        .font(.system(size: 12))
-    }
-
-    // The 📺 channel: a tappable "where to watch" link when we recognize the
-    // broadcaster (opens its streaming page), otherwise a plain label. The whole
-    // card is a NavigationLink, so the button takes hit-test priority for its own
-    // area while taps elsewhere on the card still navigate to the match.
-    @ViewBuilder
-    private func broadcastLabel(_ channel: String) -> some View {
-        if let url = BroadcastLink.url(for: channel) {
-            Button {
-                openURL(url)
-            } label: {
-                Text("📺 \(channel)").lineLimit(1)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.dsAccent)
-        } else {
-            Text("📺 \(channel)")
-                .lineLimit(1)
-                .foregroundStyle(Color.dsFgSecondary)
-        }
+    private func teamColor(_ competitor: Competitor?) -> Color {
+        Color.teamFillOnDark(hex: DesignTeamColors.hex(for: competitor?.team?.abbreviation))
     }
 
     private var kickoffTimeText: String {

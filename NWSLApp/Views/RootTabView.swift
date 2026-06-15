@@ -106,7 +106,20 @@ struct RootTabView: View {
 
     var body: some View {
         @Bindable var router = router
-        TabView(selection: $router.selectedTab) {
+        // A custom selection binding so we can detect a re-tap of the ALREADY-active
+        // tab (TabView calls the setter with the same value) — used by Schedule to
+        // snap back to today. A normal `$router.selectedTab` binding loses that.
+        let tabSelection = Binding<AppTab>(
+            get: { router.selectedTab },
+            set: { newTab in
+                if newTab == router.selectedTab {
+                    router.tabReselected(newTab)
+                } else {
+                    router.selectedTab = newTab
+                }
+            }
+        )
+        TabView(selection: tabSelection) {
             HomeView()
                 .tabItem { Label("Home", systemImage: "house") }
                 .tag(AppTab.home)

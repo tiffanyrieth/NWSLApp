@@ -23,6 +23,21 @@ final class AppRouter {
     /// set it to navigate across tabs.
     var selectedTab: AppTab = .home
 
+    /// Bumped whenever the user taps the ALREADY-ACTIVE tab (re-selecting the tab
+    /// they're already on). A screen observes `reselectNonce` + `reselectedTab` to
+    /// react — e.g. the Schedule tab snaps its list back to today. SwiftUI's
+    /// `onChange(of: selectedTab)` can't see this: the value doesn't change on a
+    /// re-tap, so the change observer never fires. RootTabView's selection binding
+    /// detects the same-value set and calls `tabReselected`.
+    private(set) var reselectNonce = 0
+    private(set) var reselectedTab: AppTab?
+
+    /// Record a re-tap of the active tab (does not change `selectedTab`).
+    func tabReselected(_ tab: AppTab) {
+        reselectedTab = tab
+        reselectNonce += 1
+    }
+
     init() {
         #if DEBUG
         // DEBUG launch arg `-startTab <home|schedule|standings|teams|feed>` lands the

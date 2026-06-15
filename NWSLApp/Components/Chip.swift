@@ -15,6 +15,9 @@ struct Chip: View {
     var isActive: Bool = false
     /// Optional leading dot (e.g. a team color on a Feed per-team chip).
     var dotColor: Color? = nil
+    /// Tighter sizing (13pt / less vertical padding) for the redesigned Schedule
+    /// filter bar. Defaults to the original look so existing callers are unchanged.
+    var compact: Bool = false
     let action: () -> Void
 
     var body: some View {
@@ -26,11 +29,11 @@ struct Chip: View {
                         .frame(width: 7, height: 7)
                 }
                 Text(label)
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: compact ? 13 : 15, weight: compact ? .semibold : .medium))
                     .lineLimit(1)
             }
             .padding(.horizontal, DS.chipPaddingH)
-            .padding(.vertical, DS.chipPaddingV)
+            .padding(.vertical, compact ? 6 : DS.chipPaddingV)
             .background(isActive ? Color.dsAccent : Color.dsBgCard)
             .foregroundStyle(isActive ? Color.white : Color.dsFgPrimary)
             .clipShape(Capsule())

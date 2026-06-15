@@ -45,6 +45,9 @@ struct DailyTriviaView: View {
         .navigationContextLabel("Daily Trivia")
         .background(Color(.systemGroupedBackground))
         .task {
+            // Start Game Center auth here (a game screen) rather than at launch, so
+            // the GC banner only shows when the user is about to play. Idempotent.
+            GameCenterManager.shared.authenticate()
             if case .idle = viewModel.state { await viewModel.loadDaily() }
             // Load the real standings (and self-heal the user's row) whenever the
             // screen appears — the results screen reads `viewModel.leaderboard`.

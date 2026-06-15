@@ -18,8 +18,6 @@
 //
 
 import SwiftUI
-import UIKit
-import UserNotifications
 
 struct TeamsView: View {
     @State private var viewModel = TeamsViewModel()
@@ -30,6 +28,9 @@ struct TeamsView: View {
     @Environment(ClubStore.self) private var clubStore
     // Per-team match-alert on/off — drives the row bells + the "{N} teams" line.
     @Environment(TeamAlertStore.self) private var teamAlerts
+    // Whether the user has configured notifications yet — gates the row bell's
+    // first-tap "doorway into the hub" behavior (see `bellButton`).
+    @Environment(NotificationPreferencesStore.self) private var notifications
 
     // The one extra route on this stack (besides Club → TeamDetailView): the
     // notifications hub, pushed from the nav-bar bell + the "Manage" line.
@@ -165,20 +166,28 @@ struct TeamsView: View {
     }
 
     private func bellButton(for club: Club) -> some View {
+        let hubVisited = notifications.hubVisited
         let on = teamAlerts.alertsEnabled(for: club.id)
         return Button {
+            // First-ever interaction: don't silently enable everything. Send the user
+            // to the hub (a doorway, not a toggle) so they SEE what match alerts mean
+            // — which teams, which alert types — and opt in deliberately. Once they've
+            // visited the hub, the bell becomes a quick on/off.
+            guard hubVisited else { path.append(NotificationsRoute.hub); return }
             teamAlerts.toggle(for: club.id)
-            // Turning a team on may need notification permission (its day-before is
-            // delivered locally). Gate-free — no sign-in needed for the on/off itself.
-            if !on { Task { await requestNotificationPermission() } }
+            // NOTE: the bell never requests iOS notification permission — that fires
+            // only from inside the hub on a first toggle-on (Bell-Tap fix, Bug 3).
         } label: {
             Image(systemName: on ? "bell.fill" : "bell")
                 .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
                 .imageScale(.large)
         }
         .buttonStyle(.borderless)
-        .accessibilityLabel(on ? "Turn off match alerts for \(club.displayName)"
-                               : "Turn on match alerts for \(club.displayName)")
+        .accessibilityLabel(
+            !hubVisited ? "Set up match alerts for \(club.displayName)"
+            : on ? "Turn off match alerts for \(club.displayName)"
+                 : "Turn on match alerts for \(club.displayName)"
+        )
     }
 
     // The "{N} team(s) with match alerts · Manage" line at the foot of the list → the hub.
@@ -210,18 +219,6 @@ struct TeamsView: View {
         // .borderless so only the star toggles — not the whole row.
         .buttonStyle(.borderless)
         .accessibilityLabel(isFollowing ? "Unfollow \(club.displayName)" : "Follow \(club.displayName)")
-    }
-
-    /// Request notification permission on the gesture (never at launch), so a
-    /// bell-on team's day-before reminder can actually be delivered.
-    private func requestNotificationPermission() async {
-        let center = UNUserNotificationCenter.current()
-        if await center.notificationSettings().authorizationStatus == .notDetermined {
-            _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
-        }
-        if await center.notificationSettings().authorizationStatus == .authorized {
-            UIApplication.shared.registerForRemoteNotifications()
-        }
     }
 
     private func errorView(_ message: String) -> some View {

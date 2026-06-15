@@ -49,6 +49,10 @@ struct ProfileView: View {
                 .padding(.bottom, 24)
             }
             .background(Color.dsBgGrouped)
+            // The Fan Zone strip's 🏆 Leaderboards opens the Game Center dashboard,
+            // so start GC auth here (not at launch) — by the time the user taps it,
+            // auth has typically resolved. Idempotent with the game screens.
+            .task { GameCenterManager.shared.authenticate() }
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

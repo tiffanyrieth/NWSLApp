@@ -325,7 +325,7 @@ NWSLApp/
 │   ├── SupabaseManager.swift          — the one shared SupabaseClient (built from Secrets)
 │   ├── HeadshotStore.swift            — @MainActor @Observable `.shared`; fetches the `/headshots` map (espnAthleteId→NWSL GUID) once per launch; `guid(forAthleteID:)`; best-effort (failure → monograms)
 │   ├── GameCenterIDs.swift            — GameKit ID constants (4 leaderboards + 6 achievements) + pure cross-game score helpers (GameKit-free, unit-tested)
-│   ├── GameCenterManager.swift        — @MainActor @Observable `.shared`; auth + best-effort submit/report + syncAll + showDashboard (GKAccessPoint). The only file importing GameKit
+│   ├── GameCenterManager.swift        — @MainActor @Observable `.shared`; `authenticate()` is idempotent + LAZY (called on-appear from the 3 game screens + Profile leaderboards strip, NOT at launch) + best-effort submit/report + syncAll + showDashboard (GKAccessPoint). The only file importing GameKit
 │   ├── TeamAlertPrefsSyncService.swift— Supabase `team_alert_preferences` client (per-team on/off upsert/fetchAll, composite key); RLS-scoped
 │   ├── SupportStore.swift             — @MainActor @Observable StoreKit 2 layer for Support: 4 tip tiers (one-time consumables + monthly subs), load/purchase/restore, `purchased` thank-you flag
 │   ├── PredictLeaderboardService.swift— Supabase per-team Predict board: upsertScore + standings(team); offline fallback to local you-row
@@ -366,7 +366,7 @@ NWSLApp/
 │   ├── TeamDetailViewModel.swift      — roster + social links + real season stats/leaders
 │   └── TriviaViewModel.swift          — one Daily-Trivia session; questions ← TriviaService; non-repeating daily-5 (unit-tested); real best-streak leaderboard (+ Game Center submit)
 ├── Views/                             — one screen per file
-│   ├── RootTabView.swift              — app root; 5-tab TabView; injects stores; restores session + coordinators; Game Center authenticate + syncAll (launch/auth/foreground); routes live-push tap
+│   ├── RootTabView.swift              — app root; 5-tab TabView; injects stores; restores session + coordinators; Game Center syncAll (auth/foreground — auth itself is deferred to the game screens, not started here); routes live-push tap
 │   ├── HomeView.swift                 — your-teams hub: 4 modules + profile-avatar button; spotlight carousel; onboarding-in-place; Module-1 round-robin + per-team chips (2+ teams) + adaptive card labels (1 team) + "See more →"; refetch on pull + follows-change
 │   ├── HomeContentListView.swift      — "See more from your teams" full firehose: ALL followed-team content, no cap, reverse-chron, respects the active team chip (+ `HomeTeamChips` bar: [All] + per-team)
 │   ├── ProfileView.swift              — account & settings sheet: identity / Fan Zone stats (🏆 Leaderboards → Game Center dashboard) / Settings (Notifications row → hub · Support row → SupportView) / My Teams / Account
@@ -377,7 +377,7 @@ NWSLApp/
 │   ├── PredictXIView.swift            — Predict the XI (pink): open fixtures + Results breakdown + per-team leaderboard cards
 │   ├── XIPickerView.swift             — Predict picker sheet: formation chips → pitch-grid slots → scoreline → Save/Submit (+ Game Center first-prediction)
 │   ├── OnboardingView.swift           — first-open team + competition follow picker
-│   ├── SignInPromptView.swift         — one-time post-onboarding "save your picks" sheet
+│   ├── SignInPromptView.swift         — sign-in half-sheet shown ONLY on a genuine sign-in-required action (Bracket submit); never auto-presented post-onboarding
 │   ├── NotificationAuthPromptView.swift — contextual "sign in for live alerts" half-sheet (Tier 2)
 │   ├── ScheduleView.swift             — full-season cards; 3 filters; sticky day headers
 │   ├── TeamsView.swift                — all-16 directory: ONE continuous list (followed floated to top, no section headers) + subtitle; follow-competitions row; per-row 🔔 alert toggles (followed) + "{N} teams · Manage" line at the followed/unfollowed boundary + nav-bar 🔔 → NotificationsView
@@ -456,7 +456,9 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
     (Home card + screen); the Fan Zone module hides when none is visible.
   - **Game Center** (GameKit) is layered on top: native leaderboards/achievements (4 boards +
     6 achievements) via `GameCenterManager`/`GKAccessPoint`, additive on the Supabase boards
-    (best-effort, no-ops when not signed in). *App-side shipped; the 4 boards + 6 achievements are
+    (best-effort, no-ops when not signed in). Auth is **deferred** — `authenticate()` fires lazily
+    when a game screen or the Profile leaderboards strip appears, never at launch, so the GC sign-in
+    banner stays out of the first impression. *App-side shipped; the 4 boards + 6 achievements are
     created in App Store Connect (status "Prepare for Submission") — live-verify happens on the next
     TestFlight build.*
 - **Player Spotlight** (`spotlight-design-spec.md`) — one mini-profile per followed team, live
@@ -487,8 +489,10 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
   one `fetchScoreboard(year:)`, sticky day headers, 3 filters, scrolls to today.
 - **Match detail** (`match-detail-v2-spec.md`) — `MatchDetailView` adapts to temporal state
   (Past/Live/Future); header from the `Event`, `/summary` layers the rest.
-- **Accounts** — Sign in with Apple → a Supabase user (`AuthStore`); skippable post-onboarding
-  `SignInPromptView`; the app stays fully working on the UserDefaults cache when signed out.
+- **Accounts** — Sign in with Apple → a Supabase user (`AuthStore`). Sign-in is **never**
+  auto-prompted (no post-onboarding nag); `SignInPromptView` appears only when the user taps
+  something that genuinely requires an account (Fan Zone submit, Tier-2 notifications). The app
+  stays fully working on the UserDefaults cache when signed out.
 - **Notifications — Tier 1 / LOCAL** (`local-notifications-spec.md`) — `NotificationScheduler`
   delivers a day-before match reminder + a weekly Player Spotlight; permission on first toggle-on.
 - **Notifications hub — Follow vs Alerts** (QOL v2 `Reference/Feed update/QOL v2 - Notification
@@ -498,10 +502,16 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
   **ON/OFF** bell (on the Teams rows + hub §1, `TeamAlertStore` = `Set<String>` → UserDefaults +
   Supabase `team_alert_preferences`); the **alert TYPES are global** (hub §2, `NotificationPreferencesStore`:
   day-before[Tier 1] + kickoff/goals/halftime/full-time[Tier 2]), dimmed+inert when no team is on.
-  §3 Activity (Fan Zone, Spotlight) is global. Tier-2 toggles present an honest sign-in gate
-  (`NotificationAuthPromptView`) when signed out and don't flip until sign-in; **sign-out resets the
-  4 Tier-2 types OFF** (they can't deliver without an account). Migration seeds a followed team ON
-  only if a global match-day toggle was on. Unfollow clears a team's alerts. lineup/subs/cards not shown.
+  §3 Activity (Fan Zone, Spotlight) is global. **First-tap doorway** (Bell-Tap fix): a Teams row
+  bell tapped before the hub has ever been visited *pushes the hub* instead of toggling (the
+  `notifications.hubVisited` flag) — so the user sees the options before opting in; later taps are a
+  quick on/off. The bell **never** requests iOS permission (that fires only from inside the hub on a
+  first toggle-on). **Invariant: Tier 2 ON ⟹ signed in** — Tier-2 types default OFF and only default
+  ON for a signed-IN user's first hub visit (`markHubVisited(isSignedIn:)`); Tier-2 toggles present an
+  honest sign-in gate (`NotificationAuthPromptView`) when signed out and don't flip until sign-in;
+  **sign-out resets the 4 Tier-2 types OFF**. Tier-1 (day-before, Player Spotlight) defaults ON
+  (delivers signed-out). Migration seeds a followed team ON only if a global match-day toggle was on.
+  Unfollow clears a team's alerts. lineup/subs/cards not shown.
 - **Support NWSLApp** (QOL v2 §5) — optional StoreKit tips (`SupportView` + `SupportStore`) from the
   Profile Settings group: 4 tiers (Corner Kick/Free Kick/Penalty Kick/Hat Trick), one-time or monthly,
   "where it goes" + thank-you state. App stays free; supporters get no extra features. Local

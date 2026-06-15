@@ -47,6 +47,10 @@ struct NotificationsView: View {
             .padding(.bottom, 24)
         }
         .background(Color.dsBgGrouped)
+        // Reaching the hub flips the per-team bell from "doorway into the hub" to a
+        // quick on/off, and on the first visit establishes the auth-aware Tier-2
+        // defaults (ON only if signed in — upholds `Tier 2 ON ⟹ signed in`).
+        .onAppear { notifications.markHubVisited(isSignedIn: auth.isSignedIn) }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAuthPrompt) {

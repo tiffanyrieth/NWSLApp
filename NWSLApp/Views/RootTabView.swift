@@ -104,9 +104,6 @@ struct RootTabView: View {
     // TeamAlertSyncCoordinator).
     @State private var teamAlertSyncCoordinator: TeamAlertSyncCoordinator?
 
-    // Set the Game Center auth handler exactly once.
-    @State private var gameCenterStarted = false
-
     var body: some View {
         @Bindable var router = router
         TabView(selection: $router.selectedTab) {
@@ -146,13 +143,13 @@ struct RootTabView: View {
             // re-running .task (it can fire again on scene changes) doesn't build a
             // second coordinator.
             await auth.restoreSession()
-            // Sign in to Game Center (Fan Zone leaderboards/achievements, additive
-            // on top of the Supabase boards). The handler flips `isAuthenticated`,
-            // which triggers the first syncAll below.
-            if !gameCenterStarted {
-                GameCenterManager.shared.authenticate()
-                gameCenterStarted = true
-            }
+            // Game Center auth is deliberately NOT started here. It's deferred until
+            // the user actually reaches a Fan Zone game or the Game Center dashboard
+            // (each game screen + the Profile leaderboards strip call
+            // `GameCenterManager.shared.authenticate()` on appear), so the GC sign-in
+            // banner never intrudes on the launch / first-impression. Once auth
+            // resolves there, the `isAuthenticated` onChange below runs the first
+            // syncAll.
             // Warm the player-headshot map once (best-effort) so squad grids, the pitch, and
             // the Fan Zone show real photos instead of monograms. Self-guards on re-fire.
             await HeadshotStore.shared.load()

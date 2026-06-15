@@ -32,12 +32,22 @@ final class GameCenterManager {
     /// entry point and gates every submission.
     private(set) var isAuthenticated = false
 
+    /// Guards `authenticate()` so the handler is installed exactly once even though
+    /// it's now triggered lazily from every Fan Zone / Game Center entry point (the
+    /// three game screens + the Profile leaderboards strip) rather than at launch.
+    private var didStartAuthentication = false
+
     // MARK: - Authentication
 
-    /// Install GKLocalPlayer's auth handler. Call once, early (RootTabView.task).
+    /// Install GKLocalPlayer's auth handler. Triggered lazily the first time the user
+    /// reaches a Fan Zone game or the Game Center dashboard — NOT at app launch — so
+    /// the Game Center sign-in banner only appears when it's contextually relevant.
+    /// Idempotent: safe to call from several entry points; only the first installs.
     /// GameKit invokes the closure as auth resolves: it may hand back a sign-in view
     /// controller to present, an error, or simply leave `isAuthenticated` set.
     func authenticate() {
+        guard !didStartAuthentication else { return }
+        didStartAuthentication = true
         GKLocalPlayer.local.authenticateHandler = { [weak self] viewController, error in
             guard let self else { return }
             if let viewController {

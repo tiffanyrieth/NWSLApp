@@ -43,10 +43,14 @@ struct ScheduleView: View {
     // can discover other games — NOT "My teams" (see the spec).
     @State private var selectedFilter: ScheduleViewModel.Filter = .nwsl
 
-    // The section the scroll view is anchored to. Set on first load (scroll to
-    // today) and re-set on filter change; otherwise `.scrollPosition` owns it as
-    // the user scrolls.
+    // The section id to scroll to on the next anchor request. Driven imperatively
+    // (ScrollViewReader) rather than via a `.scrollPosition` two-way binding: that
+    // binding writes the live position back into its state, so re-anchoring to the
+    // SAME id (today, when the list is already near it) became unreliable — the
+    // root of the "tap Schedule again and it jumps to March" bug. `scrollNonce`
+    // bumps on every request so the scroll fires every time, same target or not.
     @State private var scrollTarget: String?
+    @State private var scrollNonce = 0
     // Prevents pull-to-refresh (which re-emits .loaded) from yanking the scroll
     // position back to today on the FIRST-load path. (Filter changes re-anchor
     // independently of this guard.)
@@ -191,32 +195,45 @@ struct ScheduleView: View {
     }
 
     private func matchList(_ sections: [ScheduleViewModel.DaySection]) -> some View {
-        ScrollView {
-            LazyVStack(spacing: 12, pinnedViews: [.sectionHeaders]) {
-                ForEach(sections) { section in
-                    Section {
-                        ForEach(section.events) { event in
-                            // Closure-based NavigationLink (not value-based): Event
-                            // isn't Hashable, and the card is the link's label so the
-                            // whole card is tappable. `.plain` keeps the card's look.
-                            NavigationLink {
-                                MatchDetailView(event: event)
-                            } label: {
-                                MatchCard(event: event)
+        // ScrollViewReader so anchoring is an imperative `scrollTo` command — it
+        // fires on every request (driven by `scrollNonce`), unlike `.scrollPosition`
+        // whose stateful binding swallowed repeat same-target anchors.
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 12, pinnedViews: [.sectionHeaders]) {
+                    ForEach(sections) { section in
+                        Section {
+                            ForEach(section.events) { event in
+                                // Closure-based NavigationLink (not value-based): Event
+                                // isn't Hashable, and the card is the link's label so the
+                                // whole card is tappable. `.plain` keeps the card's look.
+                                NavigationLink {
+                                    MatchDetailView(event: event)
+                                } label: {
+                                    MatchCard(event: event)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
+                        } header: {
+                            DayHeader(dayKey: section.id, isToday: section.isToday)
+                                .id(section.id)   // scroll-to anchor
                         }
-                    } header: {
-                        DayHeader(dayKey: section.id, isToday: section.isToday)
-                            .id(section.id)   // scroll-to anchor
                     }
                 }
+                .padding(.vertical, 8)
             }
-            .padding(.vertical, 8)
+            .contentMargins(.horizontal, 16, for: .scrollContent)
+            .background(Color.dsBgGrouped)
+            // Every anchor request bumps `scrollNonce`, so this fires each time —
+            // even when re-anchoring to the same section (e.g. repeated tab re-taps).
+            .onChange(of: scrollNonce) { _, _ in
+                guard let target = scrollTarget else { return }
+                Task { @MainActor in
+                    await Task.yield()   // let the (possibly just-changed) sections realize
+                    proxy.scrollTo(target, anchor: .top)
+                }
+            }
         }
-        .scrollPosition(id: $scrollTarget, anchor: .top)
-        .contentMargins(.horizontal, 16, for: .scrollContent)
-        .background(Color.dsBgGrouped)
         // No pull-to-refresh: the season loads once a year and live scores already
         // update in-card in real time, so a manual refresh has nothing to fetch.
     }
@@ -280,14 +297,14 @@ struct ScheduleView: View {
         anchor(to: target)
     }
 
-    // Set the scroll position to a section. One runloop hop so the LazyVStack
-    // has realized the (possibly just-changed) sections before we set the binding.
+    // Request a scroll to a section. Records the target and bumps the nonce; the
+    // ScrollViewReader's `onChange(scrollNonce)` performs the actual `scrollTo`, so
+    // repeated requests to the SAME section (e.g. re-tapping the Schedule tab) all
+    // fire — the bug the old `.scrollPosition` binding had.
     private func anchor(to target: String?) {
         guard let target else { return }
-        Task { @MainActor in
-            await Task.yield()
-            scrollTarget = target
-        }
+        scrollTarget = target
+        scrollNonce += 1
     }
 }
 

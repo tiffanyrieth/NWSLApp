@@ -14,7 +14,8 @@
 //  Team color comes from the design palette via the resolved Club (Club.accentColor
 //  for the dark-legible accent; Color.teamAccent(hex: brandHex) for the jersey
 //  badge fill + on-color). The video hero loads the real YouTube frame with a
-//  crest-tile fallback. Stats use ⚠️demoSeasonStats pending a real per-player feed.
+//  crest-tile fallback. "This Season" renders only when the proxy supplied real
+//  season stats (online-only: real stats or the section is hidden — never fabricated).
 //
 
 import SwiftUI
@@ -108,14 +109,19 @@ struct PlayerSpotlightView: View {
 
     // MARK: - This Season (3-col stat grid)
 
+    // Online-only: rendered ONLY when the proxy supplied real season stats. On a
+    // best-effort miss (`statStrip == nil`) the section is simply absent — no
+    // fabricated numbers (the narrative-first spotlight reads fine without it).
+    @ViewBuilder
     private var thisSeason: some View {
-        let s = spotlight.statStrip
-        return VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("This Season")
-            HStack(spacing: 12) {
-                seasonStat("\(s.goals)", "Goals", highlight: true)
-                seasonStat("\(s.assists)", "Assists")
-                seasonStat("\(s.apps)", "Apps")
+        if let s = spotlight.statStrip {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("This Season")
+                HStack(spacing: 12) {
+                    seasonStat("\(s.goals)", "Goals", highlight: true)
+                    seasonStat("\(s.assists)", "Assists")
+                    seasonStat("\(s.apps)", "Apps")
+                }
             }
         }
     }

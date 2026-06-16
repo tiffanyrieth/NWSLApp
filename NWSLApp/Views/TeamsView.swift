@@ -30,13 +30,17 @@ struct TeamsView: View {
     @Environment(ClubStore.self) private var clubStore
     // Per-team match-alert on/off — drives the card bells + the alerts footer line.
     @Environment(TeamAlertStore.self) private var teamAlerts
-    // Whether the user has configured notifications yet — gates the card bell's
-    // first-tap "doorway into the hub" behavior (see `bellAction`).
-    @Environment(NotificationPreferencesStore.self) private var notifications
 
     // The one extra route on this stack (besides Club → TeamDetailView): the
     // notifications hub, pushed from the header bell + the "Manage" line.
     private enum NotificationsRoute: Hashable { case hub }
+
+    // One-time coach mark pointing at the header bell ("Manage your match alerts
+    // here"), shown the first time the user lands on the Teams tab. Replaces the old
+    // per-team-bell "doorway into the hub": the bells now toggle directly, and this
+    // tooltip carries the educational job of revealing where alerts are managed.
+    @AppStorage("hasSeenTeamsAlertTooltip") private var hasSeenAlertTooltip = false
+    @State private var showAlertTooltip = false
 
     // Two equal columns with the same 12pt gutter as the row spacing (per the mock).
     private let columns = [GridItem(.flexible(), spacing: 12),
@@ -96,6 +100,24 @@ struct TeamsView: View {
                 alertsFooter
             }
         }
+        // Tap anywhere in the grid dismisses the coach mark. `simultaneousGesture`
+        // runs alongside the cards' own taps (it doesn't swallow them), so a tap that
+        // also opens a club / toggles follow still dismisses the tooltip. No-op once
+        // the tooltip is gone.
+        .simultaneousGesture(TapGesture().onEnded {
+            if showAlertTooltip { dismissAlertTooltip() }
+        })
+        // First time the Teams tab is reached, point the user at the bell. Mark it
+        // seen on show (not just on dismiss) so it's truly one-and-done — it won't
+        // reappear after a force-quit or when returning from a club detail.
+        .onAppear {
+            if !hasSeenAlertTooltip {
+                hasSeenAlertTooltip = true
+                withAnimation(.easeOut(duration: 0.25).delay(0.35)) {
+                    showAlertTooltip = true
+                }
+            }
+        }
     }
 
     // "Teams" title with the notifications bell inline on the SAME row, right-aligned
@@ -107,7 +129,11 @@ struct TeamsView: View {
                 .font(.system(size: 32, weight: .bold))
                 .foregroundStyle(Color.dsFgPrimary)
             Spacer()
-            Button { path.append(NotificationsRoute.hub) } label: {
+            Button {
+                // Tapping the bell both dismisses the coach mark and opens the hub.
+                if showAlertTooltip { dismissAlertTooltip() }
+                path.append(NotificationsRoute.hub)
+            } label: {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "bell")
                         .font(.system(size: 17, weight: .semibold))
@@ -129,6 +155,17 @@ struct TeamsView: View {
         .padding(.horizontal, 16)
         .padding(.top, 4)
         .padding(.bottom, 6)
+        // The coach mark hangs below the bell, arrow pointing up at it. Anchored to
+        // the padded header so it stays inset from the screen edge and extends left.
+        .overlay(alignment: .topTrailing) {
+            if showAlertTooltip {
+                alertTooltip
+                    .fixedSize()
+                    .padding(.trailing, 16)
+                    .offset(y: 46)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .topTrailing)))
+            }
+        }
     }
 
     private var subtitle: some View {
@@ -138,6 +175,33 @@ struct TeamsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
             .padding(.bottom, 14)
+    }
+
+    // MARK: - Coach mark
+
+    // A small blue callout anchored under the header bell (arrow up), shown once. The
+    // arrow sits near the bubble's trailing edge so it lines up under the right-aligned
+    // bell. Tapping the bubble dismisses it (so does tapping anywhere / the bell).
+    private var alertTooltip: some View {
+        VStack(alignment: .trailing, spacing: 0) {
+            Triangle()
+                .fill(Color.dsAccent)
+                .frame(width: 16, height: 8)
+                .padding(.trailing, 12)
+            Text("Manage your match alerts here")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color.dsAccent, in: RoundedRectangle(cornerRadius: 10))
+        }
+        .onTapGesture { dismissAlertTooltip() }
+        .accessibilityLabel("Manage your match alerts here. Tap the bell to open notification settings.")
+    }
+
+    private func dismissAlertTooltip() {
+        hasSeenAlertTooltip = true
+        withAnimation(.easeOut(duration: 0.2)) { showAlertTooltip = false }
     }
 
     // MARK: - Team card
@@ -241,8 +305,11 @@ struct TeamsView: View {
 
     private func bellButton(for club: Club) -> some View {
         let on = teamAlerts.alertsEnabled(for: club.id)
-        let hubVisited = notifications.hubVisited
-        return Button { bellAction(for: club) } label: {
+        // Direct toggle — tap = on/off, always. (The old first-tap "doorway into the
+        // hub" was retired in favor of the Teams-tab coach mark.) The bell never
+        // requests iOS notification permission — that fires only from inside the hub
+        // on a first toggle-on (Bell-Tap fix, Bug 3).
+        return Button { teamAlerts.toggle(for: club.id) } label: {
             Image(systemName: on ? "bell.fill" : "bell")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
@@ -252,21 +319,9 @@ struct TeamsView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
-            !hubVisited ? "Set up match alerts for \(club.displayName)"
-            : on ? "Turn off match alerts for \(club.displayName)"
-                 : "Turn on match alerts for \(club.displayName)"
+            on ? "Turn off match alerts for \(club.displayName)"
+               : "Turn on match alerts for \(club.displayName)"
         )
-    }
-
-    private func bellAction(for club: Club) {
-        // First-ever interaction: don't silently enable everything. Send the user to
-        // the hub (a doorway, not a toggle) so they SEE what match alerts mean —
-        // which teams, which alert types — and opt in deliberately. Once they've
-        // visited the hub, the bell becomes a quick on/off.
-        guard notifications.hubVisited else { path.append(NotificationsRoute.hub); return }
-        teamAlerts.toggle(for: club.id)
-        // NOTE: the bell never requests iOS notification permission — that fires only
-        // from inside the hub on a first toggle-on (Bell-Tap fix, Bug 3).
     }
 
     // MARK: - Competitions + alerts footer
@@ -342,6 +397,18 @@ struct TeamsView: View {
             .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// Upward-pointing triangle for the coach-mark arrow (apex centered at the top).
+private struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        p.closeSubpath()
+        return p
     }
 }
 

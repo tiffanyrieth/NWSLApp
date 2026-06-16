@@ -45,11 +45,11 @@ final class NotificationPreferencesStore {
     var fanZoneRounds: Bool  { didSet { persist(fanZoneRounds, "fanZoneRounds"); onPreferenceChanged?() } }
     var playerSpotlight: Bool { didSet { persist(playerSpotlight, "playerSpotlight"); onPreferenceChanged?() } }
 
-    /// Whether the user has visited the Notifications hub at least once. Gates the
-    /// per-team bell on the Teams rows: the FIRST bell tap (while this is false) is a
-    /// *doorway* into the hub — so the user sees what "alerts" mean + the alert types
-    /// — not a silent enable-all. Once they've seen the hub, the bell becomes a quick
-    /// on/off. Persisted under the spec key `notifications.hubVisited`; set via
+    /// Whether the user has visited the Notifications hub at least once. The per-team
+    /// bells no longer gate on this (the Teams-tab coach mark replaced the old
+    /// "doorway" — bells now toggle directly); it survives only to make the one-time
+    /// auth-aware Tier-2 default establishment in `markHubVisited(isSignedIn:)`
+    /// idempotent. Persisted under the spec key `notifications.hubVisited`; set via
     /// `markHubVisited(isSignedIn:)` from the hub's `onAppear`.
     private(set) var hubVisited: Bool
 
@@ -109,9 +109,9 @@ final class NotificationPreferencesStore {
         hubVisited = defaults.bool(forKey: Self.hubVisitedKey)
     }
 
-    /// Record the first visit to the Notifications hub (flips the per-team bell from
-    /// "doorway" to "quick toggle"). On that FIRST visit only, it also establishes the
-    /// auth-aware Tier-2 defaults: a signed-IN user gets the live-match types
+    /// Record the first visit to the Notifications hub. On that FIRST visit only, it
+    /// establishes the auth-aware Tier-2 defaults: a signed-IN user gets the live-match
+    /// types
     /// (kickoff/goals/halftime/full-time) defaulted ON; a signed-OUT user keeps them
     /// OFF (upholding `Tier 2 ON ⟹ signed in` — they opt in later via the hub's
     /// sign-in gate). Idempotent. Not a `didSet` property so loading the flag in

@@ -382,7 +382,7 @@ NWSLApp/
 │   └── TriviaViewModel.swift          — one Daily-Trivia session; questions ← TriviaService; non-repeating daily-5 (unit-tested); real best-streak leaderboard (+ Game Center submit)
 ├── Views/                             — one screen per file
 │   ├── RootTabView.swift              — app root; 5-tab TabView; injects stores; restores session + coordinators; Game Center syncAll (auth/foreground — auth itself is deferred to the game screens, not started here); routes live-push tap
-│   ├── HomeView.swift                 — your-teams hub: 4 modules + profile-avatar button; spotlight carousel; onboarding-in-place; Module-1 round-robin + per-team chips (2+ teams) + adaptive card labels (1 team) + "See more →"; refetch on pull + follows-change
+│   ├── HomeView.swift                 — your-teams hub (facelift: custom 32pt header + avatar): 4 modules; Module-1 round-robin + per-team chips (2+ teams, each active chip in its club color) + adaptive labels (1 team) + "See more →"; Module-2 "Weekly Player Spotlight" carousel; Module-3 Fan Zone = featured lead card + tiles row; refetch on pull + follows-change
 │   ├── HomeContentListView.swift      — "See more from your teams" full firehose: ALL followed-team content, no cap, reverse-chron, respects the active team chip (+ `HomeTeamChips` bar: [All] + per-team)
 │   ├── ProfileView.swift              — account & settings sheet: identity / Fan Zone stats (🏆 Leaderboards → Game Center dashboard) / Settings (Notifications row → hub · Support row → SupportView) / My Teams / Account
 │   ├── NotificationsView.swift        — the ONE notifications hub (QOL v2): §Match alerts (per-team on/off) · §Alert types (5 global, dimmed when no team on) · §Activity; tier-aware sign-in gate; pushed from Teams bell/Manage + Profile row
@@ -410,19 +410,20 @@ NWSLApp/
 │   ├── BroadcastInfo.swift / BroadcastLink.swift — "How to Watch" DB + broadcast→watch-URL
 │   ├── Chip.swift                     — pill filter chip (Schedule + Feed chip bars); optional `compact` (13pt) for the redesigned Schedule bar
 │   ├── BroadcastChip.swift            — color-coded broadcast pill (handoff palette, substring-matched); schedule cards now, match detail at #2 (separate from BroadcastInfo's color DB)
-│   ├── ContentCardView.swift          — single entry point; routes a ContentCard by layout → the 3 card views
+│   ├── ContentCardView.swift          — single entry point; routes a ContentCard by layout → the 3 card views; facelift: adds the 3px team-color LEFT-EDGE bar (color-block motif, replaces the per-card top stripe) for all layouts
 │   ├── ThumbnailContentCard.swift / AvatarContentCard.swift / ArticleContentCard.swift — the ContentCard layouts
 │   ├── SettingsToggleRow.swift        — shared settings primitives: `SettingsToggleRow` + `SettingsGroup` (optional subtitle) + `SettingsRowDivider` (NotificationsView)
 │   ├── PlatformBadge.swift            — platform glyph (YT/Bluesky/TikTok/IG/article/reddit)
 │   ├── FormBadge.swift                — W/D/L form badge (optional `size`/`fontSize`, default 22; `MatchResult` convenience init)
-│   ├── GameCard.swift                 — Fan Zone game tile (game-accent border + emoji + status + badge)
+│   ├── GameCard.swift                 — Fan Zone game tile (facelift: 200×160, radial accent-glow corner + emoji + status pill + badge)
+│   ├── FeaturedGameCard.swift         — Fan Zone facelift: full-width featured lead card (glowing medallion + FEATURED eyebrow + title + tagline + solid-accent CTA) anchoring Module 3; remaining games render as GameCard tiles below
 │   ├── HowToWatchCard.swift / MDInfoCard.swift / StatComparisonBar.swift — match-detail tiles (redesign: HowToWatch = title + FREE/SUBSCRIPTION badge + BroadcastChip + access + tip + "Find it" → verbatim per-device steps from BroadcastInfo; MDInfoCard = label/value, no emoji)
 │   ├── PitchDot.swift / PlayerDot.swift / PlayerCard.swift — player markers/cards (team-color monogram, no headshots)
 │   ├── ComingUpRow.swift / EventTimelineRow.swift / FlowLayout.swift — Home/match rows + wrapping layout
 │   ├── ImageCache.swift / TeamLogo.swift — cached team crests; TeamLogo's `teamAbbreviation` prefers the crisp NWSL crest (proxy `/crest`) with the ESPN PNG as fallback
 │   ├── MatchCard.swift                — schedule card → MatchDetailView; color-block redesign (CardC): team-color wash from both edges, 60pt ring-free crests, scores under crests, center temporal state (cyan KICKOFF+time / pulsing LIVE+orange clock / green FT), broadcast chip + venue rail, uniform height across states. (`CompetitionBadge` struct kept here — used by MatchDetailView.)
 │   ├── PlayerHeadshot.swift           — circular player headshot via HeadshotStore→Cloudinary (ImageCache), jersey-monogram fallback; wraps the monogram on all 6 avatar surfaces (a 404/unmapped keeps the monogram)
-│   ├── PlayerSpotlightCard.swift      — Module-2 profile card
+│   ├── PlayerSpotlightCard.swift      — Module-2 facelift hero (~400pt): team-gradient card, headshot in the right ~half wide-fade-masked into the gradient, text in a left zone (GET TO KNOW eyebrow + name + #·pos·club + 2-line teaser + Read-her-story pill); tri-state photo load → ghost jersey# + crest fallback on no-GUID OR CDN 404 (never empty)
 │   └── SocialLinkButton.swift         — circular team-tinted social icon
 ├── Extensions/
 │   ├── Color+Hex.swift                — Color(hex:); teamAccent/teamFillOnDark; resolveMatchColors
@@ -444,9 +445,12 @@ Root is `RootTabView` — a 5-tab bar (**Home · Schedule · Standings · Teams 
 its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (`MatchStore`)
 + club directory (`ClubStore`) are each fetched once and shared app-wide via `.environment`.
 
-- **Home** (`home-tab-design-spec.md`) — your-teams hub; pre-onboarding renders `OnboardingView`
-  in place. Four modules: (1) "From your teams" content cards, (2) Player Spotlight, (3) Fan
-  Zone games, (4) "Coming up". All live. Module 1 uses a **round-robin fair-share** (every
+- **Home** (`home-tab-design-spec.md` + facelift `design-handoff/home.jsx`) — your-teams hub;
+  pre-onboarding renders `OnboardingView` in place. Facelift: custom 32pt header + avatar; content
+  cards carry the color-block left-edge team bar; per-team chips active in each club's color; Fan
+  Zone leads with a full-width featured card + tiles row. Four modules: (1) "From your teams" content
+  cards, (2) "Weekly Player Spotlight" (team-gradient hero), (3) Fan Zone games, (4) "Coming up". All
+  live. Module 1 uses a **round-robin fair-share** (every
   followed team a guaranteed minimum, interleaved across teams AND content types so a quiet club
   or club news isn't buried by a loud team's clips), **per-team chips** ([All] + each followed
   club's abbreviation — shown only at 2+ teams; at 1 team the chips hide and cards drop their
@@ -477,7 +481,9 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
     banner stays out of the first impression. *App-side shipped; the 4 boards + 6 achievements are
     created in App Store Connect (status "Prepare for Submission") — live-verify happens on the next
     TestFlight build.*
-- **Player Spotlight** (`spotlight-design-spec.md`) — one mini-profile per followed team, live
+- **Player Spotlight** (`spotlight-design-spec.md`) — Home Module 2, section "Weekly Player Spotlight"
+  (facelift: ~400pt team-gradient hero, headshot soft-masked into the gradient, text in a left zone,
+  ghost#+crest fallback when no headshot is available) — one mini-profile per followed team, live
   via `/spotlight` (real player + ESPN stats + a Haiku "why watch" blurb, weekly rotation).
 - **Player headshots** (`Reference/Feed update/Player Headshots Handoff.md`, Phase A) — real
   player photos replace the jersey-number monograms on all 6 avatar surfaces (squad cards,

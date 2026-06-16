@@ -18,10 +18,6 @@ struct ArticleContentCard: View {
 
     private var sourceName: String { card.sourceName ?? card.authorName ?? "News" }
 
-    /// Team accent for the top stripe — the same per-source color coding the
-    /// thumbnail (video) cards use, so articles read as the same team's content.
-    private var teamColor: Color { club?.accentColor ?? .dsAccent }
-
     /// The source mark: a club's own site shows that club's crest; anything else
     /// (e.g. a future Google-News outlet) falls back to the generic article badge.
     @ViewBuilder private var sourceIcon: some View {
@@ -45,15 +41,9 @@ struct ArticleContentCard: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.dsBgCard)
-        // Team-color top stripe — ONLY when the article is tagged to a team we
-        // resolved a color for. League / international articles (The Equalizer, The
-        // Guardian, untagged) have no team, so they get no stripe instead of a
-        // meaningless blue fallback (bug: blue regardless of which team you follow).
-        .overlay(alignment: .top) {
-            if club != nil {
-                Rectangle().fill(teamColor).frame(height: 3)
-            }
-        }
+        // No top stripe — the facelift's left-edge team bar (ContentCardView) carries
+        // team color for every content-card layout. Untagged league/international
+        // articles have no club, so (as before) they get no bar.
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
         .contentShape(Rectangle())
         .onTapGesture {

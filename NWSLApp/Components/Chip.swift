@@ -18,6 +18,9 @@ struct Chip: View {
     /// Tighter sizing (13pt / less vertical padding) for the redesigned Schedule
     /// filter bar. Defaults to the original look so existing callers are unchanged.
     var compact: Bool = false
+    /// The fill when active — defaults to the app accent. Home's per-team chips pass
+    /// each club's own color so the active chip carries its team identity (home.jsx).
+    var activeColor: Color = .dsAccent
     let action: () -> Void
 
     var body: some View {
@@ -34,7 +37,7 @@ struct Chip: View {
             }
             .padding(.horizontal, DS.chipPaddingH)
             .padding(.vertical, compact ? 6 : DS.chipPaddingV)
-            .background(isActive ? Color.dsAccent : Color.dsBgCard)
+            .background(isActive ? activeColor : Color.dsBgCard)
             .foregroundStyle(isActive ? Color.white : Color.dsFgPrimary)
             .clipShape(Capsule())
         }

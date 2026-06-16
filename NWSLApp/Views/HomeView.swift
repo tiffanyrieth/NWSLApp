@@ -110,15 +110,32 @@ struct HomeView: View {
                 hub
             }
         }
-        .navigationTitle("Home")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) { profileAvatarButton }
-        }
+        // Custom large-title header (title + profile avatar) like the Schedule /
+        // Standings facelift headers; the system nav bar is hidden so the header
+        // owns the top edge.
+        .toolbar(.hidden, for: .navigationBar)
+        .safeAreaInset(edge: .top, spacing: 0) { homeHeader }
         .sheet(isPresented: $showProfile) { ProfileView() }
         .refreshable { await reload() }
     }
 
-    // Top-right avatar button → the Profile screen (account, notifications, follows).
+    // Large "Home" title + the profile avatar button, drawn as one pinned header.
+    private var homeHeader: some View {
+        HStack(alignment: .center) {
+            Text("Home")
+                .font(.system(size: 32, weight: .bold))
+                .foregroundStyle(Color.dsFgPrimary)
+            Spacer(minLength: 8)
+            profileAvatarButton
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgGrouped)
+    }
+
+    // Avatar button → the Profile screen (account, notifications, follows).
     private var profileAvatarButton: some View {
         Button { showProfile = true } label: {
             ZStack {
@@ -233,8 +250,8 @@ struct HomeView: View {
         let spotlights = viewModel.spotlights(following: following)
         if !spotlights.isEmpty {
             section(
-                "Get to know your players",
-                subtitle: "A new spotlight every week for each team you follow"
+                "Weekly Player Spotlight",
+                subtitle: "A featured player each week — get to know the squad you follow"
             ) {
                 VStack(spacing: 10) {
                     // Equal-weight cards in a snapping horizontal carousel (one per
@@ -285,39 +302,103 @@ struct HomeView: View {
     private var predictXIVisible: Bool { predictXIActive }
     private var bracketVisible: Bool { bracket.hasActiveEdition }
     private var triviaVisible: Bool { true }
-    private var anyFanZoneGameVisible: Bool { predictXIVisible || bracketVisible || triviaVisible }
+
+    /// The visible games, ordered most time-sensitive first. Predict the XI is
+    /// matchday-driven AND personal (you predict YOUR team's lineup), so it leads
+    /// when a followed team has a fixture within 28 days; Bracket Battle and Daily
+    /// Trivia follow. The first entry becomes the featured lead card.
+    private enum FanGame: Hashable { case predict, bracket, trivia }
+    private var visibleGames: [FanGame] {
+        var games: [FanGame] = []
+        if predictXIVisible { games.append(.predict) }
+        if bracketVisible { games.append(.bracket) }
+        if triviaVisible { games.append(.trivia) }
+        return games
+    }
 
     @ViewBuilder
     private var playSection: some View {
-        if anyFanZoneGameVisible {
+        let games = visibleGames
+        if let featured = games.first {
+            let rest = Array(games.dropFirst())
             section(
                 "Fan Zone",
                 subtitle: "Test your NWSL knowledge and compete with other fans",
                 accessory: { activeGamesIndicator }
             ) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        // Ordered most time-sensitive first. Predict the XI is
-                        // matchday-driven AND personal (you predict YOUR team's
-                        // lineup), so it appears only when a followed team has a
-                        // fixture within 28 days; Bracket Battle and Daily Trivia
-                        // show whenever they have content.
-                        if predictXIVisible {
-                            NavigationLink { PredictXIView() } label: { predictGameCard }
-                                .buttonStyle(.plain)
-                        }
-                        if bracketVisible {
-                            NavigationLink { BracketBattleView() } label: { bracketGameCard }
-                                .buttonStyle(.plain)
-                        }
-                        if triviaVisible {
-                            NavigationLink { DailyTriviaView() } label: { triviaGameCard }
-                                .buttonStyle(.plain)
+                VStack(spacing: 12) {
+                    // A full-width featured card anchors the section (so Fan Zone reads
+                    // as prominent, not a runt) ...
+                    NavigationLink { destination(for: featured) } label: {
+                        featuredCard(for: featured)
+                    }
+                    .buttonStyle(.plain)
+
+                    // ... then the remaining games as a scrolling row of tiles.
+                    if !rest.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(rest, id: \.self) { game in
+                                    NavigationLink { destination(for: game) } label: {
+                                        tileCard(for: game)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal, 2)
                         }
                     }
-                    .padding(.horizontal, 2)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func destination(for game: FanGame) -> some View {
+        switch game {
+        case .predict: PredictXIView()
+        case .bracket: BracketBattleView()
+        case .trivia:  DailyTriviaView()
+        }
+    }
+
+    @ViewBuilder
+    private func tileCard(for game: FanGame) -> some View {
+        switch game {
+        case .predict: predictGameCard
+        case .bracket: bracketGameCard
+        case .trivia:  triviaGameCard
+        }
+    }
+
+    @ViewBuilder
+    private func featuredCard(for game: FanGame) -> some View {
+        switch game {
+        case .predict:
+            FeaturedGameCard(
+                emoji: "⚽", title: "Predict the XI",
+                statusLine: predict.hasPredicted ? "\(predict.seasonPoints) pts" : "Predict now",
+                tagline: "Pick your team's XI before kickoff",
+                accent: .dsGamePredict,
+                badge: predict.seasonPoints > 0 ? "\(predict.seasonPoints)" : nil, badgeIcon: "⚽"
+            )
+        case .bracket:
+            FeaturedGameCard(
+                emoji: "🏆", title: "Bracket Battle",
+                statusLine: bracketStateLine,
+                tagline: "Vote the bracket, climb the leaderboard",
+                accent: .dsGameBracket,
+                badge: bracket.points > 0 ? "\(bracket.points)" : nil, badgeIcon: "🏆"
+            )
+        case .trivia:
+            FeaturedGameCard(
+                emoji: "🧠", title: "Daily Trivia",
+                statusLine: trivia.hasPlayedToday ? "Done today ✓" : "Play now",
+                tagline: "5 questions a day — keep your streak alive",
+                accent: .dsGameTrivia,
+                badge: trivia.streak > 0 ? "\(trivia.streak)" : nil, badgeIcon: "🔥",
+                completed: trivia.hasPlayedToday
+            )
         }
     }
 

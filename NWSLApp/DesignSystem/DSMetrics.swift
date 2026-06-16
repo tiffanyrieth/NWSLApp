@@ -59,9 +59,9 @@ enum DS {
     static let feedAvatar: CGFloat = 36        // (legacy FeedCard source avatar)
     static let contentAvatar: CGFloat = 38     // ContentCard avatar (Bluesky/reporter)
 
-    // MARK: Fan Zone game card
-    static let gameCardWidth: CGFloat = 170
-    static let gameCardHeight: CGFloat = 138
+    // MARK: Fan Zone game card (facelift: larger, more prominent tile)
+    static let gameCardWidth: CGFloat = 200
+    static let gameCardHeight: CGFloat = 160
 
     // MARK: Hairlines
     static let hairline: CGFloat = 1

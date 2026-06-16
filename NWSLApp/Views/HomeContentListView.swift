@@ -69,7 +69,12 @@ struct HomeTeamChips: View {
                 viewModel.selectedTeam = nil
             }
             ForEach(teams, id: \.self) { abbr in
-                Chip(label: abbr, isActive: viewModel.selectedTeam == abbr) {
+                Chip(
+                    label: abbr,
+                    isActive: viewModel.selectedTeam == abbr,
+                    // Active per-team chip carries the club's own color (home.jsx).
+                    activeColor: viewModel.club(forAbbreviation: abbr)?.accentColor ?? .dsAccent
+                ) {
                     viewModel.selectedTeam = abbr
                 }
             }

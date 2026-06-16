@@ -51,7 +51,7 @@ struct TeamsView: View {
                 // (TeamDetailView, the hub, Competitions) keep their own nav bars.
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Club.self) { club in
-                    TeamDetailView(club: club)
+                    TeamDetailView(club: club, origin: "Teams")
                 }
                 .navigationDestination(for: NotificationsRoute.self) { _ in
                     NotificationsView()

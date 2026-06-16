@@ -315,6 +315,7 @@ NWSLApp/
 │   ├── Club.swift                     — flat Club + ESPN /teams decode (brand/alternate color → crests)
 │   ├── ContentCard.swift              — unified ALIVE-content model: 7 layouts + `sourceType` (club·reporter·player·league·news, for Feed chips) + StalenessWindow (Home 72h / Feed 7d, 6-card-floored)
 │   ├── FollowedCompetition.swift      — international competitions list + follow model
+│   ├── NationalTeam.swift             — followable women's national team: FIFA code + name + flagcdn slug (flag image) + curated national brand color (drives followed wash/border/code tint); featured(8)/all(16) config lists, data-driven
 │   ├── AthleteStatistics.swift        — ESPN Core API /statistics → PlayerSeasonStats
 │   ├── MatchSummary.swift             — ESPN /summary: lineups+formation, boxscore, key-events timeline
 │   ├── PlayerSpotlight.swift          — Home Module-2 player-of-week; `espnAthleteId`+`seasonStatLine` carry live data; `statStrip` is nil when the proxy sent no stats → the view hides "This Season" (never fabricated)
@@ -392,7 +393,8 @@ NWSLApp/
 │   ├── NotificationAuthPromptView.swift — contextual "sign in for live alerts" half-sheet (Tier 2)
 │   ├── ScheduleView.swift             — full-season cards; filter chips (NWSL · My teams · International→"coming soon"); "SAT · MAR 14" headers + TODAY chip; opens at the past/upcoming boundary (ScrollViewReader→`event.id` + opacity gate, no flash, incl. Home-preload); re-tap + filter animate back
 │   ├── TeamsView.swift                — all-16 directory: ONE list (followed floated up) + subtitle; follow-competitions row; per-row 🔔 toggles + "{N} teams · Manage" line + nav-bar 🔔 → NotificationsView
-│   ├── CompetitionsView.swift         — follow international competitions
+│   ├── CompetitionsView.swift         — follow international competitions: elevated Champions Cup card (tinted trophy medallion + toggle, Teams-tab card weight) + national-teams 2-col grid of NationalTeamCard + "Browse all" row
+│   ├── BrowseAllTeamsView.swift       — searchable full national-team set: same 2-col grid of NationalTeamCard as the Competitions hub (one visual language, no grid→list switch)
 │   ├── TeamDetailView.swift           — club page: header (⭐ follow) + social row + Squad·Stats tabs
 │   ├── MatchDetailView.swift          — state-aware match: full-bleed Card-C header (72pt crests, team-color abbr + score per crest, temporal center) + "‹ {origin}" back; past=Play-by-Play/Lineups/Stats (formation pitch + BENCH), live=poll & LIVE pill, future=info grid + How-to-Watch + comparison + form
 │   ├── CombinedPitchView.swift        — BOTH teams' XIs on ONE pitch; Lineups default
@@ -419,6 +421,7 @@ NWSLApp/
 │   ├── ComingUpRow.swift / EventTimelineRow.swift / FlowLayout.swift — Home/match rows + wrapping layout
 │   ├── ImageCache.swift / TeamLogo.swift / CachedThumbnail.swift — cached crests + content thumbnails; TeamLogo prefers the NWSL crest (proxy `/crest`), ESPN PNG fallback; CachedThumbnail sync-seeds from ImageCache so cards don't flash to the crest on tab-switch
 │   ├── MatchCard.swift                — schedule card → MatchDetailView: team wash, 60pt crests, team-color abbr under each crest, scores below, temporal center, broadcast+venue rail, uniform height. (`CompetitionBadge` struct lives here, used by MatchDetailView.)
+│   ├── NationalTeamCard.swift         — shared national-team grid card (Competitions hub + Browse-all): mirrors the club card — flag (CachedThumbnail, country-color block fallback) + halo, FIFA code in country color, name, Follow pill + bell; followed → country-color radial wash + border. Reads FollowingStore + TeamAlertStore from env
 │   ├── PlayerHeadshot.swift           — circular player headshot via HeadshotStore→Cloudinary (ImageCache); jersey-monogram fallback on all 6 avatar surfaces (404/unmapped keeps the monogram)
 │   ├── PlayerSpotlightCard.swift      — Module-2 hero (~400pt): team-gradient card, headshot fade-masked into the gradient, text in a left zone; ghost# + crest fallback on no-GUID/404 (never empty)
 │   └── SocialLinkButton.swift         — circular team-tinted social icon

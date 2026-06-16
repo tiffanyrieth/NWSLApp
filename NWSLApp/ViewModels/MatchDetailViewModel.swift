@@ -140,7 +140,8 @@ final class MatchDetailViewModel {
             guard let (scored, conceded) = scoreLine(abbr, game) else { continue }
             goalsFor += scored
             goalsAgainst += conceded
-            let result: MatchResult = scored > conceded ? .win : (scored == conceded ? .draw : .loss)
+            // Shared classification rule (also feeds Standings' Last-5 via RecentForm).
+            let result = RecentForm.result(scored: scored, conceded: conceded)
             results.append(result)
             points += result == .win ? 3 : (result == .draw ? 1 : 0)
         }

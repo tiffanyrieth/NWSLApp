@@ -2,19 +2,21 @@
 //  TeamsView.swift
 //  NWSLApp
 //
-//  The Teams tab: a directory of all NWSL clubs, each with a Follow toggle.
-//  Following is the app's personalization lens (see FollowingStore) — followed
-//  clubs are marked with a tint + star + bell, but the directory always lists all
-//  16 clubs in A–Z order (no following-first float: with 16 teams a stable
-//  alphabetical order scans better than a list that reshuffles as you follow).
+//  The Teams tab: a directory of all NWSL clubs, redesigned (color-block language,
+//  `design-handoff/teams.jsx`) as a 2-column CREST GRID. Each card carries the
+//  club crest, full name, a Follow/Following pill, and — once followed — a match-
+//  alert bell. Following is the app's personalization lens (see FollowingStore);
+//  followed cards get a team-color wash + border, but the grid stays in stable A–Z
+//  order (no following-first float: with 16 clubs a fixed order scans better than a
+//  grid that reshuffles as you follow).
 //
-//  The FollowingStore arrives via the SwiftUI environment (injected once in
-//  RootTabView), not constructed here — so this screen and future ones share
-//  the same single source of truth for who you follow.
+//  The FollowingStore / ClubStore / TeamAlertStore arrive via the SwiftUI
+//  environment (injected once in RootTabView), not constructed here — so this
+//  screen and the rest of the app share one source of truth.
 //
-//  Each row is a NavigationLink into TeamDetailView (crest, club schedule,
-//  roster, Follow). The destination reads the shared MatchStore + FollowingStore
-//  from the environment, both injected in RootTabView.
+//  Each card opens TeamDetailView (crest, club schedule, roster, Follow). Only the
+//  crest+name area opens the club; the Follow pill and bell are SIBLING buttons
+//  (a Button nested in another Button swallows the outer tap), each owning its taps.
 //
 
 import SwiftUI
@@ -26,62 +28,41 @@ struct TeamsView: View {
     // The shared club directory (injected in RootTabView); the view model reads
     // its state/clubs through this.
     @Environment(ClubStore.self) private var clubStore
-    // Per-team match-alert on/off — drives the row bells + the "{N} teams" line.
+    // Per-team match-alert on/off — drives the card bells + the alerts footer line.
     @Environment(TeamAlertStore.self) private var teamAlerts
-    // Whether the user has configured notifications yet — gates the row bell's
-    // first-tap "doorway into the hub" behavior (see `bellButton`).
+    // Whether the user has configured notifications yet — gates the card bell's
+    // first-tap "doorway into the hub" behavior (see `bellAction`).
     @Environment(NotificationPreferencesStore.self) private var notifications
 
     // The one extra route on this stack (besides Club → TeamDetailView): the
-    // notifications hub, pushed from the nav-bar bell + the "Manage" line.
+    // notifications hub, pushed from the header bell + the "Manage" line.
     private enum NotificationsRoute: Hashable { case hub }
+
+    // Two equal columns with the same 12pt gutter as the row spacing (per the mock).
+    private let columns = [GridItem(.flexible(), spacing: 12),
+                           GridItem(.flexible(), spacing: 12)]
 
     var body: some View {
         NavigationStack(path: $path) {
-            VStack(spacing: 0) {
-                header
-                content
-            }
-            // The bell lives inline on the title row (see `header`), so the system
-            // nav bar is hidden on this root — a nav-bar toolbar button gets pinned
-            // up against the status bar; inline gives it breathing room. Pushed
-            // destinations (TeamDetailView, the hub) keep their own nav bars + back.
-            .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(for: Club.self) { club in
-                TeamDetailView(club: club)
-            }
-            .navigationDestination(for: NotificationsRoute.self) { _ in
-                NotificationsView()
-            }
-            // No pull-to-refresh: the club directory is static; nothing to refetch.
+            content
+                .background(Color.dsBgGrouped)
+                // The title + bell scroll with the grid (per the mock), so the
+                // system nav bar is hidden on this root. Pushed destinations
+                // (TeamDetailView, the hub, Competitions) keep their own nav bars.
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(for: Club.self) { club in
+                    TeamDetailView(club: club, origin: "Teams")
+                }
+                .navigationDestination(for: NotificationsRoute.self) { _ in
+                    NotificationsView()
+                }
         }
         // Load once on first appearance; don't refetch every time the tab is
-        // re-selected (pull-to-refresh covers manual reloads).
+        // re-selected (the directory is static — nothing to refresh).
         .task {
             viewModel.clubStore = clubStore
             if case .idle = clubStore.state { await viewModel.load() }
         }
-    }
-
-    // The "Teams" large title with the notifications bell inline on the SAME row,
-    // right-aligned — rather than a nav-bar toolbar item (which the system pins up
-    // by the status bar). Gives the bell breathing room and balances it with the title.
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("Teams")
-                .font(.largeTitle.weight(.bold))
-                .foregroundStyle(Color.dsFgPrimary)
-            Spacer()
-            Button { path.append(NotificationsRoute.hub) } label: {
-                Image(systemName: "bell")
-                    .font(.title2)
-                    .foregroundStyle(Color.dsAccent)
-            }
-            .accessibilityLabel("Notifications")
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, 8)
     }
 
     @ViewBuilder
@@ -98,91 +79,178 @@ struct TeamsView: View {
     }
 
     private var directory: some View {
-        // One continuous, ALWAYS-ALPHABETICAL list of all 16 clubs. Followed teams keep
-        // their tint + star + bell in place but are NOT floated to the top: with only 16
-        // clubs, a stable A–Z order is easier to scan than a list that reshuffles as you
-        // follow/unfollow (you always know where Spirit is). The "{N} teams · Manage" alerts
-        // line sits at the foot of the list.
+        // Stable A–Z by full name — followed clubs keep their wash + border in place
+        // but never reshuffle (you always know where Spirit is).
         let clubs = viewModel.clubs.sorted {
             $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
         }
-        return List {
-            Section {
-                ForEach(clubs) { row(for: $0) }
-                if teamAlerts.enabledCount > 0 { matchAlertsLine }
-            } header: {
-                // The subtitle (sentence case, never truncated) — same role as Home's
-                // "From your teams". `textCase(nil)` stops the default header uppercasing.
-                Text("Tap any club to explore their squad and stats")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.dsFgSecondary)
-                    .textCase(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.bottom, 4)
-            }
-
-            // A way back into international competitions for anyone who skipped
-            // them during onboarding (the only other place they're offered).
-            Section {
-                NavigationLink {
-                    CompetitionsView()
-                } label: {
-                    Label("Follow competitions", systemImage: "globe")
+        return ScrollView {
+            VStack(spacing: 0) {
+                header
+                subtitle
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(clubs) { teamCard($0) }
                 }
+                .padding(.horizontal, 16)
+                competitionsRow
+                alertsFooter
             }
         }
-        .listStyle(.insetGrouped)
     }
 
-    private func row(for club: Club) -> some View {
-        // Navigation and the Follow star are SIBLING buttons, not nested: a
-        // `Button` inside a `NavigationLink` swallows the row's navigation tap
-        // (the star toggles, the rest of the row goes dead). So the row body is
-        // its own button that pushes the club via the navigation path, and the
-        // star is a separate button beside it — each owns its own taps.
-        let isFollowing = following.isFollowing(club)
-        return HStack(spacing: 12) {
-            Button {
-                path.append(club)
-            } label: {
-                HStack(spacing: 12) {
-                    TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 32)
-                    // Full name — the directory is the one place full names show.
-                    Text(club.displayName)
-                        .foregroundStyle(isFollowing ? Color.dsAccent : Color.dsFgPrimary)
-                    Spacer(minLength: 8)
+    // "Teams" title with the notifications bell inline on the SAME row, right-aligned
+    // (the system nav-bar item pins up by the status bar). A live dot rides the bell
+    // when any followed club has match alerts on.
+    private var header: some View {
+        HStack {
+            Text("Teams")
+                .font(.system(size: 32, weight: .bold))
+                .foregroundStyle(Color.dsFgPrimary)
+            Spacer()
+            Button { path.append(NotificationsRoute.hub) } label: {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "bell")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Color.dsAccent)
+                        .frame(width: 40, height: 40)
+                        .background(Color.dsBgCard)
+                        .clipShape(Circle())
+                    if teamAlerts.enabledCount > 0 {
+                        Circle()
+                            .fill(Color.dsLive)
+                            .frame(width: 8, height: 8)
+                            .overlay(Circle().stroke(Color.dsBgGrouped, lineWidth: 1.5))
+                            .offset(x: -6, y: 6)
+                    }
                 }
-                .contentShape(Rectangle())   // whole left area is tappable
+            }
+            .accessibilityLabel("Notifications")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 6)
+    }
+
+    private var subtitle: some View {
+        Text("Tap any club to explore their squad and stats.")
+            .font(.system(size: 13))
+            .foregroundStyle(Color.dsFgSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 14)
+    }
+
+    // MARK: - Team card
+
+    private func teamCard(_ club: Club) -> some View {
+        let isFollowing = following.isFollowing(club)
+        return VStack(spacing: 9) {
+            // Only the crest + name open the club; the controls below are siblings.
+            Button { path.append(club) } label: {
+                VStack(spacing: 9) {
+                    crest(for: club)
+                    Text(club.displayName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.dsFgPrimary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .lineSpacing(1)
+                        // Reserve two lines so the crest (above) and controls (below)
+                        // stay vertically consistent across 1- and 2-line names; CENTER
+                        // the name in that reserved space so a 1-line name's slack is
+                        // split above/below rather than dumped under it.
+                        .frame(minHeight: 35, alignment: .center)
+                }
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
-            // A quick match-alert on/off for followed teams (same state as the
-            // Notifications hub). Only followed teams can have alerts.
-            if isFollowing { bellButton(for: club) }
-            followButton(for: club)
+            controlRow(for: club)
         }
-        // Followed rows get a soft blue tint so the Following lens is visible.
-        .listRowBackground(isFollowing ? Color.dsFollowTint : nil)
+        .padding(EdgeInsets(top: 18, leading: 12, bottom: 13, trailing: 12))
+        .frame(maxWidth: .infinity)
+        .background(cardBackground(for: club, isFollowing: isFollowing))
+        .overlay(
+            RoundedRectangle(cornerRadius: DS.radiusXl)
+                .stroke(isFollowing ? club.accentColor.opacity(0.4) : .clear, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl))
+    }
+
+    // Ring-free crest with a soft team-color halo (a blurred color behind it — NOT a
+    // drop shadow, keeping the app's no-shadow rule). Real crest via TeamLogo.
+    private func crest(for club: Club) -> some View {
+        TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 58)
+            .background(
+                Circle()
+                    .fill(club.accentColor.opacity(0.22))
+                    .blur(radius: 14)
+            )
+    }
+
+    @ViewBuilder
+    private func cardBackground(for club: Club, isFollowing: Bool) -> some View {
+        if isFollowing {
+            // Team-color wash blooming from behind the crest, over the base card.
+            ZStack {
+                Color.dsBgCard
+                RadialGradient(
+                    colors: [club.accentColor.opacity(0.17), .clear],
+                    center: UnitPoint(x: 0.5, y: 0.32),
+                    startRadius: 0, endRadius: 115
+                )
+            }
+        } else {
+            Color.dsBgCard
+        }
+    }
+
+    // The Follow/Following pill (flexes to fill) + a square match-alert bell that
+    // only appears once the club is followed (alerts require following).
+    private func controlRow(for club: Club) -> some View {
+        let isFollowing = following.isFollowing(club)
+        return HStack(spacing: 7) {
+            followPill(for: club, isFollowing: isFollowing)
+            if isFollowing { bellButton(for: club) }
+        }
+        .padding(.top, 2)
+    }
+
+    private func followPill(for club: Club, isFollowing: Bool) -> some View {
+        Button { following.toggle(club) } label: {
+            HStack(spacing: 5) {
+                Image(systemName: isFollowing ? "star.fill" : "star")
+                    .font(.system(size: 11))
+                    .foregroundStyle(isFollowing ? Color.dsFollowStar : Color.dsFgSecondary)
+                Text(isFollowing ? "Following" : "Follow")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(isFollowing ? Color.dsFgPrimary : Color.dsFgSecondary)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 32)
+            .background(isFollowing ? Color.dsBgTertiary : Color.clear)
+            .overlay(
+                Capsule().stroke(isFollowing ? .clear : Color.dsFgQuaternary, lineWidth: 1)
+            )
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isFollowing ? "Unfollow \(club.displayName)" : "Follow \(club.displayName)")
     }
 
     private func bellButton(for club: Club) -> some View {
-        let hubVisited = notifications.hubVisited
         let on = teamAlerts.alertsEnabled(for: club.id)
-        return Button {
-            // First-ever interaction: don't silently enable everything. Send the user
-            // to the hub (a doorway, not a toggle) so they SEE what match alerts mean
-            // — which teams, which alert types — and opt in deliberately. Once they've
-            // visited the hub, the bell becomes a quick on/off.
-            guard hubVisited else { path.append(NotificationsRoute.hub); return }
-            teamAlerts.toggle(for: club.id)
-            // NOTE: the bell never requests iOS notification permission — that fires
-            // only from inside the hub on a first toggle-on (Bell-Tap fix, Bug 3).
-        } label: {
+        let hubVisited = notifications.hubVisited
+        return Button { bellAction(for: club) } label: {
             Image(systemName: on ? "bell.fill" : "bell")
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
-                .imageScale(.large)
+                .frame(width: 36, height: 32)
+                .background(on ? Color.dsAccentMuted : Color.dsBgTertiary)
+                .clipShape(Capsule())
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.plain)
         .accessibilityLabel(
             !hubVisited ? "Set up match alerts for \(club.displayName)"
             : on ? "Turn off match alerts for \(club.displayName)"
@@ -190,35 +258,76 @@ struct TeamsView: View {
         )
     }
 
-    // The "{N} team(s) with match alerts · Manage" line at the foot of the list → the hub.
-    private var matchAlertsLine: some View {
-        let n = teamAlerts.enabledCount
-        return Button { path.append(NotificationsRoute.hub) } label: {
-            HStack(spacing: 4) {
-                Text("\(n) team\(n == 1 ? "" : "s") with match alerts ·")
-                    .foregroundStyle(Color.dsFgSecondary)
-                Text("Manage")
-                    .foregroundStyle(Color.dsAccent)
-                Spacer(minLength: 0)
-            }
-            .font(.system(size: 13))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+    private func bellAction(for club: Club) {
+        // First-ever interaction: don't silently enable everything. Send the user to
+        // the hub (a doorway, not a toggle) so they SEE what match alerts mean —
+        // which teams, which alert types — and opt in deliberately. Once they've
+        // visited the hub, the bell becomes a quick on/off.
+        guard notifications.hubVisited else { path.append(NotificationsRoute.hub); return }
+        teamAlerts.toggle(for: club.id)
+        // NOTE: the bell never requests iOS notification permission — that fires only
+        // from inside the hub on a first toggle-on (Bell-Tap fix, Bug 3).
     }
 
-    private func followButton(for club: Club) -> some View {
-        let isFollowing = following.isFollowing(club)
-        return Button {
-            following.toggle(club)
+    // MARK: - Competitions + alerts footer
+
+    // A way back into international competitions for anyone who skipped them during
+    // onboarding (the only other place they're offered).
+    private var competitionsRow: some View {
+        NavigationLink {
+            CompetitionsView()
         } label: {
-            Image(systemName: isFollowing ? "star.fill" : "star")
-                .foregroundStyle(isFollowing ? Color.dsFollowStar : Color.dsFgSecondary)
-                .imageScale(.large)
+            HStack(spacing: 12) {
+                Image(systemName: "globe")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Color.dsAccent)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Follow competitions")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.dsFgPrimary)
+                    Text("SheBelieves Cup, USWNT, Concacaf W & more")
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(Color.dsFgSecondary)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.dsFgTertiary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color.dsBgCard)
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl))
         }
-        // .borderless so only the star toggles — not the whole row.
-        .buttonStyle(.borderless)
-        .accessibilityLabel(isFollowing ? "Unfollow \(club.displayName)" : "Follow \(club.displayName)")
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.top, 18)
+        .padding(.bottom, 8)
+    }
+
+    // "{N} team(s) with match alerts · Manage" → the hub, OR an empty-state hint.
+    @ViewBuilder
+    private var alertsFooter: some View {
+        let n = teamAlerts.enabledCount
+        Group {
+            if n > 0 {
+                Button { path.append(NotificationsRoute.hub) } label: {
+                    Text("\(n) team\(n == 1 ? "" : "s") with match alerts · ")
+                        .foregroundStyle(Color.dsFgSecondary)
+                    + Text("Manage").foregroundStyle(Color.dsAccent).fontWeight(.semibold)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Text("Tap the bell on a followed club to get match alerts.")
+                    .foregroundStyle(Color.dsFgTertiary)
+            }
+        }
+        .font(.system(size: 13))
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+        .padding(.bottom, 22)
     }
 
     private func errorView(_ message: String) -> some View {

@@ -261,14 +261,23 @@ struct BracketBattleView: View {
     }
 
     private func submitBar(allMade: Bool, made: Int, total: Int) -> some View {
-        VStack(spacing: 10) {
+        let submitting = viewModel.submitState == .submitting
+        return VStack(spacing: 10) {
+            // Online-only: the write must ack before we lock in. A failure surfaces
+            // here; the picks stay editable and the button retries.
+            if viewModel.submitState == .failed {
+                Text("Couldn't submit — tap to retry")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.dsError)
+                    .frame(maxWidth: .infinity)
+            }
             Button {
                 if auth.isSignedIn { Task { await viewModel.submit(store: store, userID: auth.userID) } } else { showSignIn = true }
             } label: {
-                Text(allMade ? "Lock in my picks" : "Pick all \(total) first (\(made)/\(total))")
+                Text(submitting ? "Submitting…" : (allMade ? "Lock in my picks" : "Pick all \(total) first (\(made)/\(total))"))
                     .primaryButtonLabel(allMade ? accent : Color.dsBgTertiary, fg: allMade ? .white : Color.dsFgTertiary)
             }
-            .disabled(!allMade)
+            .disabled(!allMade || submitting)
             Button { stage = .intro } label: {
                 Text("Save draft (edit later)")
                     .font(.system(size: 15, weight: .semibold)).foregroundStyle(accent)

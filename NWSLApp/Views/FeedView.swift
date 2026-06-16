@@ -12,10 +12,10 @@
 //  scrolls (same "always-visible filter" pattern as the Schedule tab).
 //
 //  Home owns no Feed data beyond the shared FollowingStore it reads from the
-//  environment: FeedViewModel holds the (TEMP seed) items and the club directory
+//  environment: FeedViewModel holds the live `/feed` items and the club directory
 //  it fetches to build the chips, and derives the visible list for the selected
-//  chip. Today's content is a curated static seed (see FeedContentProvider) so
-//  the tab is real and testable before a content backend exists.
+//  chip. Content is live via `ContentService` → the proxy `/feed` route; a failed
+//  fetch surfaces an honest "Couldn't load — tap to retry" (no seed fallback).
 //
 
 import SwiftUI
@@ -40,23 +40,19 @@ struct FeedView: View {
                     feed
                 }
             }
-            .navigationTitle("Feed")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSources = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .accessibilityLabel("Manage sources")
-                }
-            }
+            // Custom large-title header (title + gear + subtitle) like the other
+            // facelifted tabs; the system nav bar is hidden so the header owns the top.
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .top, spacing: 0) { feedHeader }
             .sheet(isPresented: $showSources) {
                 FeedSourcesView(sources: viewModel.sources())
                     .environment(feedPreferences)
             }
         }
         .task {
+            // Open to the user's default chip (Content preferences → Default view).
+            viewModel.selectedFilter =
+                FeedViewModel.ContentFilter(rawValue: feedPreferences.defaultFeedFilter) ?? .all
             // Hand the view model the shared directory, load the seed items, then
             // load the directory once (guarding on .idle so another tab having
             // loaded it first doesn't refetch). Items load independently of the
@@ -66,6 +62,37 @@ struct FeedView: View {
             if case .idle = clubStore.state { await clubStore.load() }
             await viewModel.loadItemsIfNeeded(following: following)
         }
+    }
+
+    // Large "Feed" title + a circular gear (source management) + subtitle, drawn as
+    // one pinned header (matches the Home / Schedule facelift headers).
+    private var feedHeader: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .center) {
+                Text("Feed")
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundStyle(Color.dsFgPrimary)
+                Spacer()
+                Button { showSources = true } label: {
+                    ZStack {
+                        Circle().fill(Color.dsBgCard)
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color.dsAccent)
+                    }
+                    .frame(width: 38, height: 38)
+                }
+                .accessibilityLabel("Manage sources")
+            }
+            Text("Reporters & writers covering your teams")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.dsFgSecondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgGrouped)
     }
 
     // MARK: - Feed (chips + content)
@@ -83,7 +110,7 @@ struct FeedView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(viewModel.chips, id: \.self) { filter in
-                    Chip(label: filter.label, isActive: viewModel.selectedFilter == filter) {
+                    Chip(label: filter.label, isActive: viewModel.selectedFilter == filter, compact: true) {
                         viewModel.selectedFilter = filter
                     }
                 }
@@ -143,14 +170,19 @@ struct FeedView: View {
             return "No posts yet. As your teams make news, it'll show up here."
         case .news:
             return "No news articles right now. Check back soon."
-        case .social:
-            return "No social posts right now. Check back soon."
+        case .clubs:
+            return "No club posts right now. Check back soon."
+        case .reporters:
+            return "No reporter posts right now. Check back soon."
+        case .players:
+            return "No player posts right now. Check back soon."
         }
     }
 
     private var errorMessage: String? {
         if case .error(let m) = viewModel.clubsState { return m }
-        return nil
+        // Online-only: a failed `/feed` fetch surfaces honestly (no stale/seed fallback).
+        return viewModel.itemsError
     }
 
     private var isReady: Bool {

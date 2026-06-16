@@ -20,17 +20,17 @@ enum DesignTeamColors {
     /// Abbreviation → brand hex (no '#'). From the design handoff team table.
     private static let palette: [String: String] = [
         "LA": "E6447B",   // Angel City FC
-        "BAY": "30D158",  // Bay FC
-        "BOS": "5AC8FA",  // Boston
+        "BAY": "2F80E8",  // Bay FC — brand navy (Pantone 296), brightened for dark-mode legibility (was a placeholder green)
+        "BOS": "2FA85A",  // Boston Legacy FC — "Legacy Green", legible on dark (was a placeholder blue)
         "CHI": "6BA4FF",  // Chicago Stars
-        "DEN": "FF6B4A",  // Denver
+        "DEN": "239E80",  // Denver Summit FC — "Evergreen" brand primary, brightened for dark-mode pop (was the Sandstone-red accent FF6B4A)
         "GFC": "7FD4C1",  // Gotham FC (ESPN's abbr; the design table's "NJ" was the pre-2021 NY/NJ Sky Blue mark)
         "HOU": "FF8A3D",  // Houston Dash
         "KC": "30C7E8",   // Kansas City Current
-        "NC": "B79B5B",   // North Carolina Courage
+        "NC": "E0354B",   // North Carolina Courage (club red — was an unjustified gold override)
         "SEA": "6E7FFF",  // OL Reign / Seattle
         "ORL": "B07CE8",  // Orlando Pride
-        "POR": "E8D26B",  // Portland Thorns
+        "POR": "FF4D6D",  // Portland Thorns (club red — was an unjustified gold override)
         "LOU": "C7A8FF",  // Racing Louisville
         "SD": "FFB340",   // San Diego Wave
         "UTA": "FFD60A",  // Utah Royals

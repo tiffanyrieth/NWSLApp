@@ -55,18 +55,20 @@ struct SettingsGroup<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
+                // Sentence-case bold white title (redesign language), not tracked caps.
                 Text(title)
-                    .trackedCaps()
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Color.dsFgPrimary)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(size: 12))
+                        .font(.system(size: 12.5))
                         .foregroundStyle(Color.dsFgSecondary)
                 }
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 6)
             VStack(spacing: 0) { content }
                 .background(Color.dsBgCard)
-                .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
         }
     }
 }

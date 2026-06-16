@@ -21,12 +21,22 @@ import Foundation
 
 @Observable
 final class HomeViewModel {
-    // Module 1/2 content (TEMP static seeds; see the providers). Loaded in
-    // loadContent(), which the view runs alongside the shared store loads.
+    // Module 1/2 live content, loaded in loadContent() alongside the shared store
+    // loads. Online-only: a failed fetch sets the matching per-module error below
+    // (and clears the items) so the module shows an honest "Couldn't load — tap to
+    // retry" — never stale/seed content.
     private(set) var teamContentItems: [ContentCard] = []
     // Named `allSpotlights` (not `spotlights`) so it doesn't collide with the
     // derived `spotlights(following:)` below.
     private(set) var allSpotlights: [PlayerSpotlight] = []
+
+    // Per-module load errors (Module 1 = content, Module 2 = spotlight). Each module
+    // fails independently — one going down doesn't blank the other. nil = no error.
+    private(set) var contentError: String? = nil
+    private(set) var spotlightError: String? = nil
+
+    /// The one simple, honest message both modules show on a failed load.
+    static let loadFailureMessage = "Couldn't load — tap to retry"
 
     // The active PER-TEAM chip on Module 1 (chip redesign): nil = "All" (the mixed,
     // round-robin feed); else a followed team's abbreviation = just that club's
@@ -68,12 +78,32 @@ final class HomeViewModel {
     /// (pull-to-refresh + a follows change), so a newly-followed team's content appears
     /// without relaunching. (Replaces the old idempotent-only TEMP guard.)
     func loadContent(following: FollowingStore, force: Bool = false) async {
-        guard force || teamContentItems.isEmpty else { return }
+        // Reload when forced, when nothing's loaded yet, or when a prior load errored
+        // (so the per-module "tap to retry" actually retries).
+        guard force || (teamContentItems.isEmpty && contentError == nil
+                        && allSpotlights.isEmpty && spotlightError == nil) else { return }
         let followed = followedAbbreviations(following)
-        teamContentItems = await contentService.homeCards(followedAbbreviations: followed)
-        // Live `/spotlight` (one real player per followed team) or the seed fallback;
-        // spotlights(following:) below picks one per team from whatever this returns.
-        allSpotlights = await contentService.spotlightCards(followedAbbreviations: followed)
+        // Module 1 (content) and Module 2 (spotlight) load + fail independently.
+        do {
+            teamContentItems = try await contentService.homeCards(followedAbbreviations: followed)
+            contentError = nil
+        } catch {
+            teamContentItems = []
+            contentError = Self.loadFailureMessage
+        }
+        do {
+            allSpotlights = try await contentService.spotlightCards(followedAbbreviations: followed)
+            spotlightError = nil
+        } catch {
+            allSpotlights = []
+            spotlightError = Self.loadFailureMessage
+        }
+    }
+
+    /// Retry a failed content/spotlight load (the per-module "tap to retry"). Forces a
+    /// refetch of both modules — they share the proxy, so one tap recovers both.
+    func retryContent(following: FollowingStore) async {
+        await loadContent(following: following, force: true)
     }
 
     /// Pull-to-refresh: refetch, reset the chip to All, then either lead with the new

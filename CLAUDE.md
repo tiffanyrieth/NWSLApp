@@ -360,7 +360,7 @@ NWSLApp/
 │   ├── TriviaService.swift            — Daily-Trivia client: triviaQuestions→/trivia; live-or-↩︎seed
 │   └── TriviaQuestionProvider.swift   — ↩︎ 55 hand-written trivia questions (live via /trivia)
 ├── Stores/                            — @Observable shared state → UserDefaults, injected
-│   ├── AppRouter.swift                — tab selection (AppTab); `openMatch(eventID:)` live-push tap; `tabReselected`/`reselectNonce` (re-tap-active-tab signal → Schedule snaps to today); DEBUG `-startTab`
+│   ├── AppRouter.swift                — tab selection (AppTab); `openMatch(eventID:)` live-push tap; `tabReselected`/`reselectNonce` (re-tap-active-tab signal → Schedule snaps to its rest boundary); DEBUG `-startTab`
 │   ├── AuthStore.swift                — @MainActor; Sign in with Apple → Supabase user; profile upsert; cached displayName; deleteAccount
 │   ├── BracketStore.swift             — Bracket per-edition/round draft + one-way submit + banked points + cached edition (`bracket.v2.*`)
 │   ├── ClubStore.swift                — shared club directory; one fetch, many readers
@@ -400,7 +400,7 @@ NWSLApp/
 │   ├── OnboardingView.swift           — first-open team + competition follow picker
 │   ├── SignInPromptView.swift         — sign-in half-sheet shown ONLY on a genuine sign-in-required action (Bracket submit); never auto-presented post-onboarding
 │   ├── NotificationAuthPromptView.swift — contextual "sign in for live alerts" half-sheet (Tier 2)
-│   ├── ScheduleView.swift             — color-block redesign: full-season cards; compact filter chips (NWSL · My teams · International); "SAT · MAR 14" date headers + TODAY chip; scroll-to-today + tap-active-tab→today; International shows a designed "coming soon" empty state (no comp data yet)
+│   ├── ScheduleView.swift             — color-block redesign: full-season cards; compact filter chips (NWSL · My teams · International); "SAT · MAR 14" date headers + TODAY chip; opens at the past/upcoming BOUNDARY (last kicked-off game's card at top via ScrollViewReader→`event.id`, upcoming below) — hidden behind an opacity gate until anchored so there's NO March-then-scroll flash on first open (incl. the Home-preload path); re-tap-active-tab + filter change animate back to the boundary; International shows a designed "coming soon" empty state (no comp data yet)
 │   ├── TeamsView.swift                — all-16 directory: ONE continuous list (followed floated to top, no section headers) + subtitle; follow-competitions row; per-row 🔔 alert toggles (followed) + "{N} teams · Manage" line at the followed/unfollowed boundary + nav-bar 🔔 → NotificationsView
 │   ├── CompetitionsView.swift         — follow international competitions
 │   ├── TeamDetailView.swift           — club page: header (⭐ follow) + social row + Squad·Stats tabs
@@ -529,8 +529,11 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
   green FT + "FULL TIME"), and a broadcast color-chip + venue rail (kept on past games too). Uniform card
   height across states. "SAT · MAR 14" date headers with a TODAY chip. Filters **NWSL · My teams ·
   International** (International is wired but data-less → a designed "coming soon" empty state until the
-  schedule goes competition-aware). Opens scrolled to today; **tapping the active Schedule tab snaps back
-  to today** (`AppRouter.reselectNonce`).
+  schedule goes competition-aware). **Opens at the past/upcoming boundary** — the last kicked-off game's
+  card pinned to the top with the upcoming fixtures (today's bar + future matchdays) just below, anchored
+  via ScrollViewReader to `event.id` and revealed only once positioned (opacity gate → no March-then-scroll
+  flash on first open, including when Home preloaded the season). **Re-tapping the active Schedule tab**
+  (and filter changes) animate back to that boundary (`AppRouter.reselectNonce`).
 - **Match detail** (redesign — `design-handoff/match-detail.jsx`) — a scaled-up Card C: a full-bleed
   team-color wash header (transparent nav bar, 72pt ring-free crests, score under each crest, temporal
   state in the center), a parent-reflecting "‹ {origin}" back button, and one card surface (`dsBgCard`).

@@ -43,14 +43,13 @@ struct ScheduleView: View {
     // can discover other games — NOT "My teams" (see the spec).
     @State private var selectedFilter: ScheduleViewModel.Filter = .nwsl
 
-    // The id of the day-section the ScrollView rests on, bound to `.scrollPosition`.
-    // Pre-set to the initial-scroll section in `.task` BEFORE the list's first render,
-    // so the schedule OPENS already there — no visible "load at March, then jump down"
-    // (MLS-style seamless landing). After first paint it tracks the user's scrolling;
-    // the re-anchor handlers below write it to snap back. (Re-anchoring to the SAME
-    // section can be swallowed by the two-way binding — a known rough edge to revisit;
-    // first-open is the priority and is solid.)
-    @State private var scrolledID: String?
+    // Drives the seamless first-open landing. The match list stays hidden (opacity 0)
+    // until it's been scrolled to the rest boundary (the last kicked-off game's card
+    // at the top), then revealed — so the schedule OPENS already positioned, with no
+    // visible "load at March, then scroll down" (the old flash). Flips true once, on
+    // the list's first appearance; re-anchors after that (filter change, re-tapping
+    // the tab) animate, which is the intended behavior.
+    @State private var hasPositioned = false
 
     var body: some View {
         NavigationStack {
@@ -75,37 +74,10 @@ struct ScheduleView: View {
             viewModel.clubStore = clubStore
             viewModel.following = following
             if case .idle = matchStore.state { await matchStore.load() }
-            // Pre-set the scroll target BEFORE the list's first render so it opens
-            // already positioned (no visible scroll from the March opener). The season
-            // is ready here on both paths — preloaded by Home (no suspension since we
-            // wired the store, so SwiftUI batches this into the first list render) or
-            // just loaded above (set before the clubStore await flips state to
-            // `.loaded`). NWSL/All targets don't need the club directory.
-            if scrolledID == nil {
-                scrolledID = viewModel.initialScrollSectionID(for: selectedFilter)
-            }
             if case .idle = clubStore.state { await clubStore.load() }
         }
-        // First-open positioning is the `.task` pre-set above (seamless). These
-        // handlers are the re-anchors; writing `scrolledID` drives `.scrollPosition`.
-        //
-        // "My teams" needs the club directory, which resolves a beat after the
-        // season. If that filter is active when clubs land, position it then —
-        // otherwise My teams would open stuck at the season opener.
-        .onChange(of: viewModel.clubs.isEmpty) { _, isEmpty in
-            guard !isEmpty, selectedFilter == .myTeams else { return }
-            scrolledID = viewModel.initialScrollSectionID(for: selectedFilter)
-        }
-        // Filter change: land on that filter's own initial-scroll section.
-        .onChange(of: selectedFilter) { _, _ in
-            scrolledID = viewModel.initialScrollSectionID(for: selectedFilter)
-        }
-        // Tapping the already-active Schedule tab snaps the list back toward the
-        // open view (the re-tap signal RootTabView's selection binding records).
-        .onChange(of: router.reselectNonce) { _, _ in
-            guard router.reselectedTab == .schedule else { return }
-            scrolledID = viewModel.initialScrollSectionID(for: selectedFilter)
-        }
+        // First-open positioning + all re-anchors live INSIDE the ScrollViewReader
+        // (matchList) so they can drive the scroll proxy directly. See `matchList`.
     }
 
     // International is wired but has no data yet (no competition field on Event) —
@@ -199,42 +171,75 @@ struct ScheduleView: View {
     }
 
     private func matchList(_ sections: [ScheduleViewModel.DaySection]) -> some View {
-        // `.scrollPosition(id:)` + `.scrollTargetLayout()`: the scroll rest position is
-        // bound to `scrolledID`, so when `.task` pre-sets it before this first renders,
-        // SwiftUI lays the content out ALREADY scrolled there — the schedule opens at
-        // the initial-scroll section with no visible motion (no "jump down from March").
-        ScrollView {
-            LazyVStack(spacing: 12, pinnedViews: [.sectionHeaders]) {
-                ForEach(sections) { section in
-                    Section {
-                        ForEach(section.events) { event in
-                            // Closure-based NavigationLink (not value-based): Event
-                            // isn't Hashable, and the card is the link's label so the
-                            // whole card is tappable. `.plain` keeps the card's look.
-                            NavigationLink {
-                                // Pass our name so the detail's back button reads
-                                // "‹ Schedule" (parent-reflecting back rule).
-                                MatchDetailView(event: event, origin: "Schedule")
-                            } label: {
-                                MatchCard(event: event)
+        // ScrollViewReader (not `.scrollPosition`) so we can anchor to a specific
+        // CARD — the last kicked-off game — rather than a day-section: that card lands
+        // at the very top with today's date bar + upcoming fixtures just below (so the
+        // last result is the first row and history is obviously scrollable above).
+        // The list is hidden until that first anchor lands, then revealed — no
+        // March-then-scroll flash. Re-anchors (filter change, re-tap) animate.
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 12, pinnedViews: [.sectionHeaders]) {
+                    ForEach(sections) { section in
+                        Section {
+                            ForEach(section.events) { event in
+                                // Closure-based NavigationLink (not value-based): Event
+                                // isn't Hashable, and the card is the link's label so the
+                                // whole card is tappable. `.plain` keeps the card's look.
+                                NavigationLink {
+                                    // Pass our name so the detail's back button reads
+                                    // "‹ Schedule" (parent-reflecting back rule).
+                                    MatchDetailView(event: event, origin: "Schedule")
+                                } label: {
+                                    MatchCard(event: event)
+                                }
+                                .buttonStyle(.plain)
+                                // The per-card scroll anchor target (event id).
+                                .id(event.id)
                             }
-                            .buttonStyle(.plain)
+                        } header: {
+                            DayHeader(dayKey: section.id, isToday: section.isToday)
                         }
-                    } header: {
-                        DayHeader(dayKey: section.id, isToday: section.isToday)
                     }
                 }
+                .padding(.vertical, 8)
             }
-            .padding(.vertical, 8)
-            // Makes each section's identity (its day-key id) a scroll target so
-            // `.scrollPosition` can match `scrolledID` to a section.
-            .scrollTargetLayout()
+            .contentMargins(.horizontal, 16, for: .scrollContent)
+            .background(Color.dsBgGrouped)
+            // Hidden until the first anchor lands (no flash), then revealed positioned.
+            .opacity(hasPositioned ? 1 : 0)
+            .onAppear {
+                guard !hasPositioned else { return }
+                anchorToBoundary(proxy, animated: false)
+                hasPositioned = true
+            }
+            // Filter change → land on that filter's own boundary (animated is fine).
+            .onChange(of: selectedFilter) { _, _ in anchorToBoundary(proxy, animated: true) }
+            // Re-tapping the active Schedule tab snaps back to the rest boundary.
+            .onChange(of: router.reselectNonce) { _, _ in
+                guard router.reselectedTab == .schedule else { return }
+                anchorToBoundary(proxy, animated: true)
+            }
+            // "My teams" needs the club directory, which resolves a beat after the
+            // season; re-anchor when those clubs land so it isn't stuck at the opener.
+            .onChange(of: viewModel.clubs.isEmpty) { _, isEmpty in
+                guard !isEmpty, selectedFilter == .myTeams else { return }
+                anchorToBoundary(proxy, animated: false)
+            }
         }
-        .contentMargins(.horizontal, 16, for: .scrollContent)
-        .background(Color.dsBgGrouped)
-        .scrollPosition(id: $scrolledID, anchor: .top)
         // No pull-to-refresh: the season loads once a year and live scores already
         // update in-card in real time, so a manual refresh has nothing to fetch.
+    }
+
+    /// Scroll so the rest "boundary" card (the last kicked-off game) is at the top —
+    /// the schedule's landing position. No-op when the filter has no dated games.
+    private func anchorToBoundary(_ proxy: ScrollViewProxy, animated: Bool) {
+        guard let id = viewModel.initialScrollEventID(for: selectedFilter) else { return }
+        if animated {
+            withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(id, anchor: .top) }
+        } else {
+            proxy.scrollTo(id, anchor: .top)
+        }
     }
 
     // "My teams" with nothing followed yet — a gentle nudge, per the spec.

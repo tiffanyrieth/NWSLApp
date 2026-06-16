@@ -129,8 +129,14 @@ Folders are created when their first real file lands, not preemptively.
 - **Content routes** (build + normalize to JSON `[ContentCard]` / models): `/team-videos`
   (Home: YouTube + club OG news + club Instagram), `/feed` (Feed: Bluesky reporters/clubs +
   news RSS + player Instagram), `/spotlight` (Player Spotlight), `/trivia` (Daily Trivia
-  KV pool). Server-side does Haiku relevance filtering (`claude-haiku-4-5`, KV-cached), a
-  flood cap, and dedupe.
+  KV pool). Server-side Haiku (`claude-haiku-4-5`, KV-cached) does both relevance AND
+  team-tagging for the third-party buckets: reporter + league-outlet Bluesky and news
+  RSS are gated (isNWSL, strict — national-team/international/foreign/men's dropped),
+  team-tagged, and filtered to the requested teams (off-topic + non-followed-team +
+  general-chatter dropped; genuine league-wide kept). Fails toward DROP for social
+  (fail-open for news). Club-official + player accounts are trusted fast paths (own
+  abbr, no Haiku). Every card carries a `sourceType` (club·reporter·player·league·news)
+  for the app's Feed chips. Plus a flood cap + dedupe.
 - **Headshots** (`src/headshots.ts`): `GET /headshots` serves an `{espnAthleteId: nwslGuid}`
   map (built from the public NWSL SDP JSON API name-matched to ESPN rosters, ~98%; weekly cron
   + admin `POST /headshots/run`; union-merged in KV with an `unmatched`/`overrides`/`meta`
@@ -312,7 +318,7 @@ NWSLApp/
 ├── Models/
 │   ├── BracketEdition.swift           — Bracket Battle: BracketRound/Entrant/Matchup/Edition (64→6 rounds, flat Codable)
 │   ├── Club.swift                     — flat Club + ESPN /teams decode (brand/alternate color → crests)
-│   ├── ContentCard.swift              — unified ALIVE-content model: 7 layouts + StalenessWindow (Home 72h / Feed 7d, 6-card-floored)
+│   ├── ContentCard.swift              — unified ALIVE-content model: 7 layouts + `sourceType` (club·reporter·player·league·news, for Feed chips) + StalenessWindow (Home 72h / Feed 7d, 6-card-floored)
 │   ├── FollowedCompetition.swift      — international competitions list + follow model
 │   ├── AthleteStatistics.swift        — ESPN Core API /statistics → PlayerSeasonStats
 │   ├── MatchSummary.swift             — ESPN /summary: lineups+formation, boxscore, key-events timeline
@@ -358,7 +364,7 @@ NWSLApp/
 │   ├── AuthStore.swift                — @MainActor; Sign in with Apple → Supabase user; profile upsert; cached displayName; deleteAccount
 │   ├── BracketStore.swift             — Bracket per-edition/round draft + one-way submit + banked points + cached edition (`bracket.v2.*`)
 │   ├── ClubStore.swift                — shared club directory; one fetch, many readers
-│   ├── FeedPreferencesStore.swift     — Feed content-type toggles + muted sources
+│   ├── FeedPreferencesStore.swift     — Feed content-type toggles + muted sources + `defaultFeedFilter` (the chip the Feed opens to, raw string)
 │   ├── FollowSyncCoordinator.swift    — @MainActor; the ONLY follows↔Supabase bridge (sign-in union-merge + ongoing sync)
 │   ├── NotificationSyncCoordinator.swift — @MainActor; device-token + notif-prefs↔Supabase bridge
 │   ├── TeamAlertStore.swift           — @Observable; per-team match-alert ON/OFF (`enabledTeamIDs: Set<String>`) → UserDefaults; `migrateFromGlobalIfNeeded` seeds followed teams iff a global match-day toggle was on; `onAlertChanged` sync seam
@@ -370,7 +376,7 @@ NWSLApp/
 │   └── TriviaStore.swift              — Daily-Trivia streak/bestStreak/accuracy + one-play/day gate
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
 │   ├── BracketViewModel.swift         — Bracket session: round phase, progress, results, leaderboard, settled-round scoring (+ Game Center submit)
-│   ├── FeedViewModel.swift            — content-type chips (All/News/Social) + filtered [ContentCard] (follows∩ OR league, 7d staleness); cards ← ContentService
+│   ├── FeedViewModel.swift            — source-class chips (All/News/Clubs/Reporters/Players, by `sourceType` w/ layout fallback; Reporters also covers league outlets) + filtered [ContentCard] (follows∩ OR league, 7d staleness); cards ← ContentService
 │   ├── HomeViewModel.swift            — derives Home modules from MatchStore+ClubStore+Following; Module-1 via ContentService
 │   ├── MatchDetailViewModel.swift     — one match: temporalState (past/live/future) + /summary + live refresh + preview
 │   ├── PredictXIViewModel.swift       — Predict slate (open fixtures per followed team) + scoring via /summary + real per-team leaderboards (+ Game Center submit)
@@ -404,8 +410,8 @@ NWSLApp/
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
 │   ├── PlayerSpotlightView.swift      — editorial spotlight: ghosted jersey # + hero, This Season grid, Story (Haiku blurb), Fast Facts + Watch
 │   ├── StandingsView.swift            — color-block table (redesign): inline header + "TOP 8 ADVANCE" pill; one rounded card; team-color left edge + color-coded abbr per row; PTS hero; cols # · TEAM · PTS · GP · W · D · L · LAST 5; cyan PLAYOFF LINE (top-8) dims below; followed-row tint/★; Last-5 derived from MatchStore via RecentForm
-│   ├── FeedView.swift                 — Feed tab: content-type chip bar + chronological ContentCardViews
-│   └── FeedSourcesView.swift          — Feed content preferences: toggles + mute sources
+│   ├── FeedView.swift                 — Feed tab (facelift): custom header (title+gear+subtitle) + source-class chip bar (All/News/Clubs/Reporters/Players) + chronological ContentCardViews; opens to the `defaultFeedFilter` chip
+│   └── FeedSourcesView.swift          — Feed content preferences: Default-view picker + content-type toggles + mute sources
 ├── Components/
 │   ├── BroadcastInfo.swift / BroadcastLink.swift — "How to Watch" DB + broadcast→watch-URL
 │   ├── Chip.swift                     — pill filter chip (Schedule + Feed chip bars); optional `compact` (13pt) for the redesigned Schedule bar
@@ -496,9 +502,14 @@ its own `NavigationStack`, lands on Home. Dark appearance app-wide. The season (
   `/crest` route (crisper than ESPN's raster for the 11 vector teams; lateral for the 5
   PNG-only teams), wired into every `TeamLogo` surface with the ESPN PNG as a safe fallback.
   Uniform modest padding. (Phase B2 Team Detail *banners* deferred pending a licensing review.)
-- **Feed** (`feed-tab-design-spec.md`) — reporters + news + social filtered to followed teams +
-  league. Content-type chip bar (All/News/Social) over the live `/feed` cards; gear →
-  `FeedSourcesView`.
+- **Feed** (`feed-tab-design-spec.md` + facelift `design-handoff/feed.jsx`) — reporters + news +
+  social filtered to followed teams + league. Facelift: custom header + the Avatar/Article card
+  reorg (two-line identity, platform dot, team pill + time, full-width news image). **Source-class
+  chip bar** (All · News · Clubs · Reporters · Players — by each card's `sourceType`; Reporters also
+  covers NWSL media/league-outlet accounts) over the live `/feed` cards; a **default-chip** setting +
+  the mute list live behind the gear (`FeedSourcesView`). The proxy now Haiku-team-tags the
+  reporter/league bucket + filters to followed teams (see Data Source), so reporter/league posts
+  carry a team color and off-topic/non-followed content is dropped server-side.
 - **Content Cards** — one `ContentCard` model + `ContentCardView` router back BOTH Home Module 1
   and Feed via 7 layouts, with a placement gate (Home = team voices; Feed = wider) + staleness
   (Home 72h / Feed 7d, 6-card-floored). All live via `ContentService` → proxy.

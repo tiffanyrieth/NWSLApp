@@ -50,6 +50,9 @@ struct FeedView: View {
             }
         }
         .task {
+            // Open to the user's default chip (Content preferences → Default view).
+            viewModel.selectedFilter =
+                FeedViewModel.ContentFilter(rawValue: feedPreferences.defaultFeedFilter) ?? .all
             // Hand the view model the shared directory, load the seed items, then
             // load the directory once (guarding on .idle so another tab having
             // loaded it first doesn't refetch). Items load independently of the
@@ -167,8 +170,12 @@ struct FeedView: View {
             return "No posts yet. As your teams make news, it'll show up here."
         case .news:
             return "No news articles right now. Check back soon."
-        case .social:
-            return "No social posts right now. Check back soon."
+        case .clubs:
+            return "No club posts right now. Check back soon."
+        case .reporters:
+            return "No reporter posts right now. Check back soon."
+        case .players:
+            return "No player posts right now. Check back soon."
         }
     }
 

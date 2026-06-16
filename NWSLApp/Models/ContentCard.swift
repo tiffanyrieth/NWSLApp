@@ -48,10 +48,21 @@ struct ContentCard: Identifiable, Codable, Hashable {
         case home, feed, both
     }
 
+    /// The source class behind a card, set by the proxy — drives the Feed's chip bar
+    /// (Clubs · Reporters · Players · News). `league` = NWSL media/league-outlet
+    /// social accounts (grouped under the Reporters chip). Optional: seed/older cards
+    /// and player cards from an older cron snapshot lack it, so the Feed infers it
+    /// from `layout` as a fallback (see FeedViewModel.sourceType(of:)).
+    enum SourceType: String, Codable {
+        case club, reporter, player, league, news
+    }
+
     let id: String
     let layout: Layout
     let platform: Platform
     let placement: Placement
+    /// Source class for the Feed chips; nil on seed/older cards (inferred from layout).
+    var sourceType: SourceType? = nil
 
     /// Join key → the followed `Club`'s crest + color (matched by abbreviation,
     /// the same join MatchStore/Home use; ESPN has no stable competitor id). Nil

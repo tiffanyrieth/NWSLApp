@@ -2,19 +2,15 @@
 //  CompetitionsView.swift
 //  NWSLApp
 //
-//  A standalone "Follow competitions" screen, reachable from the bottom of the
-//  Teams tab. International competitions are offered (collapsed) during
-//  onboarding, but a user who skips them there previously had no way back in —
-//  this screen is that path.
+//  "Competitions" — reached from the "Follow competitions ›" row at the bottom of the
+//  Teams tab. The opt-in extensions that make the app more than NWSL: the CONCACAF W
+//  Champions Cup (a club competition — one global toggle that folds your followed
+//  clubs' continental matches into the Schedule's "My teams") and women's national
+//  teams (followable entities whose matches weave into "My teams" alongside clubs).
 //
-//  It's a thin surface over the same FollowingStore competition API the
-//  onboarding rows use (`toggle`/`isFollowing` for FollowedCompetition), so the
-//  two stay perfectly in sync. The list is the static curated set
-//  (`FollowedCompetition.all`) — no network, no view model needed.
-//
-//  Following a competition is remembered but doesn't change the Schedule yet
-//  (it's NWSL-only) — that's the larger competition-aware-schedule work in
-//  CLAUDE.md's What's-Next. The footer says so, matching the onboarding copy.
+//  Per the Competitions feature handoff. Everything turned on here folds into "My
+//  teams" — there is no separate schedule chip. National-team alerts (a per-team bell
+//  reusing the club doorway) + "Browse all" land in a later phase.
 //
 
 import SwiftUI
@@ -22,48 +18,129 @@ import SwiftUI
 struct CompetitionsView: View {
     @Environment(FollowingStore.self) private var following
 
+    private let columns = [GridItem(.flexible(), spacing: 12),
+                           GridItem(.flexible(), spacing: 12)]
+
     var body: some View {
-        List {
-            Section {
-                ForEach(FollowedCompetition.all) { competition in
-                    competitionRow(competition)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Text("Go beyond the league. Anything you turn on here folds into My teams on your schedule.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .lineSpacing(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                section("CLUB COMPETITIONS") {
+                    championsCupRow
                 }
-            } header: {
-                Text("Follow international competitions to keep them on your radar.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .textCase(nil)
-                    .padding(.bottom, 4)
-            } footer: {
-                Text("Saved to your follows. Competition fixtures aren't in the schedule yet — that's coming.")
+
+                section("NATIONAL TEAMS") {
+                    Text("Follow your national team. Their matches appear in My teams alongside your clubs.")
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(Color.dsFgSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        ForEach(NationalTeam.featured) { nationalTeamCard($0) }
+                    }
+                }
             }
+            .padding(16)
         }
-        .listStyle(.insetGrouped)
+        .background(Color.dsBgGrouped)
         .navigationContextLabel("Competitions")
     }
 
-    // Mirrors OnboardingView.competitionRow so the two follow surfaces look and
-    // behave identically — a whole-row plain button that toggles the follow.
-    private func competitionRow(_ competition: FollowedCompetition) -> some View {
-        let isFollowing = following.isFollowing(competition)
-        return Button {
-            following.toggle(competition)
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: competition.systemImage)
-                    .foregroundStyle(isFollowing ? Color.accentColor : Color.secondary)
-                    .frame(width: 32)
-                Text(competition.name)
-                    .foregroundStyle(.primary)
-                Spacer(minLength: 8)
-                Image(systemName: isFollowing ? "checkmark.circle.fill" : "circle")
-                    .imageScale(.large)
-                    .foregroundStyle(isFollowing ? Color.accentColor : Color.secondary)
+    // MARK: - Club competitions
+
+    private var championsCupRow: some View {
+        let on = following.isConcacafFollowed
+        return HStack(spacing: 12) {
+            Image(systemName: "trophy.fill")
+                .font(.system(size: 17))
+                .foregroundStyle(on ? Color.dsSuccess : Color.dsFgSecondary)
+                .frame(width: 36, height: 36)
+                .background(Color.dsBgTertiary, in: RoundedRectangle(cornerRadius: DS.radiusSm))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Concacaf W Champions Cup")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.dsFgPrimary)
+                Text("Adds your clubs' Champions Cup matches to My teams.")
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .contentShape(Rectangle())
+            Spacer(minLength: 8)
+            Toggle("", isOn: Binding(get: { following.isConcacafFollowed },
+                                     set: { following.setConcacafFollowed($0) }))
+                .labelsHidden()
+                .tint(Color.dsSuccess)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(isFollowing ? "Unfollow \(competition.name)" : "Follow \(competition.name)")
+        .padding(14)
+        .background(Color.dsBgCard, in: RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+    }
+
+    // MARK: - National teams
+
+    private func nationalTeamCard(_ team: NationalTeam) -> some View {
+        let isFollowing = following.isFollowing(nationalTeam: team)
+        return VStack(spacing: 9) {
+            Text(team.code)
+                .font(.system(size: 13, weight: .heavy))
+                .foregroundStyle(isFollowing ? Color.dsAccent : Color.dsFgSecondary)
+                .frame(width: 44, height: 44)
+                .background(isFollowing ? Color.dsAccent.opacity(0.15) : Color.dsBgTertiary,
+                            in: RoundedRectangle(cornerRadius: DS.radiusSm, style: .continuous))
+            Text(team.name)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.dsFgPrimary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .frame(minHeight: 34, alignment: .center)
+            Button { following.toggle(nationalTeam: team) } label: {
+                Text(isFollowing ? "★ Following" : "☆ Follow")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(isFollowing ? Color.dsAccent : Color.dsFgSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(isFollowing ? Color.dsAccent.opacity(0.12) : Color.dsBgTertiary, in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(EdgeInsets(top: 16, leading: 12, bottom: 13, trailing: 12))
+        .frame(maxWidth: .infinity)
+        .background(cardBackground(isFollowing: isFollowing))
+        .overlay(
+            RoundedRectangle(cornerRadius: DS.radiusXl)
+                .stroke(isFollowing ? Color.dsAccent.opacity(0.4) : .clear, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func cardBackground(isFollowing: Bool) -> some View {
+        if isFollowing {
+            // Accent-blue wash (national teams have no brand color) — mirrors the NWSL
+            // club card's team-color bloom.
+            ZStack {
+                Color.dsBgCard
+                RadialGradient(colors: [Color.dsAccent.opacity(0.17), .clear],
+                               center: UnitPoint(x: 0.5, y: 0.32), startRadius: 0, endRadius: 90)
+            }
+        } else {
+            Color.dsBgCard
+        }
+    }
+
+    // MARK: - Shared
+
+    @ViewBuilder
+    private func section<Content: View>(_ title: String,
+                                        @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).trackedCaps(size: 11, tracking: 0.6, weight: .semibold, color: .dsFgTertiary)
+            content()
+        }
     }
 }
 

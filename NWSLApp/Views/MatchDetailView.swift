@@ -29,9 +29,10 @@ struct MatchDetailView: View {
     /// ("‹ Schedule"). Provided by the pusher so it reflects origin, not this
     /// screen's name (CLAUDE.md nav rule).
     private let origin: String
-    /// nil for ordinary NWSL matches (the only kind today). Mirrors MatchCard's
-    /// dormant competition tag; renders if a value is ever supplied.
-    private let badge: CompetitionBadge?
+    /// The competition this match belongs to — drives the header competition pill,
+    /// the info-row competition name, and neutral rendering of non-NWSL sides.
+    /// Defaults to `.nwsl` so the 99% schedule path is unchanged.
+    private let competition: CompetitionType
 
     @Environment(MatchStore.self) private var matchStore
 
@@ -39,10 +40,10 @@ struct MatchDetailView: View {
     @State private var pulse = false
     @Namespace private var tabUnderline
 
-    init(event: Event, origin: String = "Schedule", badge: CompetitionBadge? = nil) {
+    init(event: Event, origin: String = "Schedule", competition: CompetitionType = .nwsl) {
         _viewModel = State(initialValue: MatchDetailViewModel(event: event))
         self.origin = origin
-        self.badge = badge
+        self.competition = competition
     }
 
     private enum DetailTab: String, CaseIterable, Hashable {
@@ -92,10 +93,31 @@ struct MatchDetailView: View {
     private var tabbedLayout: some View {
         VStack(spacing: 0) {
             header
-            tabBar
-            Divider()
+            // Only show tabs that actually have data (a sparse non-NWSL match may
+            // have no lineups/stats) — and drop the bar entirely when only Play-by-
+            // Play remains, so there's no lone, pointless tab.
+            if visibleTabs.count > 1 {
+                tabBar
+                Divider()
+            }
             tabContent
         }
+    }
+
+    /// Which tabs have data to show. Before the summary loads we optimistically show
+    /// all three (the NWSL norm); once loaded, Lineups/Stats appear only when present.
+    private var visibleTabs: [DetailTab] {
+        guard let summary = viewModel.summary else { return DetailTab.allCases }
+        var tabs: [DetailTab] = [.summary]
+        if summary.homeRoster != nil || summary.awayRoster != nil { tabs.append(.lineups) }
+        if !statRows(summary).isEmpty { tabs.append(.stats) }
+        return tabs
+    }
+
+    /// The selected tab, snapped back to Play-by-Play if its tab vanished after load
+    /// (e.g. user was on Stats, then a sparse summary arrived without stats).
+    private var effectiveTab: DetailTab {
+        visibleTabs.contains(tab) ? tab : .summary
     }
 
     // ALL-CAPS labels with a sliding colored underline on the active tab — no
@@ -103,16 +125,16 @@ struct MatchDetailView: View {
     // color, or red while live.
     private var tabBar: some View {
         HStack(spacing: 0) {
-            ForEach(DetailTab.allCases, id: \.self) { item in
+            ForEach(visibleTabs, id: \.self) { item in
                 Button { tab = item } label: {
                     VStack(spacing: 6) {
                         Text(tabLabel(item).uppercased())
                             .font(.system(size: 12, weight: .semibold))
                             .tracking(1)
-                            .foregroundStyle(tab == item ? Color.dsFgPrimary : Color.dsFgTertiary)
+                            .foregroundStyle(effectiveTab == item ? Color.dsFgPrimary : Color.dsFgTertiary)
                         ZStack {
                             Rectangle().fill(.clear).frame(height: 2)
-                            if tab == item {
+                            if effectiveTab == item {
                                 Rectangle()
                                     .fill(underlineColor)
                                     .frame(height: 2)
@@ -150,7 +172,7 @@ struct MatchDetailView: View {
                 case .error(let message):
                     summaryError(message)
                 case .loaded(let summary):
-                    switch tab {
+                    switch effectiveTab {
                     case .summary: summaryTab(summary)
                     case .lineups: lineupsTab(summary)
                     case .stats:   statsTab(summary)
@@ -187,7 +209,13 @@ struct MatchDetailView: View {
 
         VStack(spacing: 14) {
             if events.isEmpty {
-                emptyState("No key events yet.")
+                // A real match with no goals/cards yet says "No key events yet"; a
+                // truly sparse fixture (no lineups, no stats either — common for a
+                // non-NWSL match) gets the gentler "will be updated" copy.
+                let hasRichData = summary.homeRoster != nil || summary.awayRoster != nil
+                    || !statRows(summary).isEmpty
+                emptyState(hasRichData ? "No key events yet."
+                                       : "Match details will be updated when available.")
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(events.enumerated()), id: \.offset) { index, ev in
@@ -541,9 +569,8 @@ struct MatchDetailView: View {
             if let channel = event.broadcastName {
                 MDInfoCard(label: "Broadcast", value: channel)
             }
-            // TEMP: no Competition model yet — every fetched match is NWSL regular
-            // season. Lights up properly when competition-aware (#13).
-            MDInfoCard(label: "Competition", value: "NWSL Regular")
+            MDInfoCard(label: "Competition",
+                       value: competition.displayLabel ?? "NWSL Regular Season")
         }
         .padding(.horizontal, 20)
     }
@@ -640,7 +667,9 @@ struct MatchDetailView: View {
 
     private var header: some View {
         VStack(spacing: 16) {
-            if let badge { badgePill(badge) }
+            // Competition label (non-NWSL only) — neutral tracked-caps pill, matching
+            // the schedule card's label. NWSL omits it (redundant on the home league).
+            if let label = competition.displayLabel { competitionPill(label) }
 
             // Scaled-up Card C: crest (hero) + ABBREVIATION + score on each side, the
             // temporal state in the center column between them. Two-team context →
@@ -830,13 +859,14 @@ struct MatchDetailView: View {
             .padding(.top, 40)
     }
 
-    private func badgePill(_ badge: CompetitionBadge) -> some View {
-        Text(badge.label)
-            .font(.caption.weight(.semibold))
+    private func competitionPill(_ label: String) -> some View {
+        Text(label.uppercased())
+            .font(.system(size: 10.5, weight: .bold))
+            .tracking(0.6)
+            .foregroundStyle(Color.dsFgSecondary)
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
-            .background(badge.color.opacity(0.18), in: Capsule())
-            .foregroundStyle(badge.color)
+            .background(Color.dsBgTertiary, in: Capsule())
     }
 
     // MARK: - Derived values
@@ -867,15 +897,34 @@ struct MatchDetailView: View {
     /// team-color callsite: formation dots, stat bars + values, the stats header,
     /// and the header wash/crest borders.
     private var matchColors: (home: ResolvedTeamColor, away: ResolvedTeamColor) {
-        Color.resolveMatchColors(
+        // Non-NWSL matches render each side by the schedule card's rule: an NWSL club
+        // keeps its brand color, a foreign/national-team side goes NEUTRAL gray ("a
+        // guest in your world" — no invented colors). NWSL matches use the full
+        // summary-driven resolver (unchanged).
+        if !competition.isNWSL {
+            return (sideColor(event.homeCompetitor), sideColor(event.awayCompetitor))
+        }
+        return Color.resolveMatchColors(
             homePrimary: homeHex, homeAlt: homeAltHex,
             awayPrimary: awayHex, awayAlt: awayAltHex
         )
     }
 
-    /// Header wash respects "no tint until the summary's colors arrive" (the
-    /// resolver always returns a fallback, so gate on hasTeamColors).
-    private func wash(_ resolved: ResolvedTeamColor) -> Color { hasTeamColors ? resolved.fill.opacity(0.30) : .clear }
+    /// One side's color for a non-NWSL match: brand color if it's an NWSL club we
+    /// know, else neutral gray (mirrors MatchCard.teamColor).
+    private func sideColor(_ competitor: Competitor?) -> ResolvedTeamColor {
+        guard let hex = DesignTeamColors.hex(for: competitor?.team?.abbreviation) else {
+            return ResolvedTeamColor(fill: Color(hex: "8E8E93"), onText: .white)
+        }
+        return ResolvedTeamColor(fill: Color.teamFillOnDark(hex: hex), onText: .white)
+    }
+
+    /// Header wash respects "no tint until the summary's colors arrive" (the resolver
+    /// always returns a fallback, so gate on hasTeamColors) — but a non-NWSL match
+    /// resolves its colors synchronously from the event, so it tints right away.
+    private func wash(_ resolved: ResolvedTeamColor) -> Color {
+        (hasTeamColors || !competition.isNWSL) ? resolved.fill.opacity(0.30) : .clear
+    }
 
     private var dateHeadline: String? {
         guard let kickoff = event.kickoff else { return nil }

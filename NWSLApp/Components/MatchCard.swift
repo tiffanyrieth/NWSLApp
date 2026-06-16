@@ -18,18 +18,6 @@
 
 import SwiftUI
 
-/// A non-NWSL competition tag for a match (CONCACAF W, etc.): a colored accent +
-/// pill. Still consumed by `MatchDetailView`; dormant on the schedule card (the
-/// redesign omits the competition label until non-default competition data exists,
-/// per the handoff flag). Kept here as the shared definition.
-///
-/// TEMP / placeholder-ready: nothing constructs a non-nil value yet — every match
-/// we fetch today is NWSL regular season, and there's no Competition data model.
-struct CompetitionBadge {
-    let label: String   // e.g. "CONCACAF W — Semifinal"
-    let color: Color
-}
-
 struct MatchCard: View {
     let match: ScheduledMatch
     private var event: Event { match.event }

@@ -20,8 +20,8 @@ enum DesignTeamColors {
     /// Abbreviation → brand hex (no '#'). From the design handoff team table.
     private static let palette: [String: String] = [
         "LA": "E6447B",   // Angel City FC
-        "BAY": "30D158",  // Bay FC
-        "BOS": "5AC8FA",  // Boston
+        "BAY": "2F80E8",  // Bay FC — brand navy (Pantone 296), brightened for dark-mode legibility (was a placeholder green)
+        "BOS": "2FA85A",  // Boston Legacy FC — "Legacy Green", legible on dark (was a placeholder blue)
         "CHI": "6BA4FF",  // Chicago Stars
         "DEN": "FF6B4A",  // Denver
         "GFC": "7FD4C1",  // Gotham FC (ESPN's abbr; the design table's "NJ" was the pre-2021 NY/NJ Sky Blue mark)

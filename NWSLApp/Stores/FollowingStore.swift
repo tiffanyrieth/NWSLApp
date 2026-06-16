@@ -28,6 +28,16 @@ final class FollowingStore {
     /// source (a curated list, not ESPN's /teams). Persisted the same way.
     private(set) var followedCompetitionIDs: Set<String>
 
+    /// The CONCACAF W Champions Cup global toggle (a CLUB competition). On ⇒ followed
+    /// clubs in the current draw pipe their Champions Cup matches into the Schedule's
+    /// "My teams". One switch covers all qualifying clubs (no per-club granularity).
+    private(set) var isConcacafFollowed: Bool
+
+    /// Followed women's national-team FIFA codes ("USA", "MEX"…) — a new kind of
+    /// followable entity that sits alongside clubs in "My teams"; their matches are
+    /// filtered out of the national-team ESPN feeds by code.
+    private(set) var followedNationalTeams: Set<String>
+
     /// Whether the user has been through the first-open onboarding ("Make it
     /// yours" team picker). Drives whether Home shows onboarding or the hub.
     /// Persisted so it survives launches — onboarding is a one-time gate.
@@ -40,12 +50,19 @@ final class FollowingStore {
     /// about the network, only that "something" may want to observe changes.
     var onFollowsChanged: ((Set<String>) -> Void)?
 
+    /// Fired after a Champions Cup toggle or national-team follow change, so the
+    /// Schedule refetches the competition feeds. Distinct from `onFollowsChanged`
+    /// (clubs → Supabase sync): this is purely a "the schedule needs new data" signal.
+    var onCompetitionFollowsChanged: (() -> Void)?
+
     private let defaults: UserDefaults
     // Static so the DEBUG reset helper (which has no instance) shares the exact
     // same key names — one source of truth, no drift.
     private static let storageKey = "followedClubIDs"
     private static let competitionsKey = "followedCompetitionIDs"
     private static let onboardedKey = "hasOnboarded"
+    private static let concacafKey = "isConcacafFollowed"
+    private static let nationalTeamsKey = "followedNationalTeamCodes"
 
     /// `defaults` is injectable so tests (and previews) can use an isolated
     /// store instead of the app's real preferences.
@@ -54,6 +71,8 @@ final class FollowingStore {
         let saved = defaults.stringArray(forKey: Self.storageKey) ?? []
         self.followedIDs = Set(saved)
         self.followedCompetitionIDs = Set(defaults.stringArray(forKey: Self.competitionsKey) ?? [])
+        self.isConcacafFollowed = defaults.bool(forKey: Self.concacafKey)
+        self.followedNationalTeams = Set(defaults.stringArray(forKey: Self.nationalTeamsKey) ?? [])
         // Treat anyone who already follows a club as onboarded, so existing
         // users (and seeded simulators) don't get sent back through the picker.
         self.hasOnboarded = defaults.bool(forKey: Self.onboardedKey) || !saved.isEmpty
@@ -104,6 +123,30 @@ final class FollowingStore {
         defaults.set(Array(followedCompetitionIDs), forKey: Self.competitionsKey)
     }
 
+    func isFollowing(nationalTeam team: NationalTeam) -> Bool {
+        followedNationalTeams.contains(team.code)
+    }
+
+    /// Follow/unfollow a women's national team (by FIFA code); persists + signals the
+    /// Schedule to refetch the national-team feeds.
+    func toggle(nationalTeam team: NationalTeam) {
+        if followedNationalTeams.contains(team.code) {
+            followedNationalTeams.remove(team.code)
+        } else {
+            followedNationalTeams.insert(team.code)
+        }
+        defaults.set(Array(followedNationalTeams), forKey: Self.nationalTeamsKey)
+        onCompetitionFollowsChanged?()
+    }
+
+    /// Set the CONCACAF W Champions Cup global toggle; persists + signals the Schedule.
+    func setConcacafFollowed(_ on: Bool) {
+        guard on != isConcacafFollowed else { return }
+        isConcacafFollowed = on
+        defaults.set(on, forKey: Self.concacafKey)
+        onCompetitionFollowsChanged?()
+    }
+
     /// Mark onboarding finished (the "Follow N teams" button). One-way: once
     /// onboarded, Home always opens onto the hub, not the picker.
     func completeOnboarding() {
@@ -133,6 +176,8 @@ final class FollowingStore {
         defaults.set([String](), forKey: storageKey)
         defaults.set([String](), forKey: competitionsKey)
         defaults.set(false, forKey: onboardedKey)
+        defaults.set(false, forKey: concacafKey)
+        defaults.set([String](), forKey: nationalTeamsKey)
     }
     #endif
 }

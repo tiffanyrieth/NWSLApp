@@ -31,6 +31,16 @@ final class MatchStore {
 
     private(set) var state: State = .idle
 
+    /// Per-competition load failures (keyed by house-style label), so the Schedule's
+    /// "My teams" can show an honest per-source retry while NWSL keeps working. NWSL
+    /// itself never lands here — a NWSL failure is a hard `state = .error`.
+    private(set) var partialErrors: [String: String] = [:]
+
+    /// The follow lens, handed in by RootTabView. `load()` reads the followed
+    /// national teams (+ later the Champions Cup toggle) so every caller fetches the
+    /// same merged NWSL + competition set — no first-loader-wins. nil = NWSL only.
+    var following: FollowingStore?
+
     private let service: ESPNService
     private let calendar: Calendar
     private let now: () -> Date
@@ -51,14 +61,71 @@ final class MatchStore {
     func load() async {
         state = .loading
         let year = calendar.component(.year, from: now())
+        let followedCodes = following?.followedNationalTeams ?? []
         do {
+            // NWSL is the spine — its failure is a hard error (the schedule is broken).
             let board = try await service.fetchScoreboard(year: year)
-            // Tag every NWSL event with `.nwsl` (the spine). Non-NWSL competition
-            // feeds merge into this list in later phases.
-            state = .loaded(board.events.map { ScheduledMatch(event: $0, competition: .nwsl) })
+            var matches = board.events.map { ScheduledMatch(event: $0, competition: .nwsl) }
+
+            // Followed women's national teams — each feed is an EXTRA: a failure
+            // records a partial error, never breaks the NWSL spine (online-only,
+            // no stale fallback). (Champions Cup curated source: a later phase.)
+            var errors: [String: String] = [:]
+            if !followedCodes.isEmpty {
+                let (ntMatches, ntErrors) = await fetchNationalTeamMatches(year: year,
+                                                                          followedCodes: followedCodes)
+                matches += ntMatches
+                errors = ntErrors
+            }
+
+            partialErrors = errors
+            state = .loaded(dedupedByEventID(matches))
         } catch {
+            partialErrors = [:]
             state = .error(message(for: error))
         }
+    }
+
+    /// Fetch every national-team feed in parallel, keeping only events that involve a
+    /// FOLLOWED national team (matched by FIFA code = ESPN's competitor abbreviation),
+    /// tagged with the feed's house-style label. Returns the matches + per-feed errors.
+    private func fetchNationalTeamMatches(
+        year: Int, followedCodes: Set<String>
+    ) async -> (matches: [ScheduledMatch], errors: [String: String]) {
+        await withTaskGroup(of: (label: String, result: Result<[ScheduledMatch], Error>).self) { group in
+            for feed in NationalTeamFeed.all {
+                group.addTask {
+                    do {
+                        let board = try await self.service.fetchScoreboard(year: year, league: feed.slug)
+                        let kept = board.events.filter { event in
+                            let home = event.homeCompetitor?.team?.abbreviation
+                            let away = event.awayCompetitor?.team?.abbreviation
+                            return (home.map(followedCodes.contains) ?? false)
+                                || (away.map(followedCodes.contains) ?? false)
+                        }.map { ScheduledMatch(event: $0, competition: .international(feed.label)) }
+                        return (feed.label, .success(kept))
+                    } catch {
+                        return (feed.label, .failure(error))
+                    }
+                }
+            }
+            var all: [ScheduledMatch] = []
+            var errors: [String: String] = [:]
+            for await item in group {
+                switch item.result {
+                case .success(let m): all += m
+                case .failure:        errors[item.label] = "Couldn't load \(item.label) — pull to retry."
+                }
+            }
+            return (all, errors)
+        }
+    }
+
+    /// Drop cross-feed duplicates (the same match surfacing in two national-team
+    /// feeds), keeping the first tag. NWSL + national-team event ids never collide.
+    private func dedupedByEventID(_ matches: [ScheduledMatch]) -> [ScheduledMatch] {
+        var seen = Set<String>()
+        return matches.filter { seen.insert($0.id).inserted }
     }
 
     /// The loaded season as tagged matches (empty unless we're in `.loaded`).

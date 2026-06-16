@@ -152,6 +152,14 @@ struct RootTabView: View {
         .environment(notifications)
         .environment(teamAlerts)
         .task {
+            // Hand the shared season store the follow lens (so load() fetches NWSL +
+            // the user's followed national-team feeds) and refetch the schedule when a
+            // competition/national-team follow changes. Set synchronously, before any
+            // tab's first matchStore.load(). Idempotent (re-assigning is harmless).
+            matches.following = following
+            following.onCompetitionFollowsChanged = { [matches] in
+                Task { await matches.load() }
+            }
             // Restore any saved Supabase session, then start follow sync. Guard so
             // re-running .task (it can fire again on scene changes) doesn't build a
             // second coordinator.

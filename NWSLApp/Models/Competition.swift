@@ -59,3 +59,23 @@ struct ScheduledMatch: Identifiable {
     let competition: CompetitionType
     var id: String { event.id }
 }
+
+/// A fetchable women's national-team competition: an ESPN scoreboard `slug` (served
+/// via the proxy `?league=` allowlist) + the HOUSE-STYLE `label` its matches carry on
+/// the card. After fetching, MatchStore keeps only events involving a FOLLOWED
+/// national team (matched by FIFA code), tagging each `.international(label)`.
+///
+/// World Cup + Olympics are deliberately omitted (the design defers their
+/// whole-tournament UI). Copa América Femenina / Arnold Clark slugs can be added once
+/// confirmed + allowlisted in the proxy.
+struct NationalTeamFeed {
+    let slug: String
+    let label: String
+
+    static let all: [NationalTeamFeed] = [
+        .init(slug: "fifa.friendly.w",              label: "International Friendly"),
+        .init(slug: "fifa.shebelieves",             label: "SheBelieves Cup"),
+        .init(slug: "concacaf.w.gold",              label: "Concacaf W Gold Cup"),
+        .init(slug: "concacaf.womens.championship", label: "Concacaf W Championship"),
+    ]
+}

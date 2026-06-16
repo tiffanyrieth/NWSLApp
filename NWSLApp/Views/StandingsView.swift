@@ -134,7 +134,9 @@ struct StandingsView: View {
     private var tableBody: some View {
         // Compute the Last-5 map once per render (cheap, O(events)) and thread it
         // into the rows rather than recomputing per row.
-        let form = RecentForm.lastFiveByAbbreviation(in: matchStore.events)
+        // NWSL-only events: a club's Last-5 is its LEAGUE form — Champions Cup ties
+        // (which carry NWSL abbreviations) must not count toward it.
+        let form = RecentForm.lastFiveByAbbreviation(in: matchStore.nwslEvents)
         return VStack(spacing: 0) {
             columnHeader
             card(form: form)

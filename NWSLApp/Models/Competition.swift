@@ -68,6 +68,16 @@ struct ScheduledMatch: Identifiable {
 /// World Cup + Olympics are deliberately omitted (the design defers their
 /// whole-tournament UI). Copa América Femenina / Arnold Clark slugs can be added once
 /// confirmed + allowlisted in the proxy.
+/// The CONCACAF W Champions Cup ESPN feed — a CLUB competition (NWSL clubs vs Liga
+/// MX et al.). Contrary to the earlier assumption, ESPN DOES carry it under this slug;
+/// MatchStore fetches it when the Champions Cup toggle is on and keeps matches that
+/// involve an NWSL club (refined to FOLLOWED clubs at the My-teams filter). Joins to
+/// clubs by NWSL abbreviation (WAS, GFC — identical across the NWSL + CC feeds).
+enum ChampionsCupFeed {
+    static let slug = "concacaf.w.champions_cup"
+    static let label = "Concacaf W Champions Cup"
+}
+
 struct NationalTeamFeed {
     let slug: String
     let label: String

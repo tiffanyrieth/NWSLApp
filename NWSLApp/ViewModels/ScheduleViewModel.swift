@@ -121,13 +121,15 @@ final class ScheduleViewModel {
             // The home-league chip is NWSL only — competition matches never appear here.
             return all.filter { $0.competition.isNWSL }
         case .myTeams:
-            // Followed clubs' NWSL matches + every non-NWSL match in the store (those
-            // are already filtered to FOLLOWED national teams upstream in MatchStore,
-            // and — later — followed clubs' Champions Cup matches). "Everything you
-            // care about", woven into one timeline.
+            // "Everything you care about", woven into one timeline:
+            //  • National-team matches — already filtered to FOLLOWED teams upstream
+            //    in MatchStore, so always keep them.
+            //  • NWSL + Champions Cup matches — keep only those involving a FOLLOWED
+            //    club (the Champions Cup global toggle gates the FETCH; this narrows
+            //    its matches to the clubs you actually follow).
             let abbreviations = followedAbbreviations
             return all.filter { match in
-                guard match.competition.isNWSL else { return true }
+                if case .international = match.competition { return true }
                 let home = match.event.homeCompetitor?.team?.abbreviation
                 let away = match.event.awayCompetitor?.team?.abbreviation
                 return (home.map(abbreviations.contains) ?? false)

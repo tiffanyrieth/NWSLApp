@@ -78,6 +78,16 @@ final class MatchStore {
                 errors = ntErrors
             }
 
+            // CONCACAF W Champions Cup (a CLUB competition ESPN does carry) — fetched
+            // only when the user's global toggle is on. We keep every match involving
+            // an NWSL club here; the My-teams filter narrows to FOLLOWED clubs. Same
+            // soft-fail policy as the national-team feeds (never breaks the spine).
+            if following?.isConcacafFollowed == true {
+                let (ccMatches, ccError) = await fetchChampionsCupMatches(year: year)
+                matches += ccMatches
+                if let ccError { errors[ChampionsCupFeed.label] = ccError }
+            }
+
             partialErrors = errors
             state = .loaded(dedupedByEventID(matches))
         } catch {
@@ -121,6 +131,22 @@ final class MatchStore {
         }
     }
 
+    /// Fetch the CONCACAF W Champions Cup feed, keeping only matches that involve an
+    /// NWSL club (a known abbreviation — DesignTeamColors covers the 16; the Liga MX
+    /// vs Liga MX ties aren't "yours"). Tagged `.concacafChampionsCup`. Soft-fail.
+    private func fetchChampionsCupMatches(year: Int) async -> (matches: [ScheduledMatch], error: String?) {
+        do {
+            let board = try await service.fetchScoreboard(year: year, league: ChampionsCupFeed.slug)
+            let kept = board.events.filter { event in
+                DesignTeamColors.hex(for: event.homeCompetitor?.team?.abbreviation) != nil
+                    || DesignTeamColors.hex(for: event.awayCompetitor?.team?.abbreviation) != nil
+            }.map { ScheduledMatch(event: $0, competition: .concacafChampionsCup) }
+            return (kept, nil)
+        } catch {
+            return ([], "Couldn't load \(ChampionsCupFeed.label) — pull to retry.")
+        }
+    }
+
     /// Drop cross-feed duplicates (the same match surfacing in two national-team
     /// feeds), keeping the first tag. NWSL + national-team event ids never collide.
     private func dedupedByEventID(_ matches: [ScheduledMatch]) -> [ScheduledMatch] {
@@ -134,9 +160,16 @@ final class MatchStore {
         return []
     }
 
-    /// The loaded season as raw events — the shape existing readers (Schedule,
-    /// Home, Standings' Last-5, `matches(for:)`) already use. Derived from `matches`.
+    /// The loaded season as raw events — the shape existing readers (Schedule, Home,
+    /// Predict) already use. Derived from `matches`, ALL competitions.
     var events: [Event] { matches.map(\.event) }
+
+    /// NWSL-only events. Use this (not `events`) for anything that joins by NWSL club
+    /// abbreviation — Standings' Last-5, season-form comparisons, `matches(for:)` —
+    /// so a Champions Cup match (which carries a real NWSL abbreviation like WAS/GFC)
+    /// never leaks into a club's league record. National-team matches never collide
+    /// (their codes aren't NWSL abbreviations), but the Champions Cup ones would.
+    var nwslEvents: [Event] { matches.filter { $0.competition.isNWSL }.map(\.event) }
 
     // TEMP (fragile join): we match a club to its matches by `abbreviation`
     // because ESPN's scoreboard competitor `Team` carries no id (only the
@@ -147,7 +180,9 @@ final class MatchStore {
     // attaches a stable id to every competitor. Until then the Team page shows a
     // visible empty state rather than failing silently.
     func matches(for club: Club) -> [Event] {
-        let clubMatches = events.filter { event in
+        // NWSL-only: a club's league record/fixtures, not its Champions Cup ties
+        // (those reach the schedule via the tagged `matches`/My-teams path instead).
+        let clubMatches = nwslEvents.filter { event in
             event.homeCompetitor?.team?.abbreviation == club.abbreviation
                 || event.awayCompetitor?.team?.abbreviation == club.abbreviation
         }

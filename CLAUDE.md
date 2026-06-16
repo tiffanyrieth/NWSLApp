@@ -230,9 +230,8 @@ understanding each change matters as much as shipping it.
   (SwiftUI's automatic back-title doesn't propagate here because the tab roots hide their bars for
   custom headers, so the parent name is passed explicitly.) Don't hardcode the current screen's name.
   On full-bleed detail screens the header (crests + score, etc.) carries identity, so there's **no
-  centered nav title** — just the parent back button. *(Migration note: `TeamDetailView` still
-  hardcodes "Teams"; switch it to the pushed-in `origin` when the Club page is redesigned so a tap
-  from Standings reads "‹ Standings".)*
+  centered nav title** — just the parent back button. `TeamDetailView` takes an `origin` and renders
+  "‹ {origin}" directly (Teams→"Teams", Standings→"Standings"); `MatchDetailView` does the same.
 - Navigation state resets predictably (tapping a tab returns to its root).
 - Placeholders allowed only as intentional scaffolding: a clean "Coming soon" state (never
   blank/broken) AND flagged in the File Map. A placeholder must look deliberate, not forgotten.
@@ -606,6 +605,11 @@ checklist above.) Still pending, as they come up from real use:
   rename silently empties a schedule. Fix: a normalized id map.
 - Team social links — verify a couple of subreddit handles (KC `r/KCCurrent`; CHI `r/redstars`
   vs `r/ChicagoStars`; BOS/DEN/LOU none).
+- **Club-page links data pass** — the redesigned Club page (#5) renders OFFICIAL + Fan-community
+  link pills only for platforms present in `TeamSocialLinksProvider` (currently reddit/bluesky/IG/
+  YT/TikTok). The design also spec's **Website · Shop · Tickets** (OFFICIAL) and **Discord** (Fan
+  community); these aren't in the data yet, so they're gracefully omitted. Curate per-club URLs for
+  all 16 (add cases to `SocialPlatform` + the provider). Discord is spotty — not every club has one.
 
 **Longer-term:**
 - **Push — Tier 2 (SERVER push)** — code-complete through Stage C (app side + Worker

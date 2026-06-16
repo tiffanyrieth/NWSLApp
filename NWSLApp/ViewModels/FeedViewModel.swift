@@ -10,16 +10,16 @@
 //     set — the Feed only ever shows content about teams the user follows plus
 //     league-wide items.
 //
-//  The filter chips are CONTENT-TYPE, not per-team (All / News / Social). The Feed
-//  is the league-wide "soccer conversation" — content is already scoped by the
-//  user's follows, so team chips would over-filter; team-specific content lives on
-//  Home. The chip then narrows by card layout.
+//  The filter chips are SOURCE-CLASS, not per-team (All / News / Clubs / Reporters /
+//  Players), keyed off each card's proxy-set `sourceType`. The Feed is the
+//  league-wide "soccer conversation" — content is already scoped by the user's
+//  follows, so team chips would over-filter; team-specific content lives on Home.
 //
 //  Filtering, in order:
 //   1. Base — placement != .home, AND (about a followed team OR league-wide).
-//   2. Chip — All / News (newsArticle) / Social (every individual voice: reporter
-//      Bluesky + club Bluesky + player IG/TikTok clips). "Social" absorbs the old
-//      "Reporters" chip (B3a); player IG/TikTok arrive live in B3b.
+//   2. Chip — All / News / Clubs / Reporters (also NWSL media + league outlets) /
+//      Players, via sourceType(of:) (falls back to inferring from layout when the
+//      proxy hasn't set sourceType — seed cards, or player cards from an older cron).
 //   3. Preferences — drop muted sources + toggled-off content types.
 //   4. Staleness (≤7 days) + reverse-chronological.
 //
@@ -28,16 +28,19 @@ import Foundation
 
 @Observable
 final class FeedViewModel {
-    /// The Feed's content-type filter (the chip bar). Replaces the old per-team
-    /// chips — see the file note.
+    /// The Feed's source-class filter (the chip bar): All · News · Clubs · Reporters
+    /// · Players, keyed off each card's `sourceType`. (Reporters also covers NWSL
+    /// media/league-outlet accounts — the `league` source class.)
     enum ContentFilter: String, CaseIterable, Hashable {
-        case all, news, social
+        case all, news, clubs, reporters, players
 
         var label: String {
             switch self {
-            case .all:    return "All"
-            case .news:   return "News"
-            case .social: return "Social"
+            case .all:       return "All"
+            case .news:      return "News"
+            case .clubs:     return "Clubs"
+            case .reporters: return "Reporters"
+            case .players:   return "Players"
             }
         }
     }
@@ -58,6 +61,13 @@ final class FeedViewModel {
     private(set) var allItems: [ContentCard] = []
     var selectedFilter: ContentFilter = .all
 
+    /// Online-only: a failed `/feed` fetch sets this honest message (the view shows
+    /// "Couldn't load — tap to retry") instead of silently serving stale/seed content.
+    private(set) var itemsError: String? = nil
+
+    /// The one simple, honest message a failed Feed load shows.
+    static let loadFailureMessage = "Couldn't load — tap to retry"
+
     private let contentService: ContentService
 
     init(contentService: ContentService = ContentService()) {
@@ -73,9 +83,15 @@ final class FeedViewModel {
     /// the live `/feed` query to the followed clubs' team posts).
     func load(following: FollowingStore) async {
         await clubStore?.load()
-        allItems = (await contentService.feedCards(
-            followedAbbreviations: followedAbbreviations(following)
-        )).sorted { $0.timestamp > $1.timestamp }
+        do {
+            allItems = try await contentService.feedCards(
+                followedAbbreviations: followedAbbreviations(following)
+            ).sorted { $0.timestamp > $1.timestamp }
+            itemsError = nil
+        } catch {
+            allItems = []
+            itemsError = Self.loadFailureMessage
+        }
     }
 
     /// Loads the Feed cards if not already loaded. Callers load the shared ClubStore
@@ -83,10 +99,18 @@ final class FeedViewModel {
     /// load so the Feed still populates when another tab (Home, the landing tab)
     /// already loaded the directory.
     func loadItemsIfNeeded(following: FollowingStore) async {
-        guard allItems.isEmpty else { return }
-        allItems = (await contentService.feedCards(
-            followedAbbreviations: followedAbbreviations(following)
-        )).sorted { $0.timestamp > $1.timestamp }
+        // First load only. After an error the view's "tap to retry" calls `load()`
+        // directly, so don't auto-refetch here on a set error.
+        guard allItems.isEmpty, itemsError == nil else { return }
+        do {
+            allItems = try await contentService.feedCards(
+                followedAbbreviations: followedAbbreviations(following)
+            ).sorted { $0.timestamp > $1.timestamp }
+            itemsError = nil
+        } catch {
+            allItems = []
+            itemsError = Self.loadFailureMessage
+        }
     }
 
     /// Abbreviations of the followed clubs — scopes the live `/feed` query (the
@@ -132,21 +156,30 @@ final class FeedViewModel {
         return false
     }
 
-    /// The content-type chip → which layouts it admits. "Social" is the home for
-    /// every individual/conversational voice — reporter Bluesky, club Bluesky, and
-    /// player IG/TikTok clips (the last arrive live in B3b).
+    /// The chip → which source classes it admits, keyed off `sourceType(of:)`.
+    /// Reporters also covers `league` (NWSL media/league-outlet social accounts).
     private func passesFilter(_ card: ContentCard) -> Bool {
         switch selectedFilter {
-        case .all:    return true
-        case .news:   return card.layout == .newsArticle
-        case .social:
-            switch card.layout {
-            case .blueskyReporter, .blueskyTeamText, .blueskyTeamMedia,
-                 .socialVideo, .instagramFallback:
-                return true
-            default:
-                return false
-            }
+        case .all:       return true
+        case .news:      return sourceType(of: card) == .news
+        case .clubs:     return sourceType(of: card) == .club
+        case .reporters: return sourceType(of: card) == .reporter || sourceType(of: card) == .league
+        case .players:   return sourceType(of: card) == .player
+        }
+    }
+
+    /// The card's source class: the proxy-set `sourceType` when present, else
+    /// inferred from `layout` (seed/older cards, and player IG cards from a cron
+    /// snapshot built before the proxy emitted `sourceType`). On the Feed,
+    /// socialVideo/IG is a player clip (club social is placement "home").
+    private func sourceType(of card: ContentCard) -> ContentCard.SourceType {
+        if let t = card.sourceType { return t }
+        switch card.layout {
+        case .newsArticle:                          return .news
+        case .blueskyReporter:                      return .reporter
+        case .blueskyTeamText, .blueskyTeamMedia:   return .club
+        case .youtube:                              return .club
+        case .socialVideo, .instagramFallback:      return .player
         }
     }
 

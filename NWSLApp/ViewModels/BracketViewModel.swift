@@ -22,8 +22,14 @@ import Foundation
 final class BracketViewModel {
     enum State { case idle, loading, loaded, error(String) }
     enum RoundPhase { case open, submitted, closed, scored }
+    /// Online-only submit lifecycle: `.submitting` while the server write is in
+    /// flight, `.failed` if it errored (the view shows "Couldn't submit — tap to
+    /// retry"; picks stay editable). The local "locked in" state only flips on a real
+    /// ack, so success is never faked ahead of the server.
+    enum SubmitState: Equatable { case idle, submitting, failed }
 
     private(set) var state: State = .idle
+    private(set) var submitState: SubmitState = .idle
     private(set) var edition: BracketEdition?
     private(set) var leaderboard: [BracketLeaderboardRow] = []
 
@@ -38,15 +44,20 @@ final class BracketViewModel {
     // MARK: - Loading
 
     /// Fetch the active edition, cache its summary for the Home gate, score any
-    /// settled-but-unscored round, and load the leaderboard. No active edition →
-    /// loaded with `edition == nil` (the game hides), never an error.
+    /// settled-but-unscored round, and load the leaderboard. Online-only: a fetch
+    /// FAILURE is an honest `.error` (tap to retry) — no cached-edition fallback. A
+    /// genuinely empty backend (no active edition) is loaded with `edition == nil`
+    /// (the game hides), which is not an error.
     func load(store: BracketStore, userID: UUID? = nil, displayName: String? = nil) async {
         state = .loading
-        let fetched = await service.currentEdition()
-        if let fetched { store.cacheEdition(fetched) }
-        // Offline-first: fall back to the last REAL edition the store cached (no
-        // fabricated sample). Nil only when nothing's ever been fetched + we're offline.
-        guard let edition = fetched ?? store.cachedEdition else {
+        let fetched: BracketEdition?
+        do {
+            fetched = try await service.currentEdition()
+        } catch {
+            state = .error("Couldn't load the bracket — tap to retry.")
+            return
+        }
+        guard let edition = fetched else {
             store.clearActiveEdition()
             self.edition = nil
             state = .loaded
@@ -133,16 +144,23 @@ final class BracketViewModel {
         store.setPick(matchupID: matchup.id, entrantID: entrantID, round: round)
     }
 
-    /// Commit the current round and persist the votes to the backend. `userID` comes
-    /// from the sign-in gate at the call site (votes are owner-scoped); a nil id
-    /// records the local submit only.
+    /// Commit the current round by persisting the votes to the backend, then — only
+    /// on a successful server ack — flipping the local "locked in" state. `userID`
+    /// comes from the sign-in gate at the call site (votes are owner-scoped). Online-
+    /// only: a failed (or sign-in-less) write sets `.failed` so the picks stay editable
+    /// and the view offers "tap to retry"; we never fake the lock-in ahead of the ack.
     func submit(store: BracketStore, userID: UUID?) async {
         guard let edition, allPicksMade(store: store) else { return }
+        guard let userID else { submitState = .failed; return }
         let round = edition.currentRound
-        store.submit(round: round)
-        if let userID {
-            await service.submit(editionID: edition.id, round: round,
-                                 picks: store.picks(for: round), userID: userID)
+        submitState = .submitting
+        do {
+            try await service.submit(editionID: edition.id, round: round,
+                                     picks: store.picks(for: round), userID: userID)
+            store.submit(round: round)   // local lock — ONLY after the server ack
+            submitState = .idle
+        } catch {
+            submitState = .failed
         }
     }
 

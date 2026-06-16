@@ -26,10 +26,16 @@ final class FeedPreferencesStore {
     /// `setMuted(_:_:)` so persistence stays in sync.
     private(set) var mutedSources: Set<String>
 
+    /// The chip the Feed opens to (the `ContentFilter.rawValue`, e.g. "all" /
+    /// "reporters"). Stored as a raw string so this store needn't depend on the
+    /// view model's enum; the Feed maps it back. Defaults to "all".
+    var defaultFeedFilter: String { didSet { defaults.set(defaultFeedFilter, forKey: defaultFilterKey) } }
+
     private let defaults: UserDefaults
     private let postsKey = "feedShowReporterPosts"
     private let articlesKey = "feedShowArticleLinks"
     private let mutedKey = "feedMutedSources"
+    private let defaultFilterKey = "feedDefaultFilter"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -38,6 +44,7 @@ final class FeedPreferencesStore {
         self.showReporterPosts = defaults.object(forKey: postsKey) as? Bool ?? true
         self.showArticleLinks = defaults.object(forKey: articlesKey) as? Bool ?? true
         self.mutedSources = Set(defaults.stringArray(forKey: mutedKey) ?? [])
+        self.defaultFeedFilter = defaults.string(forKey: defaultFilterKey) ?? "all"
     }
 
     func isMuted(_ source: String) -> Bool {

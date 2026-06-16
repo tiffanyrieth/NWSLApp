@@ -4,47 +4,37 @@
 //
 //  The app-side client for the LIVE Daily-Trivia question pool — the Fan Zone
 //  game's equivalent of `ContentService`. It fetches the proxy's `/trivia` route
-//  (the owner-loaded ~500-question pool, served from the Worker's KV) and decodes
+//  (the owner-loaded question pool, served from the Worker's KV) and decodes
 //  `[TriviaQuestion]`; the deterministic daily-5 selection stays in
 //  `TriviaViewModel`, and the durable streak/accuracy state stays in `TriviaStore`.
 //
-//  Offline-first, mirroring `ContentService`: the bundled `TriviaQuestionProvider`
-//  seed is the fallback whenever the live pipeline is off (`liveContentEnabled`),
-//  the route is unreachable, or — unique to trivia — the route comes back EMPTY.
-//  (For trivia an empty pool is a failure state, not a valid answer: a quiz with
-//  no questions can't be played, so we degrade to the seed rather than show an
-//  "out of questions" error. This is the one deliberate deviation from
-//  `ContentService`, where an empty list is legitimate.)
-//
-//  DEBUG `-useSeedContent` forces the seed even when the live pipeline is on
-//  (the same escape hatch `ContentService` uses, mirroring `-useESPNDirect`).
+//  ONLINE-ONLY (mirrors `ContentService`): no runtime seed. `triviaQuestions()`
+//  `throws` on any failure — a disabled connection, a network/proxy error, or an
+//  EMPTY pool (a quiz with no questions can't be played, so an empty response is a
+//  failure, not a valid answer). The caller shows an honest "Couldn't load — tap to
+//  retry" rather than silently swapping in a bundled question bank that's
+//  indistinguishable from the live pool. The seed bank lives only in the test target.
 //
 
 import Foundation
 
+/// Trivia-specific failure: the live pool came back empty (no questions to play).
+/// Distinct from a transport/decoding error so the caller can message it the same
+/// honest way (it's still "couldn't load a playable quiz").
+enum TriviaServiceError: Error {
+    case emptyPool
+}
+
 struct TriviaService {
     var session: URLSession = .shared
 
-    /// The bundled question bank, used as the offline-first fallback (and the only
-    /// source while `liveContentEnabled` is false). Injectable for tests/previews.
-    var seed = TriviaQuestionProvider()
-
-    /// The full question pool. Live: the proxy `/trivia` route (the owner-loaded
-    /// pool from KV). Any failure — disabled pipeline, network error, or an empty
-    /// response — degrades to the curated seed so the game is always playable.
-    func triviaQuestions() async -> [TriviaQuestion] {
-        guard AppConfig.liveContentEnabled, !forceSeed else {
-            return await seed.questions()
-        }
-        do {
-            let live = try await fetchTrivia()
-            // An empty live pool can't back a quiz — treat it as a miss and fall
-            // back to the seed (offline-first). This differs from `ContentService`,
-            // where an empty content list is a valid, non-failure answer.
-            return live.isEmpty ? await seed.questions() : live
-        } catch {
-            return await seed.questions()
-        }
+    /// The full question pool from the proxy `/trivia` route (the owner-loaded pool
+    /// from KV). Throws on any failure — disabled connection, network error, or an
+    /// empty response — so the game never silently falls back to a bundled bank.
+    func triviaQuestions() async throws -> [TriviaQuestion] {
+        let live = try await fetchTrivia()
+        guard !live.isEmpty else { throw TriviaServiceError.emptyPool }
+        return live
     }
 
     // MARK: - Live fetch
@@ -54,16 +44,6 @@ struct TriviaService {
             throw ContentServiceError.badURL
         }
         return try await fetch([TriviaQuestion].self, from: url)
-    }
-
-    /// DEBUG escape hatch: `-useSeedContent` in the Run scheme forces the seed even
-    /// when the live pipeline is enabled (mirrors `ContentService`).
-    private var forceSeed: Bool {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-useSeedContent")
-        #else
-        return false
-        #endif
     }
 
     private func fetch<T: Decodable>(_ type: T.Type, from url: URL) async throws -> T {

@@ -71,22 +71,14 @@ enum AppConfig {
         return scoreboardProxyBase
     }
 
-    // MARK: - Live content (ALIVE pipeline — Part 2)
-
-    /// Master switch for the live content pipeline (YouTube → Home, then
-    /// Bluesky/Reddit/news → Feed). **OFF until the proxy content routes are
-    /// deployed** (the `/team-videos` route needs the owner's YouTube Data API key
-    /// set as a Worker secret first — see `content-cards-part2-live-data.md`).
-    /// While false, `ContentService` serves the Part-1 ⚠️seed providers, so Home/
-    /// Feed render exactly as today. Flip to `true` once the route is live — one line.
-    static let liveContentEnabled = true
+    // MARK: - Live content (ALIVE pipeline)
 
     /// The proxy route that returns Home Module-1 cards as `ContentCard` JSON:
     /// `GET /team-videos?teams=WAS,POR,…`. The Worker resolves each club's YouTube
     /// uploads playlist, fetches recent uploads via the YouTube Data API, and
     /// normalizes them to the `ContentCard` shape (so the app just decodes).
     /// Built on the same proxy host as the scoreboard. Returns nil on a malformed
-    /// query (caller falls back to seed). `teams` is the followed-club abbreviations.
+    /// query (the caller then throws → honest error). `teams` is the followed-club abbreviations.
     static func teamVideosURL(teams: [String]) -> URL? {
         contentRouteURL("team-videos", teams: teams)
     }
@@ -98,8 +90,8 @@ enum AppConfig {
     /// → `blueskyTeam{Media,Text}` with placement `.both`, so they ALSO surface on
     /// Home). `teams` is the followed-club abbreviations, which scope the team
     /// posts (reporters/league come back regardless). Returns nil on a malformed
-    /// query (caller falls back to seed). A2 of the live Feed; Reddit + news RSS
-    /// extend this same route later. Mirrors `teamVideosURL`.
+    /// query (the caller then throws → honest error). Reddit + news RSS extend this
+    /// same route later. Mirrors `teamVideosURL`.
     static func feedURL(teams: [String]) -> URL? {
         contentRouteURL("feed", teams: teams)
     }
@@ -109,7 +101,7 @@ enum AppConfig {
     /// each followed club's most recent matchday squad, attaches real ESPN season
     /// stats, and generates a short "why watch" blurb via Haiku — returning
     /// `PlayerSpotlight` JSON the app decodes directly. Returns nil on a malformed
-    /// query (caller falls back to the seed). Mirrors `teamVideosURL`/`feedURL`.
+    /// query (the caller then throws → honest error). Mirrors `teamVideosURL`/`feedURL`.
     static func spotlightURL(teams: [String]) -> URL? {
         contentRouteURL("spotlight", teams: teams)
     }
@@ -118,9 +110,9 @@ enum AppConfig {
     /// other content routes, Daily Trivia is **league-wide** (one shared question
     /// pool, not team-scoped — see `games-design-spec.md`), so this builds with no
     /// `teams` query at all. The Worker returns the owner-loaded `[TriviaQuestion]`
-    /// pool from KV; the app does the deterministic daily-5 selection client-side
-    /// and falls back to the bundled seed when the route is empty or unreachable.
-    /// Returns nil on a malformed URL (caller falls back to the seed).
+    /// pool from KV; the app does the deterministic daily-5 selection client-side.
+    /// An empty or unreachable route surfaces an honest error (no seed fallback).
+    /// Returns nil on a malformed URL (the caller then throws → honest error).
     static func triviaURL() -> URL? {
         contentRouteURL("trivia", teams: [])
     }

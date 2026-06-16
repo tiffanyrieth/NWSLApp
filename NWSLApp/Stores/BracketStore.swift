@@ -7,12 +7,14 @@
 //  game screen, the Home Play card, and the Profile total), so it lives in Stores/
 //  and is injected app-wide via `.environment`, like PredictionStore / FollowingStore.
 //
-//  Offline-first: this is the immediate LOCAL cache of the user's own picks +
-//  submission state per round, plus a small cached edition summary so the Home gate
-//  and card render WITHOUT a network round-trip. The real community vote tally,
-//  cross-user leaderboard, and edition generation are server-side (BracketService →
-//  Supabase). Submit is one-way per round (a committed round can't be edited), and
-//  picks are keyed by edition + round so a new edition / round starts clean.
+//  This persists the user's own picks + submission state per round (local
+//  UserDefaults state, kept across launches) plus a small edition-summary snapshot
+//  that drives the Home Fan Zone gate (show/hide + status) before the live fetch
+//  returns. The edition itself, the community vote tally, cross-user leaderboard, and
+//  edition generation are all server-side and fetched live (BracketService → Supabase)
+//  — there is no offline edition cache. Submit is one-way per round (a committed round
+//  can't be edited) and only flips after a real server ack; picks are keyed by edition
+//  + round so a new edition / round starts clean.
 //
 
 import Foundation
@@ -44,11 +46,6 @@ final class BracketStore {
     /// The edition the above belong to. Changing edition resets picks/scores.
     private(set) var editionID: String?
 
-    /// The last edition successfully fetched from Supabase, cached whole so the game
-    /// renders offline-first when the network is briefly unreachable. This is the ONLY
-    /// fallback — there is no fabricated/sample bracket. Nil before the first fetch.
-    private(set) var cachedEdition: BracketEdition?
-
     private let defaults: UserDefaults
 
     private enum Key {
@@ -57,7 +54,6 @@ final class BracketStore {
         static let submitted = "bracket.v2.submittedRounds"
         static let scores = "bracket.v2.roundScores"
         static let editionID = "bracket.v2.editionID"
-        static let edition = "bracket.v2.edition"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -67,13 +63,6 @@ final class BracketStore {
         self.submittedRounds = Set(Self.decode(defaults.data(forKey: Key.submitted)) ?? [Int]())
         self.roundScores = Self.decode(defaults.data(forKey: Key.scores)) ?? [:]
         self.editionID = defaults.string(forKey: Key.editionID)
-        self.cachedEdition = Self.decode(defaults.data(forKey: Key.edition))
-    }
-
-    /// Cache the whole edition just fetched from Supabase (offline-first fallback).
-    func cacheEdition(_ edition: BracketEdition) {
-        cachedEdition = edition
-        defaults.set(Self.encode(edition), forKey: Key.edition)
     }
 
     // MARK: - Readers (Home / Profile)

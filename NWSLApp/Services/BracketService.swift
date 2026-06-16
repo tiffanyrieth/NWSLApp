@@ -33,49 +33,43 @@ struct BracketService {
     // MARK: - Read the active edition
 
     /// The active edition assembled from Supabase (edition + entrants + matchups).
-    /// The active edition from Supabase, assembled from edition + entrants + matchups.
-    /// Returns nil on an empty backend (no active edition → game hides) OR a transient
-    /// failure — the caller falls back to the locally CACHED real edition (offline-first).
-    /// There is no fabricated/sample bracket anywhere.
-    func currentEdition() async -> BracketEdition? {
-        do {
-            let editions: [EditionRow] = try await client
-                .from("bracket_editions").select().eq("is_active", value: true)
-                .limit(1).execute().value
-            guard let e = editions.first else { return nil }
+    /// Online-only: `throws` on a fetch failure (the caller shows an honest error +
+    /// retry — there is NO offline/cached edition fallback). Returns nil ONLY for a
+    /// genuinely empty backend (no active edition), which is a legitimate state — the
+    /// game simply hides. There is no fabricated/sample bracket anywhere.
+    func currentEdition() async throws -> BracketEdition? {
+        let editions: [EditionRow] = try await client
+            .from("bracket_editions").select().eq("is_active", value: true)
+            .limit(1).execute().value
+        guard let e = editions.first else { return nil }
 
-            async let entrantRows: [EntrantRow] = client
-                .from("bracket_entrants").select().eq("edition_id", value: e.id)
-                .order("seed").execute().value
-            async let matchupRows: [MatchupRow] = client
-                .from("bracket_matchups").select().eq("edition_id", value: e.id)
-                .execute().value
+        async let entrantRows: [EntrantRow] = client
+            .from("bracket_entrants").select().eq("edition_id", value: e.id)
+            .order("seed").execute().value
+        async let matchupRows: [MatchupRow] = client
+            .from("bracket_matchups").select().eq("edition_id", value: e.id)
+            .execute().value
 
-            let entrants = try await entrantRows.map(\.entrant)
-            guard !entrants.isEmpty else { return nil }
-            let byID = Dictionary(uniqueKeysWithValues: entrants.map { ($0.id, $0) })
-            let matchups = try await matchupRows.compactMap { $0.matchup(entrants: byID) }
-            return e.edition(entrants: entrants, matchups: matchups)
-        } catch {
-            return nil
-        }
+        let entrants = try await entrantRows.map(\.entrant)
+        guard !entrants.isEmpty else { return nil }
+        let byID = Dictionary(uniqueKeysWithValues: entrants.map { ($0.id, $0) })
+        let matchups = try await matchupRows.compactMap { $0.matchup(entrants: byID) }
+        return e.edition(entrants: entrants, matchups: matchups)
     }
 
     // MARK: - Write votes (owner-scoped)
 
     /// Persist the user's submitted picks for a round (one row per matchup).
-    /// Best-effort: a failure leaves the local submit intact to retry next load.
-    func submit(editionID: String, round: BracketRound, picks: [String: String], userID: UUID) async {
+    /// Online-only: `throws` on a failed write so the caller can keep the picks
+    /// editable and show "Couldn't submit — tap to retry" — the local "locked in"
+    /// state is only set AFTER this server ack (never faked ahead of it).
+    func submit(editionID: String, round: BracketRound, picks: [String: String], userID: UUID) async throws {
         let rows = picks.map { matchupID, entrantID in
             VoteInsert(user_id: userID, matchup_id: matchupID, edition_id: editionID,
                        round: round.rawValue, entrant_id: entrantID)
         }
         guard !rows.isEmpty else { return }
-        do {
-            try await client.from("bracket_votes").upsert(rows, onConflict: "user_id,matchup_id").execute()
-        } catch {
-            // Local store already recorded the submit; next load retries the push.
-        }
+        try await client.from("bracket_votes").upsert(rows, onConflict: "user_id,matchup_id").execute()
     }
 
     // MARK: - Results (a resolved round)

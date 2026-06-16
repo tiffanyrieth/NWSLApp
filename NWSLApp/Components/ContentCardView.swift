@@ -24,13 +24,28 @@ struct ContentCardView: View {
     var hideTeamIdentity: Bool = false
 
     var body: some View {
+        // The facelift "color-block" signature: a 3px team-color bar down the card's
+        // left edge (home.jsx). Applied once here so all three layouts get it
+        // uniformly; re-clipped to the card's rounded rect so the bar follows the
+        // corners. A team-less card (reporter/league) gets no bar (no blue fallback).
+        layoutCard
+            .overlay(alignment: .leading) {
+                if let color = club?.accentColor {
+                    Rectangle().fill(color).frame(width: 3)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var layoutCard: some View {
         switch card.layout {
         case .youtube, .socialVideo:
             ThumbnailContentCard(card: card, club: club, hideTeamIdentity: hideTeamIdentity)
         case .blueskyTeamText, .blueskyTeamMedia, .blueskyReporter, .instagramFallback:
             AvatarContentCard(card: card, club: club, hideTeamIdentity: hideTeamIdentity)
         case .newsArticle:
-            ArticleContentCard(card: card, club: club)
+            ArticleContentCard(card: card, club: club, hideTeamIdentity: hideTeamIdentity)
         }
     }
 }

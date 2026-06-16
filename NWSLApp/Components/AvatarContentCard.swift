@@ -2,21 +2,22 @@
 //  AvatarContentCard.swift
 //  NWSLApp
 //
-//  The avatar-led content cards: an avatar on the left, then a column of
-//  header / body / optional media / engagement+CTA. Covers four of the seven
+//  The avatar-led content cards (Feed social + Home club-social), facelift to
+//  `feed.jsx`: an author-initials avatar in the team tint, a TWO-LINE identity
+//  (name + platform badge / a platform-color dot + "handle · Platform"), and a
+//  right column (team-abbr pill + time). Below the header — full width — the post
+//  body, optional media, and the like/repost + CTA row. Covers four of the seven
 //  Content Card Spec variants that share this anatomy:
-//   • 2 blueskyTeamText  — team post, text only, team-ring avatar
+//   • 2 blueskyTeamText  — team post, text only
 //   • 3 blueskyTeamMedia — team post with a media thumbnail
-//   • 4 blueskyReporter  — reporter post, solid-accent initial avatar (Feed)
+//   • 4 blueskyReporter  — reporter post (Feed)
 //   • 7 instagramFallback — IG post with no thumbnail → a "view on Instagram" strip
 //
-//  Per-layout differences (clamp counts, which avatar, whether there's media or an
-//  engagement row) are switched here off `card.layout`. The whole card is the tap
-//  target, opening `card.url`, matching the other content cards.
+//  The whole card is the tap target, opening `card.url`. The 3px team-color left
+//  edge is added by ContentCardView (shared across every content-card layout).
 //
-//  This file also defines the small subviews shared across all three content-card
-//  files — TeamRingAvatar, EngagementRow, CTARow — kept together as the card
-//  "atoms" rather than scattered, since they're meaningless outside this feature.
+//  This file also defines the small subviews shared across the content-card files —
+//  EngagementRow and CTARow — kept here as the card "atoms".
 //
 
 import SwiftUI
@@ -24,7 +25,7 @@ import SwiftUI
 struct AvatarContentCard: View {
     let card: ContentCard
     var club: Club?
-    /// Following one team → drop the team name from the header (just platform + time).
+    /// Following one team → drop the right-column team pill (redundant on Home).
     var hideTeamIdentity: Bool = false
     @Environment(\.openURL) private var openURL
 
@@ -33,25 +34,13 @@ struct AvatarContentCard: View {
     var body: some View {
         // `.onTapGesture`, not a `Button` — see ThumbnailContentCard for why (a chip
         // tap on Home could otherwise be re-delivered to the first card's Button; #3).
-        VStack(spacing: 0) {
-            // 3px team-color accent line at the top edge — the same marker the
-            // YouTube/clip cards carry, so team posts (Bluesky, IG) read as the
-            // same family (bug #1). Only team cards get it; reporter cards (no
-            // club, the Feed's own voice) stay stripe-less.
-            if club != nil {
-                Rectangle().fill(teamColor).frame(height: 3)
-            }
-            HStack(alignment: .top, spacing: 10) {
-                avatar
-                VStack(alignment: .leading, spacing: columnGap) {
-                    header
-                    postBody
-                    media
-                    bottomRow
-                }
-            }
-            .padding(14)
+        VStack(alignment: .leading, spacing: 11) {
+            headerRow
+            postBody
+            media
+            bottomRow
         }
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
@@ -61,67 +50,108 @@ struct AvatarContentCard: View {
         }
     }
 
-    private var columnGap: CGFloat { card.layout == .blueskyTeamText ? 8 : 10 }
+    // MARK: - Header (avatar + two-line identity + team pill / time)
 
-    // MARK: - Avatar
-
-    @ViewBuilder
-    private var avatar: some View {
-        switch card.layout {
-        case .blueskyReporter:
-            // Reporter: a solid-accent disc with the first initial (not team-tinted)
-            // — the Feed's own voice, distinct from team posts.
-            TeamRingAvatar(style: .solidAccentInitial, teamColor: teamColor,
-                           text: initial(of: card.authorName))
-        case .instagramFallback:
-            TeamRingAvatar(style: .teamRingFilled, teamColor: teamColor,
-                           text: card.teamAbbreviation ?? "")
-        default:
-            TeamRingAvatar(style: .teamRing, teamColor: teamColor,
-                           text: card.teamAbbreviation ?? "")
-        }
-    }
-
-    private func initial(of name: String?) -> String {
-        guard let first = name?.first else { return "•" }
-        return String(first).uppercased()
-    }
-
-    // MARK: - Header (name + platform badge + handle · time)
-
-    private var header: some View {
-        HStack(spacing: 6) {
-            // Team name is dropped when following one team (redundant); the platform
-            // badge + timestamp stay so the card still reads as "<platform> · 2d ago".
-            if !hideTeamIdentity {
-                Text(card.authorName ?? club?.displayName ?? "")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(Color.dsFgPrimary)
-                    .lineLimit(1)
+    private var headerRow: some View {
+        HStack(alignment: .top, spacing: 11) {
+            avatar
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 5) {
+                    Text(displayName)
+                        .font(.system(size: 14.5, weight: .semibold))
+                        .foregroundStyle(Color.dsFgPrimary)
+                        .lineLimit(1)
+                    PlatformBadge(platform: card.platform, size: 14)
+                }
+                HStack(spacing: 6) {
+                    Circle().fill(platformColor).frame(width: 6, height: 6)
+                    Text(handleLine)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.dsFgSecondary)
+                        .lineLimit(1)
+                }
             }
-            PlatformBadge(platform: card.platform, size: 14)
-            Text(hideTeamIdentity ? card.timestamp.relativeAgo : metaLine)
-                .font(.system(size: 12))
-                .foregroundStyle(Color.dsFgTertiary)
-                .lineLimit(1)
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 4) {
+                if !hideTeamIdentity, let abbr = card.teamAbbreviation {
+                    teamPill(abbr)
+                }
+                Text(card.timestamp.relativeAgo)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.dsFgTertiary)
+            }
         }
     }
 
-    private var metaLine: String {
+    /// The poster: a reporter/author name, else the club, else the abbreviation.
+    private var displayName: String {
+        card.authorName ?? club?.displayName ?? card.teamAbbreviation ?? "—"
+    }
+
+    /// "@handle · Bluesky" when a handle is known, else just the platform name.
+    private var handleLine: String {
         if let handle = card.handle, !handle.isEmpty {
-            return "\(handle) · \(card.timestamp.relativeAgo)"
+            return "\(handle) · \(platformName)"
         }
-        return card.timestamp.relativeAgo
+        return platformName
     }
 
-    // MARK: - Body
+    private var avatar: some View {
+        ZStack {
+            Circle().fill(teamColor.opacity(0.15))
+            Text(initials)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(teamColor)
+        }
+        .frame(width: DS.contentAvatar, height: DS.contentAvatar)
+    }
+
+    private var initials: String {
+        let parts = displayName.split(separator: " ").prefix(2)
+        let letters = parts.compactMap { $0.first }.map(String.init)
+        return letters.isEmpty ? "•" : letters.joined().uppercased()
+    }
+
+    private func teamPill(_ abbr: String) -> some View {
+        Text(abbr)
+            .font(.system(size: 10.5, weight: .bold))
+            .tracking(0.3)
+            .foregroundStyle(teamColor)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(teamColor.opacity(0.13), in: Capsule())
+    }
+
+    /// The platform's brand color, for the meta-line dot (mirrors PlatformBadge).
+    private var platformColor: Color {
+        switch card.platform {
+        case .youtube:   return Color(hex: "#FF0000")
+        case .bluesky:   return Color(hex: "#0085FF")
+        case .tiktok:    return Color(hex: "#000000")
+        case .instagram: return Color(hex: "#DD2A7B")
+        case .article:   return Color(hex: "#636366")
+        case .reddit:    return Color(hex: "#FF4500")
+        }
+    }
+
+    private var platformName: String {
+        switch card.platform {
+        case .youtube:   return "YouTube"
+        case .bluesky:   return "Bluesky"
+        case .tiktok:    return "TikTok"
+        case .instagram: return "Instagram"
+        case .article:   return "Article"
+        case .reddit:    return "Reddit"
+        }
+    }
+
+    // MARK: - Body (full width, below the header)
 
     @ViewBuilder
     private var postBody: some View {
         if let text = card.bodyText, !text.isEmpty {
             Text(text)
-                .font(.system(size: 14))
+                .font(.system(size: 14.5))
                 .foregroundStyle(Color.dsFgPrimary)
                 .lineSpacing(3)
                 .lineLimit(bodyClamp)
@@ -210,49 +240,6 @@ struct AvatarContentCard: View {
 }
 
 // MARK: - Shared card atoms
-
-/// The circular avatar on the avatar-led cards, in three styles: a team-color
-/// ring (team posts), the same ring on a faint team fill (IG fallback), or a
-/// solid-accent disc with an initial (reporters — the Feed's own voice).
-struct TeamRingAvatar: View {
-    enum Style { case teamRing, teamRingFilled, solidAccentInitial }
-
-    let style: Style
-    let teamColor: Color
-    let text: String
-    var size: CGFloat = DS.contentAvatar
-
-    var body: some View {
-        ZStack {
-            Circle().fill(backgroundFill)
-            Text(text)
-                .font(.system(size: textSize, weight: .bold))
-                .foregroundStyle(textColor)
-        }
-        .frame(width: size, height: size)
-        .overlay {
-            if style != .solidAccentInitial {
-                Circle().stroke(teamColor, lineWidth: 2)
-            }
-        }
-    }
-
-    private var backgroundFill: Color {
-        switch style {
-        case .teamRing:           return Color.black.opacity(0.4)
-        case .teamRingFilled:     return teamColor.opacity(0.2)
-        case .solidAccentInitial: return Color.dsAccent
-        }
-    }
-
-    private var textColor: Color {
-        style == .solidAccentInitial ? .white : teamColor
-    }
-
-    private var textSize: CGFloat {
-        style == .solidAccentInitial ? 15 : 11
-    }
-}
 
 /// The like/repost counts with the action link trailing — the bottom row of the
 /// Bluesky cards. Counts are hidden when nil so a card without engagement data

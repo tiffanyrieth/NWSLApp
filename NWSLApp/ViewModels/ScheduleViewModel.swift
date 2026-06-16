@@ -27,18 +27,19 @@ final class ScheduleViewModel {
     struct DaySection: Identifiable {
         let id: String       // "yyyy-MM-dd"
         let label: String    // "Today" or "Saturday, June 6"
+        let isToday: Bool     // drives the date-header TODAY chip + white treatment
         let events: [Event]
     }
 
     /// The three always-visible filter tabs (per the schedule design spec).
     enum Filter: String, CaseIterable, Identifiable {
-        case nwsl, myTeams, allMatches
+        case nwsl, myTeams, international
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .nwsl:       return "NWSL"
-            case .myTeams:    return "My teams"
-            case .allMatches: return "All matches"
+            case .nwsl:          return "NWSL"
+            case .myTeams:       return "My teams"
+            case .international: return "International"
             }
         }
     }
@@ -116,11 +117,8 @@ final class ScheduleViewModel {
     private func events(for filter: Filter) -> [Event] {
         let all = store?.events ?? []
         switch filter {
-        case .nwsl, .allMatches:
-            // Every match the app tracks today is NWSL, so these two tabs show
-            // the same set. They diverge once non-NWSL competition data exists:
-            // NWSL = NWSL + the user's *followed* competitions; All = *every*
-            // competition the app tracks. Structurally distinct, identical now.
+        case .nwsl:
+            // Every match on the scoreboard today is NWSL regular season.
             return all
         case .myTeams:
             let abbreviations = followedAbbreviations
@@ -132,16 +130,33 @@ final class ScheduleViewModel {
                    abbreviations.contains(away) { return true }
                 return false
             }
+        case .international:
+            // The international / national-team-window bucket. The ESPN scoreboard
+            // Event carries no competition field yet, so nothing qualifies and the
+            // view shows the designed "coming soon" empty state. When competition-
+            // aware schedule data lands (FollowedCompetition + a competition id on
+            // Event), filter here — NWSL stays the domestic league, International the
+            // cups/windows; they never overlap (so this is NOT a duplicate of NWSL).
+            return all.filter(isInternational)
         }
     }
 
+    /// Whether a match belongs to the International bucket. No competition metadata
+    /// rides on the scoreboard Event yet, so this is always false today — the hook
+    /// that lights up when competition-aware data lands.
+    private func isInternational(_ event: Event) -> Bool {
+        false
+    }
+
     private func sections(from events: [Event]) -> [DaySection] {
+        let today = todayKey()
         let grouped = Dictionary(grouping: events.filter { $0.dayKey != nil }) { $0.dayKey! }
         return grouped
             .map { (key, events) in
                 DaySection(
                     id: key,
                     label: label(forDayKey: key),
+                    isToday: key == today,
                     events: events.sorted { ($0.kickoff ?? .distantFuture) < ($1.kickoff ?? .distantFuture) }
                 )
             }
@@ -157,14 +172,22 @@ final class ScheduleViewModel {
         return false
     }
 
-    // Today's section if present, otherwise the first future section, within the
-    // given filter. Returns nil if everything in that filter is in the past.
-    // Used both for the one-time scroll-to-today and to re-anchor on filter change.
-    func initialScrollSectionID(for filter: Filter) -> String? {
-        let today = todayKey()
-        let ids = sections(for: filter).map(\.id)
-        if ids.contains(today) { return today }
-        return ids.first(where: { $0 > today })
+    // The EVENT the schedule rests at on open (the rest "boundary"): the most recent
+    // game that has already kicked off — so its card sits at the very top with the
+    // upcoming fixtures (today's date bar + future matchdays) just below, making it
+    // obvious history is scrollable above. If every game in the filter is still
+    // upcoming (season start), the first one; nil if the filter has no dated games.
+    // Computed live from `now()`, so it advances on its own. Anchored via
+    // ScrollViewReader to the card's id (`event.id`), so the last result is the first
+    // visible row — not the season opener, and not today's header flush at the top.
+    func initialScrollEventID(for filter: Filter) -> String? {
+        let dated = events(for: filter)
+            .compactMap { event -> (Event, Date)? in event.kickoff.map { (event, $0) } }
+            .sorted { $0.1 < $1.1 }
+        guard !dated.isEmpty else { return nil }
+        let cutoff = now()
+        if let lastStarted = dated.last(where: { $0.1 <= cutoff }) { return lastStarted.0.id }
+        return dated.first?.0.id
     }
 
     // MARK: - Private

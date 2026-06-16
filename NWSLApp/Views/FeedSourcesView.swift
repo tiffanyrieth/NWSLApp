@@ -25,8 +25,26 @@ struct FeedSourcesView: View {
 
     var body: some View {
         @Bindable var prefs = preferences
+        // The default chip is persisted as a raw string; bridge it to the picker's
+        // ContentFilter so the store stays free of a view-model dependency.
+        let defaultFilter = Binding<FeedViewModel.ContentFilter>(
+            get: { FeedViewModel.ContentFilter(rawValue: prefs.defaultFeedFilter) ?? .all },
+            set: { prefs.defaultFeedFilter = $0.rawValue }
+        )
         return NavigationStack {
             List {
+                Section {
+                    Picker("Open Feed to", selection: defaultFilter) {
+                        ForEach(FeedViewModel.ContentFilter.allCases, id: \.self) { filter in
+                            Text(filter.label).tag(filter)
+                        }
+                    }
+                } header: {
+                    Text("Default view")
+                } footer: {
+                    Text("The chip your Feed opens to.")
+                }
+
                 Section {
                     Toggle("Reporter posts", isOn: $prefs.showReporterPosts)
                     Toggle("Article links", isOn: $prefs.showArticleLinks)

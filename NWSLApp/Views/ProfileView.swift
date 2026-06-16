@@ -40,6 +40,7 @@ struct ProfileView: View {
                     identity
                     fanZoneStrip
                     settingsSection
+                    supportCard
                     myTeamsSection
                     if auth.isSignedIn { accountSection }
                     versionLabel
@@ -67,6 +68,8 @@ struct ProfileView: View {
                 Text("This signs you out on this device. Your Fan Zone points and follows are kept locally.")
             }
         }
+        // Show the sheet grabber, matching the Profile handoff's sheet treatment.
+        .presentationDragIndicator(.visible)
     }
 
     // MARK: - Settings (one door into the Notifications hub)
@@ -80,12 +83,9 @@ struct ProfileView: View {
             VStack(spacing: 0) {
                 NavigationLink { NotificationsView() } label: { notificationsRow }
                     .buttonStyle(.plain)
-                rowDivider
-                NavigationLink { SupportView() } label: { supportRow }
-                    .buttonStyle(.plain)
             }
             .background(Color.dsBgCard)
-            .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
             Text("Match alerts, alert types, and activity — all in one place.")
                 .font(.system(size: 11))
                 .foregroundStyle(Color.dsFgQuaternary)
@@ -93,34 +93,50 @@ struct ProfileView: View {
         }
     }
 
-    private var supportRow: some View {
-        HStack(spacing: 12) {
-            // Pink-gradient rounded-square heart (spec §5 entry point).
-            ZStack {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(LinearGradient(colors: [Color(hex: "FF375F"), Color(hex: "FF6B8A")],
-                                         startPoint: .topLeading, endPoint: .bottomTrailing))
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.white)
+    // Support is its OWN standalone card below the Settings card (not a row inside
+    // it — that would mismatch the Notifications row height). ~2× a settings row
+    // tall, a slightly larger heart, the subtitle given room, and a faint warm pink
+    // wash so it reads as a tasteful CTA — not a loud banner.
+    private var supportCard: some View {
+        NavigationLink { SupportView() } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(LinearGradient(colors: [Color(hex: "FF375F"), Color(hex: "FF6B8A")],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.white)
+                }
+                .frame(width: 40, height: 40)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Support NWSLApp")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.dsFgPrimary)
+                    Text("Help keep this app free and growing")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.dsFgSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.dsFgTertiary)
             }
-            .frame(width: 29, height: 29)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Support NWSLApp")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.dsFgPrimary)
-                Text("Help keep this app free and growing")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.dsFgSecondary)
-            }
-            Spacer(minLength: 8)
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color.dsFgTertiary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                ZStack {
+                    Color.dsBgCard
+                    LinearGradient(colors: [Color(hex: "FF375F").opacity(0.10), .clear],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                }
+            )
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 13)
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
     }
 
     private var notificationsRow: some View {
@@ -316,7 +332,7 @@ struct ProfileView: View {
                 .buttonStyle(.plain)
             }
             .background(Color.dsBgCard)
-            .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
             Text("Signing out keeps your follows on this device. Your Fan Zone points and rank stay with your account.")
                 .font(.system(size: 11))
                 .foregroundStyle(Color.dsFgQuaternary)
@@ -345,7 +361,7 @@ struct ProfileView: View {
             sectionLabel(title)
             VStack(spacing: 0) { content() }
                 .background(Color.dsBgCard)
-                .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
         }
     }
 

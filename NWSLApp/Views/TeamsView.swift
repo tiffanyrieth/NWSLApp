@@ -340,11 +340,20 @@ struct TeamsView: View {
                     Text("Follow competitions")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Color.dsFgPrimary)
-                    Text("SheBelieves Cup, USWNT, Concacaf W & more")
+                    Text(competitionsSubtitle)
                         .font(.system(size: 12.5))
                         .foregroundStyle(Color.dsFgSecondary)
+                        .lineLimit(1)
                 }
                 Spacer(minLength: 8)
+                if competitionFollowCount > 0 {
+                    Text("\(competitionFollowCount) ON")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Color.dsSuccess)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Color.dsSuccess.opacity(0.18), in: Capsule())
+                }
                 Image(systemName: "chevron.right")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Color.dsFgTertiary)
@@ -358,6 +367,24 @@ struct TeamsView: View {
         .padding(.horizontal, 16)
         .padding(.top, 18)
         .padding(.bottom, 8)
+    }
+
+    // Active-state count for the green "N ON" badge: the Champions Cup toggle (1) +
+    // each followed national team.
+    private var competitionFollowCount: Int {
+        (following.isConcacafFollowed ? 1 : 0) + following.followedNationalTeams.count
+    }
+
+    // Subtitle reflecting what's turned on behind the row (per the handoff table).
+    private var competitionsSubtitle: String {
+        let championsCup = following.isConcacafFollowed
+        let teams = following.followedNationalTeams.count
+        if !championsCup && teams == 0 { return "Champions Cup, national teams & more" }
+        if championsCup && teams == 0 { return "Champions Cup on" }
+        var parts: [String] = []
+        if championsCup { parts.append("Champions Cup") }
+        parts.append(teams == 1 ? "1 national team" : "\(teams) national teams")
+        return parts.joined(separator: " · ")
     }
 
     // "{N} team(s) with match alerts · Manage" → the hub, OR an empty-state hint.

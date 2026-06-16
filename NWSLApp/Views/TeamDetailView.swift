@@ -236,27 +236,31 @@ struct TeamDetailView: View {
     }
 
     private func linkChip(_ link: SocialLink) -> some View {
-        let color = platformColor(link.platform)
-        return Button { openURL(link.url) } label: {
+        // Calm-rainbow rule: the platform color lives on the GLYPH only (for
+        // at-a-glance recognizability); the pill fill is the neutral surface and the
+        // label is white, so the OFFICIAL row reads as a calm button set rather than
+        // a color strip competing with the team-color header. (Platform colors are
+        // scoped to these outbound-link glyphs — all in-app chrome stays club-accent.)
+        Button { openURL(link.url) } label: {
             HStack(spacing: 7) {
                 Image(systemName: link.platform.symbol)
                     .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(platformColor(link.platform))
                 Text(link.platform.label)
                     .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.dsFgPrimary)
                     .fixedSize()
             }
-            .foregroundStyle(color)
             .padding(.horizontal, 13)
             .padding(.vertical, 8)
-            .background(color.opacity(0.12), in: Capsule())
+            .background(Color.dsBgTertiary, in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(link.platform.label) — open")
     }
 
-    // Per-platform brand tint for the link pills (the redesign uses platform colors
-    // here — deliberately louder than the header's single team color, to read as a
-    // row of recognizable destinations).
+    // Per-platform brand tint, used ONLY for the link-pill glyphs above (recognizable
+    // destinations). Nowhere else — in-app chrome uses the club accent.
     private func platformColor(_ platform: SocialPlatform) -> Color {
         switch platform {
         case .instagram: return Color(hex: "E1306C")

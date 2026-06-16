@@ -23,7 +23,7 @@ enum DesignTeamColors {
         "BAY": "2F80E8",  // Bay FC — brand navy (Pantone 296), brightened for dark-mode legibility (was a placeholder green)
         "BOS": "2FA85A",  // Boston Legacy FC — "Legacy Green", legible on dark (was a placeholder blue)
         "CHI": "6BA4FF",  // Chicago Stars
-        "DEN": "FF6B4A",  // Denver
+        "DEN": "239E80",  // Denver Summit FC — "Evergreen" brand primary, brightened for dark-mode pop (was the Sandstone-red accent FF6B4A)
         "GFC": "7FD4C1",  // Gotham FC (ESPN's abbr; the design table's "NJ" was the pre-2021 NY/NJ Sky Blue mark)
         "HOU": "FF8A3D",  // Houston Dash
         "KC": "30C7E8",   // Kansas City Current

@@ -399,7 +399,7 @@ NWSLApp/
 │   ├── FormationPitchView.swift       — single-team XI on a pitch; per-team list fallback
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
 │   ├── PlayerSpotlightView.swift      — editorial spotlight: ghosted jersey # + hero, This Season grid, Story (Haiku blurb), Fast Facts + Watch
-│   ├── StandingsView.swift            — color-block table: "TOP 8 ADVANCE" pill; team-color left edge + color-coded abbr/row; PTS hero; cols # · TEAM · PTS · GP · W · D · L · LAST 5; cyan playoff line dims below; followed tint/★; Last-5 via RecentForm
+│   ├── StandingsView.swift            — color-block table: "TOP 8 ADVANCE" pill; color-coded abbr + crest on every row (always vibrant); PTS hero; cols # · TEAM · PTS · GP · W · D · L · LAST 5; cyan PLAYOFF LINE is the ONLY cutoff cue (no below-line dimming, every row full opacity); team-color left spine + tint + accent rank = the FOLLOW indicator (no ★; follow nobody → every row keeps its spine); right-aligned monospaced rank (22pt col, 10–16 don't wrap); Last-5 via RecentForm over `nwslEvents` (league form only)
 │   ├── FeedView.swift                 — Feed tab: header (title+gear+subtitle) + source-class chip bar + chronological ContentCardViews; opens to `defaultFeedFilter`; full-screen error+retry on fetch failure
 │   ├── FeedSourcesView.swift          — Feed content preferences: Default-view picker + content-type toggles + mute sources
 │   └── _ColorAuditView.swift          — 🔧 DEBUG-only 16-club color audit (launch `-colorAudit`, replaces RootTabView); remove once palette verified
@@ -478,8 +478,11 @@ flips to locked; failure → "Couldn't submit — tap to retry"). No offline cac
   international competitions (persisted; schedule not competition-aware yet).
 - **Team detail** (`teams-tab-design-spec.md`) — pinned team-color header + social row over Squad · Stats
   (real ESPN, actor-cached); `origin`-driven "‹ {parent}" back.
-- **Standings** — live color-block table; the **Last 5** column has no ESPN source, so it's derived from
-  the shared season (`MatchStore`) via `RecentForm`.
+- **Standings** — live color-block table; the team-color left spine is a **FOLLOW indicator** (only your
+  teams get it, plus tint + accent rank — no ★; follow nobody → every row keeps its spine so it isn't
+  all-grey), crests + color-coded abbr stay on every row, the cyan PLAYOFF LINE is the only cutoff cue (no
+  below-line dimming). The **Last 5** column has no ESPN source, so it's derived from the shared season
+  (`MatchStore`, NWSL-only events) via `RecentForm`.
 - **Schedule** — full season in one `fetchScoreboard(year:)`; **opens at the past/upcoming boundary** (no
   March-flash, incl. the Home-preload path); filters NWSL · My teams · International (latter data-less → "coming soon").
 - **Match detail** — state-aware (Past/Live/Future); the **formation pitch with real headshots is the crown

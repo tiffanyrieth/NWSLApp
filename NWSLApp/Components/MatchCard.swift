@@ -72,10 +72,19 @@ struct MatchCard: View {
     // MARK: - Sides (crest hero + score beneath)
 
     private func side(_ competitor: Competitor?, color: Color) -> some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             TeamLogo(urlString: competitor?.team?.logo,
                      teamAbbreviation: competitor?.team?.abbreviation,
                      size: 60)
+            // Abbreviation directly below the crest, in the team's color — the
+            // two-team-context rule (crest + ABBREVIATION, never crest-only). Matches
+            // the Standings / match-detail convention (bold, tracked, team color).
+            Text(competitor?.team?.abbreviation ?? "")
+                .font(.system(size: 14, weight: .bold))
+                .tracking(0.3)
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .fixedSize()
             // Fixed-height score band — reserved even on future cards so every state
             // is the same height.
             ZStack {

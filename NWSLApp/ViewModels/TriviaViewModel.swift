@@ -87,18 +87,19 @@ final class TriviaViewModel {
 
     // MARK: - Loading
 
-    /// Load the question pool (live `/trivia`, seed fallback) and lock in today's
-    /// deterministic 5.
+    /// Load the live question pool (proxy `/trivia`) and lock in today's deterministic
+    /// 5. Online-only: any failure — network error or an empty pool (no playable quiz)
+    /// — surfaces as an honest error with "Try again"; there is no seed fallback.
     func loadDaily() async {
         state = .loading
-        let all = await service.triviaQuestions()
-        guard !all.isEmpty else {
-            state = .error("No trivia questions are available right now.")
-            return
+        do {
+            let all = try await service.triviaQuestions()
+            questions = dailyQuestions(from: all)
+            resetSession()
+            state = .loaded
+        } catch {
+            state = .error("Couldn't load today's trivia — tap to retry.")
         }
-        questions = dailyQuestions(from: all)
-        resetSession()
-        state = .loaded
     }
 
     /// Today's deterministic 5: derive the local day number, then delegate to the

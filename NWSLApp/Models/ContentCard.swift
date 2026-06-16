@@ -13,11 +13,11 @@
 //  Each `Layout` is one of those variants; `ContentCardView` routes a card to the
 //  right view.
 //
-//  The model is deliberately flat and fully `Codable` so the current TEMP static
-//  seed (TeamContentProvider / FeedContentProvider) can be swapped for a live
-//  source — proxy routes that return `[ContentCard]` JSON (YouTube Data API,
+//  The model is deliberately flat and fully `Codable` so it decodes straight from
+//  the live proxy routes that return `[ContentCard]` JSON (YouTube Data API,
 //  Bluesky AT Protocol, Reddit, news RSS, all fetched + normalized in the
-//  nwslapp-proxy Worker) — with no change to the views. Per-layout line-clamps,
+//  nwslapp-proxy Worker). (Fixture cards for previews/tests share the same shape.)
+//  Per-layout line-clamps,
 //  paddings, and overlays live in the VIEW, not here; this carries only data.
 //
 

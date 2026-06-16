@@ -642,12 +642,13 @@ struct MatchDetailView: View {
         VStack(spacing: 16) {
             if let badge { badgePill(badge) }
 
-            // Scaled-up Card C: crest (hero) + club name + score on each side, the
-            // temporal state in the center column between them.
+            // Scaled-up Card C: crest (hero) + ABBREVIATION + score on each side, the
+            // temporal state in the center column between them. Two-team context →
+            // crest + abbreviation in team color (never a full club name).
             HStack(alignment: .top, spacing: 8) {
-                teamColumn(event.homeCompetitor)
+                teamColumn(event.homeCompetitor, color: matchColors.home.fill)
                 centerColumn
-                teamColumn(event.awayCompetitor)
+                teamColumn(event.awayCompetitor, color: matchColors.away.fill)
             }
 
             // Broadcast color chip + venue (+ attendance for past) — the same rail
@@ -738,14 +739,18 @@ struct MatchDetailView: View {
         return parts.isEmpty ? nil : parts.joined(separator: " — ")
     }
 
-    private func teamColumn(_ competitor: Competitor?) -> some View {
-        VStack(spacing: 10) {
+    private func teamColumn(_ competitor: Competitor?, color: Color) -> some View {
+        VStack(spacing: 8) {
             // The crest is the hero (§0): 72pt, bare/ring-free on the dark wash.
             TeamLogo(urlString: competitor?.team?.logo, teamAbbreviation: competitor?.team?.abbreviation, size: 72)
-            Text(name(for: competitor))
-                .font(.system(size: 15, weight: .semibold))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+            // Abbreviation directly below the crest, in the team's color — the
+            // two-team-context rule (crest + ABBREVIATION, never a full club name).
+            Text(competitor?.team?.abbreviation ?? "—")
+                .font(.system(size: 16, weight: .bold))
+                .tracking(0.5)
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .fixedSize()
             // Score under each crest, on that team's side. A fixed band so a future
             // match (no score) keeps the same header height as past/live.
             ZStack {
@@ -871,13 +876,6 @@ struct MatchDetailView: View {
     /// Header wash respects "no tint until the summary's colors arrive" (the
     /// resolver always returns a fallback, so gate on hasTeamColors).
     private func wash(_ resolved: ResolvedTeamColor) -> Color { hasTeamColors ? resolved.fill.opacity(0.30) : .clear }
-
-    private func name(for competitor: Competitor?) -> String {
-        competitor?.team?.displayName
-            ?? competitor?.team?.shortDisplayName
-            ?? competitor?.team?.abbreviation
-            ?? "—"
-    }
 
     private var dateHeadline: String? {
         guard let kickoff = event.kickoff else { return nil }

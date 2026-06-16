@@ -85,14 +85,20 @@ struct HomeView: View {
     /// full edition + real votes load when the game is opened (BracketService).
     private func loadBracketSummary() async {
         let service = BracketService()
-        if let edition = await service.currentEdition() {
-            bracket.adopt(summary: .init(
-                id: edition.id, title: edition.title,
-                currentRoundRaw: edition.currentRound.rawValue,
-                roundClosesAt: edition.roundClosesAt, isActive: true
-            ))
-        } else {
-            bracket.clearActiveEdition()
+        do {
+            if let edition = try await service.currentEdition() {
+                bracket.adopt(summary: .init(
+                    id: edition.id, title: edition.title,
+                    currentRoundRaw: edition.currentRound.rawValue,
+                    roundClosesAt: edition.roundClosesAt, isActive: true
+                ))
+            } else {
+                // Genuinely no active edition → hide the Fan Zone card.
+                bracket.clearActiveEdition()
+            }
+        } catch {
+            // Online-only: a failed gate preload leaves the existing gate as-is —
+            // opening the game surfaces the honest error. Don't fabricate or clear.
         }
     }
 
@@ -171,10 +177,15 @@ struct HomeView: View {
         let teams = viewModel.followedTeamAbbreviations(following: following)
         let result = viewModel.teamContent(following: following)
         section("From your teams") {
+            // Online-only: a failed live fetch shows an honest tap-to-retry card for
+            // THIS module only (the rest of Home stays usable) — never stale/seed.
+            if let error = viewModel.contentError {
+                moduleError(error) { await viewModel.retryContent(following: following) }
+            }
             // Follow prompt only when on "All" with nothing to show (no follows / no
             // fresh content). A per-team chip coming up empty is a quiet team, not an
             // empty home — show the chips + a "No content from X" note instead.
-            if result.cards.isEmpty && viewModel.selectedTeam == nil {
+            else if result.cards.isEmpty && viewModel.selectedTeam == nil {
                 followPrompt
             } else {
                 VStack(spacing: 14) {
@@ -248,7 +259,15 @@ struct HomeView: View {
     @ViewBuilder
     private var getToKnowYourPlayers: some View {
         let spotlights = viewModel.spotlights(following: following)
-        if !spotlights.isEmpty {
+        if let error = viewModel.spotlightError {
+            // Module 2 failed its live fetch — honest tap-to-retry, scoped to it.
+            section(
+                "Weekly Player Spotlight",
+                subtitle: "A featured player each week — get to know the squad you follow"
+            ) {
+                moduleError(error) { await viewModel.retryContent(following: following) }
+            }
+        } else if !spotlights.isEmpty {
             section(
                 "Weekly Player Spotlight",
                 subtitle: "A featured player each week — get to know the squad you follow"
@@ -525,6 +544,29 @@ struct HomeView: View {
             }
             content()
         }
+    }
+
+    /// A compact, honest per-module failure card: the whole card is tappable to
+    /// retry (so the "tap to retry" copy is literal). Used by Modules 1 & 2 so a
+    /// content/spotlight fetch failure degrades that module alone — never the whole
+    /// hub, and never to stale/seed content.
+    private func moduleError(_ message: String, retry: @escaping () async -> Void) -> some View {
+        Button { Task { await retry() } } label: {
+            VStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 22))
+                    .foregroundStyle(Color.dsFgSecondary)
+                Text(message)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Color.dsFgSecondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 28)
+            .background(Color.dsBgCard)
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     /// Module-2 carousel scroll-position dots: one per spotlight, current filled.

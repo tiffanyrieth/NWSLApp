@@ -4,14 +4,13 @@
 //
 //  One Daily-Trivia question — Home's Module 3 "Play", game 1 (per
 //  Reference/Design/games-design-spec.md). Flat, view-friendly, and Codable-
-//  shaped like PlayerSpotlight / FeedItem, so the current TEMP static seed
-//  (TriviaQuestionProvider) can later be swapped for a real question backend
-//  with no model/view change.
+//  shaped like PlayerSpotlight / FeedItem, so it decodes straight from the live
+//  proxy `/trivia` route (the owner-loaded KV pool). No model/view change needed.
 //
 //  Each question is multiple-choice with exactly four options; `correctIndex`
-//  points into `options`. `category` and `difficulty` exist so a future backend
-//  can balance the daily mix (and so the UI can label a question) — today they
-//  ride along on the seed and surface as a small chip on the card.
+//  points into `options`. `category` and `difficulty` let the backend balance the
+//  daily mix (and the UI label a question) — they ride along on each question and
+//  surface as a small chip on the card.
 //
 
 import Foundation

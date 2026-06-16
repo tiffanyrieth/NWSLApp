@@ -12,10 +12,10 @@
 //  scrolls (same "always-visible filter" pattern as the Schedule tab).
 //
 //  Home owns no Feed data beyond the shared FollowingStore it reads from the
-//  environment: FeedViewModel holds the (TEMP seed) items and the club directory
+//  environment: FeedViewModel holds the live `/feed` items and the club directory
 //  it fetches to build the chips, and derives the visible list for the selected
-//  chip. Today's content is a curated static seed (see FeedContentProvider) so
-//  the tab is real and testable before a content backend exists.
+//  chip. Content is live via `ContentService` → the proxy `/feed` route; a failed
+//  fetch surfaces an honest "Couldn't load — tap to retry" (no seed fallback).
 //
 
 import SwiftUI
@@ -181,7 +181,8 @@ struct FeedView: View {
 
     private var errorMessage: String? {
         if case .error(let m) = viewModel.clubsState { return m }
-        return nil
+        // Online-only: a failed `/feed` fetch surfaces honestly (no stale/seed fallback).
+        return viewModel.itemsError
     }
 
     private var isReady: Bool {

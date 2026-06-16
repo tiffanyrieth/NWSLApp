@@ -61,6 +61,13 @@ final class FeedViewModel {
     private(set) var allItems: [ContentCard] = []
     var selectedFilter: ContentFilter = .all
 
+    /// Online-only: a failed `/feed` fetch sets this honest message (the view shows
+    /// "Couldn't load — tap to retry") instead of silently serving stale/seed content.
+    private(set) var itemsError: String? = nil
+
+    /// The one simple, honest message a failed Feed load shows.
+    static let loadFailureMessage = "Couldn't load — tap to retry"
+
     private let contentService: ContentService
 
     init(contentService: ContentService = ContentService()) {
@@ -76,9 +83,15 @@ final class FeedViewModel {
     /// the live `/feed` query to the followed clubs' team posts).
     func load(following: FollowingStore) async {
         await clubStore?.load()
-        allItems = (await contentService.feedCards(
-            followedAbbreviations: followedAbbreviations(following)
-        )).sorted { $0.timestamp > $1.timestamp }
+        do {
+            allItems = try await contentService.feedCards(
+                followedAbbreviations: followedAbbreviations(following)
+            ).sorted { $0.timestamp > $1.timestamp }
+            itemsError = nil
+        } catch {
+            allItems = []
+            itemsError = Self.loadFailureMessage
+        }
     }
 
     /// Loads the Feed cards if not already loaded. Callers load the shared ClubStore
@@ -86,10 +99,18 @@ final class FeedViewModel {
     /// load so the Feed still populates when another tab (Home, the landing tab)
     /// already loaded the directory.
     func loadItemsIfNeeded(following: FollowingStore) async {
-        guard allItems.isEmpty else { return }
-        allItems = (await contentService.feedCards(
-            followedAbbreviations: followedAbbreviations(following)
-        )).sorted { $0.timestamp > $1.timestamp }
+        // First load only. After an error the view's "tap to retry" calls `load()`
+        // directly, so don't auto-refetch here on a set error.
+        guard allItems.isEmpty, itemsError == nil else { return }
+        do {
+            allItems = try await contentService.feedCards(
+                followedAbbreviations: followedAbbreviations(following)
+            ).sorted { $0.timestamp > $1.timestamp }
+            itemsError = nil
+        } catch {
+            allItems = []
+            itemsError = Self.loadFailureMessage
+        }
     }
 
     /// Abbreviations of the followed clubs — scopes the live `/feed` query (the

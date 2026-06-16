@@ -144,4 +144,23 @@ final class NotificationPreferencesStore {
         halftime = false
         fullTime = false
     }
+
+    #if DEBUG
+    /// Wipe notification first-run state so `-resetOnboarding` simulates a brand-NEW
+    /// user. Clears every toggle (so `init` re-applies the fresh defaults — Tier-1 ON,
+    /// Tier-2 OFF), `hubVisited` (which now only keeps Tier-2 default establishment
+    /// idempotent), and the Teams-tab match-alert coach mark so it re-fires. Mirrors
+    /// `FollowingStore.debugResetState`; runs (from `NWSLAppApp.init`) before the store
+    /// is constructed.
+    static func debugResetState(defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: hubVisitedKey)
+        // The one-time Teams-tab "Manage your match alerts here" coach mark
+        // (TeamsView @AppStorage) — clear so a reset re-shows it for a true new user.
+        defaults.removeObject(forKey: "hasSeenTeamsAlertTooltip")
+        for key in ["dayBefore", "playerSpotlight", "fanZoneRounds", "kickoff", "goals",
+                    "halftime", "fullTime", "lineupPosted", "substitutions"] {
+            defaults.removeObject(forKey: prefix + key)
+        }
+    }
+    #endif
 }

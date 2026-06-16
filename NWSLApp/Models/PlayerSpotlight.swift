@@ -87,8 +87,9 @@ struct PlayerSpotlight: Identifiable, Codable {
     var espnAthleteId: String? = nil
 
     /// Real season stats (Goals/Assists/Apps) from the live `/spotlight` backend.
-    /// Nil for the seed — the stat strip then falls back to `demoSeasonStats`. `var`
-    /// for the same Codable reason as `espnAthleteId`.
+    /// Nil when the proxy didn't supply stats (a best-effort miss) — `statStrip` is
+    /// then nil and the view hides "This Season". `var` for Codable (default-excluded
+    /// from decoding if `let`).
     var seasonStatLine: SpotlightStats? = nil
 
     /// The real season-stat line carried by a live spotlight (mirrors the proxy's
@@ -99,31 +100,13 @@ struct PlayerSpotlight: Identifiable, Codable {
         let apps: Int
     }
 
-    /// ⚠️ TEMP demo season stats for the Module-2 card's stat strip, derived
-    /// deterministically from the number + position. The model deliberately
-    /// carries no *real* season stats (they rot — see `seasonForm`); this keeps
-    /// the redesigned card's Goals/Assists/Apps strip populated for the demo.
-    ///
-    /// Real season stats now exist for the Teams pages (ESPNService.seasonStats),
-    /// but they key off an ESPN athlete id, which this curated seed doesn't carry.
-    /// TODO: when the spotlight backend ships, add `espnAthleteId: String?` here and
-    /// have it supply the id; the strip can then pull real Goals/Assists/Apps via
-    /// `ESPNService.seasonStats` and this computed value retires — no fuzzy
-    /// name→id matching needed.
-    var demoSeasonStats: (goals: Int, assists: Int, apps: Int) {
-        let base = abs(jerseyNumber * 7 + playerName.count * 3)
-        let apps = 8 + base % 8                  // 8–15 appearances
-        let p = position.lowercased()
-        if p.contains("forward")      { return (3 + base % 9, 1 + base % 5, apps) }
-        if p.contains("midfield")     { return (1 + base % 5, 3 + base % 7, apps) }
-        if p.contains("defend")       { return (base % 3,     1 + base % 4, apps) }
-        return (0, base % 2, apps)               // goalkeeper
-    }
-
-    /// The Goals/Assists/Apps the card + detail render: the REAL backend line
-    /// (`seasonStatLine`) for a live spotlight, else the seed's `demoSeasonStats`.
-    var statStrip: (goals: Int, assists: Int, apps: Int) {
-        if let s = seasonStatLine { return (s.goals, s.assists, s.apps) }
-        return demoSeasonStats
+    /// The Goals/Assists/Apps the detail's "This Season" grid renders — the REAL
+    /// backend line (`seasonStatLine`) only. **`nil` when the proxy didn't supply
+    /// stats** (a best-effort miss: a player with no recorded stats, or an ESPN
+    /// hiccup); the view then hides the section rather than inventing numbers. Online-
+    /// only: real stats or nothing — never fabricated, indistinguishable-looking ones.
+    var statStrip: (goals: Int, assists: Int, apps: Int)? {
+        guard let s = seasonStatLine else { return nil }
+        return (s.goals, s.assists, s.apps)
     }
 }

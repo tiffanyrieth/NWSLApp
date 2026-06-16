@@ -317,7 +317,7 @@ NWSLApp/
 │   ├── FollowedCompetition.swift      — international competitions list + follow model
 │   ├── AthleteStatistics.swift        — ESPN Core API /statistics → PlayerSeasonStats
 │   ├── MatchSummary.swift             — ESPN /summary: lineups+formation, boxscore, key-events timeline
-│   ├── PlayerSpotlight.swift          — Home Module-2 player-of-week; `espnAthleteId`+`seasonStatLine` carry live data; `statStrip` prefers real, else fabricated `demoSeasonStats` (last fake-data path — see What's Next)
+│   ├── PlayerSpotlight.swift          — Home Module-2 player-of-week; `espnAthleteId`+`seasonStatLine` carry live data; `statStrip` is nil when the proxy sent no stats → the view hides "This Season" (never fabricated)
 │   ├── PlayerStats.swift              — per-player season stats + team-leaders (real ESPN data)
 │   ├── Roster.swift                   — squad + team profile from one roster fetch
 │   ├── Scoreboard.swift               — ESPN scoreboard structs + Event helpers
@@ -501,8 +501,6 @@ Completed work lives in **Current State**; only pending work here (ALIVE > core 
 0.4.0 build-9 QOL set + the online-only no-stale refactor + the owner-gated ASC/backend setup (Game
 Center, Support IAP, IAP capability, `team_alert_preferences`, server-push per-team targeting) all
 shipped. Still pending:
-- **PlayerSpotlight `demoSeasonStats`** — a live spotlight without a stat line still shows fabricated
-  goals/assists/apps (the last fabricated-data path). Owner call: hide the stat strip vs show "—".
 - **YouTube Shorts thumbnail pillarbox** — DEFERRED (owner). Baked-in side bars; fix is proxy-side.
 - **Pull-to-refresh polish** — keep the list visible during refresh (spinner only on first load).
 - **Bracket follow-ups (optional):** exact stat-edition seeding; more stat templates; full bracket-TREE

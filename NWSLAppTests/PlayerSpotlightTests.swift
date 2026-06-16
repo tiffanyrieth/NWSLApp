@@ -5,9 +5,9 @@
 //  Decode test for the live Player Spotlight (B2): the app↔proxy contract. Decodes
 //  a real captured `/spotlight` response (NWSLAppTests/Fixtures/spotlight.json —
 //  WAS + KC) into `[PlayerSpotlight]` and guards the live-backend fields
-//  (espnAthleteId, seasonStatLine) plus the `statStrip` preference logic that
-//  routes the card/detail strip to real stats when present, else the seed's
-//  `demoSeasonStats`.
+//  (espnAthleteId, seasonStatLine) plus the `statStrip` logic that surfaces real
+//  stats when present and is nil otherwise (the view then hides "This Season" —
+//  never fabricated numbers).
 //
 //  The fixture is read straight off disk via #filePath (like AthleteStatisticsTests),
 //  so it needs no test-bundle resource membership.
@@ -45,24 +45,25 @@ struct PlayerSpotlightTests {
         #expect(kc.videoURL == nil)
     }
 
-    @Test func statStripPrefersRealBackendStats() throws {
+    @Test func statStripUsesRealBackendStats() throws {
         let kc = try #require(loadSpotlights().first { $0.teamAbbreviation == "KC" })
-        // With a real seasonStatLine, the strip shows it (NOT the jersey-derived demo).
-        #expect(kc.statStrip.goals == 2)
-        #expect(kc.statStrip.assists == 3)
-        #expect(kc.statStrip.apps == 12)
+        // With a real seasonStatLine, statStrip carries it.
+        let s = try #require(kc.statStrip)
+        #expect(s.goals == 2)
+        #expect(s.assists == 3)
+        #expect(s.apps == 12)
     }
 
-    @Test func statStripFallsBackToDemoWhenNoBackendStats() {
-        // A seed-style spotlight (no seasonStatLine) falls back to demoSeasonStats —
-        // the offline-first fallback path renders unchanged.
-        let seed = PlayerSpotlight(
-            id: "seed-1",
+    @Test func statStripIsNilWhenNoBackendStats() {
+        // Online-only: no seasonStatLine → statStrip is nil (the view hides "This
+        // Season"); no fabricated numbers are invented.
+        let noStats = PlayerSpotlight(
+            id: "nostats-1",
             teamAbbreviation: "WAS",
-            playerName: "Demo Player",
+            playerName: "No Stats",
             jerseyNumber: 10,
             position: "Forward",
-            bioBlurb: "A seed spotlight.",
+            bioBlurb: "A spotlight with no backend stats.",
             videoURL: nil,
             youTubeVideoID: nil,
             videoTitle: nil,
@@ -73,10 +74,7 @@ struct PlayerSpotlightTests {
             funFacts: [],
             seasonForm: nil
         )
-        #expect(seed.seasonStatLine == nil)
-        let demo = seed.demoSeasonStats
-        #expect(seed.statStrip.goals == demo.goals)
-        #expect(seed.statStrip.assists == demo.assists)
-        #expect(seed.statStrip.apps == demo.apps)
+        #expect(noStats.seasonStatLine == nil)
+        #expect(noStats.statStrip == nil)
     }
 }

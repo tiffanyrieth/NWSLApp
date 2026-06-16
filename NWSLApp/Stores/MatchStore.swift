@@ -23,7 +23,9 @@ final class MatchStore {
     enum State {
         case idle
         case loading
-        case loaded([Event])
+        // Tagged with each match's competition (NWSL today; non-NWSL feeds merge in
+        // here in later phases). Readers that only want raw events use `events`.
+        case loaded([ScheduledMatch])
         case error(String)
     }
 
@@ -51,17 +53,23 @@ final class MatchStore {
         let year = calendar.component(.year, from: now())
         do {
             let board = try await service.fetchScoreboard(year: year)
-            state = .loaded(board.events)
+            // Tag every NWSL event with `.nwsl` (the spine). Non-NWSL competition
+            // feeds merge into this list in later phases.
+            state = .loaded(board.events.map { ScheduledMatch(event: $0, competition: .nwsl) })
         } catch {
             state = .error(message(for: error))
         }
     }
 
-    /// The loaded season (empty unless we're in `.loaded`).
-    var events: [Event] {
-        if case .loaded(let events) = state { return events }
+    /// The loaded season as tagged matches (empty unless we're in `.loaded`).
+    var matches: [ScheduledMatch] {
+        if case .loaded(let matches) = state { return matches }
         return []
     }
+
+    /// The loaded season as raw events — the shape existing readers (Schedule,
+    /// Home, Standings' Last-5, `matches(for:)`) already use. Derived from `matches`.
+    var events: [Event] { matches.map(\.event) }
 
     // TEMP (fragile join): we match a club to its matches by `abbreviation`
     // because ESPN's scoreboard competitor `Team` carries no id (only the

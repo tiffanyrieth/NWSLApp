@@ -67,6 +67,8 @@ struct ProfileView: View {
                 Text("This signs you out on this device. Your Fan Zone points and follows are kept locally.")
             }
         }
+        // Show the sheet grabber, matching the Profile handoff's sheet treatment.
+        .presentationDragIndicator(.visible)
     }
 
     // MARK: - Settings (one door into the Notifications hub)
@@ -85,7 +87,7 @@ struct ProfileView: View {
                     .buttonStyle(.plain)
             }
             .background(Color.dsBgCard)
-            .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
             Text("Match alerts, alert types, and activity — all in one place.")
                 .font(.system(size: 11))
                 .foregroundStyle(Color.dsFgQuaternary)
@@ -316,7 +318,7 @@ struct ProfileView: View {
                 .buttonStyle(.plain)
             }
             .background(Color.dsBgCard)
-            .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
             Text("Signing out keeps your follows on this device. Your Fan Zone points and rank stay with your account.")
                 .font(.system(size: 11))
                 .foregroundStyle(Color.dsFgQuaternary)
@@ -345,7 +347,7 @@ struct ProfileView: View {
             sectionLabel(title)
             VStack(spacing: 0) { content() }
                 .background(Color.dsBgCard)
-                .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
         }
     }
 

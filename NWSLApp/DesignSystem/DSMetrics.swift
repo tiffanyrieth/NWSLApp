@@ -55,7 +55,7 @@ enum DS {
     static let avatarTeams: CGFloat = 32 // teams directory crest
     static let avatarXl: CGFloat = 56    // TeamDetail header crest
     static let avatarMatchHeader: CGFloat = 60 // MatchDetail header crest
-    static let avatarProfile: CGFloat = 72     // Profile identity monogram
+    static let avatarProfile: CGFloat = 76     // Profile identity monogram
     static let feedAvatar: CGFloat = 36        // (legacy FeedCard source avatar)
     static let contentAvatar: CGFloat = 38     // ContentCard avatar (Bluesky/reporter)
 

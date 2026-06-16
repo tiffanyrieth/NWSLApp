@@ -193,9 +193,9 @@ struct MatchCard: View {
     private var awayColor: Color { teamColor(event.awayCompetitor) }
 
     private func teamColor(_ competitor: Competitor?) -> Color {
-        // NWSL clubs get their brand color; non-NWSL sides (national teams, foreign
-        // clubs) render NEUTRAL gray — "a guest in your world", no invented colors.
-        guard let hex = DesignTeamColors.hex(for: competitor?.team?.abbreviation) else {
+        // NWSL clubs, women's national teams, and known Champions Cup foreign clubs get
+        // their brand color; anything still unknown renders NEUTRAL gray.
+        guard let hex = DesignTeamColors.displayHex(for: competitor?.team?.abbreviation) else {
             return Color(hex: "8E8E93")
         }
         return Color.teamFillOnDark(hex: hex)

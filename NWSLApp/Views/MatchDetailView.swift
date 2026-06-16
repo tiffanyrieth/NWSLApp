@@ -897,9 +897,9 @@ struct MatchDetailView: View {
     /// team-color callsite: formation dots, stat bars + values, the stats header,
     /// and the header wash/crest borders.
     private var matchColors: (home: ResolvedTeamColor, away: ResolvedTeamColor) {
-        // Non-NWSL matches render each side by the schedule card's rule: an NWSL club
-        // keeps its brand color, a foreign/national-team side goes NEUTRAL gray ("a
-        // guest in your world" — no invented colors). NWSL matches use the full
+        // Non-NWSL matches render each side by the schedule card's rule: a known side
+        // (NWSL club, women's national team, or Champions Cup foreign club) keeps its
+        // brand color; an unknown side goes NEUTRAL gray. NWSL matches use the full
         // summary-driven resolver (unchanged).
         if !competition.isNWSL {
             return (sideColor(event.homeCompetitor), sideColor(event.awayCompetitor))
@@ -910,10 +910,11 @@ struct MatchDetailView: View {
         )
     }
 
-    /// One side's color for a non-NWSL match: brand color if it's an NWSL club we
-    /// know, else neutral gray (mirrors MatchCard.teamColor).
+    /// One side's color for a non-NWSL match: brand color if we know it (NWSL club,
+    /// women's national team, or known Champions Cup foreign club), else neutral gray
+    /// (mirrors MatchCard.teamColor).
     private func sideColor(_ competitor: Competitor?) -> ResolvedTeamColor {
-        guard let hex = DesignTeamColors.hex(for: competitor?.team?.abbreviation) else {
+        guard let hex = DesignTeamColors.displayHex(for: competitor?.team?.abbreviation) else {
             return ResolvedTeamColor(fill: Color(hex: "8E8E93"), onText: .white)
         }
         return ResolvedTeamColor(fill: Color.teamFillOnDark(hex: hex), onText: .white)

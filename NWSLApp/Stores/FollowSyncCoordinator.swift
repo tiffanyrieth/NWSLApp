@@ -34,20 +34,28 @@ final class FollowSyncCoordinator {
     private let following: FollowingStore
     private let auth: AuthStore
     private let service: FollowSyncService
+    private let compService: CompetitionFollowSyncService
 
     /// The follow set we believe the server holds, so an ongoing toggle can push
     /// just the delta (one added/removed id) rather than the whole set. Seeded by
     /// `reconcile` and kept current by `handleLocalChange`.
     private var knownFollows: Set<String> = []
 
+    /// The competition-follow key set ("nt:USA", "concacaf") we believe the server
+    /// holds — the twin of `knownFollows` for the `competition_follows` table.
+    private var knownCompetitionFollows: Set<String> = []
+
     /// Last user id we reconciled, so we only run the (heavier) merge on an actual
     /// nil → user (or user → different-user) transition, not on every observation.
     private var lastUserID: UUID?
 
-    init(following: FollowingStore, auth: AuthStore, service: FollowSyncService = FollowSyncService()) {
+    init(following: FollowingStore, auth: AuthStore,
+         service: FollowSyncService = FollowSyncService(),
+         compService: CompetitionFollowSyncService = CompetitionFollowSyncService()) {
         self.following = following
         self.auth = auth
         self.service = service
+        self.compService = compService
     }
 
     /// Wire up sync. Call once, after `auth.restoreSession()`, from RootTabView.
@@ -56,6 +64,9 @@ final class FollowSyncCoordinator {
         // tracks the set and returns without a network call).
         following.onFollowsChanged = { [weak self] ids in
             self?.handleLocalChange(ids)
+        }
+        following.onCompetitionFollowKeysChanged = { [weak self] keys in
+            self?.handleCompetitionLocalChange(keys)
         }
 
         // If a session was already restored on launch, reconcile now (the
@@ -114,6 +125,25 @@ final class FollowSyncCoordinator {
                 knownFollows = following.followedIDs
             }
         }
+        reconcileCompetitions(userID: userID)
+    }
+
+    /// The competition twin of `reconcile` — same union-merge contract against the
+    /// `competition_follows` table (national teams + the Champions Cup toggle).
+    private func reconcileCompetitions(userID: UUID) {
+        Task {
+            let local = following.competitionFollowKeys
+            do {
+                let remote = try await compService.fetchRemoteFollows(userID: userID)
+                let union = local.union(remote)
+                following.mergeCompetitionFollowKeys(union)   // sync-down / restore
+                knownCompetitionFollows = union
+                try await compService.pushFollows(union, userID: userID)  // sync-up
+            } catch {
+                print("[FollowSyncCoordinator] competition reconcile failed: \(error)")
+                knownCompetitionFollows = following.competitionFollowKeys
+            }
+        }
     }
 
     // MARK: - Ongoing sync-up
@@ -135,6 +165,27 @@ final class FollowSyncCoordinator {
             }
             for id in removed {
                 try? await service.removeFollow(id, userID: userID)
+            }
+        }
+    }
+
+    /// The competition twin of `handleLocalChange` — mirrors a single toggled
+    /// national team / Champions Cup change to `competition_follows`.
+    private func handleCompetitionLocalChange(_ keys: Set<String>) {
+        guard let userID = auth.userID else {
+            knownCompetitionFollows = keys
+            return
+        }
+        let added = keys.subtracting(knownCompetitionFollows)
+        let removed = knownCompetitionFollows.subtracting(keys)
+        knownCompetitionFollows = keys
+        guard !added.isEmpty || !removed.isEmpty else { return }
+        Task {
+            for key in added {
+                try? await compService.addFollow(key, userID: userID)
+            }
+            for key in removed {
+                try? await compService.removeFollow(key, userID: userID)
             }
         }
     }

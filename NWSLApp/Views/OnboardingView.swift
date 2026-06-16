@@ -25,7 +25,6 @@ import SwiftUI
 
 struct OnboardingView: View {
     @State private var viewModel = TeamsViewModel()
-    @State private var showCompetitions = false
     @Environment(FollowingStore.self) private var following
     // The shared club directory (injected in RootTabView); the view model reads
     // its state/clubs through this.
@@ -99,43 +98,27 @@ struct OnboardingView: View {
         .accessibilityLabel(isFollowing ? "Unfollow \(club.displayName)" : "Follow \(club.displayName)")
     }
 
-    // Collapsed-by-default international competitions — invisible to new fans,
-    // zero friction. The rows are real follow toggles (mirroring the club rows),
-    // backed by FollowingStore.followedCompetitionIDs. Following one is remembered
-    // but doesn't change the Schedule yet (it's NWSL-only) — that's the larger
-    // competition-aware-schedule work in CLAUDE.md's What's-Next.
+    // A quiet pointer, not a toggle list: international competitions (national teams
+    // + the Champions Cup) are followed in their own hub (Teams → Follow competitions),
+    // which is the designed flow. Onboarding stays focused on picking clubs; this just
+    // tells a new fan the rest exists. (The old inert competition toggles lived here.)
     private var internationalSection: some View {
         Section {
-            DisclosureGroup(isExpanded: $showCompetitions) {
-                ForEach(FollowedCompetition.all) { competition in
-                    competitionRow(competition)
-                }
-            } label: {
-                Label("Also follow international competitions", systemImage: "globe")
-            }
-        }
-    }
-
-    private func competitionRow(_ competition: FollowedCompetition) -> some View {
-        let isFollowing = following.isFollowing(competition)
-        return Button {
-            following.toggle(competition)
-        } label: {
             HStack(spacing: 12) {
-                Image(systemName: competition.systemImage)
-                    .foregroundStyle(isFollowing ? Color.accentColor : Color.secondary)
+                Image(systemName: "globe")
+                    .foregroundStyle(Color.secondary)
                     .frame(width: 32)
-                Text(competition.name)
-                    .foregroundStyle(.primary)
-                Spacer(minLength: 8)
-                Image(systemName: isFollowing ? "checkmark.circle.fill" : "circle")
-                    .imageScale(.large)
-                    .foregroundStyle(isFollowing ? Color.accentColor : Color.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Following a national team?")
+                        .foregroundStyle(.primary)
+                    Text("Add national teams + the Champions Cup later in Teams → Follow competitions.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-            .contentShape(Rectangle())
+            .accessibilityElement(children: .combine)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(isFollowing ? "Unfollow \(competition.name)" : "Follow \(competition.name)")
     }
 
     private var bottomBar: some View {

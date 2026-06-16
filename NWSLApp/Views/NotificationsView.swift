@@ -119,6 +119,10 @@ struct NotificationsView: View {
             title: "Alert types",
             subtitle: "What you'll be notified about, for the teams above"
         ) {
+            // Day-before is Tier 1 (local, no account needed). Kickoff/Goals/
+            // Halftime/Full time are Tier 2 (server push): the account requirement is
+            // revealed on TAP (the tier2Binding presents the sign-in sheet), not shown
+            // upfront — keeps the rows clean.
             SettingsToggleRow(title: "Day-before reminder", subtitle: "24 hours before kickoff",
                               isOn: tier1Binding(\.dayBefore))
             SettingsRowDivider()

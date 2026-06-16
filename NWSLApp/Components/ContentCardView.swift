@@ -45,7 +45,7 @@ struct ContentCardView: View {
         case .blueskyTeamText, .blueskyTeamMedia, .blueskyReporter, .instagramFallback:
             AvatarContentCard(card: card, club: club, hideTeamIdentity: hideTeamIdentity)
         case .newsArticle:
-            ArticleContentCard(card: card, club: club)
+            ArticleContentCard(card: card, club: club, hideTeamIdentity: hideTeamIdentity)
         }
     }
 }

@@ -40,17 +40,10 @@ struct FeedView: View {
                     feed
                 }
             }
-            .navigationTitle("Feed")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSources = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .accessibilityLabel("Manage sources")
-                }
-            }
+            // Custom large-title header (title + gear + subtitle) like the other
+            // facelifted tabs; the system nav bar is hidden so the header owns the top.
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .top, spacing: 0) { feedHeader }
             .sheet(isPresented: $showSources) {
                 FeedSourcesView(sources: viewModel.sources())
                     .environment(feedPreferences)
@@ -68,6 +61,37 @@ struct FeedView: View {
         }
     }
 
+    // Large "Feed" title + a circular gear (source management) + subtitle, drawn as
+    // one pinned header (matches the Home / Schedule facelift headers).
+    private var feedHeader: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .center) {
+                Text("Feed")
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundStyle(Color.dsFgPrimary)
+                Spacer()
+                Button { showSources = true } label: {
+                    ZStack {
+                        Circle().fill(Color.dsBgCard)
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color.dsAccent)
+                    }
+                    .frame(width: 38, height: 38)
+                }
+                .accessibilityLabel("Manage sources")
+            }
+            Text("Reporters & writers covering your teams")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.dsFgSecondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgGrouped)
+    }
+
     // MARK: - Feed (chips + content)
 
     private var feed: some View {
@@ -83,7 +107,7 @@ struct FeedView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(viewModel.chips, id: \.self) { filter in
-                    Chip(label: filter.label, isActive: viewModel.selectedFilter == filter) {
+                    Chip(label: filter.label, isActive: viewModel.selectedFilter == filter, compact: true) {
                         viewModel.selectedFilter = filter
                     }
                 }

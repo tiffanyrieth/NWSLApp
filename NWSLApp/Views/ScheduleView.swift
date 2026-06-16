@@ -127,7 +127,10 @@ struct ScheduleView: View {
     // states (no follows yet, or follows still resolving).
     @ViewBuilder
     private var loadedContent: some View {
-        if selectedFilter == .myTeams && following.followedIDs.isEmpty {
+        if selectedFilter == .myTeams && following.followedIDs.isEmpty
+            && following.followedNationalTeams.isEmpty {
+            // "My teams" is empty only when NOTHING is followed — clubs OR national
+            // teams. (Following just a national team still fills this view.)
             followPrompt
         } else if selectedFilter == .myTeams && viewModel.isResolvingFollowedTeams {
             ProgressView("Loading your teams…")

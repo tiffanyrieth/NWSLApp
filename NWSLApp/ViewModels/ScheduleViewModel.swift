@@ -28,18 +28,18 @@ final class ScheduleViewModel {
         let id: String       // "yyyy-MM-dd"
         let label: String    // "Today" or "Saturday, June 6"
         let isToday: Bool     // drives the date-header TODAY chip + white treatment
-        let events: [Event]
+        let matches: [ScheduledMatch]   // tagged so the card can label non-NWSL competitions
     }
 
-    /// The three always-visible filter tabs (per the schedule design spec).
+    /// The two filter chips (Competitions feature: NWSL, and My teams — which now
+    /// folds in followed national teams' + Champions Cup matches. No third chip).
     enum Filter: String, CaseIterable, Identifiable {
-        case nwsl, myTeams, international
+        case nwsl, myTeams
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .nwsl:          return "NWSL"
-            case .myTeams:       return "My teams"
-            case .international: return "International"
+            case .nwsl:    return "NWSL"
+            case .myTeams: return "My teams"
             }
         }
     }
@@ -81,7 +81,7 @@ final class ScheduleViewModel {
 
     /// Day-grouped sections for a given filter tab.
     func sections(for filter: Filter) -> [DaySection] {
-        sections(from: events(for: filter))
+        sections(from: matches(for: filter))
     }
 
     /// Followed clubs' team abbreviations — the join key for the "My teams"
@@ -114,50 +114,42 @@ final class ScheduleViewModel {
 
     // MARK: - Filtering
 
-    private func events(for filter: Filter) -> [Event] {
-        let all = store?.events ?? []
+    private func matches(for filter: Filter) -> [ScheduledMatch] {
+        let all = store?.matches ?? []
         switch filter {
         case .nwsl:
-            // Every match on the scoreboard today is NWSL regular season.
-            return all
+            // The home-league chip is NWSL only — competition matches never appear here.
+            return all.filter { $0.competition.isNWSL }
         case .myTeams:
+            // "Everything you care about", woven into one timeline:
+            //  • National-team matches — already filtered to FOLLOWED teams upstream
+            //    in MatchStore, so always keep them.
+            //  • NWSL + Champions Cup matches — keep only those involving a FOLLOWED
+            //    club (the Champions Cup global toggle gates the FETCH; this narrows
+            //    its matches to the clubs you actually follow).
             let abbreviations = followedAbbreviations
-            guard !abbreviations.isEmpty else { return [] }
-            return all.filter { event in
-                if let home = event.homeCompetitor?.team?.abbreviation,
-                   abbreviations.contains(home) { return true }
-                if let away = event.awayCompetitor?.team?.abbreviation,
-                   abbreviations.contains(away) { return true }
-                return false
+            return all.filter { match in
+                if case .international = match.competition { return true }
+                let home = match.event.homeCompetitor?.team?.abbreviation
+                let away = match.event.awayCompetitor?.team?.abbreviation
+                return (home.map(abbreviations.contains) ?? false)
+                    || (away.map(abbreviations.contains) ?? false)
             }
-        case .international:
-            // The international / national-team-window bucket. The ESPN scoreboard
-            // Event carries no competition field yet, so nothing qualifies and the
-            // view shows the designed "coming soon" empty state. When competition-
-            // aware schedule data lands (FollowedCompetition + a competition id on
-            // Event), filter here — NWSL stays the domestic league, International the
-            // cups/windows; they never overlap (so this is NOT a duplicate of NWSL).
-            return all.filter(isInternational)
         }
     }
 
-    /// Whether a match belongs to the International bucket. No competition metadata
-    /// rides on the scoreboard Event yet, so this is always false today — the hook
-    /// that lights up when competition-aware data lands.
-    private func isInternational(_ event: Event) -> Bool {
-        false
-    }
-
-    private func sections(from events: [Event]) -> [DaySection] {
+    private func sections(from matches: [ScheduledMatch]) -> [DaySection] {
         let today = todayKey()
-        let grouped = Dictionary(grouping: events.filter { $0.dayKey != nil }) { $0.dayKey! }
+        let grouped = Dictionary(grouping: matches.filter { $0.event.dayKey != nil }) { $0.event.dayKey! }
         return grouped
-            .map { (key, events) in
+            .map { (key, dayMatches) in
                 DaySection(
                     id: key,
                     label: label(forDayKey: key),
                     isToday: key == today,
-                    events: events.sorted { ($0.kickoff ?? .distantFuture) < ($1.kickoff ?? .distantFuture) }
+                    matches: dayMatches.sorted {
+                        ($0.event.kickoff ?? .distantFuture) < ($1.event.kickoff ?? .distantFuture)
+                    }
                 )
             }
             .sorted { $0.id < $1.id }
@@ -181,13 +173,13 @@ final class ScheduleViewModel {
     // ScrollViewReader to the card's id (`event.id`), so the last result is the first
     // visible row — not the season opener, and not today's header flush at the top.
     func initialScrollEventID(for filter: Filter) -> String? {
-        let dated = events(for: filter)
-            .compactMap { event -> (Event, Date)? in event.kickoff.map { (event, $0) } }
+        let dated = matches(for: filter)
+            .compactMap { match -> (String, Date)? in match.event.kickoff.map { (match.id, $0) } }
             .sorted { $0.1 < $1.1 }
         guard !dated.isEmpty else { return nil }
         let cutoff = now()
-        if let lastStarted = dated.last(where: { $0.1 <= cutoff }) { return lastStarted.0.id }
-        return dated.first?.0.id
+        if let lastStarted = dated.last(where: { $0.1 <= cutoff }) { return lastStarted.0 }
+        return dated.first?.0
     }
 
     // MARK: - Private

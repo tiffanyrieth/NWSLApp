@@ -44,17 +44,23 @@ struct ESPNService {
     // When `year` is provided, requests the full season via
     // `?dates=YYYY0101-YYYY1231&limit=500` — the form the API probe confirmed
     // returns the entire season (the default response caps at 100 events).
-    func fetchScoreboard(year: Int? = nil) async throws -> Scoreboard {
+    //
+    // `league` selects a non-NWSL competition via the proxy's `?league=<slug>`
+    // allowlist (nil = NWSL, the default — no param, identical to before). Other
+    // women's slugs (fifa.shebelieves, fifa.friendly.w, concacaf.w.gold, …) route
+    // through the same cached pass-through; the proxy maps the slug to ESPN's path.
+    func fetchScoreboard(year: Int? = nil, league: String? = nil) async throws -> Scoreboard {
         let endpoint = scoreboardBase.appendingPathComponent("scoreboard")
         guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
             throw ESPNServiceError.badURL
         }
+        var items: [URLQueryItem] = []
+        if let league { items.append(URLQueryItem(name: "league", value: league)) }
         if let year {
-            components.queryItems = [
-                URLQueryItem(name: "dates", value: "\(year)0101-\(year)1231"),
-                URLQueryItem(name: "limit", value: "500"),
-            ]
+            items.append(URLQueryItem(name: "dates", value: "\(year)0101-\(year)1231"))
+            items.append(URLQueryItem(name: "limit", value: "500"))
         }
+        if !items.isEmpty { components.queryItems = items }
         guard let url = components.url else {
             throw ESPNServiceError.badURL
         }

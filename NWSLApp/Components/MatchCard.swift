@@ -18,26 +18,24 @@
 
 import SwiftUI
 
-/// A non-NWSL competition tag for a match (CONCACAF W, etc.): a colored accent +
-/// pill. Still consumed by `MatchDetailView`; dormant on the schedule card (the
-/// redesign omits the competition label until non-default competition data exists,
-/// per the handoff flag). Kept here as the shared definition.
-///
-/// TEMP / placeholder-ready: nothing constructs a non-nil value yet — every match
-/// we fetch today is NWSL regular season, and there's no Competition data model.
-struct CompetitionBadge {
-    let label: String   // e.g. "CONCACAF W — Semifinal"
-    let color: Color
-}
-
 struct MatchCard: View {
-    let event: Event
+    let match: ScheduledMatch
+    private var event: Event { match.event }
 
     // Drives the pulsing LIVE dot (live matches only).
     @State private var pulse = false
 
     var body: some View {
         VStack(spacing: 13) {
+            // Competition label (tracked-caps) for non-NWSL matches — omitted on NWSL
+            // (redundant on the home league). E.g. "SHEBELIEVES CUP", "INTERNATIONAL FRIENDLY".
+            if let label = match.competition.displayLabel {
+                Text(label.uppercased())
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(0.6)
+                    .foregroundStyle(Color.dsFgTertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             HStack(alignment: .center, spacing: 0) {
                 side(event.homeCompetitor, color: homeColor)
                 centerColumn
@@ -195,7 +193,12 @@ struct MatchCard: View {
     private var awayColor: Color { teamColor(event.awayCompetitor) }
 
     private func teamColor(_ competitor: Competitor?) -> Color {
-        Color.teamFillOnDark(hex: DesignTeamColors.hex(for: competitor?.team?.abbreviation))
+        // NWSL clubs, women's national teams, and known Champions Cup foreign clubs get
+        // their brand color; anything still unknown renders NEUTRAL gray.
+        guard let hex = DesignTeamColors.displayHex(for: competitor?.team?.abbreviation) else {
+            return Color(hex: "8E8E93")
+        }
+        return Color.teamFillOnDark(hex: hex)
     }
 
     private var kickoffTimeText: String {

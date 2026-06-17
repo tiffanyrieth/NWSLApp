@@ -4,11 +4,13 @@
 //
 //  The Standings tab, rebuilt in the redesign's "color-block" language
 //  (Reference/Feed update/design-handoff — Standings.html / standings.jsx):
-//  one rounded card, a team-color left edge + color-coded abbreviation on every
-//  row, PTS as the bold white hero number, and a quiet "Last 5" recent-form
-//  column on the far right. A cyan PLAYOFF LINE marks the top-8 cutoff; teams
-//  below it dim. Followed clubs get the blue tint + accent rank + star, and
-//  every row taps into TeamDetailView.
+//  one rounded card, a color-coded abbreviation + crest on every row (so the table
+//  stays vibrant), PTS as the bold white hero number, and a quiet "Last 5"
+//  recent-form column on the far right. The team-color left spine is a FOLLOW
+//  indicator — only followed clubs get it (plus the blue tint + accent rank);
+//  if you follow nobody, every row keeps its bar so the table isn't all-grey. A cyan
+//  PLAYOFF LINE marks the top-8 cutoff — it's the ONLY cutoff cue; below-line rows
+//  render at full opacity (no dimming). Every row taps into TeamDetailView.
 //
 //  Columns: # · TEAM · PTS · GP · W · D · L · LAST 5. (GP is kept — owner
 //  decision; the mock omits it.) The deliberate no-GF/GA/GD stance stands.
@@ -41,7 +43,7 @@ struct StandingsView: View {
     // rows. Per the §0 crest rule, secondary elements (gaps, the W/D/L columns, the
     // Last-5 width) are kept tight so the 32pt crest + abbreviation + ★ never clip.
     private enum Col {
-        static let rank: CGFloat = 16
+        static let rank: CGFloat = 22     // fits two 14pt digits (10–16) on one line
         static let pts: CGFloat = 34
         static let gp: CGFloat = 22
         static let wdl: CGFloat = 19     // W · D · L
@@ -134,7 +136,9 @@ struct StandingsView: View {
     private var tableBody: some View {
         // Compute the Last-5 map once per render (cheap, O(events)) and thread it
         // into the rows rather than recomputing per row.
-        let form = RecentForm.lastFiveByAbbreviation(in: matchStore.events)
+        // NWSL-only events: a club's Last-5 is its LEAGUE form — Champions Cup ties
+        // (which carry NWSL abbreviations) must not count toward it.
+        let form = RecentForm.lastFiveByAbbreviation(in: matchStore.nwslEvents)
         return VStack(spacing: 0) {
             columnHeader
             card(form: form)
@@ -144,7 +148,7 @@ struct StandingsView: View {
 
     private var columnHeader: some View {
         HStack(spacing: Col.gap) {
-            Text("#").frame(width: Col.rank, alignment: .leading)
+            Text("#").frame(width: Col.rank, alignment: .trailing)
             Text("Team").frame(maxWidth: .infinity, alignment: .leading)
             Text("PTS").frame(width: Col.pts, alignment: .trailing)
             Text("GP").frame(width: Col.gp, alignment: .trailing)
@@ -160,14 +164,18 @@ struct StandingsView: View {
     }
 
     private func card(form: [String: [MatchResult]]) -> some View {
-        VStack(spacing: 0) {
+        // The colored left spine is the follow indicator. If the user follows no team,
+        // keep every row's bar (edge case) so the table isn't all-grey.
+        let followsAnyTeam = viewModel.rows.contains { following.isFollowing($0.club) }
+        return VStack(spacing: 0) {
             ForEach(Array(viewModel.rows.enumerated()), id: \.element.id) { index, row in
                 if index == playoffSpots {
                     playoffLine
                 } else if index > 0 {
                     rowDivider
                 }
-                rowButton(for: row, recent: form[row.club.abbreviation] ?? [])
+                rowButton(for: row, recent: form[row.club.abbreviation] ?? [],
+                          followsAnyTeam: followsAnyTeam)
             }
         }
         .background(Color.dsBgCard)
@@ -204,12 +212,12 @@ struct StandingsView: View {
 
     // MARK: - Row
 
-    private func rowButton(for row: StandingsRow, recent: [MatchResult]) -> some View {
+    private func rowButton(for row: StandingsRow, recent: [MatchResult], followsAnyTeam: Bool) -> some View {
         let isFollowing = following.isFollowing(row.club)
-        let playoff = row.rank <= playoffSpots
         let accent = row.club.accentColor
-        // Rank: accent for your teams, white inside the playoff line, dim below it.
-        let rankColor: Color = isFollowing ? .dsAccent : (playoff ? .dsFgPrimary : .dsFgTertiary)
+        // Rank: accent for your teams, white for everyone else — no below-line dim
+        // (below-playoff rows read at full strength, like the rest).
+        let rankColor: Color = isFollowing ? .dsAccent : .dsFgPrimary
 
         return Button {
             path.append(row.club)
@@ -219,7 +227,10 @@ struct StandingsView: View {
                     .font(.system(size: 14, weight: .bold))
                     .monospacedDigit()
                     .foregroundStyle(rankColor)
-                    .frame(width: Col.rank, alignment: .leading)
+                    .lineLimit(1)
+                    // Right-aligned + monospaced so 1–9 sit in the ones position under
+                    // the second digit of 10–16, all ending at the same right edge.
+                    .frame(width: Col.rank, alignment: .trailing)
 
                 HStack(spacing: 7) {
                     // The crest is the hero (§0): 32pt, ring-free. Secondary elements
@@ -234,12 +245,6 @@ struct StandingsView: View {
                         .foregroundStyle(accent)
                         .lineLimit(1)
                         .fixedSize()
-                    if isFollowing {
-                        Text("★")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.dsFollowStar)
-                            .fixedSize()
-                    }
                     Spacer(minLength: 2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -259,15 +264,19 @@ struct StandingsView: View {
             .padding(.trailing, Inset.rowTrail)
             .frame(height: 60)
             .background(isFollowing ? Color.dsFollowTint : Color.clear)
-            // 3px team-color left edge, inset from the rounded card corners.
+            // 3px team-color left spine — the FOLLOW indicator: only your teams get it
+            // (inset from the rounded card corners). Follow nobody → every row keeps its
+            // bar so the table isn't all-grey.
             .overlay(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .fill(accent)
-                    .frame(width: 3)
-                    .padding(.vertical, 11)
+                if isFollowing || !followsAnyTeam {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(accent)
+                        .frame(width: 3)
+                        .padding(.vertical, 11)
+                }
             }
-            // Teams below the playoff line read quieter.
-            .opacity(playoff ? 1 : 0.6)
+            // No below-playoff-line dimming — the PLAYOFF LINE divider is the only
+            // cutoff cue; every row renders at full opacity for readability.
             .contentShape(Rectangle())   // whole row tappable, incl. padding
         }
         .buttonStyle(.plain)

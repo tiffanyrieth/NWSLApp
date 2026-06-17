@@ -29,9 +29,6 @@ struct TeamDetailView: View {
     @Environment(FollowingStore.self) private var following
     // Per-team match-alert on/off (same store as the Teams list + the hub).
     @Environment(TeamAlertStore.self) private var teamAlerts
-    // Gates the bell's first-tap "doorway" (push the hub before enabling) — mirrors
-    // the Teams list bell, so a user always sees the hub before opting in.
-    @Environment(NotificationPreferencesStore.self) private var notifications
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
@@ -41,9 +38,6 @@ struct TeamDetailView: View {
         case stats = "Stats"
     }
     @State private var section: TeamSection = .squad
-
-    // Route for the bell's first-tap doorway into the notifications hub.
-    private enum ClubRoute: Hashable { case hub }
 
     private let columns = [
         GridItem(.flexible(), spacing: 10),
@@ -75,7 +69,6 @@ struct TeamDetailView: View {
                 seasonLabel: viewModel.seasonLabel
             )
         }
-        .navigationDestination(for: ClubRoute.self) { _ in NotificationsView() }
         .task {
             // Social links are local seed data (instant) — load them first so the
             // links appear right away, then the roster fetch fills the squad/stats
@@ -144,21 +137,16 @@ struct TeamDetailView: View {
         }
     }
 
-    @ViewBuilder
     private var bellControl: some View {
         let on = teamAlerts.alertsEnabled(for: club.id)
-        if notifications.hubVisited {
-            Button { teamAlerts.toggle(for: club.id) } label: { bellCircle(on: on) }
-                .buttonStyle(.plain)
-                .accessibilityLabel(on
-                    ? "Turn off match alerts for \(club.displayName)"
-                    : "Turn on match alerts for \(club.displayName)")
-        } else {
-            // First tap before the hub's ever been seen: push the hub (a doorway,
-            // not a silent enable) — same rule as the Teams list bell.
-            NavigationLink(value: ClubRoute.hub) { bellCircle(on: false) }
-                .accessibilityLabel("Set up match alerts for \(club.displayName)")
-        }
+        // Direct toggle — tap = on/off, always. (The old first-tap "doorway into the
+        // hub" was retired in favor of the Teams-tab coach mark.) The bell never
+        // requests iOS notification permission — that fires only from inside the hub.
+        return Button { teamAlerts.toggle(for: club.id) } label: { bellCircle(on: on) }
+            .buttonStyle(.plain)
+            .accessibilityLabel(on
+                ? "Turn off match alerts for \(club.displayName)"
+                : "Turn on match alerts for \(club.displayName)")
     }
 
     private func bellCircle(on: Bool) -> some View {

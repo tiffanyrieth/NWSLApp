@@ -80,26 +80,6 @@ struct ScheduleView: View {
         // (matchList) so they can drive the scroll proxy directly. See `matchList`.
     }
 
-    // International is wired but has no data yet (no competition field on Event) —
-    // a deliberate, designed "coming soon" state rather than a blank "No matches".
-    private var internationalComingSoon: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "globe")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.dsStateKickoff)
-            Text("International fixtures coming soon")
-                .font(.headline)
-                .foregroundStyle(Color.dsFgPrimary)
-                .multilineTextAlignment(.center)
-            Text("National-team windows and continental cups will appear here once the schedule goes competition-aware.")
-                .font(.subheadline)
-                .foregroundStyle(Color.dsFgSecondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(.horizontal, 32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.dsBgGrouped)
-    }
 
     // Large "Schedule" title + the filter chips, drawn as one pinned header.
     private var scheduleHeader: some View {
@@ -147,7 +127,10 @@ struct ScheduleView: View {
     // states (no follows yet, or follows still resolving).
     @ViewBuilder
     private var loadedContent: some View {
-        if selectedFilter == .myTeams && following.followedIDs.isEmpty {
+        if selectedFilter == .myTeams && following.followedIDs.isEmpty
+            && following.followedNationalTeams.isEmpty {
+            // "My teams" is empty only when NOTHING is followed — clubs OR national
+            // teams. (Following just a national team still fills this view.)
             followPrompt
         } else if selectedFilter == .myTeams && viewModel.isResolvingFollowedTeams {
             ProgressView("Loading your teams…")
@@ -159,11 +142,7 @@ struct ScheduleView: View {
         } else {
             let sections = viewModel.sections(for: selectedFilter)
             if sections.isEmpty {
-                if selectedFilter == .international {
-                    internationalComingSoon
-                } else {
-                    emptyState
-                }
+                emptyState
             } else {
                 matchList(sections)
             }
@@ -182,20 +161,21 @@ struct ScheduleView: View {
                 LazyVStack(spacing: 12, pinnedViews: [.sectionHeaders]) {
                     ForEach(sections) { section in
                         Section {
-                            ForEach(section.events) { event in
+                            ForEach(section.matches) { match in
                                 // Closure-based NavigationLink (not value-based): Event
                                 // isn't Hashable, and the card is the link's label so the
                                 // whole card is tappable. `.plain` keeps the card's look.
                                 NavigationLink {
                                     // Pass our name so the detail's back button reads
                                     // "‹ Schedule" (parent-reflecting back rule).
-                                    MatchDetailView(event: event, origin: "Schedule")
+                                    MatchDetailView(event: match.event, origin: "Schedule",
+                                                    competition: match.competition)
                                 } label: {
-                                    MatchCard(event: event)
+                                    MatchCard(match: match)
                                 }
                                 .buttonStyle(.plain)
                                 // The per-card scroll anchor target (event id).
-                                .id(event.id)
+                                .id(match.id)
                             }
                         } header: {
                             DayHeader(dayKey: section.id, isToday: section.isToday)

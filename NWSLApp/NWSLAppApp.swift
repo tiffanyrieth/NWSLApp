@@ -21,12 +21,14 @@ struct NWSLAppApp: App {
     init() {
         #if DEBUG
         // Dev-only: pass `-resetOnboarding` in the Run scheme's launch arguments
-        // to wipe followed teams + the onboarding flag before any store reads
-        // UserDefaults, so the next launch starts at the first-open picker. Runs
-        // here (App.init) because it's the earliest hook — before RootTabView
-        // creates the stores. Stripped from release builds.
+        // to wipe followed teams + the onboarding flag AND the notification first-run
+        // state before any store reads UserDefaults, so the next launch is a true
+        // brand-new user — first-open picker AND the Teams-tab match-alert coach mark
+        // both fire again. Runs here (App.init) because it's the earliest hook — before
+        // RootTabView creates the stores. Stripped from release builds.
         if ProcessInfo.processInfo.arguments.contains("-resetOnboarding") {
             FollowingStore.debugResetState()
+            NotificationPreferencesStore.debugResetState()
         }
         #endif
     }

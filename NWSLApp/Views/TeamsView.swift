@@ -42,6 +42,16 @@ struct TeamsView: View {
     @AppStorage("hasSeenTeamsAlertTooltip") private var hasSeenAlertTooltip = false
     @State private var showAlertTooltip = false
 
+    // A brief confirmation toast shown when a team card's bell is toggled — tells the
+    // user what the bell did and breadcrumbs to the hub for tier control. Auto-dismisses
+    // after ~3s or on tap (the bell toggle itself is unchanged — this is purely additive).
+    @State private var alertToast: AlertToast?
+
+    private struct AlertToast: Identifiable, Equatable {
+        let id = UUID()
+        let on: Bool
+    }
+
     // Two equal columns with the same 12pt gutter as the row spacing (per the mock).
     private let columns = [GridItem(.flexible(), spacing: 12),
                            GridItem(.flexible(), spacing: 12)]
@@ -90,7 +100,11 @@ struct TeamsView: View {
         }
         return ScrollView {
             VStack(spacing: 0) {
+                // zIndex lifts the header (and its coach-mark overlay, which hangs DOWN
+                // past the header frame via offset) above the later siblings — without
+                // it the subtitle/grid composite on top and hide the tooltip.
                 header
+                    .zIndex(1)
                 subtitle
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(clubs) { teamCard($0) }
@@ -118,6 +132,62 @@ struct TeamsView: View {
                 }
             }
         }
+        // Bell-confirmation toast: floats above the tab bar, fixed (doesn't scroll).
+        .overlay(alignment: .bottom) { toastOverlay }
+    }
+
+    // MARK: - Bell-confirmation toast
+
+    @ViewBuilder
+    private var toastOverlay: some View {
+        if let toast = alertToast {
+            alertToastCard(toast)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 10)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .task(id: toast.id) {
+                    // Auto-dismiss after ~3s; the task cancels if a new toast replaces
+                    // this one or the view goes away.
+                    try? await Task.sleep(for: .seconds(3))
+                    guard !Task.isCancelled, alertToast?.id == toast.id else { return }
+                    withAnimation(.easeOut(duration: 0.2)) { alertToast = nil }
+                }
+        }
+    }
+
+    // The whole toast is tappable: "on" routes to the hub (its CTA is "Customize
+    // alerts"), "off" just dismisses. Either way the toast clears.
+    private func alertToastCard(_ toast: AlertToast) -> some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.2)) { alertToast = nil }
+            if toast.on { path.append(NotificationsRoute.hub) }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: toast.on ? "bell.fill" : "bell.slash.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(toast.on ? Color.dsAccent : Color.dsFgSecondary)
+                Group {
+                    if toast.on {
+                        Text("Match alerts on — 24hr reminders. ")
+                            .foregroundStyle(Color.dsFgPrimary)
+                        + Text("Customize alerts ").foregroundStyle(Color.dsAccent).fontWeight(.semibold)
+                        + Text(Image(systemName: "gearshape.fill")).foregroundStyle(Color.dsAccent)
+                    } else {
+                        Text("Match alerts off.").foregroundStyle(Color.dsFgPrimary)
+                    }
+                }
+                .font(.system(size: 13))
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.dsBgCard, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.dsSeparator, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 
     // "Teams" title with the notifications bell inline on the SAME row, right-aligned
@@ -309,7 +379,7 @@ struct TeamsView: View {
         // hub" was retired in favor of the Teams-tab coach mark.) The bell never
         // requests iOS notification permission — that fires only from inside the hub
         // on a first toggle-on (Bell-Tap fix, Bug 3).
-        return Button { teamAlerts.toggle(for: club.id) } label: {
+        return Button { toggleAlerts(for: club) } label: {
             Image(systemName: on ? "bell.fill" : "bell")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
@@ -322,6 +392,13 @@ struct TeamsView: View {
             on ? "Turn off match alerts for \(club.displayName)"
                : "Turn on match alerts for \(club.displayName)"
         )
+    }
+
+    // Toggle the bell (unchanged behavior) and surface the confirmation toast.
+    private func toggleAlerts(for club: Club) {
+        teamAlerts.toggle(for: club.id)
+        let nowOn = teamAlerts.alertsEnabled(for: club.id)
+        withAnimation(.easeOut(duration: 0.2)) { alertToast = AlertToast(on: nowOn) }
     }
 
     // MARK: - Competitions + alerts footer

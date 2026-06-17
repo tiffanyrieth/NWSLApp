@@ -69,7 +69,8 @@ struct NotificationsView: View {
         let followed = clubStore.clubs.filter { following.isFollowing($0) }
         return SettingsGroup(
             title: "Match alerts — your teams",
-            subtitle: "Which teams buzz your phone on match day"
+            subtitle: "Which teams buzz your phone on match day",
+            note: "Basic alerts are free. Live match updates require an account."
         ) {
             if followed.isEmpty {
                 Text("Follow teams to turn on match alerts.")

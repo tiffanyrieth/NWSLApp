@@ -50,6 +50,9 @@ struct SettingsToggleRow: View {
 struct SettingsGroup<Content: View>: View {
     let title: String
     var subtitle: String? = nil
+    /// An optional second header line under the subtitle, in a quieter tone — e.g. the
+    /// free-vs-account tier explanation atop the Match Alerts section.
+    var note: String? = nil
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -63,6 +66,13 @@ struct SettingsGroup<Content: View>: View {
                     Text(subtitle)
                         .font(.system(size: 12.5))
                         .foregroundStyle(Color.dsFgSecondary)
+                }
+                if let note {
+                    Text(note)
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(Color.dsFgTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 2)
                 }
             }
             .padding(.horizontal, 6)

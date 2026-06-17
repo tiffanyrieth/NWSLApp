@@ -78,6 +78,7 @@ final class NotificationScheduler {
             _ = matches.state
             _ = clubs.state
             _ = following.followedIDs
+            _ = following.followedNationalTeams
             // A team's 🔔 on/off must reschedule too. The store's onAlertChanged
             // closure is owned by TeamAlertSyncCoordinator, so we observe the set
             // directly (same reason we watch followedIDs, not onFollowsChanged). The
@@ -129,15 +130,22 @@ final class NotificationScheduler {
         // on/off, the alert TYPES are global). Scoreboard competitors carry an
         // abbreviation, not a club id, so we resolve through the directory (the same
         // fragile-but-verified join MatchStore.matches(for:) uses).
-        let alertingAbbreviations = Set(
+        guard preferences.dayBefore else { return [] }
+        let alertingClubAbbreviations = Set(
             clubs.clubs
                 .filter {
                     following.followedIDs.contains($0.id)
                         && alerts.alertsEnabled(for: $0.id)
-                        && preferences.dayBefore
                 }
                 .map { $0.abbreviation }
         )
+        // National teams share the same per-team alert store, keyed by FIFA code —
+        // and that code IS the abbreviation their matches carry, so an alerting code
+        // joins to events directly (no directory lookup). Tier-1 day-before only;
+        // Tier-2 server push for national teams rides the deferred match-watcher work.
+        let alertingNationalCodes = following.followedNationalTeams
+            .filter { alerts.alertsEnabled(for: $0) }
+        let alertingAbbreviations = alertingClubAbbreviations.union(alertingNationalCodes)
         guard !alertingAbbreviations.isEmpty else { return [] }
 
         return matches.events.compactMap { event in

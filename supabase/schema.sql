@@ -286,6 +286,43 @@ grant select on public.bracket_matchups to anon, authenticated;
 grant select on public.bracket_scores   to anon, authenticated;
 grant select, insert, update on public.bracket_votes to authenticated;
 
+-- ═════════════════════════════════════════════════════════════════════════════
+-- Competition follows — national teams + Champions Cup (Competitions feature, 0.4.x)
+-- ═════════════════════════════════════════════════════════════════════════════
+--
+-- The Competitions feature adds two new followable things beyond NWSL clubs: women's
+-- NATIONAL TEAMS (by FIFA code) and the CONCACAF W CHAMPIONS CUP global toggle. Clubs
+-- live in `follows` (keyed by ESPN team id); these are a different kind, so they get
+-- their own private per-user table rather than overloading `follows` (which the push
+-- Worker queries by club team_id to fan out goals — a `nt:USA` row there would muddy
+-- those follower lookups). Same offline-first union-merge contract as club follows:
+-- UserDefaults is the immediate local cache; on sign-in local ⋃ server, never delete.
+--
+-- One row per (user, follow_key). `follow_key` is namespaced so the two kinds share a
+-- table: "nt:USA" (national team by FIFA code) or "concacaf" (the Champions Cup
+-- toggle, present = on). RLS-scoped to the owner, like `follows`.
+
+create table public.competition_follows (
+  user_id uuid references auth.users(id) on delete cascade not null,
+  follow_key text not null,              -- "nt:USA" or "concacaf"
+  created_at timestamptz default now(),
+  primary key (user_id, follow_key)      -- backs the app's upsert onConflict
+);
+
+alter table public.competition_follows enable row level security;
+
+create policy "Users read own competition follows"
+  on public.competition_follows for select using (auth.uid() = user_id);
+create policy "Users insert own competition follows"
+  on public.competition_follows for insert with check (auth.uid() = user_id);
+create policy "Users delete own competition follows"
+  on public.competition_follows for delete using (auth.uid() = user_id);
+
+-- Grants (the 42501 gotcha — RLS does not imply privilege). Private per-user table;
+-- authenticated only, never anon.
+grant select, insert, update, delete on public.competition_follows to authenticated;
+
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Predict the XI — per-team leaderboard (Fan Zone game 1)
 -- ═══════════════════════════════════════════════════════════════════════════

@@ -314,7 +314,7 @@ NWSLApp/
 │   ├── BracketEdition.swift           — Bracket Battle: BracketRound/Entrant/Matchup/Edition (64→6 rounds, flat Codable)
 │   ├── Club.swift                     — flat Club + ESPN /teams decode (brand/alternate color → crests)
 │   ├── ContentCard.swift              — unified ALIVE-content model: 7 layouts + `sourceType` (club·reporter·player·league·news, for Feed chips) + StalenessWindow (Home 72h / Feed 7d, 6-card-floored)
-│   ├── FollowedCompetition.swift      — international competitions list + follow model
+│   ├── NationalTeam.swift             — followable women's national team: FIFA code + name + flagcdn slug (flag image) + curated national brand color (drives followed wash/border/code tint); featured(8)/all(16) config lists, data-driven
 │   ├── AthleteStatistics.swift        — ESPN Core API /statistics → PlayerSeasonStats
 │   ├── MatchSummary.swift             — ESPN /summary: lineups+formation, boxscore, key-events timeline
 │   ├── PlayerSpotlight.swift          — Home Module-2 player-of-week; `espnAthleteId`+`seasonStatLine` carry live data; `statStrip` is nil when the proxy sent no stats → the view hides "This Season" (never fabricated)
@@ -333,6 +333,7 @@ NWSLApp/
 │   ├── ContentService.swift           — ALIVE content client: homeCards→/team-videos · feedCards→/feed · spotlightCards→/spotlight; all `throws` on failure (online-only; no seed)
 │   ├── ESPNService.swift              — async fetch: scoreboard + summary (proxy)/teams/roster/standings + seasonStats (Core API)
 │   ├── FollowSyncService.swift        — Supabase `follows` client (fetch/push/add/remove); RLS-scoped
+│   ├── CompetitionFollowSyncService.swift — Supabase `competition_follows` client (national-team + Champions Cup follow keys: "nt:USA"/"concacaf"); the competition twin of FollowSyncService; RLS-scoped
 │   ├── DeviceTokenService.swift       — Supabase `device_tokens` client (APNs token); RLS-scoped
 │   ├── NotificationPrefsSyncService.swift — Supabase `notification_preferences` upsert
 │   ├── NotificationScheduler.swift    — @MainActor; LOCAL (Tier 1) scheduling: day-before reminder (global type ∩ teams with alerts on) + weekly spotlight (global)
@@ -355,11 +356,11 @@ NWSLApp/
 │   ├── BracketStore.swift             — Bracket per-edition/round draft + one-way submit (only after server ack) + banked points + edition-summary gate snapshot (`bracket.v2.*`; no offline edition cache)
 │   ├── ClubStore.swift                — shared club directory; one fetch, many readers
 │   ├── FeedPreferencesStore.swift     — Feed content-type toggles + muted sources + `defaultFeedFilter` (the chip the Feed opens to, raw string)
-│   ├── FollowSyncCoordinator.swift    — @MainActor; the ONLY follows↔Supabase bridge (sign-in union-merge + ongoing sync)
+│   ├── FollowSyncCoordinator.swift    — @MainActor; the ONLY follows↔Supabase bridge (sign-in union-merge + ongoing sync) — clubs (`follows`) AND competition follows (`competition_follows`: national teams + Champions Cup)
 │   ├── NotificationSyncCoordinator.swift — @MainActor; device-token + notif-prefs↔Supabase bridge
 │   ├── TeamAlertStore.swift           — @Observable; per-team match-alert ON/OFF (`Set<String>`) → UserDefaults; `migrateFromGlobalIfNeeded`; `onAlertChanged` sync seam
 │   ├── TeamAlertSyncCoordinator.swift — @MainActor; per-team on/off↔Supabase bridge + clears a team's alerts when it leaves the followed set (alerts require following)
-│   ├── FollowingStore.swift           — followed clubs + competitions + onboarding gate; offline-first; DEBUG `debugResetState`
+│   ├── FollowingStore.swift           — followed clubs + national teams + Champions Cup toggle + onboarding gate; offline-first; `competitionFollowKeys`/`mergeCompetitionFollowKeys` for sync; one-time legacy-competition migration; DEBUG `debugResetState`
 │   ├── MatchStore.swift               — shared season store; one fetch, many readers
 │   ├── NotificationPreferencesStore.swift — Profile's 9 notif toggles; → NotificationScheduler / NotificationSyncCoordinator
 │   ├── PredictionStore.swift          — Predict-the-XI durable state: predictions+scores by fixtureID (`predict.v2.*`); `seasonPoints` + `points(forTeam:)` + `scoredTeams`
@@ -381,25 +382,26 @@ NWSLApp/
 │   ├── HomeView.swift                 — your-teams hub (32pt header + avatar): 4 modules; M1 round-robin + per-team chips (2+ teams) + "See more →" (per-module error+retry card); M2 Spotlight carousel; M3 Fan Zone featured + tiles; refetch on pull + follows-change
 │   ├── HomeContentListView.swift      — "See more from your teams" full firehose: ALL followed-team content, no cap, reverse-chron, respects the active team chip (+ `HomeTeamChips` bar: [All] + per-team)
 │   ├── ProfileView.swift              — account & settings sheet: identity / Fan Zone stats (🏆 → Game Center) / Settings (Notifications → hub · Support → SupportView) / My Teams / Account
-│   ├── NotificationsView.swift        — the ONE notifications hub: §Match alerts (per-team on/off) · §Alert types (global, dimmed when no team on) · §Activity; tier-aware sign-in gate; 3 doors
+│   ├── NotificationsView.swift        — the ONE notifications hub: §Match alerts (per-team on/off, + free-vs-account tier note) · §Alert types (global, dimmed when no team on) · §Activity; tier-aware sign-in gate; 3 doors
 │   ├── SupportView.swift              — "Support NWSLApp" (StoreKit tips): hero · one-time/monthly toggle · 4 tip tiers · CTA · Restore · "Where it goes" · thank-you state
 │   ├── DailyTriviaView.swift          — Daily Trivia game (indigo); 5/day; results screen w/ best-streak leaderboard
 │   ├── BracketBattleView.swift        — Bracket Battle (teal): 5 screens — Edition Intro · Voting · Save/Submit · Results · Bracket Overview
 │   ├── PredictXIView.swift            — Predict the XI (pink): open fixtures + Results breakdown + per-team leaderboard cards
 │   ├── XIPickerView.swift             — Predict picker sheet: formation chips → pitch-grid slots → scoreline → Save/Submit (+ Game Center first-prediction)
-│   ├── OnboardingView.swift           — first-open team + competition follow picker
+│   ├── OnboardingView.swift           — first-open club picker (+ a quiet pointer to Teams → Follow competitions; the old inert competition toggles are gone)
 │   ├── SignInPromptView.swift         — sign-in half-sheet shown ONLY on a genuine sign-in-required action (Bracket submit); never auto-presented post-onboarding
 │   ├── NotificationAuthPromptView.swift — contextual "sign in for live alerts" half-sheet (Tier 2)
 │   ├── ScheduleView.swift             — full-season cards; filter chips (NWSL · My teams · International→"coming soon"); "SAT · MAR 14" headers + TODAY chip; opens at the past/upcoming boundary (ScrollViewReader→`event.id` + opacity gate, no flash, incl. Home-preload); re-tap + filter animate back
-│   ├── TeamsView.swift                — all-16 directory: ONE list (followed floated up) + subtitle; follow-competitions row; per-row 🔔 toggles + "{N} teams · Manage" line + nav-bar 🔔 → NotificationsView
-│   ├── CompetitionsView.swift         — follow international competitions
+│   ├── TeamsView.swift                — all-16 directory: ONE list (followed floated up) + subtitle; follow-competitions row; per-row 🔔 toggles (+ bottom confirmation toast → hub) + "{N} teams · Manage" line + nav-bar 🔔 → NotificationsView; first-visit coach mark (zIndex-lifted above the grid)
+│   ├── CompetitionsView.swift         — follow international competitions: elevated Champions Cup card (tinted trophy medallion + toggle, Teams-tab card weight) + national-teams 2-col grid of NationalTeamCard + "Browse all" row
+│   ├── BrowseAllTeamsView.swift       — searchable full national-team set: same 2-col grid of NationalTeamCard as the Competitions hub (one visual language, no grid→list switch)
 │   ├── TeamDetailView.swift           — club page: header (⭐ follow) + social row + Squad·Stats tabs
 │   ├── MatchDetailView.swift          — state-aware match: full-bleed Card-C header (72pt crests, team-color abbr + score per crest, temporal center) + "‹ {origin}" back; past=Play-by-Play/Lineups/Stats (formation pitch + BENCH), live=poll & LIVE pill, future=info grid + How-to-Watch + comparison + form
 │   ├── CombinedPitchView.swift        — BOTH teams' XIs on ONE pitch; Lineups default
 │   ├── FormationPitchView.swift       — single-team XI on a pitch; per-team list fallback
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
 │   ├── PlayerSpotlightView.swift      — editorial spotlight: ghosted jersey # + hero, This Season grid, Story (Haiku blurb), Fast Facts + Watch
-│   ├── StandingsView.swift            — color-block table: "TOP 8 ADVANCE" pill; team-color left edge + color-coded abbr/row; PTS hero; cols # · TEAM · PTS · GP · W · D · L · LAST 5; cyan playoff line dims below; followed tint/★; Last-5 via RecentForm
+│   ├── StandingsView.swift            — color-block table: "TOP 8 ADVANCE" pill; color-coded abbr + crest on every row (always vibrant); PTS hero; cols # · TEAM · PTS · GP · W · D · L · LAST 5; cyan PLAYOFF LINE is the ONLY cutoff cue (no below-line dimming, every row full opacity); team-color left spine + tint + accent rank = the FOLLOW indicator (no ★; follow nobody → every row keeps its spine); right-aligned monospaced rank (22pt col, 10–16 don't wrap); Last-5 via RecentForm over `nwslEvents` (league form only)
 │   ├── FeedView.swift                 — Feed tab: header (title+gear+subtitle) + source-class chip bar + chronological ContentCardViews; opens to `defaultFeedFilter`; full-screen error+retry on fetch failure
 │   ├── FeedSourcesView.swift          — Feed content preferences: Default-view picker + content-type toggles + mute sources
 │   └── _ColorAuditView.swift          — 🔧 DEBUG-only 16-club color audit (launch `-colorAudit`, replaces RootTabView); remove once palette verified
@@ -409,7 +411,7 @@ NWSLApp/
 │   ├── BroadcastChip.swift            — color-coded broadcast pill (handoff palette, substring-matched); schedule cards now, match detail at #2 (separate from BroadcastInfo's color DB)
 │   ├── ContentCardView.swift          — single entry point; routes a ContentCard by layout → the 3 card views; 3px team-color left-edge bar (color-block motif) on all layouts
 │   ├── ThumbnailContentCard.swift / AvatarContentCard.swift / ArticleContentCard.swift — the ContentCard layouts
-│   ├── SettingsToggleRow.swift        — shared settings primitives: `SettingsToggleRow` + `SettingsGroup` (optional subtitle) + `SettingsRowDivider` (NotificationsView)
+│   ├── SettingsToggleRow.swift        — shared settings primitives: `SettingsToggleRow` + `SettingsGroup` (optional subtitle + optional quieter `note` line) + `SettingsRowDivider` (NotificationsView)
 │   ├── PlatformBadge.swift            — platform glyph (YT/Bluesky/TikTok/IG/article/reddit)
 │   ├── FormBadge.swift                — W/D/L form badge (optional `size`/`fontSize`, default 22; `MatchResult` convenience init)
 │   ├── GameCard.swift                 — Fan Zone game tile (200×160, radial accent-glow corner + emoji + status pill + badge)
@@ -419,6 +421,7 @@ NWSLApp/
 │   ├── ComingUpRow.swift / EventTimelineRow.swift / FlowLayout.swift — Home/match rows + wrapping layout
 │   ├── ImageCache.swift / TeamLogo.swift / CachedThumbnail.swift — cached crests + content thumbnails; TeamLogo prefers the NWSL crest (proxy `/crest`), ESPN PNG fallback; CachedThumbnail sync-seeds from ImageCache so cards don't flash to the crest on tab-switch
 │   ├── MatchCard.swift                — schedule card → MatchDetailView: team wash, 60pt crests, team-color abbr under each crest, scores below, temporal center, broadcast+venue rail, uniform height. (`CompetitionBadge` struct lives here, used by MatchDetailView.)
+│   ├── NationalTeamCard.swift         — shared national-team grid card (Competitions hub + Browse-all): mirrors the club card — flag (CachedThumbnail, country-color block fallback) + halo, FIFA code in country color, name, Follow pill + bell; followed → country-color radial wash + border. Reads FollowingStore + TeamAlertStore from env
 │   ├── PlayerHeadshot.swift           — circular player headshot via HeadshotStore→Cloudinary (ImageCache); jersey-monogram fallback on all 6 avatar surfaces (404/unmapped keeps the monogram)
 │   ├── PlayerSpotlightCard.swift      — Module-2 hero (~400pt): team-gradient card, headshot fade-masked into the gradient, text in a left zone; ghost# + crest fallback on no-GUID/404 (never empty)
 │   └── SocialLinkButton.swift         — circular team-tinted social icon
@@ -426,11 +429,11 @@ NWSLApp/
 │   ├── Color+Hex.swift                — Color(hex:); teamAccent/teamFillOnDark; resolveMatchColors
 │   ├── Date+RelativeAgo.swift         — shared "2h ago" formatter
 │   ├── Club+BrandColor.swift          — Club → brandHex/accentColor (design palette → id-override → ESPN)
-│   ├── DesignTeamColors.swift         — curated 16-team palette by abbreviation (authoritative)
+│   ├── DesignTeamColors.swift         — curated 16-team NWSL palette by abbreviation (authoritative; `hex(for:)` doubles as the NWSL-membership test). `displayHex(for:)` = COLOR-only resolver adding national teams + foreign Champions Cup clubs (kept separate so it never affects the membership test)
 │   └── TeamBrandColors.swift          — per-team-id brand-color overrides for clubs ESPN gets wrong
 └── Assets.xcassets/                   — app icons, accent color
 
-supabase/schema.sql                    — Postgres: profiles, follows, device_tokens, notification_preferences, team_alert_preferences, bracket_*, prediction_scores, trivia_scores (+ RLS + authenticated GRANTs)
+supabase/schema.sql                    — Postgres: profiles, follows, competition_follows, device_tokens, notification_preferences, team_alert_preferences, bracket_*, prediction_scores, trivia_scores (+ RLS + authenticated GRANTs)
 NWSLApp.storekit                       — local StoreKit 2 config (4 tip consumables + monthly subs) for in-sim Support testing; referenced by the shared scheme. ASC products owner-gated
 ```
 
@@ -478,8 +481,11 @@ flips to locked; failure → "Couldn't submit — tap to retry"). No offline cac
   international competitions (persisted; schedule not competition-aware yet).
 - **Team detail** (`teams-tab-design-spec.md`) — pinned team-color header + social row over Squad · Stats
   (real ESPN, actor-cached); `origin`-driven "‹ {parent}" back.
-- **Standings** — live color-block table; the **Last 5** column has no ESPN source, so it's derived from
-  the shared season (`MatchStore`) via `RecentForm`.
+- **Standings** — live color-block table; the team-color left spine is a **FOLLOW indicator** (only your
+  teams get it, plus tint + accent rank — no ★; follow nobody → every row keeps its spine so it isn't
+  all-grey), crests + color-coded abbr stay on every row, the cyan PLAYOFF LINE is the only cutoff cue (no
+  below-line dimming). The **Last 5** column has no ESPN source, so it's derived from the shared season
+  (`MatchStore`, NWSL-only events) via `RecentForm`.
 - **Schedule** — full season in one `fetchScoreboard(year:)`; **opens at the past/upcoming boundary** (no
   March-flash, incl. the Home-preload path); filters NWSL · My teams · International (latter data-less → "coming soon").
 - **Match detail** — state-aware (Past/Live/Future); the **formation pitch with real headshots is the crown
@@ -520,6 +526,8 @@ shipped. Still pending:
 - **Push — Tier 2 (SERVER push)** — code-complete through Stage C (Worker `~/Projects/nwslapp-match-watcher`:
   cron + KV diff + APNs JWT; kickoff/goal/halftime/full-time; per-team targeting live). Remaining: flip
   `APNS_HOST` sandbox→production at TestFlight; on-device E2E; Stage D (subs + lineup-posted).
-- **Competition-aware schedule** — groundwork exists (3 filters, dormant `CompetitionBadge`,
-  `FollowedCompetition`); needs a competition field on `Event` + a follow-edit surface.
+- **Competitions feature — shipped** (Champions Cup + women's national teams fold into the Schedule's
+  My-teams; follows sync to Supabase). **Deferred:** WWC + Olympics whole-tournament UI (group tables +
+  knockout brackets — its own feature, not a cleanup). Foreign-club color DB grows as new Champions Cup
+  opponents appear (`DesignTeamColors.international`).
 - **Feed** — user-added sources; richer filtering. **Weather** — kickoff-temp header slot.

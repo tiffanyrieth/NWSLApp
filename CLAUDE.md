@@ -139,13 +139,17 @@ Folders are created when their first real file lands, not preemptively.
   map (built from the public NWSL SDP JSON API name-matched to ESPN rosters, ~98%; weekly cron
   + admin `POST /headshots/run`; union-merged in KV with an `unmatched`/`overrides`/`meta`
   audit). The app builds the NWSL Cloudinary headshot URL on-device. Pure mapping — no image bytes.
-- **Crests/flags now BUNDLED in-app** (see Tier-1 first-launch asset strategy): the 16 NWSL
-  crests (11 vector SVG + 5 raster PNG for CHI/KC/BOS/DEN/GFC) and 16 national-team flags ship in
-  the asset catalog (`Crests/<ABBR>`, `Flags/<FIFA>`), so `TeamLogo`/`NationalTeamCard` render
-  them on frame one with ZERO network. `GET /crest?team=WAS` (KV `crest:{ABBR}`, rasterized by
-  `scripts/load_crests.mjs`) is now the FALLBACK for non-NWSL sides + the post-rebrand override
-  source; `GET /crest/manifest` (KV `asset:manifest`, built by `scripts/build_asset_manifest.mjs`)
-  serves per-asset source-master hashes for the app's cadenced refresh. Re-run both on a rebrand.
+- **Crests/flags BUNDLED in-app** (first-launch asset strategy — durable rules): the 16 NWSL crests
+  (11 vector SVG + 5 raster PNG for CHI/KC/BOS/DEN/GFC) and the **8 FEATURED** national-team flags ship
+  in the asset catalog (`Crests/<ABBR>`, `Flags/<FIFA>`) as resolution-independent vector, lossless, so
+  `TeamLogo`/`NationalTeamCard` render frame-one with ZERO network. **Rules:** bundle anything
+  release-cadence (reserve network for live data); **bundle = featured set, browse-all = download+cache**
+  (don't chain a growing list to releases); bundled is authoritative — live is never fetched when a bundle
+  exists. `GET /crest?team=WAS` (KV `crest:{ABBR}`, `scripts/load_crests.mjs`) = FALLBACK for non-NWSL
+  sides + rebrand-override source; `GET /crest/manifest` (KV `asset:manifest`,
+  `scripts/build_asset_manifest.mjs`) = per-asset source-master hashes + a `v`(vector?) flag for the
+  cadenced refresh (`AssetRefreshService`, >30d/March), which **never downgrades vector→raster**. Re-run
+  both on a rebrand.
 - **Bracket engine:** `src/bracket.ts` + `bracket-engine.ts` — auto-generate 64-player
   editions from ESPN, tally votes + advance rounds on a cron, rotate creative↔stats editions.
 - Teams/roster/standings still hit ESPN directly. Base URLs in `Config/AppConfig.swift`;
@@ -396,7 +400,7 @@ NWSLApp/
 │   ├── HomeView.swift                 — your-teams hub (32pt header + avatar): 4 modules; M1 round-robin + per-team chips (2+ teams) + "See more →" (per-module error+retry card); M2 Spotlight carousel; M3 Fan Zone featured + tiles; refetch on pull + follows-change
 │   ├── HomeContentListView.swift      — "See more from your teams" full firehose: ALL followed-team content, no cap, reverse-chron, respects the active team chip (+ `HomeTeamChips` bar: [All] + per-team)
 │   ├── ProfileView.swift              — account & settings sheet: identity / Fan Zone stats (🏆 → Game Center) / Settings (Notifications → hub · Support → SupportView) / My Teams / Account
-│   ├── NotificationsView.swift        — the ONE notifications hub: §Match alerts (per-team on/off, + free-vs-account tier note) · §Alert types (global, dimmed when no team on) · §Activity; tier-aware sign-in gate; 3 doors
+│   ├── NotificationsView.swift        — the ONE notifications hub: §Match alerts (per-team on/off) · §Alert types (global, dimmed when no team on) · §Activity; 3 doors. INVARIANT: Tier-2 ON ⟹ signed in (default OFF, sign-out resets); unfollow clears alerts
 │   ├── SupportView.swift              — "Support NWSLApp" (StoreKit tips): hero · one-time/monthly toggle · 4 tip tiers · CTA · Restore · "Where it goes" · thank-you state
 │   ├── DailyTriviaView.swift          — Daily Trivia game (indigo); 5/day; results screen w/ best-streak leaderboard
 │   ├── BracketBattleView.swift        — Bracket Battle (teal): 5 screens — Edition Intro · Voting · Save/Submit · Results · Bracket Overview
@@ -405,7 +409,7 @@ NWSLApp/
 │   ├── OnboardingView.swift           — first-open club picker (+ a quiet pointer to Teams → Follow competitions; the old inert competition toggles are gone)
 │   ├── SignInPromptView.swift         — sign-in half-sheet shown ONLY on a genuine sign-in-required action (Bracket submit); never auto-presented post-onboarding
 │   ├── NotificationAuthPromptView.swift — contextual "sign in for live alerts" half-sheet (Tier 2)
-│   ├── ScheduleView.swift             — full-season cards; filter chips (NWSL · My teams — My teams folds in followed clubs + national teams + Champions Cup); "SAT · MAR 14" headers + TODAY chip; opens at the past/upcoming boundary (ScrollViewReader→`event.id` + opacity gate, no flash, incl. Home-preload); re-tap + filter animate back
+│   ├── ScheduleView.swift             — full-season cards; filter chips (NWSL · My teams = followed clubs + national teams + Champions Cup); "SAT · MAR 14" headers + TODAY chip; opens at the past/upcoming boundary (ScrollViewReader + opacity gate, no flash, incl. Home-preload); re-tap + filter animate back
 │   ├── TeamsView.swift                — all-16 directory: ONE list (followed floated up) + subtitle; follow-competitions row; per-row 🔔 toggles (+ bottom confirmation toast → hub) + "{N} teams · Manage" line + nav-bar 🔔 → NotificationsView; first-visit coach mark (zIndex-lifted above the grid)
 │   ├── CompetitionsView.swift         — follow international competitions: elevated Champions Cup card (tinted trophy medallion + toggle, Teams-tab card weight) + national-teams 2-col grid of NationalTeamCard + "Browse all" row
 │   ├── BrowseAllTeamsView.swift       — searchable full national-team set: same 2-col grid of NationalTeamCard as the Competitions hub (one visual language, no grid→list switch)
@@ -415,7 +419,7 @@ NWSLApp/
 │   ├── FormationPitchView.swift       — single-team XI on a pitch; per-team list fallback
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
 │   ├── PlayerSpotlightView.swift      — editorial spotlight: ghosted jersey # + hero, This Season grid, Story (Haiku blurb), Fast Facts + Watch
-│   ├── StandingsView.swift            — color-block table: "TOP 8 ADVANCE" pill; color-coded abbr + crest on every row (always vibrant); PTS hero; cols # · TEAM · PTS · GP · W · D · L · LAST 5; cyan PLAYOFF LINE is the ONLY cutoff cue (no below-line dimming, every row full opacity); team-color left spine + tint + accent rank = the FOLLOW indicator (no ★; follow nobody → every row keeps its spine); right-aligned monospaced rank (22pt col, 10–16 don't wrap); Last-5 via RecentForm over `nwslEvents` (league form only)
+│   ├── StandingsView.swift            — color-block table (# · TEAM · PTS · GP · W · D · L · LAST 5); crest + color-coded abbr every row; cyan PLAYOFF LINE the ONLY cutoff cue (no dimming); team-color left spine + tint + accent rank = FOLLOW indicator (no ★; follow nobody → every row keeps its spine); Last-5 via RecentForm over `nwslEvents` (league form only)
 │   ├── FeedView.swift                 — Feed tab: header (title+gear+subtitle) + source-class chip bar + chronological ContentCardViews; opens to `defaultFeedFilter`; full-screen error+retry on fetch failure
 │   ├── FeedSourcesView.swift          — Feed content preferences: Default-view picker + content-type toggles + mute sources
 │   ├── _ColorAuditView.swift          — 🔧 DEBUG-only 16-club color audit (launch `-colorAudit`, replaces RootTabView); remove once palette verified
@@ -454,93 +458,14 @@ NWSLApp.storekit                       — local StoreKit 2 config (4 tip consum
 
 ---
 
-## Current State
-
-Root is `RootTabView` — a 5-tab bar (**Home · Schedule · Standings · Teams · Feed**), each its own
-`NavigationStack`, landing on Home. Dark app-wide. `MatchStore` (season) + `ClubStore` (directory)
-are each fetched once and shared via `.environment`.
-
-**Online-only, no runtime seed (2026-06-16):** every surface shows live data or an honest "Couldn't
-load — tap to retry" — never seed/stale. The runtime seed is gone entirely (the 4 content/trivia
-providers, `-useSeedContent`, `liveContentEnabled` all removed; seed/fixtures live only in previews +
-tests). `ContentService`/`TriviaService`/`BracketService.currentEdition` throw on failure; Home
-surfaces it **per-module** (Module 1 + 2 fail independently, rest of hub stays usable), Feed/Trivia/
-Bracket full-screen. Submits confirm only on a real server ack (Bracket "lock in" writes first, then
-flips to locked; failure → "Couldn't submit — tap to retry"). No offline caching/queue/resync.
-
-(Layout/structure detail lives in the File Map; these bullets are the lens + what's live.)
-
-- **Home** (`home-tab-design-spec.md`) — your-teams hub (pre-onboarding shows `OnboardingView` in place).
-  4 modules: (1) "From your teams" content — **round-robin fair-share** (every team a guaranteed min,
-  interleaved across teams + content types), **per-team chips** (only at 2+ teams), **"See more →"**
-  firehose; pull-refresh refetches/rotates, follows-change refetches. (2) "Weekly Player Spotlight".
-  (3) Fan Zone. (4) "Coming up". All live.
-- **Fan Zone games** (`games-design-spec.md`) — three LIVE games on real Supabase leaderboards:
-  **Predict the XI** (pink, per-team board) auto-scored Mastermind-style vs `/summary` (max 88, one-way,
-  closes kickoff−2h; gate: followed-team fixture ≤28d); **Bracket Battle** (teal) a league-wide **fandom**
-  community-vote tournament (NOT March Madness; themed 64-player/6-round edition; proxy engine generates +
-  advances on cron; gate: active edition); **Daily Trivia** (indigo, league-wide best-streak) deterministic
-  daily-5 from `/trivia` KV (pool grows via loader). A game with nothing active hides everywhere. **Game
-  Center** layered additively (4 boards + 6 achievements, lazy deferred auth); app-side shipped, ASC objects
-  "Prepare for Submission" (verify next TestFlight).
-- **Player Spotlight** (`spotlight-design-spec.md`) — Home Module 2, live `/spotlight`: one real player per
-  followed team + ESPN stats + a Haiku "why watch" blurb, weekly rotation.
-- **Player headshots** — real photos on all 6 avatar surfaces via the proxy `/headshots` map (monogram on a miss).
-- **Team crests + national-team flags — BUNDLED** (Tier-1 first-launch asset strategy): all 16
-  crests (11 vector SVG + 5 raster PNG) and the 8 FEATURED national-team flags ship in the asset
-  catalog and render frame-one with zero network — no cold-CDN race on a fresh install (browse-all
-  flags = download+cache). Bundled vector is sharper than the live PNG, so bundled is authoritative;
-  proxy `/crest`/ESPN/flagcdn are fallback for non-NWSL sides + the cadenced rebrand-refresh source
-  (`AssetRefreshService` ↔ `/crest/manifest`, cache-overrides-bundle, never vector→raster downgrade).
-  Team colors + the formation pitch were already network-free. (Team Detail banners deferred — licensing.)
-- **Feed** (`feed-tab-design-spec.md`) — live `/feed`: reporters + news + social scoped to followed teams +
-  league, with a source-class chip bar (All · News · Clubs · Reporters · Players). The proxy Haiku-team-tags
-  the reporter/league bucket + filters to followed teams server-side.
-- **Content Cards** — one `ContentCard` + `ContentCardView` router (7 layouts) backs Home M1 + Feed;
-  placement gate (Home = team voices; Feed = wider) + staleness (Home 72h / Feed 7d, 6-floored).
-- **Teams + Following** — `TeamsView` all-16 (followed float up); a "Follow competitions" row opens the
-  Competitions hub (CONCACAF W Champions Cup toggle + women's national-team grid). First-visit alert coach
-  mark; bell-tap confirmation toast.
-- **Competitions** — Champions Cup + women's national teams fold into the Schedule's **My teams** (NWSL
-  stays the spine); shared `NationalTeamCard` (flag + FIFA code + per-country color). Follows persist in
-  UserDefaults ↔ Supabase `competition_follows` (union-merge, like clubs). National-team + foreign CC sides
-  render in brand color via `DesignTeamColors.displayHex`. (WWC + Olympics whole-tournament UI deferred.)
-- **Team detail** (`teams-tab-design-spec.md`) — pinned team-color header + social row over Squad · Stats
-  (real ESPN, actor-cached); `origin`-driven "‹ {parent}" back.
-- **Standings** — live color-block table; the team-color left spine is a **FOLLOW indicator** (only your
-  teams get it, plus tint + accent rank — no ★; follow nobody → every row keeps its spine so it isn't
-  all-grey), crests + color-coded abbr stay on every row, the cyan PLAYOFF LINE is the only cutoff cue (no
-  below-line dimming). The **Last 5** column has no ESPN source, so it's derived from the shared season
-  (`MatchStore`, NWSL-only events) via `RecentForm`.
-- **Schedule** — full season in one `fetchScoreboard(year:)`; **opens at the past/upcoming boundary** (no
-  March-flash, incl. the Home-preload path); two filters: NWSL · My teams (My teams folds in followed
-  clubs + national teams + the Champions Cup).
-- **Match detail** — state-aware (Past/Live/Future); the **formation pitch with real headshots is the crown
-  jewel**; `/summary` layers detail over the `Event` header; "‹ {origin}" back.
-- **Accounts** — Sign in with Apple → Supabase (`AuthStore`); never auto-prompted (`SignInPromptView` only
-  on a genuine sign-in action). Follows/prefs persist in UserDefaults (local) ↔ Supabase (**union-merge,
-  never delete**) — so a signed-in account's server follows re-merge after a local reset.
-- **Notifications** — Tier-1 LOCAL (`NotificationScheduler`: day-before + weekly spotlight). One hub
-  (`NotificationsView`, 3 doors): §1 per-team ON/OFF bell (`TeamAlertStore` → `team_alert_preferences`),
-  §2 global alert TYPES (`NotificationPreferencesStore`, dimmed when no team on), §3 Activity. **Invariant:
-  Tier-2 ON ⟹ signed in** (T2 default OFF, honest sign-in gate, sign-out resets T2). Unfollow clears alerts.
-- **Support NWSLApp** — optional StoreKit tips from Profile (`SupportView`/`SupportStore`); app stays free; ASC owner-gated.
-
----
-
 ## What's Next
 
-Completed work lives in **Current State**; only pending work here (ALIVE > core > hardening). The
-0.4.0 build-9 QOL set + the online-only no-stale refactor + the owner-gated ASC/backend setup (Game
-Center, Support IAP, IAP capability, `team_alert_preferences`, server-push per-team targeting) all
-shipped. Still pending:
-- **First-launch perf — Tier 1 DONE; Tier 2 next** (Reference "First Launch Performance — Asset
-  Strategy"): Tier 1 (bundle crests/flags + colors/pitch already local) shipped. Pending: (a) DEPLOY
-  the proxy `feature/asset-manifest` branch + run `build_asset_manifest.mjs` to activate the rebrand
-  refresh (until then `/crest/manifest` 404s → app no-ops); (b) **Tier 2** — prefetch priority after
-  team selection (Home content first → Schedule/Standings background → headshots/Feed low-pri) + give
-  `CachedThumbnail` a DISK cache (revalidating, no staleness) so flags/headshots/feed thumbnails
-  persist across cold launches + reinstalls.
+Pending work only (ALIVE > core > hardening); shipped work lives in git history + the File Map, not here.
+- **First-launch perf — Tier 1 DONE; Tier 2 next** (Reference "First Launch Performance — Asset Strategy"):
+  Pending: (a) DEPLOY proxy `feature/asset-manifest` + run `build_asset_manifest.mjs` to activate the rebrand
+  refresh (until then `/crest/manifest` 404s → app no-ops); (b) **Tier 2** — prefetch priority after team select
+  (Home content → Schedule/Standings bg → headshots/Feed low-pri) + a `CachedThumbnail` DISK cache (revalidating)
+  so flags/headshots/feed thumbnails survive cold launches + reinstalls.
 - **YouTube Shorts thumbnail pillarbox** — DEFERRED (owner). Baked-in side bars; fix is proxy-side.
 - **Pull-to-refresh polish** — keep the list visible during refresh (spinner only on first load).
 - **Bracket follow-ups (optional):** exact stat-edition seeding; more stat templates; full bracket-TREE

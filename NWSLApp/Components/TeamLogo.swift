@@ -26,6 +26,7 @@
 //
 
 import SwiftUI
+import OSLog
 
 /// A team crest rendered at a fixed size. Falls back to a neutral rounded
 /// placeholder (never a broken-image glyph) because the team abbreviation
@@ -90,7 +91,19 @@ struct TeamLogo: View {
         // first (synchronous cache hit → no flash, then fetch), then fall back to ESPN — both
         // through the shared ImageCache. Skipped entirely when a bundled crest is present.
         .task(id: taskID) {
-            if bundledMark != nil { return }        // bundled crest/flag already renders; no fetch
+            if bundledMark != nil {                  // bundled crest/flag already renders; no fetch
+                #if DEBUG
+                let source = (teamAbbreviation.flatMap { AssetRefreshService.override(crest: $0) ?? AssetRefreshService.override(flag: $0) } != nil) ? "cache-override" : "bundle"
+                Self.log.debug("TeamLogo \(teamAbbreviation ?? "—", privacy: .public) → \(source, privacy: .public)")
+                #endif
+                return
+            }
+            // About to hit the network. If this mark was SUPPOSED to be bundled (an NWSL club or a
+            // featured national team), a bundled asset has silently fallen through — record it
+            // loudly (no silent failures) so a missing/broken bundle is caught in the field.
+            if let abbr = teamAbbreviation, !abbr.isEmpty, Self.expectedBundled(abbr) {
+                Diagnostics.shared.record(.assetBundleMiss, abbr.uppercased())
+            }
             for candidate in [nwslURL, espnURL] {
                 guard let candidate else { continue }
                 if let hit = ImageCache.shared.cached(candidate) {
@@ -108,6 +121,18 @@ struct TeamLogo: View {
 
     // A stable identity for the load task: re-runs only when the target crest changes.
     private var taskID: String { "\(nwslURL?.absoluteString ?? "")|\(espnURL?.absoluteString ?? "")" }
+
+    #if DEBUG
+    private static let log = Logger(subsystem: "com.tiffanyrieth.nwslapp", category: "TeamLogo")
+    #endif
+
+    // Should this abbreviation resolve from the bundle? True for an NWSL club (the membership
+    // test) or a featured national team — exactly the marks we bundle. A non-NWSL foreign club
+    // legitimately has no bundle and is expected to hit the network (not a miss).
+    private static func expectedBundled(_ abbreviation: String) -> Bool {
+        let key = abbreviation.uppercased()
+        return DesignTeamColors.hex(for: key) != nil || BundledAssetManifest.flags[key] != nil
+    }
 
     private var placeholder: some View {
         RoundedRectangle(cornerRadius: 4, style: .continuous)

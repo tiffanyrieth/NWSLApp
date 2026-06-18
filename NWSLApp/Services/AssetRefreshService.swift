@@ -100,25 +100,53 @@ enum AssetRefreshService {
         ensureCacheDir()
         var overrides = (defaults.dictionary(forKey: overridesKey) as? [String: String]) ?? [:]
 
-        // Crests: a changed hash → re-download the proxy /crest PNG as the override.
-        for (abbr, remoteHash) in manifest.crests {
+        // Crests: a changed hash → re-download the proxy /crest PNG as the override — but a
+        // vector-bundled crest is now SHARPER than that raster, so we don't downgrade it unless
+        // the new brand is itself raster-only (see noDowngradeBlocks).
+        for (abbr, entry) in manifest.crests {
             let key = "crest_\(abbr.uppercased())"
             let effective = overrides[key] ?? BundledAssetManifest.crests[abbr.uppercased()]
-            guard remoteHash != effective, let src = AppConfig.crestURL(abbreviation: abbr) else { continue }
-            if await download(src, to: key) { overrides[key] = remoteHash; markDownloaded(key) }
+            guard entry.h != effective else { continue }                      // unchanged
+            if noDowngradeBlocks(bundledVector: BundledAssetManifest.isVectorCrest(abbr),
+                                 newMasterIsVector: entry.v, asset: "crest:\(abbr)") { continue }
+            guard let src = AppConfig.crestURL(abbreviation: abbr) else { continue }
+            if await download(src, to: key) {
+                overrides[key] = entry.h; markDownloaded(key)
+                Diagnostics.shared.record(.assetOverrideApplied, "crest:\(abbr)")
+            }
         }
 
-        // Flags: a changed hash → re-download a high-res flagcdn raster as the override.
-        for (code, remoteHash) in manifest.flags {
+        // Flags: every BUNDLED flag is vector, and flagcdn only ever serves vector, so this
+        // effectively never overrides — a flag rebrand rides the next app re-bundle rather than
+        // downgrading to a raster. The branch stays general for the (theoretical) raster-only case.
+        for (code, entry) in manifest.flags {
             let key = "flag_\(code.uppercased())"
             let effective = overrides[key] ?? BundledAssetManifest.flags[code.uppercased()]
-            guard remoteHash != effective,
-                  let slug = NationalTeam.team(code: code.uppercased())?.flagSlug,
+            guard entry.h != effective else { continue }                      // unchanged
+            let bundledVector = BundledAssetManifest.flags[code.uppercased()] != nil // bundled flags are vector
+            if noDowngradeBlocks(bundledVector: bundledVector, newMasterIsVector: entry.v,
+                                 asset: "flag:\(code)") { continue }
+            guard let slug = NationalTeam.team(code: code.uppercased())?.flagSlug,
                   let src = AppConfig.flagRasterURL(slug: slug) else { continue }
-            if await download(src, to: key) { overrides[key] = remoteHash; markDownloaded(key) }
+            if await download(src, to: key) {
+                overrides[key] = entry.h; markDownloaded(key)
+                Diagnostics.shared.record(.assetOverrideApplied, "flag:\(code)")
+            }
         }
 
         defaults.set(overrides, forKey: overridesKey)
+    }
+
+    /// True when applying a raster cache-override would DOWNGRADE a sharper vector-bundled asset.
+    /// A downloaded override is always a raster (SwiftUI can't draw an SVG from disk), so when the
+    /// bundle is vector AND the new master is also vector, the right fix is a vector re-bundle at
+    /// the next app release — not a raster swap. We skip the override and record it loudly so the
+    /// pending rebrand is visible, never silent. (Bundle-raster or a genuinely raster-only new
+    /// master → overriding is no downgrade, so it proceeds.)
+    private static func noDowngradeBlocks(bundledVector: Bool, newMasterIsVector: Bool, asset: String) -> Bool {
+        guard bundledVector && newMasterIsVector else { return false }
+        Diagnostics.shared.record(.assetVectorRebrandPending, asset)
+        return true
     }
 
     /// Make a freshly-downloaded override visible to the in-memory lookup (the new file would
@@ -130,9 +158,15 @@ enum AssetRefreshService {
 
     // MARK: - Networking + disk (all best-effort)
 
+    /// One manifest entry: `h` = source-master hash (matches BundledAssetManifest), `v` = whether
+    /// that master is vector (an SVG) — drives the no-downgrade rule.
+    private struct Entry: Decodable {
+        let h: String
+        let v: Bool
+    }
     private struct Manifest: Decodable {
-        let crests: [String: String]
-        let flags: [String: String]
+        let crests: [String: Entry]
+        let flags: [String: Entry]
     }
 
     private static func fetchManifest(_ url: URL) async -> Manifest? {

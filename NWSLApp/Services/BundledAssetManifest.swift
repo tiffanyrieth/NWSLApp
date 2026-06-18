@@ -30,13 +30,26 @@ enum BundledAssetManifest {
         "WAS": "5d7df7ae77729556",
     ]
 
-    /// National-team FIFA code → source-master hash.
+    /// National-team FIFA code → source-master hash. The FEATURED set only (the ~8 shown before
+    /// "Browse all") is bundled; the growing browse-all list is download-and-cache, not bundled,
+    /// so the country list isn't chained to app releases (rule: bundle = featured, browse-all =
+    /// download + cache).
     static let flags: [String: String] = [
         "USA": "e1792c011daad918", "MEX": "baa6f7163f307c16", "CAN": "3cd6c2b9fe12bc06",
         "BRA": "e0215eff9f53b023", "COL": "ec3daa5a284fc6d1", "ENG": "cc76327923f60bb6",
-        "JAM": "44504dda9d5bff31", "JPN": "e8e6f6e75bc02eeb", "AUS": "b826e039804d5cf3",
-        "FRA": "09645c97a4743633", "GER": "595d7718f6a22e5e", "HAI": "65839463e163fd81",
-        "KOR": "4e0b6d5fa63e2fc1", "NGA": "3dbebd9f8e31821d", "ESP": "d672868d51fc5b4f",
-        "SWE": "426348d99d9cace2",
+        "JAM": "44504dda9d5bff31", "JPN": "e8e6f6e75bc02eeb",
     ]
+
+    /// The crests with NO vector master (CHI/KC/BOS/DEN/GFC) — bundled as raster PNG. Every other
+    /// bundled crest, and every bundled flag, is vector. Used by AssetRefreshService to enforce
+    /// the no-downgrade rule: a vector-bundled asset is never replaced by a downloaded raster
+    /// override unless the NEW master is itself raster-only.
+    static let rasterCrests: Set<String> = ["CHI", "KC", "BOS", "DEN", "GFC"]
+
+    /// Is the bundled crest for this abbreviation a vector asset (so a raster override would be a
+    /// downgrade)? False for the 5 raster-only teams and for anything not bundled.
+    static func isVectorCrest(_ abbreviation: String) -> Bool {
+        let key = abbreviation.uppercased()
+        return crests[key] != nil && !rasterCrests.contains(key)
+    }
 }

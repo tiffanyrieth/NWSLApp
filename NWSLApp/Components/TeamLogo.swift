@@ -15,6 +15,14 @@
 //  during scroll. A synchronous cache hit paints on the first frame, so a
 //  scrolled-back crest shows instantly with no flash.
 //
+//  FIRST-LAUNCH: the 16 NWSL crests are BUNDLED in the asset catalog (`Crests/<ABBR>`),
+//  so a followed club's crest renders on the first frame with ZERO network — no cold-CDN
+//  race on a fresh install (see Reference "First Launch Performance — Asset Strategy",
+//  Tier 1). The bundled image is the default; the live proxy `/crest` + ESPN URLs are the
+//  fallback only for non-NWSL sides (Champions Cup foreign clubs) that have no bundled
+//  crest. A rebrand restamps via an app release (re-run the proxy `load_crests.mjs`); crests
+//  change ~never, so trading background-refresh for a flawless cold start is the right call.
+//
 
 import SwiftUI
 
@@ -32,6 +40,14 @@ struct TeamLogo: View {
     // body) so a cached image is shown on the first frame.
     @State private var image: UIImage?
 
+    // The bundled crest for an NWSL club (asset-catalog `Crests/<ABBR>`), or nil for a
+    // non-NWSL side or when no abbreviation is set. When present it renders on the first
+    // frame with no network and the load task is skipped entirely.
+    private var bundledCrest: UIImage? {
+        guard let abbr = teamAbbreviation, !abbr.isEmpty else { return nil }
+        return UIImage(named: "Crests/\(abbr.uppercased())")
+    }
+
     // The preferred NWSL crest URL (nil when no abbreviation given).
     private var nwslURL: URL? {
         guard let abbr = teamAbbreviation, !abbr.isEmpty else { return nil }
@@ -47,7 +63,11 @@ struct TeamLogo: View {
 
     var body: some View {
         Group {
-            if let image {
+            if let bundledCrest {
+                Image(uiImage: bundledCrest)         // bundled NWSL crest — instant, no network
+                    .resizable()
+                    .scaledToFit()
+            } else if let image {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
@@ -59,8 +79,9 @@ struct TeamLogo: View {
         .accessibilityHidden(true)                  // abbreviation already names the team
         // Keyed to both URLs so a recycled cell re-targets the right crest. Try the NWSL crest
         // first (synchronous cache hit → no flash, then fetch), then fall back to ESPN — both
-        // through the shared ImageCache.
+        // through the shared ImageCache. Skipped entirely when a bundled crest is present.
         .task(id: taskID) {
+            if bundledCrest != nil { return }       // bundled NWSL crest already renders; no fetch
             for candidate in [nwslURL, espnURL] {
                 guard let candidate else { continue }
                 if let hit = ImageCache.shared.cached(candidate) {

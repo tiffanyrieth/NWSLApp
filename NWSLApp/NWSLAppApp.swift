@@ -41,6 +41,8 @@ struct NWSLAppApp: App {
                 // of the app, to verify the team palette. Remove with _ColorAuditView.
                 if ProcessInfo.processInfo.arguments.contains("-colorAudit") {
                     ColorAuditView()
+                } else if ProcessInfo.processInfo.arguments.contains("-assetAudit") {
+                    AssetAuditView()
                 } else {
                     RootTabView()
                 }

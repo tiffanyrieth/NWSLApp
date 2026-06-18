@@ -129,6 +129,37 @@ enum AppConfig {
         return components.url
     }
 
+    /// The proxy route serving the asset version manifest: `GET /crest/manifest` →
+    /// `{ crests: {ABBR: hash}, flags: {CODE: hash} }`. `AssetRefreshService` fetches this
+    /// on a cadence (>30d / forced in March) and re-downloads only an asset whose hash drifts
+    /// from what was bundled (a rebrand). Returns nil on a malformed URL.
+    static func assetManifestURL() -> URL? {
+        scoreboardProxyBase.appendingPathComponent("crest/manifest")
+    }
+
+    /// A national-team flag as a raster PNG from flagcdn, for the post-rebrand cache OVERRIDE
+    /// only (the bundled flag is a crisper vector; a downloaded SVG can't be drawn from disk,
+    /// so the override is a high-res raster). Keyed by the flagcdn slug. Returns nil on a
+    /// malformed URL.
+    static func flagRasterURL(slug: String) -> URL? {
+        URL(string: "https://flagcdn.com/w1280/\(slug).png")
+    }
+
+    /// The proxy route serving the data-driven women's national-team directory: `GET
+    /// /national-teams` → `[{code, name, flag}]` (the union of ESPN coverage). Backs the
+    /// "Browse all" list so it reflects real coverage, not a hand-maintained set. Returns nil on
+    /// a malformed URL.
+    static func nationalTeamsURL() -> URL? {
+        scoreboardProxyBase.appendingPathComponent("national-teams")
+    }
+
+    /// The proxy route that collects the app's no-silent-failure telemetry: `POST /telemetry`.
+    /// Diagnostics flushes a small batch of NON-PII operational events here so a field miss
+    /// reaches the owner without a user report. Returns nil on a malformed URL.
+    static func telemetryURL() -> URL? {
+        scoreboardProxyBase.appendingPathComponent("telemetry")
+    }
+
     // MARK: - Player headshots
 
     /// The proxy route returning the `{ espnAthleteId: nwslGuid }` headshot map as JSON:

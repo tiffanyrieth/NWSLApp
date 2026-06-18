@@ -57,15 +57,21 @@ struct NationalTeamCard: View {
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl))
     }
 
+    // The bundled vector flag (`Flags/<FIFA>`), rendered on the first frame with ZERO
+    // network so the Competitions grid is complete the instant it opens. Nil only if a
+    // newly-added nation hasn't been bundled yet → the CachedThumbnail network path covers it.
+    private var bundledFlag: UIImage? {
+        let key = team.code.uppercased()
+        // Cached post-rebrand override first, then the bundled vector flag.
+        return AssetRefreshService.override(flag: key) ?? UIImage(named: "Flags/\(key)")
+    }
+
     // Real flag with a soft country-color halo behind it (a blurred color block, NOT a
     // drop shadow — keeps the app's no-shadow rule), mirroring the crest's halo. A
     // hairline keeps white-edged flags (Japan) defined on the dark card; on a load miss
     // it falls back to a country-color block so the mark never goes blank.
     private var flag: some View {
-        CachedThumbnail(url: team.flagURL) {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(accent.opacity(0.85))
-        }
+        flagImage
         .frame(width: 52, height: 36)
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay(
@@ -77,6 +83,22 @@ struct NationalTeamCard: View {
                 .fill(accent.opacity(0.22))
                 .blur(radius: 14)
         )
+    }
+
+    // Bundled vector flag first (no network); the live flagcdn flag is the fallback for a
+    // not-yet-bundled nation, and a country-color block if even that misses.
+    @ViewBuilder
+    private var flagImage: some View {
+        if let bundledFlag {
+            Image(uiImage: bundledFlag)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+        } else {
+            CachedThumbnail(url: team.flagURL) {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(accent.opacity(0.85))
+            }
+        }
     }
 
     @ViewBuilder

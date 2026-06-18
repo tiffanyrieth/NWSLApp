@@ -65,9 +65,11 @@ struct ScheduledMatch: Identifiable {
 /// the card. After fetching, MatchStore keeps only events involving a FOLLOWED
 /// national team (matched by FIFA code), tagging each `.international(label)`.
 ///
-/// World Cup + Olympics are deliberately omitted (the design defers their
-/// whole-tournament UI). Copa América Femenina / Arnold Clark slugs can be added once
-/// confirmed + allowlisted in the proxy.
+/// These feed BOTH the Schedule "My teams" fold-in (a followed team's fixtures) AND the
+/// data-driven Browse-all directory (the proxy `/national-teams` union of each feed's `/teams`)
+/// — keep this list in sync with the proxy's `WOMENS_NT_FEEDS`. World Cup + Olympics fold their
+/// followed-team MATCHES in (their whole-tournament group/bracket UI is still deferred). Copa
+/// América Femenina / Arnold Clark slugs can be added once confirmed + allowlisted in the proxy.
 /// The CONCACAF W Champions Cup ESPN feed — a CLUB competition (NWSL clubs vs Liga
 /// MX et al.). Contrary to the earlier assumption, ESPN DOES carry it under this slug;
 /// MatchStore fetches it when the Champions Cup toggle is on and keeps matches that
@@ -87,5 +89,8 @@ struct NationalTeamFeed {
         .init(slug: "fifa.shebelieves",             label: "SheBelieves Cup"),
         .init(slug: "concacaf.w.gold",              label: "Concacaf W Gold Cup"),
         .init(slug: "concacaf.womens.championship", label: "Concacaf W Championship"),
+        .init(slug: "uefa.weuro",                   label: "UEFA Women's Euro"),
+        .init(slug: "fifa.wwc",                     label: "Women's World Cup"),
+        .init(slug: "fifa.w.olympics",              label: "Women's Olympics"),
     ]
 }

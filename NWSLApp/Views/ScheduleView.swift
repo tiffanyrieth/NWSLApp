@@ -248,8 +248,11 @@ struct ScheduleView: View {
             Image(systemName: "calendar")
                 .font(.system(size: 40))
                 .foregroundStyle(.secondary)
-            Text("No matches to show")
+            // Honest + contextual: a followed team (incl. a sparse national team) with no fixtures
+            // in the season feed reads as a real "no matches" state, never a blank screen.
+            Text(selectedFilter == .myTeams ? "No matches for your teams yet" : "No matches to show")
                 .font(.headline)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))

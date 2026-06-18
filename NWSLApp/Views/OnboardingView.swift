@@ -61,11 +61,21 @@ struct OnboardingView: View {
             Section {
                 ForEach(viewModel.clubs) { row(for: $0) }
             } header: {
-                Text("Follow your teams to get their next matches, news, and everything that matters to you.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .textCase(nil)
-                    .padding(.bottom, 4)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Follow your teams to get their next matches, news, and everything that matters to you.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    // Clarifier that preempts the "will following spam me with alerts?" hesitation —
+                    // following only feeds Home; alerts are opt-in and managed separately in Teams.
+                    Text("Following adds a team to your Home feed. You can turn on game alerts later in Teams.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        // Guarantee full wrapping (never truncate) on the smallest screens (SE/mini),
+                        // where caption text under a header is prone to clipping.
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .textCase(nil)
+                .padding(.bottom, 4)
             }
 
             internationalSection

@@ -66,6 +66,9 @@ struct RootTabView: View {
     // and shared so the Feed list and its Sources sheet read the same settings.
     @State private var feedPreferences = FeedPreferencesStore()
 
+    // Shared, prewarmable Feed cards store (Feed is the known-slow path; prewarmed below).
+    @State private var feedStore = FeedStore()
+
     // The account layer (Sign in with Apple → Supabase user), created once and
     // shared so the post-onboarding sign-in prompt and the Profile screen read the
     // same signed-in state (see AuthStore).
@@ -148,6 +151,7 @@ struct RootTabView: View {
         .environment(bracket)
         .environment(predict)
         .environment(feedPreferences)
+        .environment(feedStore)
         .environment(auth)
         .environment(notifications)
         .environment(teamAlerts)
@@ -172,8 +176,11 @@ struct RootTabView: View {
             // resolves there, the `isAuthenticated` onChange below runs the first
             // syncAll.
             // Warm the player-headshot map once (best-effort) so squad grids, the pitch, and
-            // the Fan Zone show real photos instead of monograms. Self-guards on re-fire.
-            await HeadshotStore.shared.load()
+            // the Fan Zone show real photos instead of monograms. LOW priority + non-blocking
+            // (Tier-2 prefetch order): headshots aren't on the first screen (monogram fallback
+            // everywhere), so this must NOT compete with the foreground critical path (scoreboard
+            // + clubs + Home content, loaded on Home's appearance). Self-guards on re-fire.
+            Task(priority: .utility) { await HeadshotStore.shared.load() }
             if syncCoordinator == nil {
                 let coordinator = FollowSyncCoordinator(following: following, auth: auth)
                 coordinator.start()
@@ -221,6 +228,19 @@ struct RootTabView: View {
                 .authorizationStatus == .authorized {
                 UIApplication.shared.registerForRemoteNotifications()
             }
+            // Out-of-band: refresh the bundled crest/flag artwork if the cadence is due
+            // (>30 days, or forced once in March). Deferred to its own low-priority task and
+            // best-effort, so it never competes with the launch network window — the bundled
+            // vectors already render; an override only changes things on the NEXT launch.
+            Task(priority: .utility) { await AssetRefreshService.refreshIfDue() }
+            // Prewarm the Feed (the known-slow path: the proxy `/feed` does server-side Haiku
+            // tagging) at LOW priority after the foreground critical path, so the first switch
+            // to the Feed tab is instant. Needs the directory loaded for follow-scoping; the
+            // load self-guards, so the tab's own first-appearance load is then a no-op.
+            Task(priority: .utility) {
+                await clubs.load()
+                await feedStore.loadIfNeeded(following: following, clubStore: clubs)
+            }
         }
         // A tapped live push routes to its match (see PushBridge / AppRouter).
         .onChange(of: PushBridge.shared.tappedEventID) { _, eventID in
@@ -240,6 +260,11 @@ struct RootTabView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 GameCenterManager.shared.syncAll(trivia: trivia, predict: predict, bracket: bracket)
+            }
+            // Leaving the foreground flushes any pending no-silent-failure telemetry to the
+            // remote sink (best-effort) so a field miss reaches the owner without a user report.
+            if phase == .background {
+                Task { await Diagnostics.shared.flushRemote() }
             }
         }
     }

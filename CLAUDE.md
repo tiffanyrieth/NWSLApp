@@ -127,7 +127,9 @@ Folders are created when their first real file lands, not preemptively.
 - **Content routes** (build + normalize to JSON `[ContentCard]` / models): `/team-videos`
   (Home: YouTube + club OG news + club Instagram), `/feed` (Feed: Bluesky reporters/clubs +
   news RSS + player Instagram), `/spotlight` (Player Spotlight), `/trivia` (Daily Trivia
-  KV pool). Server-side Haiku (`claude-haiku-4-5`, KV-cached) does both relevance AND
+  KV pool), `/national-teams` (data-driven Browse-all directory: union of ESPN `/teams` across the
+  women's NT feeds, deduped by FIFA code, ESPN flag href; 24h edge cache; keep feed list in sync
+  with the app's `NationalTeamFeed.all`), `/telemetry` (POST no-silent-failure event sink → KV). Server-side Haiku (`claude-haiku-4-5`, KV-cached) does both relevance AND
   team-tagging for the third-party buckets: reporter + league-outlet Bluesky and news
   RSS are gated (isNWSL, strict — national-team/international/foreign/men's dropped),
   team-tagged, and filtered to the requested teams (off-topic + non-followed-team +
@@ -329,7 +331,7 @@ NWSLApp/
 │   ├── Club.swift                     — flat Club + ESPN /teams decode (brand/alternate color → crests)
 │   ├── Competition.swift              — `ScheduledMatch` (Event + `CompetitionType` tag) + `ChampionsCupFeed`/`NationalTeamFeed` slugs+labels; the seam that folds non-NWSL feeds into the schedule
 │   ├── ContentCard.swift              — unified ALIVE-content model: 7 layouts + `sourceType` (club·reporter·player·league·news, for Feed chips) + StalenessWindow (Home 72h / Feed 7d, 6-card-floored)
-│   ├── NationalTeam.swift             — followable women's national team: FIFA code + name + flagcdn slug (flag image) + curated national brand color (drives followed wash/border/code tint); featured(8)/all(16) config lists, data-driven
+│   ├── NationalTeam.swift             — followable women's national team: FIFA code + name + flag + curated national brand color (drives followed wash/border/code tint). Curated `featured(8)`/`all(16)` (flagcdn slug + curated color) PLUS a `discovered` init for data-driven Browse-all teams (ESPN flag href keyed by FIFA code, color via DesignTeamColors.displayHex else neutral)
 │   ├── AthleteStatistics.swift        — ESPN Core API /statistics → PlayerSeasonStats
 │   ├── MatchSummary.swift             — ESPN /summary: lineups+formation, boxscore, key-events timeline
 │   ├── PlayerSpotlight.swift          — Home Module-2 player-of-week; `espnAthleteId`+`seasonStatLine` carry live data; `statStrip` is nil when the proxy sent no stats → the view hides "This Season" (never fabricated)
@@ -380,6 +382,7 @@ NWSLApp/
 │   ├── TeamAlertStore.swift           — @Observable; per-team match-alert ON/OFF (`Set<String>`) → UserDefaults; `migrateFromGlobalIfNeeded`; `onAlertChanged` sync seam
 │   ├── TeamAlertSyncCoordinator.swift — @MainActor; per-team on/off↔Supabase bridge + clears a team's alerts when it leaves the followed set (alerts require following)
 │   ├── FollowingStore.swift           — followed clubs + national teams + Champions Cup toggle + onboarding gate; offline-first; `competitionFollowKeys`/`mergeCompetitionFollowKeys` for sync; one-time legacy-competition migration; DEBUG `debugResetState`
+│   ├── NationalTeamDirectoryStore.swift — @Observable loads the proxy `/national-teams` (data-driven Browse-all set) once; idle/loading/loaded/failed; merges curated featured (head) + ESPN-covered teams
 │   ├── MatchStore.swift               — shared season store; one fetch, many readers
 │   ├── NotificationPreferencesStore.swift — Profile's 9 notif toggles; → NotificationScheduler / NotificationSyncCoordinator
 │   ├── PredictionStore.swift          — Predict-the-XI durable state: predictions+scores by fixtureID (`predict.v2.*`); `seasonPoints` + `points(forTeam:)` + `scoredTeams`
@@ -413,7 +416,7 @@ NWSLApp/
 │   ├── ScheduleView.swift             — full-season cards; filter chips (NWSL · My teams = followed clubs + national teams + Champions Cup); "SAT · MAR 14" headers + TODAY chip; opens at the past/upcoming boundary (ScrollViewReader + opacity gate, no flash, incl. Home-preload); re-tap + filter animate back
 │   ├── TeamsView.swift                — all-16 directory: ONE list (followed floated up) + subtitle; follow-competitions row; per-row 🔔 toggles (+ bottom confirmation toast → hub) + "{N} teams · Manage" line + nav-bar 🔔 → NotificationsView; first-visit coach mark (zIndex-lifted above the grid)
 │   ├── CompetitionsView.swift         — follow international competitions: elevated Champions Cup card (tinted trophy medallion + toggle, Teams-tab card weight) + national-teams 2-col grid of NationalTeamCard + "Browse all" row
-│   ├── BrowseAllTeamsView.swift       — searchable full national-team set: same 2-col grid of NationalTeamCard as the Competitions hub (one visual language, no grid→list switch)
+│   ├── BrowseAllTeamsView.swift       — searchable national-team grid (NationalTeamCard); DATA-DRIVEN via NationalTeamDirectoryStore (featured head + ESPN-covered teams), honest loading/error/empty (never blank/spinner-forever)
 │   ├── TeamDetailView.swift           — club page: header (⭐ follow) + social row + Squad·Stats tabs
 │   ├── MatchDetailView.swift          — state-aware match: full-bleed Card-C header (72pt crests, team-color abbr + score per crest, temporal center) + "‹ {origin}" back; past=Play-by-Play/Lineups/Stats (formation pitch + BENCH), live=poll & LIVE pill, future=info grid + How-to-Watch + comparison + form
 │   ├── CombinedPitchView.swift        — BOTH teams' XIs on ONE pitch; Lineups default
@@ -486,7 +489,9 @@ Pending work only (ALIVE > core > hardening); shipped work lives in git history 
 - **Push — Tier 2 (SERVER push)** — code-complete through Stage C (Worker `~/Projects/nwslapp-match-watcher`:
   cron + KV diff + APNs JWT; kickoff/goal/halftime/full-time; per-team targeting live). Remaining: flip
   `APNS_HOST` sandbox→production at TestFlight; on-device E2E; Stage D (subs + lineup-posted).
-- **Competitions follow-ups** (feature shipped — see Current State): WWC + Olympics whole-tournament UI
-  (group tables + knockout brackets — its own feature) is DEFERRED. Foreign-club color DB grows as new
-  Champions Cup opponents appear (`DesignTeamColors.international`).
+- **Competitions follow-ups** (shipped): WWC + Olympics whole-tournament UI (group tables + knockout
+  brackets — its own feature) DEFERRED. Foreign-club color DB grows as new Champions Cup opponents appear
+  (`DesignTeamColors.international`). Browse-all is now data-driven, but the 4 women's NT feeds are
+  CONCACAF/friendly-skewed (no UEFA), so France/Germany/Spain/Sweden/England aren't in coverage —
+  broaden by adding UEFA women's feeds to `NationalTeamFeed.all` (also folds their fixtures into Schedule).
 - **Feed** — user-added sources; richer filtering. **Weather** — kickoff-temp header slot.

@@ -79,7 +79,9 @@ struct PlayerDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .background(Color.dsBgGrouped)
-        .navigationContextLabel("Players")
+        // Bare ‹ chevron, no centered title — the in-content name header (above) carries
+        // identity, so a nav title would duplicate it.
+        .nativeBackButton()
     }
 
     // Jersey number when present, otherwise initials — mirrors the squad card.

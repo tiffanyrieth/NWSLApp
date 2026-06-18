@@ -69,7 +69,7 @@ struct StandingsView: View {
                 .toolbar(.hidden, for: .navigationBar)
                 .background(Color.dsBgGrouped)
                 .navigationDestination(for: Club.self) { club in
-                    TeamDetailView(club: club, origin: "Standings")
+                    TeamDetailView(club: club)
                 }
         }
         // Load once on first appearance. Standings also reads the shared season for
@@ -308,7 +308,7 @@ struct StandingsView: View {
             .font(.system(size: 11.5))
             .lineSpacing(2)
             .multilineTextAlignment(.center)
-            .foregroundStyle(Color.dsFgTertiary)
+            .foregroundStyle(Color.dsFgSecondary)
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 24)
             .padding(.top, 14)

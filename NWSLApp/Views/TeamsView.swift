@@ -65,7 +65,7 @@ struct TeamsView: View {
                 // (TeamDetailView, the hub, Competitions) keep their own nav bars.
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Club.self) { club in
-                    TeamDetailView(club: club, origin: "Teams")
+                    TeamDetailView(club: club)
                 }
                 .navigationDestination(for: NotificationsRoute.self) { _ in
                     NotificationsView()
@@ -478,7 +478,7 @@ struct TeamsView: View {
                 .buttonStyle(.plain)
             } else {
                 Text("Tap the bell on a followed club to get match alerts.")
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
         }
         .font(.system(size: 13))

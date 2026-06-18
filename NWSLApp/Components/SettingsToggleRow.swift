@@ -31,7 +31,7 @@ struct SettingsToggleRow: View {
                 if let note {
                     Text(note)
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.dsFgTertiary)
+                        .foregroundStyle(Color.dsFgSecondary)
                 }
             }
             Spacer(minLength: 8)
@@ -70,7 +70,7 @@ struct SettingsGroup<Content: View>: View {
                 if let note {
                     Text(note)
                         .font(.system(size: 12.5))
-                        .foregroundStyle(Color.dsFgTertiary)
+                        .foregroundStyle(Color.dsFgSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 2)
                 }

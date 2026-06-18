@@ -43,7 +43,7 @@ struct BracketBattleView: View {
                 loadedContent
             }
         }
-        .navigationContextLabel("Bracket Battle")
+        .nativeBackButton(title: "Bracket Battle")
         .background(Color.dsBgPrimary.ignoresSafeArea())
         .task {
             // Start Game Center auth here (a game screen) rather than at launch, so
@@ -100,7 +100,7 @@ struct BracketBattleView: View {
 
                     Button { stage = .voting } label: { Text("Make your picks").primaryButtonLabel(accent) }
                     Text("\(edition.fanCount.formatted()) fans are already in")
-                        .font(.system(size: 12)).foregroundStyle(Color.dsFgTertiary).frame(maxWidth: .infinity)
+                        .font(.system(size: 12)).foregroundStyle(Color.dsFgSecondary).frame(maxWidth: .infinity)
                 }
                 .padding(.horizontal, 20).padding(.bottom, 32)
             }
@@ -175,7 +175,7 @@ struct BracketBattleView: View {
             }
             .padding(14).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14))
             Text("Points increase each round — later picks are worth more because they're harder to predict")
-                .font(.system(size: 11)).foregroundStyle(Color.dsFgTertiary).frame(maxWidth: .infinity)
+                .font(.system(size: 11)).foregroundStyle(Color.dsFgSecondary).frame(maxWidth: .infinity)
         }
     }
 
@@ -193,7 +193,7 @@ struct BracketBattleView: View {
                         sectionLabel("\(round.title) · \(viewModel.edition?.themeLabel.capitalized ?? "")").foregroundStyle(accent)
                         Spacer()
                         if let closes = viewModel.closesInText {
-                            Text(closes).font(.system(size: 11)).foregroundStyle(Color.dsFgTertiary)
+                            Text(closes).font(.system(size: 11)).foregroundStyle(Color.dsFgSecondary)
                         }
                     }
                     VStack(spacing: 6) {
@@ -446,7 +446,7 @@ struct BracketBattleView: View {
                 legendRow(m.entrantB, pct: 100 - splitA, winner: !aWon)
             }
             if let count = m.voteCount {
-                Text("\(count.formatted()) fans voted").font(.system(size: 11)).foregroundStyle(Color.dsFgTertiary)
+                Text("\(count.formatted()) fans voted").font(.system(size: 11)).foregroundStyle(Color.dsFgSecondary)
             }
             if winnerPct < 55 { dramaBadge("CLOSE CALL", Color.dsWarning) }
             else if winnerPct > 75 { dramaBadge("RUNAWAY", accent) }
@@ -605,7 +605,7 @@ struct BracketBattleView: View {
             HStack(spacing: 8) {
                 Circle().fill(statusColor(status)).frame(width: 8, height: 8)
                 sectionLabel(round.title).foregroundStyle(statusColor(status))
-                Text(statusNote(status)).font(.system(size: 10)).foregroundStyle(Color.dsFgTertiary)
+                Text(statusNote(status)).font(.system(size: 10)).foregroundStyle(Color.dsFgSecondary)
             }
             VStack(spacing: 8) {
                 if ms.isEmpty {
@@ -624,7 +624,7 @@ struct BracketBattleView: View {
     }
 
     private func overflowNote(_ n: Int) -> some View {
-        Text("+\(n) more").font(.system(size: 11)).foregroundStyle(Color.dsFgTertiary)
+        Text("+\(n) more").font(.system(size: 11)).foregroundStyle(Color.dsFgSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 

@@ -54,9 +54,14 @@ struct ProfileView: View {
             // so start GC auth here (not at launch) — by the time the user taps it,
             // auth has typically resolved. Idempotent with the game screens.
             .task { GameCenterManager.shared.authenticate() }
-            .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // "Profile" as a PRINCIPAL item (not `.navigationTitle`) so it doesn't
+                // propagate as the back-button label on pushed children (SupportView) —
+                // those get a bare ‹ chevron + their own centered title. Same centered look.
+                ToolbarItem(placement: .principal) {
+                    Text("Profile").font(.headline).foregroundStyle(Color.dsFgPrimary)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }

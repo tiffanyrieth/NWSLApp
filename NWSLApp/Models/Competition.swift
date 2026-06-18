@@ -49,6 +49,27 @@ enum CompetitionType: Hashable {
         if case .nwsl = self { return true }
         return false
     }
+
+    /// Curated US English-language primary broadcast for competitions ESPN only
+    /// carries in Spanish — so ESPN's feed lists only its own Spanish channels
+    /// (e.g. ESPN Deportes / ESPN+) and omits the real English home entirely.
+    /// CONCACAF club competitions are CBS/Paramount+ English-exclusive in the US
+    /// (through 2029-30), so Paramount+ is the universal English home. `nil` =
+    /// trust ESPN's `broadcastName`. Revisit if CBS's exclusivity changes.
+    var primaryBroadcastOverride: String? {
+        switch self {
+        case .concacafChampionsCup: return "Paramount+"
+        case .nwsl, .international:  return nil
+        }
+    }
+
+    /// Whether to surface ESPN's listed channel(s) as a Spanish-language secondary
+    /// option beneath the (overridden) English primary. True only where ESPN's data
+    /// IS the Spanish feed, so those channels are genuinely the Spanish alternative.
+    var surfacesSpanishSecondary: Bool {
+        if case .concacafChampionsCup = self { return true }
+        return false
+    }
 }
 
 /// An ESPN `Event` tagged with the competition it was fetched under. The Schedule

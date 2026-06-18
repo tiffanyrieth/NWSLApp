@@ -159,15 +159,21 @@ struct MatchCard: View {
 
     // MARK: - Bottom rail (broadcast chip + venue)
 
+    // Resolved primary channel — curated English home for comps ESPN only carries
+    // in Spanish (Champions Cup → Paramount+), else ESPN's own value.
+    private var broadcastName: String? {
+        match.competition.primaryBroadcastOverride ?? event.broadcastName
+    }
+
     // Kept on all states, including finished games: the broadcast chip helps fans
     // find (and re-find) where a match aired — NWSL games are hard to track down.
     private var hasRail: Bool {
-        event.broadcastName != nil || event.venueName != nil
+        broadcastName != nil || event.venueName != nil
     }
 
     private var rail: some View {
         HStack(spacing: 10) {
-            if let channel = event.broadcastName {
+            if let channel = broadcastName {
                 BroadcastChip(name: channel)
             }
             if let venue = event.venueName {

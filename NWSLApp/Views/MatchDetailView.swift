@@ -540,7 +540,7 @@ struct MatchDetailView: View {
             VStack(spacing: 24) {
                 header
                 futureInfoGrid
-                HowToWatchCard(broadcast: event.broadcastName)
+                HowToWatchCard(broadcast: broadcastName)
                     .padding(.horizontal, 20)
                 if preview.hasData {
                     seasonComparison(preview)
@@ -558,7 +558,7 @@ struct MatchDetailView: View {
             if let venue = venueText {
                 MDInfoCard(label: "Venue", value: venue)
             }
-            if let channel = event.broadcastName {
+            if let channel = broadcastName {
                 MDInfoCard(label: "Broadcast", value: channel)
             }
             MDInfoCard(label: "Competition",
@@ -675,6 +675,7 @@ struct MatchDetailView: View {
             // Broadcast color chip + venue (+ attendance for past) — the same rail
             // as the schedule card, shown across every state.
             if hasCompactInfo { compactInfoRow }
+            spanishBroadcastRow
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)
@@ -687,15 +688,21 @@ struct MatchDetailView: View {
         }
     }
 
+    // Resolved primary channel — curated English home for comps ESPN only carries
+    // in Spanish (Champions Cup → Paramount+), else ESPN's own value.
+    private var broadcastName: String? {
+        competition.primaryBroadcastOverride ?? event.broadcastName
+    }
+
     private var hasCompactInfo: Bool {
-        event.venueName != nil || event.broadcastName != nil || attendanceText != nil
+        event.venueName != nil || broadcastName != nil || attendanceText != nil
     }
 
     // Broadcast color chip + venue (+ attendance for a finished match) — the
     // schedule card's rail, scaled into the header.
     private var compactInfoRow: some View {
         HStack(spacing: 10) {
-            if let channel = event.broadcastName {
+            if let channel = broadcastName {
                 BroadcastChip(name: channel)
             }
             if let venue = event.venueName {
@@ -711,6 +718,21 @@ struct MatchDetailView: View {
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
             }
+        }
+    }
+
+    // Spanish-language secondary, shown only where ESPN's feed IS the Spanish feed
+    // (Champions Cup) so the curated Paramount+ primary doesn't erase the real
+    // Spanish option. Data-driven from ESPN's listed channels, so it self-corrects.
+    // Lives in the header (not the future-only How-to-Watch card) so it's visible on
+    // finished matches too.
+    @ViewBuilder
+    private var spanishBroadcastRow: some View {
+        if competition.surfacesSpanishSecondary, !event.broadcastNames.isEmpty {
+            Text("Español · \(event.broadcastNames.joined(separator: " · "))")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.dsFgSecondary)
+                .lineLimit(1)
         }
     }
 

@@ -159,4 +159,13 @@ extension Event {
             .compactMap { $0.names?.first(where: { !$0.isEmpty }) }
             .first
     }
+
+    // Every broadcast channel ESPN lists (flattened, empties dropped). Used for the
+    // Champions Cup Spanish secondary line — where ESPN's feed IS the Spanish feed,
+    // these are the real ESPN Deportes / ESPN+ options surfaced under Paramount+.
+    var broadcastNames: [String] {
+        competitions?.first?.broadcasts?
+            .flatMap { $0.names ?? [] }
+            .filter { !$0.isEmpty } ?? []
+    }
 }

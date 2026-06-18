@@ -54,85 +54,37 @@ final class FeedViewModel {
         var id: String { name }
     }
 
-    // The shared club directory, handed in by the view (mirrors Home/Schedule):
-    // used to scope the base set to followed teams. Until it's wired, `.idle`.
+    // The shared club directory + the shared Feed store, handed in by the view (mirrors
+    // Home/Schedule). The directory scopes the display filter to followed teams; the store owns
+    // the cards + load state (prewarmed in RootTabView). Until wired, the view falls back safely.
     var clubStore: ClubStore?
+    var store: FeedStore?
 
-    private(set) var allItems: [ContentCard] = []
     var selectedFilter: ContentFilter = .all
 
-    /// Online-only: a failed `/feed` fetch sets this honest message (the view shows
-    /// "Couldn't load — tap to retry") instead of silently serving stale/seed content.
-    private(set) var itemsError: String? = nil
-
-    /// True while a `/feed` fetch is in flight; `hasCompletedItemsLoad` flips true the first time
-    /// a fetch finishes (success OR failure). Together they let the view show the genuinely-empty
-    /// "No posts yet" copy ONLY after a load has actually completed empty — never during loading,
-    /// which must look different from success (no silent failures). `hasCompletedItemsLoad`
-    /// defaults false so the whole first-load window (incl. the directory-load → items-load gap,
-    /// where the directory is usually already warmed by Home, the landing tab) reads as loading,
-    /// not a fake-empty.
-    private(set) var isLoadingItems: Bool = false
-    private(set) var hasCompletedItemsLoad: Bool = false
-
-    /// The one simple, honest message a failed Feed load shows.
-    static let loadFailureMessage = "Couldn't load — tap to retry"
-
-    private let contentService: ContentService
-
-    init(contentService: ContentService = ContentService()) {
-        self.contentService = contentService
-    }
+    // Feed data + load state live on the shared FeedStore now (so it can be prewarmed); the view
+    // reads them through these passthroughs, so its call sites are unchanged.
+    var allItems: [ContentCard] { store?.allItems ?? [] }
+    var itemsError: String? { store?.itemsError }
+    var isLoadingItems: Bool { store?.isLoadingItems ?? false }
+    var hasCompletedItemsLoad: Bool { store?.hasCompletedItemsLoad ?? false }
 
     /// Proxies the shared club store's state so the view's error/ready checks over
     /// idle/loading/loaded/error are unchanged.
     var clubsState: ClubStore.State { clubStore?.state ?? .idle }
 
-    /// (Re)load the shared directory, then the Feed cards. Used by pull-to-refresh.
-    /// The directory loads first so `followedAbbreviations` is current (it scopes
-    /// the live `/feed` query to the followed clubs' team posts).
+    /// (Re)load the shared directory, then the Feed cards. Used by pull-to-refresh + retry.
     func load(following: FollowingStore) async {
-        isLoadingItems = true
-        itemsError = nil                 // clear so a retry shows the loading state, not the stale error
-        defer { isLoadingItems = false; hasCompletedItemsLoad = true }
-        await clubStore?.load()
-        do {
-            allItems = try await contentService.feedCards(
-                followedAbbreviations: followedAbbreviations(following)
-            ).sorted { $0.timestamp > $1.timestamp }
-            itemsError = nil
-        } catch {
-            allItems = []
-            itemsError = Self.loadFailureMessage
-        }
+        guard let clubStore else { return }
+        await clubStore.load()
+        await store?.load(following: following, clubStore: clubStore)
     }
 
-    /// Loads the Feed cards if not already loaded. Callers load the shared ClubStore
-    /// first (so `followedAbbreviations` resolves) — kept separate from the directory
-    /// load so the Feed still populates when another tab (Home, the landing tab)
-    /// already loaded the directory.
+    /// Load the Feed cards if not already loaded (the prewarm usually beat us to it). The view
+    /// loads the shared ClubStore first, so the store's scoping resolves.
     func loadItemsIfNeeded(following: FollowingStore) async {
-        // First load only. After an error the view's "tap to retry" calls `load()`
-        // directly, so don't auto-refetch here on a set error.
-        guard allItems.isEmpty, itemsError == nil else { return }
-        isLoadingItems = true
-        defer { isLoadingItems = false; hasCompletedItemsLoad = true }
-        do {
-            allItems = try await contentService.feedCards(
-                followedAbbreviations: followedAbbreviations(following)
-            ).sorted { $0.timestamp > $1.timestamp }
-            itemsError = nil
-        } catch {
-            allItems = []
-            itemsError = Self.loadFailureMessage
-        }
-    }
-
-    /// Abbreviations of the followed clubs — scopes the live `/feed` query (the
-    /// proxy returns reporters + league regardless, plus team posts for these
-    /// clubs). Empty (directory not loaded / no follows) → reporters + league only.
-    private func followedAbbreviations(_ following: FollowingStore) -> Set<String> {
-        Set(followedClubs(following).map(\.abbreviation))
+        guard let clubStore else { return }
+        await store?.loadIfNeeded(following: following, clubStore: clubStore)
     }
 
     private var clubs: [Club] { clubStore?.clubs ?? [] }

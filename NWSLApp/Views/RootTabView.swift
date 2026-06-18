@@ -66,6 +66,9 @@ struct RootTabView: View {
     // and shared so the Feed list and its Sources sheet read the same settings.
     @State private var feedPreferences = FeedPreferencesStore()
 
+    // Shared, prewarmable Feed cards store (Feed is the known-slow path; prewarmed below).
+    @State private var feedStore = FeedStore()
+
     // The account layer (Sign in with Apple → Supabase user), created once and
     // shared so the post-onboarding sign-in prompt and the Profile screen read the
     // same signed-in state (see AuthStore).
@@ -148,6 +151,7 @@ struct RootTabView: View {
         .environment(bracket)
         .environment(predict)
         .environment(feedPreferences)
+        .environment(feedStore)
         .environment(auth)
         .environment(notifications)
         .environment(teamAlerts)
@@ -229,6 +233,14 @@ struct RootTabView: View {
             // best-effort, so it never competes with the launch network window — the bundled
             // vectors already render; an override only changes things on the NEXT launch.
             Task(priority: .utility) { await AssetRefreshService.refreshIfDue() }
+            // Prewarm the Feed (the known-slow path: the proxy `/feed` does server-side Haiku
+            // tagging) at LOW priority after the foreground critical path, so the first switch
+            // to the Feed tab is instant. Needs the directory loaded for follow-scoping; the
+            // load self-guards, so the tab's own first-appearance load is then a no-op.
+            Task(priority: .utility) {
+                await clubs.load()
+                await feedStore.loadIfNeeded(following: following, clubStore: clubs)
+            }
         }
         // A tapped live push routes to its match (see PushBridge / AppRouter).
         .onChange(of: PushBridge.shared.tappedEventID) { _, eventID in

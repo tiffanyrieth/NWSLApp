@@ -27,6 +27,8 @@ struct FeedView: View {
     @Environment(FeedPreferencesStore.self) private var feedPreferences
     // The shared club directory (injected in RootTabView), for the per-team chips.
     @Environment(ClubStore.self) private var clubStore
+    // The shared, prewarmable Feed store (injected in RootTabView) — the cards + load state.
+    @Environment(FeedStore.self) private var feedStore
 
     var body: some View {
         NavigationStack {
@@ -59,6 +61,7 @@ struct FeedView: View {
             // directory's state so the Feed populates even when the store was
             // already loaded elsewhere.
             viewModel.clubStore = clubStore
+            viewModel.store = feedStore
             if case .idle = clubStore.state { await clubStore.load() }
             await viewModel.loadItemsIfNeeded(following: following)
         }

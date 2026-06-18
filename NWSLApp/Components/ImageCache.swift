@@ -14,8 +14,18 @@
 //  and keeps TeamLogo's init unchanged. Swap for a shared loader / the proxy if
 //  caching ever needs to be configurable (see CLAUDE.md What's-Next #1).
 //
-//  In-memory only — `NSCache` evicts under memory pressure and the cache is gone
-//  on app termination. That's fine for 16 small PNGs; disk caching is overkill.
+//  TWO tiers: a decoded-image `NSCache` (in-memory, in-session speed; evicts under
+//  pressure, gone on termination) over a disk `URLCache` on a DEDICATED image session, so
+//  remote images (browse-all flags, headshots, feed/video thumbnails) persist across cold
+//  launches instead of re-downloading every launch. The disk layer is HTTP-revalidating
+//  (`.useProtocolCachePolicy`) — fresh-from-disk within the response's freshness window,
+//  conditional-GET when stale — so it's never stale (Tier 2 of the first-launch asset
+//  strategy). NB: Caches is wiped on app DELETE, so this survives cold launches, not
+//  reinstalls — only the bundled assets survive a reinstall.
+//
+//  The disk cache is ISOLATED to images (its own `URLCache` on `session`), deliberately NOT
+//  the global `URLCache.shared` — the live API/proxy JSON (scoreboard/feed/spotlight) must
+//  stay fresh per the online-only model and keeps using `URLSession.shared` untouched.
 //
 
 import UIKit
@@ -26,7 +36,25 @@ final class ImageCache {
     // NSCache is already thread-safe, so no extra locking is needed.
     private let cache = NSCache<NSString, UIImage>()
 
-    private init() {}
+    // Dedicated session whose URLCache persists image bytes to disk across launches,
+    // revalidating per HTTP headers. Separate from URLSession.shared so API freshness is untouched.
+    private let session: URLSession
+
+    private init() {
+        let config = URLSessionConfiguration.default
+        config.urlCache = URLCache(
+            // Small memory window on purpose: the decoded-image `NSCache` above is the real
+            // in-session layer, so we keep URLCache's RAW-bytes memory tiny to push responses to
+            // DISK promptly — that's what survives a cold launch (a large memory window would let
+            // small images linger in RAM and never persist before termination).
+            memoryCapacity: 2 * 1024 * 1024,    // 2 MB raw-bytes memory
+            diskCapacity: 200 * 1024 * 1024,    // 200 MB on disk (LRU-evicted by the system)
+            directory: FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("ImageURLCache", isDirectory: true)
+        )
+        config.requestCachePolicy = .useProtocolCachePolicy  // serve fresh-from-disk, revalidate when stale
+        session = URLSession(configuration: config)
+    }
 
     /// A synchronous cache hit, if present — lets TeamLogo paint a cached crest on
     /// the first frame (no flash/reflow when a scrolled cell is recycled).
@@ -40,15 +68,25 @@ final class ImageCache {
     func image(for url: URL) async -> UIImage? {
         if let hit = cached(url) { return hit }
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            // Goes through the dedicated image session → disk URLCache (revalidating) before
+            // the network, so a cold-launch fetch is usually a fast local read, not a download.
+            let (data, response) = try await session.data(from: url)
             if let http = response as? HTTPURLResponse,
                !(200..<300).contains(http.statusCode) {
                 return nil
             }
-            guard let image = UIImage(data: data) else { return nil }
+            guard let image = UIImage(data: data) else {
+                // 2xx but the bytes aren't an image — genuinely unexpected (a non-2xx/404, e.g. a
+                // headshot miss, took the branch above and stays silent: that's an expected fallback).
+                let host = url.host ?? ""
+                Task { @MainActor in Diagnostics.shared.record(.parseError, "image decode \(host)") }
+                return nil
+            }
             cache.setObject(image, forKey: url.absoluteString as NSString)
             return image
         } catch {
+            let host = url.host ?? ""
+            Task { @MainActor in Diagnostics.shared.record(.apiFailure, "image fetch \(host)") }
             return nil
         }
     }

@@ -172,8 +172,11 @@ struct RootTabView: View {
             // resolves there, the `isAuthenticated` onChange below runs the first
             // syncAll.
             // Warm the player-headshot map once (best-effort) so squad grids, the pitch, and
-            // the Fan Zone show real photos instead of monograms. Self-guards on re-fire.
-            await HeadshotStore.shared.load()
+            // the Fan Zone show real photos instead of monograms. LOW priority + non-blocking
+            // (Tier-2 prefetch order): headshots aren't on the first screen (monogram fallback
+            // everywhere), so this must NOT compete with the foreground critical path (scoreboard
+            // + clubs + Home content, loaded on Home's appearance). Self-guards on re-fire.
+            Task(priority: .utility) { await HeadshotStore.shared.load() }
             if syncCoordinator == nil {
                 let coordinator = FollowSyncCoordinator(following: following, auth: auth)
                 coordinator.start()

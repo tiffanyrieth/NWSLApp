@@ -96,7 +96,7 @@ struct ArticleContentCard: View {
                 }
                 Text(card.timestamp.relativeAgo)
                     .font(.system(size: 11))
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
         }
     }

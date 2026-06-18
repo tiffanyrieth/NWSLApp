@@ -8,10 +8,9 @@
 //  the club's links (OFFICIAL accounts + a fan-community card) and Squad / Stats
 //  sub-tabs.
 //
-//  Pushed from the Teams directory AND from a Standings row, so the back button is
-//  driven by an `origin` the pusher passes ("‹ Teams" / "‹ Standings") — the
-//  parent-reflecting back rule. The header carries identity (full-bleed), so the
-//  system nav bar is hidden and there's no centered title — just the origin back.
+//  Pushed from the Teams directory AND from a Standings row. The full-bleed header
+//  carries identity, so there's no centered title — just a bare ‹ chevron over a
+//  transparent nav bar (the team-color wash shows through), via `nativeBackButton()`.
 //
 //  Two sub-tabs (Squad default, Stats), per the Teams tab design spec. One roster
 //  fetch powers everything — the squad cards, the header standing line, and stats.
@@ -21,15 +20,11 @@ import SwiftUI
 
 struct TeamDetailView: View {
     let club: Club
-    /// The screen this was pushed from — drives the "‹ {origin}" back button
-    /// (parent-reflecting back rule). Teams passes "Teams", Standings "Standings".
-    var origin: String = "Teams"
 
     @State private var viewModel = TeamDetailViewModel()
     @Environment(FollowingStore.self) private var following
     // Per-team match-alert on/off (same store as the Teams list + the hub).
     @Environment(TeamAlertStore.self) private var teamAlerts
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
     // Named TeamSection (not Section) to avoid shadowing SwiftUI's Section view.
@@ -59,8 +54,12 @@ struct TeamDetailView: View {
             }
             .background(Color.dsBgGrouped)
         }
-        .navigationBarBackButtonHidden(true)
-        .toolbar(.hidden, for: .navigationBar)
+        // Bare ‹ chevron, no centered title — the full-bleed header carries identity.
+        // Transparent (not hidden) nav bar so the team-color wash bleeds up behind it
+        // AND the edge-swipe-back gesture is preserved (hiding the bar breaks swipe).
+        .nativeBackButton()
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .navigationDestination(for: Athlete.self) { athlete in
             PlayerDetailView(
                 athlete: athlete,
@@ -82,16 +81,6 @@ struct TeamDetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // "‹ {origin}" back button (parent-reflecting). The full-bleed header
-            // carries identity, so this is the only nav affordance.
-            Button { dismiss() } label: {
-                HStack(spacing: 3) {
-                    Image(systemName: "chevron.left").font(.system(size: 16, weight: .semibold))
-                    Text(origin).font(.system(size: 15, weight: .medium))
-                }
-                .foregroundStyle(Color.dsAccent)
-            }
-
             HStack(spacing: 14) {
                 TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 64)
                 VStack(alignment: .leading, spacing: 3) {
@@ -483,7 +472,7 @@ struct TeamDetailView: View {
             displayName: "Washington Spirit",
             abbreviation: "WAS",
             logoURL: nil
-        ), origin: "Teams")
+        ))
     }
     .environment(FollowingStore())
 }

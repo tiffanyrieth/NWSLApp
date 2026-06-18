@@ -78,7 +78,7 @@ struct AvatarContentCard: View {
                 }
                 Text(card.timestamp.relativeAgo)
                     .font(.system(size: 11))
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
         }
     }
@@ -266,7 +266,7 @@ struct EngagementRow: View {
             Text("\(count)")
         }
         .font(.system(size: 12))
-        .foregroundStyle(Color.dsFgTertiary)
+        .foregroundStyle(Color.dsFgSecondary)
     }
 }
 

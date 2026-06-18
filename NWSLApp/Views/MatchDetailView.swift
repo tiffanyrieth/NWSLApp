@@ -25,10 +25,6 @@ import SwiftUI
 
 struct MatchDetailView: View {
     @State private var viewModel: MatchDetailViewModel
-    /// The screen this was pushed FROM, for the parent-reflecting back button
-    /// ("‹ Schedule"). Provided by the pusher so it reflects origin, not this
-    /// screen's name (CLAUDE.md nav rule).
-    private let origin: String
     /// The competition this match belongs to — drives the header competition pill,
     /// the info-row competition name, and neutral rendering of non-NWSL sides.
     /// Defaults to `.nwsl` so the 99% schedule path is unchanged.
@@ -40,9 +36,8 @@ struct MatchDetailView: View {
     @State private var pulse = false
     @Namespace private var tabUnderline
 
-    init(event: Event, origin: String = "Schedule", competition: CompetitionType = .nwsl) {
+    init(event: Event, competition: CompetitionType = .nwsl) {
         _viewModel = State(initialValue: MatchDetailViewModel(event: event))
-        self.origin = origin
         self.competition = competition
     }
 
@@ -62,13 +57,10 @@ struct MatchDetailView: View {
             }
         }
         .background(Color.dsBgPrimary)
-        // Back button reflects the PARENT screen you came from (the `origin` the
-        // pushing screen passed — "Schedule", "Home", …), NEVER this screen's name.
-        // No centered title: the full-bleed header (crests + score) carries the
-        // identity. We use navigationContextLabel rather than the system auto-back-
-        // title because the tab roots hide their bars for custom headers, so SwiftUI
-        // doesn't propagate the parent title to a pushed child. (CLAUDE.md nav rule.)
-        .navigationContextLabel(origin)
+        // Bare ‹ chevron, no centered title: the full-bleed header (crests + score)
+        // carries identity. `nativeBackButton()` keeps the swipe gesture via the editor
+        // toolbar role (see DSText).
+        .nativeBackButton()
         // Transparent nav bar so the team-color wash reads full-bleed up to the top.
         // Deliberately TRANSPARENT, not hidden: hiding the bar is what breaks the
         // interactive swipe-back gesture (the classic gotcha) — keeping the bar

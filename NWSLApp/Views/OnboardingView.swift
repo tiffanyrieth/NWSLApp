@@ -58,24 +58,21 @@ struct OnboardingView: View {
 
     private var picker: some View {
         List {
+            // The intro rides a BORDERLESS row (not a section header): List headers
+            // render with reduced/vibrant prominence that compounds on `.secondary`
+            // and pushes it below readable contrast, so we keep it as normal row
+            // content where `.secondary` renders at its true secondaryLabel tone.
+            // Hierarchy is bold nav title → readable subtitle → smaller caption,
+            // established by SIZE + spacing (not by dimming the caption).
+            Section {
+                introBlock
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 10, trailing: 20))
+            }
+
             Section {
                 ForEach(viewModel.clubs) { row(for: $0) }
-            } header: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Follow your teams to get their next matches, news, and everything that matters to you.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    // Clarifier that preempts the "will following spam me with alerts?" hesitation —
-                    // following only feeds Home; alerts are opt-in and managed separately in Teams.
-                    Text("Following adds a team to your Home feed. You can turn on game alerts later in Teams.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        // Guarantee full wrapping (never truncate) on the smallest screens (SE/mini),
-                        // where caption text under a header is prone to clipping.
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .textCase(nil)
-                .padding(.bottom, 4)
             }
 
             internationalSection
@@ -84,6 +81,23 @@ struct OnboardingView: View {
         // Persistent bottom bar: the running follow count + reassurance, always
         // visible above the list (and above the tab bar).
         .safeAreaInset(edge: .bottom) { bottomBar }
+    }
+
+    private var introBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Follow teams to see their matches, news, and more across the app.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            // Clarifier that preempts the "will following spam me with alerts?" hesitation —
+            // following only feeds Home; alerts are opt-in and managed separately in Teams.
+            // Smaller than the subtitle but kept at .secondary so it stays legible.
+            Text("Following isn't the same as game notifications. Turn those on anytime in the Teams tab.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                // Guarantee full wrapping (never truncate) on the smallest screens (SE/mini).
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func row(for club: Club) -> some View {

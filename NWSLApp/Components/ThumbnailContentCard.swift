@@ -132,7 +132,7 @@ struct ThumbnailContentCard: View {
                 if let sub = card.subreddit {
                     Text("via")
                         .font(.system(size: 12))
-                        .foregroundStyle(Color.dsFgTertiary)
+                        .foregroundStyle(Color.dsFgSecondary)
                     PlatformBadge(platform: .reddit, size: 13)
                     Text("r/\(sub)")
                         .font(.system(size: 12, weight: .semibold))
@@ -141,7 +141,7 @@ struct ThumbnailContentCard: View {
                 }
                 Text("· \(card.timestamp.relativeAgo)")
                     .font(.system(size: 12))
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }

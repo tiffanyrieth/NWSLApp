@@ -110,7 +110,7 @@ struct MatchCard: View {
                 Text("FULL TIME")
                     .font(.system(size: 11))
                     .tracking(0.3)
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
             default:
                 // Cyan kickoff time — completes the temporal-color set with the
                 // orange live clock and green FT.

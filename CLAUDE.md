@@ -357,7 +357,7 @@ NWSLApp/
 │   ├── HeadshotStore.swift            — @MainActor @Observable `.shared`; fetches the `/headshots` map (espnAthleteId→NWSL GUID) once per launch; `guid(forAthleteID:)`; best-effort (failure → monograms)
 │   ├── AssetRefreshService.swift      — @MainActor; cadenced (>30d / forced March) best-effort refresh of BUNDLED crests/flags: diff `/crest/manifest` vs BundledAssetManifest, download only a rebranded asset to Caches (cache-override → bundle → network); NEVER downgrades vector→raster (vector→vector rebrand waits for re-bundle, recorded loud); never gates cold start
 │   ├── BundledAssetManifest.swift     — source-master hashes (sha256[:16]) of every shipped crest + FEATURED flag + the raster-crest set; matches the proxy manifest so a fresh install re-downloads nothing. GENERATED — regen when bundled art changes
-│   ├── Diagnostics.swift              — @MainActor @Observable `.shared` NO-SILENT-FAILURES spine: os_log + capped in-memory event ring (assetBundleMiss/apiFailure/parseError/staleServe/…), surfaced in dev/TestFlight
+│   ├── Diagnostics.swift              — @MainActor @Observable `.shared` NO-SILENT-FAILURES spine: os_log + capped in-memory event ring (assetBundleMiss/apiFailure/parseError/staleServe/…), surfaced in dev/TestFlight + flushed (background/burst) to the proxy `POST /telemetry` sink (non-PII: kind+detail+ts+app/os, no identifiers)
 │   ├── GameCenterIDs.swift            — GameKit ID constants (4 leaderboards + 6 achievements) + pure cross-game score helpers (GameKit-free, unit-tested)
 │   ├── GameCenterManager.swift        — @MainActor @Observable `.shared`; LAZY idempotent `authenticate()` (on-appear from game screens + Profile, not launch) + best-effort submit/report/syncAll/showDashboard. Only file importing GameKit
 │   ├── TeamAlertPrefsSyncService.swift— Supabase `team_alert_preferences` client (per-team on/off upsert/fetchAll, composite key); RLS-scoped
@@ -374,6 +374,7 @@ NWSLApp/
 │   ├── BracketStore.swift             — Bracket per-edition/round draft + one-way submit (only after server ack) + banked points + edition-summary gate snapshot (`bracket.v2.*`; no offline edition cache)
 │   ├── ClubStore.swift                — shared club directory; one fetch, many readers
 │   ├── FeedPreferencesStore.swift     — Feed content-type toggles + muted sources + `defaultFeedFilter` (the chip the Feed opens to, raw string)
+│   ├── FeedStore.swift                — @Observable shared Feed cards + load state (one fetch, many readers); PREWARMED low-pri from RootTabView so the first Feed switch is instant; honest loading state (isLoadingItems + hasCompletedItemsLoad → never a fake-empty)
 │   ├── FollowSyncCoordinator.swift    — @MainActor; the ONLY follows↔Supabase bridge (sign-in union-merge + ongoing sync) — clubs (`follows`) AND competition follows (`competition_follows`: national teams + Champions Cup)
 │   ├── NotificationSyncCoordinator.swift — @MainActor; device-token + notif-prefs↔Supabase bridge
 │   ├── TeamAlertStore.swift           — @Observable; per-team match-alert ON/OFF (`Set<String>`) → UserDefaults; `migrateFromGlobalIfNeeded`; `onAlertChanged` sync seam
@@ -461,12 +462,11 @@ NWSLApp.storekit                       — local StoreKit 2 config (4 tip consum
 ## What's Next
 
 Pending work only (ALIVE > core > hardening); shipped work lives in git history + the File Map, not here.
-- **First-launch perf — Tier 1 + 2 DONE** (Reference "First Launch Performance — Asset Strategy"): bundling,
-  ImageCache disk cache (revalidating, survives cold launch not reinstall), headshot-prefetch deprioritized,
-  Home critical path foreground. DEFERRED: (a) DEPLOY proxy `feature/asset-manifest` + run
-  `build_asset_manifest.mjs` to activate the rebrand refresh (until then `/crest/manifest` 404s → app no-ops);
-  (b) prewarm **Feed only** (the known-slow path) IF the first switch is slow on-device — Standings is fine
-  (bundled crests); (c) onboarding quick-tips screen — a deliberate design task, not a perf buffer.
+- **First-launch perf — Tier 1 + 2 DONE** (Reference "First Launch Performance — Asset Strategy"): bundling +
+  cadenced rebrand refresh (proxy `/crest/manifest` deployed + manifest built — armed), ImageCache disk cache
+  (revalidating, survives cold launch not reinstall), headshot-prefetch deprioritized, Home critical path
+  foreground, Feed prewarmed (shared FeedStore), telemetry sink wired (`POST /telemetry`). Only DEFERRED: the
+  onboarding quick-tips screen — a deliberate design task, not a perf buffer (build only if wanted as UX).
 - **YouTube Shorts thumbnail pillarbox** — DEFERRED (owner). Baked-in side bars; fix is proxy-side.
 - **Pull-to-refresh polish** — keep the list visible during refresh (spinner only on first load).
 - **Bracket follow-ups (optional):** exact stat-edition seeding; more stat templates; full bracket-TREE

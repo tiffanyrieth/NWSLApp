@@ -129,6 +129,22 @@ enum AppConfig {
         return components.url
     }
 
+    /// The proxy route serving the asset version manifest: `GET /crest/manifest` →
+    /// `{ crests: {ABBR: hash}, flags: {CODE: hash} }`. `AssetRefreshService` fetches this
+    /// on a cadence (>30d / forced in March) and re-downloads only an asset whose hash drifts
+    /// from what was bundled (a rebrand). Returns nil on a malformed URL.
+    static func assetManifestURL() -> URL? {
+        scoreboardProxyBase.appendingPathComponent("crest/manifest")
+    }
+
+    /// A national-team flag as a raster PNG from flagcdn, for the post-rebrand cache OVERRIDE
+    /// only (the bundled flag is a crisper vector; a downloaded SVG can't be drawn from disk,
+    /// so the override is a high-res raster). Keyed by the flagcdn slug. Returns nil on a
+    /// malformed URL.
+    static func flagRasterURL(slug: String) -> URL? {
+        URL(string: "https://flagcdn.com/w1280/\(slug).png")
+    }
+
     // MARK: - Player headshots
 
     /// The proxy route returning the `{ espnAthleteId: nwslGuid }` headshot map as JSON:

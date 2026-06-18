@@ -221,6 +221,11 @@ struct RootTabView: View {
                 .authorizationStatus == .authorized {
                 UIApplication.shared.registerForRemoteNotifications()
             }
+            // Out-of-band: refresh the bundled crest/flag artwork if the cadence is due
+            // (>30 days, or forced once in March). Deferred to its own low-priority task and
+            // best-effort, so it never competes with the launch network window — the bundled
+            // vectors already render; an override only changes things on the NEXT launch.
+            Task(priority: .utility) { await AssetRefreshService.refreshIfDue() }
         }
         // A tapped live push routes to its match (see PushBridge / AppRouter).
         .onChange(of: PushBridge.shared.tappedEventID) { _, eventID in

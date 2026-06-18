@@ -49,7 +49,12 @@ struct TeamLogo: View {
     private var bundledMark: UIImage? {
         guard let abbr = teamAbbreviation, !abbr.isEmpty else { return nil }
         let key = abbr.uppercased()
-        return UIImage(named: "Crests/\(key)") ?? UIImage(named: "Flags/\(key)")
+        // A cached post-rebrand override (if the refresh downloaded one) wins over the
+        // bundled vector; then the asset catalog. nil → network (non-NWSL/non-national side).
+        return AssetRefreshService.override(crest: key)
+            ?? AssetRefreshService.override(flag: key)
+            ?? UIImage(named: "Crests/\(key)")
+            ?? UIImage(named: "Flags/\(key)")
     }
 
     // The preferred NWSL crest URL (nil when no abbreviation given).

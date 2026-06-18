@@ -60,7 +60,11 @@ struct NationalTeamCard: View {
     // The bundled vector flag (`Flags/<FIFA>`), rendered on the first frame with ZERO
     // network so the Competitions grid is complete the instant it opens. Nil only if a
     // newly-added nation hasn't been bundled yet → the CachedThumbnail network path covers it.
-    private var bundledFlag: UIImage? { UIImage(named: "Flags/\(team.code.uppercased())") }
+    private var bundledFlag: UIImage? {
+        let key = team.code.uppercased()
+        // Cached post-rebrand override first, then the bundled vector flag.
+        return AssetRefreshService.override(flag: key) ?? UIImage(named: "Flags/\(key)")
+    }
 
     // Real flag with a soft country-color halo behind it (a blurred color block, NOT a
     // drop shadow — keeps the app's no-shadow rule), mirroring the crest's halo. A

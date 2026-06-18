@@ -46,7 +46,7 @@ struct CompetitionsView: View {
                         .foregroundStyle(Color.dsFgSecondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     searchField
-                    nationalTeamsList
+                    nationalTeamsContent
                 }
             }
             .padding(16)
@@ -122,40 +122,89 @@ struct CompetitionsView: View {
         .background(Color.dsBgCard, in: Capsule())
     }
 
-    // Honest states throughout — loading spinner, error+retry, real empty result, the A-Z grid.
+    // While searching → one filtered A-Z result list (Suggested hidden). Otherwise → a
+    // SUGGESTED shortcut (the curated/bundled teams, USA first) ABOVE the full A-Z list, which
+    // still includes those teams in their normal positions (the iOS "Frequently Used" pattern —
+    // the two headers make the repeat read as intentional).
     @ViewBuilder
-    private var nationalTeamsList: some View {
-        switch store.state {
-        case .idle, .loading:
-            ProgressView("Loading teams…")
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 40)
-        case .failed:
-            VStack(spacing: 10) {
-                Text("Couldn't load teams — tap to retry")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.dsFgSecondary)
-                Button("Try again") { Task { await store.load() } }
-                    .buttonStyle(.borderedProminent)
+    private var nationalTeamsContent: some View {
+        if isSearching {
+            searchResults
+        } else {
+            VStack(alignment: .leading, spacing: 16) {
+                subSection("SUGGESTED") { teamGrid(NationalTeam.featured) }
+                subSection("ALL NATIONAL TEAMS") { allTeams }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 32)
+        }
+    }
+
+    private var isSearching: Bool {
+        !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    // The data-driven A-Z list (honest states). The Suggested grid above it is static + bundled,
+    // so it renders instantly even while this is still loading.
+    @ViewBuilder
+    private var allTeams: some View {
+        switch store.state {
+        case .idle, .loading: loadingView
+        case .failed:         retryView
+        case .loaded(let teams): teamGrid(teams)
+        }
+    }
+
+    // Searching filters the full A-Z list; needs it loaded, so it carries the same honest states.
+    @ViewBuilder
+    private var searchResults: some View {
+        switch store.state {
+        case .idle, .loading: loadingView
+        case .failed:         retryView
         case .loaded(let teams):
             let results = filter(teams)
             if results.isEmpty {
-                Text(query.isEmpty ? "No national teams available right now."
-                                   : "No teams match “\(query)”.")
+                Text("No teams match “\(query)”.")
                     .font(.system(size: 13))
                     .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 32)
             } else {
-                LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(results) { NationalTeamCard($0) }
-                }
+                teamGrid(results)
             }
         }
+    }
+
+    private func teamGrid(_ teams: [NationalTeam]) -> some View {
+        LazyVGrid(columns: columns, spacing: 12) {
+            ForEach(teams) { NationalTeamCard($0) }
+        }
+    }
+
+    @ViewBuilder
+    private func subSection<Content: View>(_ title: String,
+                                           @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).trackedCaps(size: 11, tracking: 0.6, weight: .semibold, color: .dsFgTertiary)
+            content()
+        }
+    }
+
+    private var loadingView: some View {
+        ProgressView("Loading teams…")
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 40)
+    }
+
+    private var retryView: some View {
+        VStack(spacing: 10) {
+            Text("Couldn't load teams — tap to retry")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.dsFgSecondary)
+            Button("Try again") { Task { await store.load() } }
+                .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
     }
 
     private func filter(_ teams: [NationalTeam]) -> [NationalTeam] {

@@ -249,6 +249,11 @@ struct RootTabView: View {
             if phase == .active {
                 GameCenterManager.shared.syncAll(trivia: trivia, predict: predict, bracket: bracket)
             }
+            // Leaving the foreground flushes any pending no-silent-failure telemetry to the
+            // remote sink (best-effort) so a field miss reaches the owner without a user report.
+            if phase == .background {
+                Task { await Diagnostics.shared.flushRemote() }
+            }
         }
     }
 }

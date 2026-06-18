@@ -145,6 +145,13 @@ enum AppConfig {
         URL(string: "https://flagcdn.com/w1280/\(slug).png")
     }
 
+    /// The proxy route that collects the app's no-silent-failure telemetry: `POST /telemetry`.
+    /// Diagnostics flushes a small batch of NON-PII operational events here so a field miss
+    /// reaches the owner without a user report. Returns nil on a malformed URL.
+    static func telemetryURL() -> URL? {
+        scoreboardProxyBase.appendingPathComponent("telemetry")
+    }
+
     // MARK: - Player headshots
 
     /// The proxy route returning the `{ espnAthleteId: nwslGuid }` headshot map as JSON:

@@ -334,7 +334,7 @@ NWSLApp/
 ├── Models/
 │   ├── BracketEdition.swift           — Bracket Battle: BracketRound/Entrant/Matchup/Edition (64→6 rounds, flat Codable)
 │   ├── Club.swift                     — flat Club + ESPN /teams decode (brand/alternate color → crests)
-│   ├── Competition.swift              — `ScheduledMatch` (Event + `CompetitionType` tag) + `ChampionsCupFeed`/`NationalTeamFeed.all` (7 women's NT feeds incl. uefa.weuro/fifa.wwc/fifa.w.olympics; keep in sync with proxy `WOMENS_NT_FEEDS`); the seam folding non-NWSL feeds into the schedule
+│   ├── Competition.swift              — `ScheduledMatch` (Event + `CompetitionType` tag) + `ChampionsCupFeed`/`NationalTeamFeed.all` (7 women's NT feeds incl. uefa.weuro/fifa.wwc/fifa.w.olympics; keep in sync with proxy `WOMENS_NT_FEEDS`); the seam folding non-NWSL feeds into the schedule. `CompetitionType.primaryBroadcastOverride` = curated US English-rights map for comps ESPN only carries in Spanish (CC→Paramount+; ESPN's feed then surfaced as the `surfacesSpanishSecondary` line) — revisit if CBS's exclusivity changes
 │   ├── ContentCard.swift              — unified ALIVE-content model: 7 layouts + `sourceType` (club·reporter·player·league·news, for Feed chips) + StalenessWindow (Home 72h / Feed 7d, 6-card-floored)
 │   ├── NationalTeam.swift             — followable women's NT: FIFA code + name + flag + national brand color (followed wash/border/code tint). Curated `featured(8)`/`all(16)` (flagcdn slug + color) + a `discovered` init for data-driven Browse-all teams (ESPN flag by FIFA code; color via DesignTeamColors.displayHex else neutral)
 │   ├── AthleteStatistics.swift        — ESPN Core API /statistics → PlayerSeasonStats

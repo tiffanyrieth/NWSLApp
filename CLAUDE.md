@@ -139,12 +139,13 @@ Folders are created when their first real file lands, not preemptively.
   map (built from the public NWSL SDP JSON API name-matched to ESPN rosters, ~98%; weekly cron
   + admin `POST /headshots/run`; union-merged in KV with an `unmatched`/`overrides`/`meta`
   audit). The app builds the NWSL Cloudinary headshot URL on-device. Pure mapping — no image bytes.
-- **Crests** (`GET /crest?team=WAS`): serves a team's crest as a transparent PNG from KV
-  (`crest:{ABBR}`). The NWSL CDN is named-transform-only (no client-side transparent PNG) and
-  returns SVG for ~11 of 16 teams, so `scripts/load_crests.mjs` rasterizes all 16 OFFLINE via
-  `sharp` (SVG + PNG sources → 384px, uniform modest padding) and loads them to KV. `TeamLogo`
-  prefers this, ESPN PNG fallback on 404. 5 teams (CHI/KC/BOS/DEN/GFC) have no vector source —
-  lateral vs ESPN; the 11 SVG teams gain real crispness. Re-run the loader if a club rebrands.
+- **Crests/flags now BUNDLED in-app** (see Tier-1 first-launch asset strategy): the 16 NWSL
+  crests (11 vector SVG + 5 raster PNG for CHI/KC/BOS/DEN/GFC) and 16 national-team flags ship in
+  the asset catalog (`Crests/<ABBR>`, `Flags/<FIFA>`), so `TeamLogo`/`NationalTeamCard` render
+  them on frame one with ZERO network. `GET /crest?team=WAS` (KV `crest:{ABBR}`, rasterized by
+  `scripts/load_crests.mjs`) is now the FALLBACK for non-NWSL sides + the post-rebrand override
+  source; `GET /crest/manifest` (KV `asset:manifest`, built by `scripts/build_asset_manifest.mjs`)
+  serves per-asset source-master hashes for the app's cadenced refresh. Re-run both on a rebrand.
 - **Bracket engine:** `src/bracket.ts` + `bracket-engine.ts` — auto-generate 64-player
   editions from ESPN, tally votes + advance rounds on a cron, rotate creative↔stats editions.
 - Teams/roster/standings still hit ESPN directly. Base URLs in `Config/AppConfig.swift`;
@@ -341,6 +342,8 @@ NWSLApp/
 │   ├── PushBridge.swift               — @MainActor @Observable `.shared`; UIKit AppDelegate (APNs/tap) → observable world
 │   ├── SupabaseManager.swift          — the one shared SupabaseClient (built from Secrets)
 │   ├── HeadshotStore.swift            — @MainActor @Observable `.shared`; fetches the `/headshots` map (espnAthleteId→NWSL GUID) once per launch; `guid(forAthleteID:)`; best-effort (failure → monograms)
+│   ├── AssetRefreshService.swift      — @MainActor; cadenced (>30d / forced March) best-effort refresh of BUNDLED crests/flags: diff `/crest/manifest` vs BundledAssetManifest, download only a rebranded asset to Caches (cache-override → bundle → network); never gates cold start
+│   ├── BundledAssetManifest.swift     — source-master hashes (sha256[:16]) of every shipped crest/flag; matches the proxy manifest so a fresh install re-downloads nothing. GENERATED — regen when bundled art changes
 │   ├── GameCenterIDs.swift            — GameKit ID constants (4 leaderboards + 6 achievements) + pure cross-game score helpers (GameKit-free, unit-tested)
 │   ├── GameCenterManager.swift        — @MainActor @Observable `.shared`; LAZY idempotent `authenticate()` (on-appear from game screens + Profile, not launch) + best-effort submit/report/syncAll/showDashboard. Only file importing GameKit
 │   ├── TeamAlertPrefsSyncService.swift— Supabase `team_alert_preferences` client (per-team on/off upsert/fetchAll, composite key); RLS-scoped
@@ -405,7 +408,8 @@ NWSLApp/
 │   ├── StandingsView.swift            — color-block table: "TOP 8 ADVANCE" pill; color-coded abbr + crest on every row (always vibrant); PTS hero; cols # · TEAM · PTS · GP · W · D · L · LAST 5; cyan PLAYOFF LINE is the ONLY cutoff cue (no below-line dimming, every row full opacity); team-color left spine + tint + accent rank = the FOLLOW indicator (no ★; follow nobody → every row keeps its spine); right-aligned monospaced rank (22pt col, 10–16 don't wrap); Last-5 via RecentForm over `nwslEvents` (league form only)
 │   ├── FeedView.swift                 — Feed tab: header (title+gear+subtitle) + source-class chip bar + chronological ContentCardViews; opens to `defaultFeedFilter`; full-screen error+retry on fetch failure
 │   ├── FeedSourcesView.swift          — Feed content preferences: Default-view picker + content-type toggles + mute sources
-│   └── _ColorAuditView.swift          — 🔧 DEBUG-only 16-club color audit (launch `-colorAudit`, replaces RootTabView); remove once palette verified
+│   ├── _ColorAuditView.swift          — 🔧 DEBUG-only 16-club color audit (launch `-colorAudit`, replaces RootTabView); remove once palette verified
+│   └── _AssetAuditView.swift          — 🔧 DEBUG-only bundled-crest/flag fidelity audit (launch `-assetAudit`, replaces RootTabView); remove once bundled assets verified
 ├── Components/
 │   ├── BroadcastInfo.swift / BroadcastLink.swift — "How to Watch" DB + broadcast→watch-URL
 │   ├── Chip.swift                     — pill filter chip (Schedule + Feed chip bars); optional `compact` (13pt) for the redesigned Schedule bar
@@ -420,9 +424,9 @@ NWSLApp/
 │   ├── HowToWatchCard.swift / MDInfoCard.swift / StatComparisonBar.swift — match-detail tiles (HowToWatch = FREE/SUB badge + BroadcastChip + verbatim per-device "Find it" steps; MDInfoCard = label/value)
 │   ├── PitchDot.swift / PlayerDot.swift / PlayerCard.swift — player markers/cards (team-color monogram, no headshots)
 │   ├── ComingUpRow.swift / EventTimelineRow.swift / FlowLayout.swift — Home/match rows + wrapping layout
-│   ├── ImageCache.swift / TeamLogo.swift / CachedThumbnail.swift — cached crests + content thumbnails; TeamLogo prefers the NWSL crest (proxy `/crest`), ESPN PNG fallback; CachedThumbnail sync-seeds from ImageCache so cards don't flash to the crest on tab-switch
+│   ├── ImageCache.swift / TeamLogo.swift / CachedThumbnail.swift — cached crests + content thumbnails; TeamLogo resolves cached-override → BUNDLED crest/flag (`Crests/<ABBR>`·`Flags/<FIFA>`, zero-network frame-one) → proxy `/crest`/ESPN; CachedThumbnail sync-seeds from ImageCache so cards don't flash on tab-switch
 │   ├── MatchCard.swift                — schedule card (takes a `ScheduledMatch`) → MatchDetailView: team wash, 60pt crests, team-color abbr under each crest (non-NWSL sides via `DesignTeamColors.displayHex`), scores below, temporal center, broadcast+venue rail, competition label for non-NWSL matches, uniform height
-│   ├── NationalTeamCard.swift         — shared national-team grid card (Competitions hub + Browse-all): mirrors the club card — flag (CachedThumbnail, country-color block fallback) + halo, FIFA code in country color, name, Follow pill + bell; followed → country-color radial wash + border. Reads FollowingStore + TeamAlertStore from env
+│   ├── NationalTeamCard.swift         — shared national-team grid card (Competitions hub + Browse-all): mirrors the club card — flag (BUNDLED vector `Flags/<FIFA>`, cached-override first, flagcdn fallback) + halo, FIFA code in country color, name, Follow pill + bell; followed → country-color radial wash + border. Reads FollowingStore + TeamAlertStore from env
 │   ├── PlayerHeadshot.swift           — circular player headshot via HeadshotStore→Cloudinary (ImageCache); jersey-monogram fallback on all 6 avatar surfaces (404/unmapped keeps the monogram)
 │   ├── PlayerSpotlightCard.swift      — Module-2 hero (~400pt): team-gradient card, headshot fade-masked into the gradient, text in a left zone; ghost# + crest fallback on no-GUID/404 (never empty)
 │   └── SocialLinkButton.swift         — circular team-tinted social icon
@@ -432,7 +436,7 @@ NWSLApp/
 │   ├── Club+BrandColor.swift          — Club → brandHex/accentColor (design palette → id-override → ESPN)
 │   ├── DesignTeamColors.swift         — curated 16-team NWSL palette by abbreviation (authoritative; `hex(for:)` doubles as the NWSL-membership test). `displayHex(for:)` = COLOR-only resolver adding national teams + foreign Champions Cup clubs (kept separate so it never affects the membership test)
 │   └── TeamBrandColors.swift          — per-team-id brand-color overrides for clubs ESPN gets wrong
-└── Assets.xcassets/                   — app icons, accent color
+└── Assets.xcassets/                   — app icons, accent color, `Crests/` (16 NWSL crests: 11 vector SVG + 5 raster PNG), `Flags/` (16 national-team flags, vector SVG) — bundled for zero-network first launch
 
 supabase/schema.sql                    — Postgres: profiles, follows, competition_follows, device_tokens, notification_preferences, team_alert_preferences, bracket_*, prediction_scores, trivia_scores (+ RLS + authenticated GRANTs)
 NWSLApp.storekit                       — local StoreKit 2 config (4 tip consumables + monthly subs) for in-sim Support testing; referenced by the shared scheme. ASC products owner-gated
@@ -472,7 +476,12 @@ flips to locked; failure → "Couldn't submit — tap to retry"). No offline cac
 - **Player Spotlight** (`spotlight-design-spec.md`) — Home Module 2, live `/spotlight`: one real player per
   followed team + ESPN stats + a Haiku "why watch" blurb, weekly rotation.
 - **Player headshots** — real photos on all 6 avatar surfaces via the proxy `/headshots` map (monogram on a miss).
-- **Team crests** — all 16 from NWSL via proxy `/crest` (ESPN PNG fallback). (Team Detail banners deferred — licensing.)
+- **Team crests + national-team flags — BUNDLED** (Tier-1 first-launch asset strategy): all 16
+  crests (11 vector SVG + 5 raster PNG) and 16 flags ship in the asset catalog and render frame-one
+  with zero network — no cold-CDN race on a fresh install. Proxy `/crest`/ESPN/flagcdn are the
+  fallback for non-NWSL sides + the source for a cadenced rebrand refresh (`AssetRefreshService` ↔
+  `/crest/manifest`, cache-overrides-bundle). Team colors + the formation pitch were already
+  network-free. (Team Detail banners deferred — licensing.)
 - **Feed** (`feed-tab-design-spec.md`) — live `/feed`: reporters + news + social scoped to followed teams +
   league, with a source-class chip bar (All · News · Clubs · Reporters · Players). The proxy Haiku-team-tags
   the reporter/league bucket + filters to followed teams server-side.
@@ -514,6 +523,13 @@ Completed work lives in **Current State**; only pending work here (ALIVE > core 
 0.4.0 build-9 QOL set + the online-only no-stale refactor + the owner-gated ASC/backend setup (Game
 Center, Support IAP, IAP capability, `team_alert_preferences`, server-push per-team targeting) all
 shipped. Still pending:
+- **First-launch perf — Tier 1 DONE; Tier 2 next** (Reference "First Launch Performance — Asset
+  Strategy"): Tier 1 (bundle crests/flags + colors/pitch already local) shipped. Pending: (a) DEPLOY
+  the proxy `feature/asset-manifest` branch + run `build_asset_manifest.mjs` to activate the rebrand
+  refresh (until then `/crest/manifest` 404s → app no-ops); (b) **Tier 2** — prefetch priority after
+  team selection (Home content first → Schedule/Standings background → headshots/Feed low-pri) + give
+  `CachedThumbnail` a DISK cache (revalidating, no staleness) so flags/headshots/feed thumbnails
+  persist across cold launches + reinstalls.
 - **YouTube Shorts thumbnail pillarbox** — DEFERRED (owner). Baked-in side bars; fix is proxy-side.
 - **Pull-to-refresh polish** — keep the list visible during refresh (spinner only on first load).
 - **Bracket follow-ups (optional):** exact stat-edition seeding; more stat templates; full bracket-TREE

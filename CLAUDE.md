@@ -243,14 +243,20 @@ understanding each change matters as much as shipping it.
 
 - Persistent UI (tab/nav bars) must never obscure scrollable content — respect safe areas.
 - Every drilled-in view has an explicit back affordance; don't rely on edge-swipe alone.
-- **Back-button = PARENT, not self.** A drill-in's back chevron must read the screen you came
-  FROM ("‹ Schedule", "‹ Home", "‹ Standings"), never the current screen's name. The pushing
-  screen passes its own name as an `origin`/label; the child renders it via `navigationContextLabel`.
-  (SwiftUI's automatic back-title doesn't propagate here because the tab roots hide their bars for
-  custom headers, so the parent name is passed explicitly.) Don't hardcode the current screen's name.
-  On full-bleed detail screens the header (crests + score, etc.) carries identity, so there's **no
-  centered nav title** — just the parent back button. `TeamDetailView` takes an `origin` and renders
-  "‹ {origin}" directly (Teams→"Teams", Standings→"Standings"); `MatchDetailView` does the same.
+- **Back-button = bare ‹ chevron (native iOS, MLS/Athletic-style).** A pushed screen's back
+  button is a bare ‹ chevron, top-left, with its native glass circle and NO word beside it (never
+  "‹ Schedule", never the screen's own name). The screen's own name renders as a **centered inline
+  navigation title** — separate from the chevron. Apply via the shared `nativeBackButton(title:)`
+  modifier (`DSText.swift`). Full-bleed/identity-header screens (MatchDetail crests+score,
+  TeamDetail team header, PlayerDetail name) carry identity in-content and pass **no** title
+  (`nativeBackButton()`) — bare chevron only, no centered title to avoid duplicating the header.
+  Mechanism: the DEFAULT system back button is bare because tab-root parents hide their bars / set
+  no title (so nothing propagates to inherit), and it preserves edge-swipe-back natively — so DON'T
+  use `.toolbarRole(.editor)` (it left-aligns the title) or hide the bar (it breaks swipe). Full-bleed
+  screens keep the bar PRESENT but transparent (`.toolbarBackground(.hidden)` + `.toolbarColorScheme(.dark)`)
+  so the wash bleeds up while swipe survives. (Exception: a pushed screen whose parent DOES set a
+  title — e.g. SupportView under ProfileView — would inherit that word; the parent renders its title
+  as a `.principal` toolbar item instead of `.navigationTitle` so it doesn't propagate.)
 - Navigation state resets predictably (tapping a tab returns to its root).
 - Placeholders allowed only as intentional scaffolding: a clean "Coming soon" state (never
   blank/broken) AND flagged in the File Map. A placeholder must look deliberate, not forgotten.
@@ -324,7 +330,7 @@ NWSLApp/
 ├── DesignSystem/
 │   ├── DSColor.swift                  — `Color.ds*` tokens (dark-only hex)
 │   ├── DSMetrics.swift                — `enum DS` spacing/radii/avatar/crest/game-card dims
-│   └── DSText.swift                   — modifiers: `.trackedCaps()`, `.sectionTitle()`, `.navigationContextLabel("…")`, `Font.dsScore`
+│   └── DSText.swift                   — modifiers: `.trackedCaps()`, `.sectionTitle()`, `.nativeBackButton(title:)` (bare ‹ chevron + centered inline title; nil title = identity-header screens), `Font.dsScore`
 ├── Models/
 │   ├── BracketEdition.swift           — Bracket Battle: BracketRound/Entrant/Matchup/Edition (64→6 rounds, flat Codable)
 │   ├── Club.swift                     — flat Club + ESPN /teams decode (brand/alternate color → crests)
@@ -416,7 +422,7 @@ NWSLApp/
 │   ├── TeamsView.swift                — all-16 directory: ONE list (followed floated up) + subtitle; follow-competitions row; per-row 🔔 toggles (+ bottom confirmation toast → hub) + "{N} teams · Manage" line + nav-bar 🔔 → NotificationsView; first-visit coach mark (zIndex-lifted above the grid)
 │   ├── CompetitionsView.swift         — follow international comps: Champions Cup card+toggle (top) + National Teams = scoped search bar (under header) → SUGGESTED shortcut (8 curated, USA-first, bundled flags) over the full DATA-DRIVEN A-Z list (NationalTeamDirectoryStore; suggested also in A-Z, iOS Frequently-Used pattern); searching hides SUGGESTED; honest loading/error/empty. No Browse-all screen; NT get no detail page
 │   ├── TeamDetailView.swift           — club page: header (⭐ follow) + social row + Squad·Stats tabs
-│   ├── MatchDetailView.swift          — state-aware match: full-bleed Card-C header (72pt crests, team-color abbr + score per crest, temporal center) + "‹ {origin}" back; past=Play-by-Play/Lineups/Stats (formation pitch + BENCH), live=poll & LIVE pill, future=info grid + How-to-Watch + comparison + form
+│   ├── MatchDetailView.swift          — state-aware match: full-bleed Card-C header (72pt crests, team-color abbr + score per crest, temporal center) + bare ‹ chevron over a transparent bar (`nativeBackButton()`, no title); past=Play-by-Play/Lineups/Stats (formation pitch + BENCH), live=poll & LIVE pill, future=info grid + How-to-Watch + comparison + form
 │   ├── CombinedPitchView.swift        — BOTH teams' XIs on ONE pitch; Lineups default
 │   ├── FormationPitchView.swift       — single-team XI on a pitch; per-team list fallback
 │   ├── PlayerDetailView.swift         — roster bio + season stat block

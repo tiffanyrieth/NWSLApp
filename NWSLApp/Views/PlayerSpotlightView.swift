@@ -42,7 +42,7 @@ struct PlayerSpotlightView: View {
             .padding(20)
         }
         .background(Color.dsBgGrouped)
-        .navigationContextLabel("Player Spotlight")
+        .nativeBackButton(title: "Player Spotlight")
     }
 
     // MARK: - Hero (ghosted number + eyebrow + split name + meta)

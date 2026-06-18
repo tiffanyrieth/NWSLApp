@@ -44,7 +44,7 @@ struct PredictXIView: View {
                 loadedContent
             }
         }
-        .navigationContextLabel("Predict the XI")
+        .nativeBackButton(title: "Predict the XI")
         .background(Color(.systemGroupedBackground))
         .task {
             // Start Game Center auth here (a game screen) rather than at launch, so

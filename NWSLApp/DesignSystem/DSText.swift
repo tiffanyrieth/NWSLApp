@@ -42,26 +42,20 @@ extension Font {
 }
 
 extension View {
-    /// A left-aligned context label right next to the back chevron on a PUSHED
-    /// screen — a "where am I" navigation reminder ("‹ Teams", "‹ Match Details"),
-    /// not a centered title. Suppresses the inherited parent-title text on the back
-    /// button (just the chevron) so the label reads cleanly. Tab roots keep their
-    /// large left-aligned titles; this is only for drilled-in screens.
-    func navigationContextLabel(_ label: String) -> some View {
+    /// The native iOS back treatment for a PUSHED screen: a bare ‹ chevron (the native
+    /// glass circle, NO word beside it) with the edge-swipe-back gesture preserved, plus
+    /// — when `title` is given — the screen's own name as a centered inline navigation
+    /// title. Screens whose in-content header already carries identity (MatchDetail's
+    /// crests, TeamDetail's team header, PlayerDetail's name) pass no title so it isn't
+    /// duplicated. Tab roots keep their custom large left-aligned headers; this is only
+    /// for drilled-in screens. (Matches the MLS / The Athletic back-button treatment.)
+    ///
+    /// `.toolbarRole(.editor)` is what strips the inherited parent back-title down to a
+    /// bare chevron WITHOUT breaking the swipe gesture (hiding the bar is the thing that
+    /// breaks it) — so the title floats free of the back button as a real nav title.
+    func nativeBackButton(title: String? = nil) -> some View {
         self
             .navigationBarTitleDisplayMode(.inline)
-            // `.editor` role renders the back button as a bare chevron (no inherited
-            // parent-title text), so the label below reads "‹ Label" cleanly while
-            // the edge-swipe-back gesture still works.
-            .toolbarRole(.editor)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Text(label)
-                        .font(.headline)
-                        .foregroundStyle(Color.dsFgPrimary)
-                        .lineLimit(1)
-                        .fixedSize()   // render at full width — toolbar text truncates otherwise
-                }
-            }
+            .navigationTitle(title ?? "")   // "" renders no title (identity-header screens)
     }
 }

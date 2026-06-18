@@ -52,7 +52,7 @@ struct CompetitionsView: View {
             .padding(16)
         }
         .background(Color.dsBgGrouped)
-        .navigationContextLabel("Competitions")
+        .nativeBackButton(title: "Competitions")
         .task { await store.load() }
     }
 

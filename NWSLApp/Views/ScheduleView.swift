@@ -166,9 +166,7 @@ struct ScheduleView: View {
                                 // isn't Hashable, and the card is the link's label so the
                                 // whole card is tappable. `.plain` keeps the card's look.
                                 NavigationLink {
-                                    // Pass our name so the detail's back button reads
-                                    // "‹ Schedule" (parent-reflecting back rule).
-                                    MatchDetailView(event: match.event, origin: "Schedule",
+                                    MatchDetailView(event: match.event,
                                                     competition: match.competition)
                                 } label: {
                                     MatchCard(match: match)

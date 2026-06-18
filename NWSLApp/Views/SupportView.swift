@@ -38,8 +38,7 @@ struct SupportView: View {
             }
         }
         .background(Color.dsBgGrouped)
-        .navigationTitle("Support")
-        .navigationBarTitleDisplayMode(.inline)
+        .nativeBackButton(title: "Support")
         .task { await store.loadProducts() }
     }
 

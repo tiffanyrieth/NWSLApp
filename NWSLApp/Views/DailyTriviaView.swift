@@ -42,7 +42,7 @@ struct DailyTriviaView: View {
                 loadedContent
             }
         }
-        .navigationContextLabel("Daily Trivia")
+        .nativeBackButton(title: "Daily Trivia")
         .background(Color(.systemGroupedBackground))
         .task {
             // Start Game Center auth here (a game screen) rather than at launch, so

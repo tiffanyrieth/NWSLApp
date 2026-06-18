@@ -239,13 +239,9 @@ struct PlayerSpotlightView: View {
     @ViewBuilder
     private var heroBackground: some View {
         if let thumbnailURL = spotlight.thumbnailURL {
-            AsyncImage(url: thumbnailURL) { phase in
-                if let image = phase.image {
-                    image.resizable().scaledToFill()
-                } else {
-                    heroTile
-                }
-            }
+            // CachedThumbnail (not bare AsyncImage) so the hero frame goes through the shared
+            // ImageCache → disk cache, and doesn't re-download on every recreation.
+            CachedThumbnail(url: thumbnailURL) { heroTile }
         } else {
             heroTile
         }

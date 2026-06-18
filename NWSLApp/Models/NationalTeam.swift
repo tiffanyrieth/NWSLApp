@@ -34,20 +34,43 @@ struct NationalTeam: Identifiable, Hashable {
     /// mirroring a club's `accentColor`.
     let brandHex: String
 
+    /// For DATA-DRIVEN (Browse-all) teams: ESPN's own country-flag href, keyed by the same FIFA
+    /// code that identifies the team (no FIFA→ISO map that could mis-flag a team). nil for the
+    /// curated/featured set, which carries a flagcdn `flagSlug` (+ a bundled vector flag on top).
+    let flagHref: String?
+
     init(_ code: String, _ name: String, flag flagSlug: String, color brandHex: String) {
         self.id = code.lowercased()
         self.code = code
         self.name = name
         self.flagSlug = flagSlug
         self.brandHex = brandHex
+        self.flagHref = nil
+    }
+
+    /// A data-driven team discovered from ESPN coverage (`/national-teams`): flag is ESPN's, color
+    /// is the curated national-opponent color when known (`DesignTeamColors.displayHex`) else a
+    /// neutral default — so an unfamiliar team still renders, never blank.
+    init(discoveredCode code: String, name: String, flag flagHref: String) {
+        self.id = code.lowercased()
+        self.code = code
+        self.name = name
+        self.flagSlug = ""
+        self.brandHex = DesignTeamColors.displayHex(for: code) ?? "8E8E93"
+        self.flagHref = flagHref.isEmpty ? nil : flagHref
     }
 
     /// The country brand color, mirroring `Club.accentColor`.
     var accentColor: Color { Color(hex: brandHex) }
 
-    /// flagcdn PNG at 2× the card mark (≈52pt → w160 covers Retina). flagcdn is free,
-    /// keyless, and supports subdivisions (gb-eng) the ISO-2 sources miss.
-    var flagURL: URL? { URL(string: "https://flagcdn.com/w160/\(flagSlug).png") }
+    /// The flag image URL: ESPN's flag for a data-driven team, else flagcdn (w160 covers the
+    /// ≈52pt card mark at Retina; keyless, supports subdivisions like gb-eng). NationalTeamCard
+    /// prefers a bundled vector flag over either; this is the download fallback.
+    var flagURL: URL? {
+        if let flagHref { return URL(string: flagHref) }
+        guard !flagSlug.isEmpty else { return nil }
+        return URL(string: "https://flagcdn.com/w160/\(flagSlug).png")
+    }
 
     /// The 8 featured teams shown in the Competitions view grid.
     static let featured: [NationalTeam] = [

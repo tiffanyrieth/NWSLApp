@@ -27,6 +27,8 @@ struct FeedView: View {
     @Environment(FeedPreferencesStore.self) private var feedPreferences
     // The shared club directory (injected in RootTabView), for the per-team chips.
     @Environment(ClubStore.self) private var clubStore
+    // The shared, prewarmable Feed store (injected in RootTabView) — the cards + load state.
+    @Environment(FeedStore.self) private var feedStore
 
     var body: some View {
         NavigationStack {
@@ -59,6 +61,7 @@ struct FeedView: View {
             // directory's state so the Feed populates even when the store was
             // already loaded elsewhere.
             viewModel.clubStore = clubStore
+            viewModel.store = feedStore
             if case .idle = clubStore.state { await clubStore.load() }
             await viewModel.loadItemsIfNeeded(following: following)
         }
@@ -124,9 +127,7 @@ struct FeedView: View {
     @ViewBuilder
     private var content: some View {
         let items = viewModel.items(following, preferences: feedPreferences)
-        if items.isEmpty {
-            emptyState
-        } else {
+        if !items.isEmpty {
             ScrollView {
                 LazyVStack(spacing: 12) {
                     ForEach(items) { card in
@@ -136,6 +137,13 @@ struct FeedView: View {
                 .padding(16)
             }
             .refreshable { await viewModel.load(following: following) }
+        } else if viewModel.hasCompletedItemsLoad && !viewModel.isLoadingItems {
+            emptyState                          // a load actually completed: genuinely no posts for this filter
+        } else {
+            // Still loading (incl. the directory-load → items-load gap): an honest loading state,
+            // NEVER the "No posts yet" copy — a loading state must not look identical to success (#5).
+            ProgressView("Loading…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 

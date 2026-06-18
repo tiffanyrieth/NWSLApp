@@ -177,6 +177,15 @@ credit; a scaffold needing manual steps ≠ the feature. Don't reclassify requir
 **Prove it live.** Verify "it works" with evidence (curl the proxy/REST, screenshot the
 sim, trace the code path) — never reason from an unverified assumption.
 
+**NO SILENT FAILURES (app-wide default).** Every unexpected condition (fallback, API failure,
+stale serve, parse error, retry, unexpected-empty) ALWAYS emits telemetry — record to the
+`Diagnostics` spine (`Services/Diagnostics.swift`: os_log + @Observable ring), visible in
+dev/TestFlight via a diagnostics surface (the `-assetAudit` screen seeds it). Fail LOUD to the
+engineer always; fail HONESTLY to the user proportionally (degraded → subtle truthful indicator,
+never a fake-perfect fallback; blocked → clear message + retry). Banned: blank screens pretending
+no content, infinite spinners, silent fallbacks indistinguishable from success. A failure must
+never look like a success.
+
 **Before starting a session:** `git status` (resolve uncommitted changes first); never
 work on `main` — branch `feature/<desc>` first; state what you'll touch.
 
@@ -342,8 +351,9 @@ NWSLApp/
 │   ├── PushBridge.swift               — @MainActor @Observable `.shared`; UIKit AppDelegate (APNs/tap) → observable world
 │   ├── SupabaseManager.swift          — the one shared SupabaseClient (built from Secrets)
 │   ├── HeadshotStore.swift            — @MainActor @Observable `.shared`; fetches the `/headshots` map (espnAthleteId→NWSL GUID) once per launch; `guid(forAthleteID:)`; best-effort (failure → monograms)
-│   ├── AssetRefreshService.swift      — @MainActor; cadenced (>30d / forced March) best-effort refresh of BUNDLED crests/flags: diff `/crest/manifest` vs BundledAssetManifest, download only a rebranded asset to Caches (cache-override → bundle → network); never gates cold start
-│   ├── BundledAssetManifest.swift     — source-master hashes (sha256[:16]) of every shipped crest/flag; matches the proxy manifest so a fresh install re-downloads nothing. GENERATED — regen when bundled art changes
+│   ├── AssetRefreshService.swift      — @MainActor; cadenced (>30d / forced March) best-effort refresh of BUNDLED crests/flags: diff `/crest/manifest` vs BundledAssetManifest, download only a rebranded asset to Caches (cache-override → bundle → network); NEVER downgrades vector→raster (vector→vector rebrand waits for re-bundle, recorded loud); never gates cold start
+│   ├── BundledAssetManifest.swift     — source-master hashes (sha256[:16]) of every shipped crest + FEATURED flag + the raster-crest set; matches the proxy manifest so a fresh install re-downloads nothing. GENERATED — regen when bundled art changes
+│   ├── Diagnostics.swift              — @MainActor @Observable `.shared` NO-SILENT-FAILURES spine: os_log + capped in-memory event ring (assetBundleMiss/apiFailure/parseError/staleServe/…), surfaced in dev/TestFlight
 │   ├── GameCenterIDs.swift            — GameKit ID constants (4 leaderboards + 6 achievements) + pure cross-game score helpers (GameKit-free, unit-tested)
 │   ├── GameCenterManager.swift        — @MainActor @Observable `.shared`; LAZY idempotent `authenticate()` (on-appear from game screens + Profile, not launch) + best-effort submit/report/syncAll/showDashboard. Only file importing GameKit
 │   ├── TeamAlertPrefsSyncService.swift— Supabase `team_alert_preferences` client (per-team on/off upsert/fetchAll, composite key); RLS-scoped
@@ -436,7 +446,7 @@ NWSLApp/
 │   ├── Club+BrandColor.swift          — Club → brandHex/accentColor (design palette → id-override → ESPN)
 │   ├── DesignTeamColors.swift         — curated 16-team NWSL palette by abbreviation (authoritative; `hex(for:)` doubles as the NWSL-membership test). `displayHex(for:)` = COLOR-only resolver adding national teams + foreign Champions Cup clubs (kept separate so it never affects the membership test)
 │   └── TeamBrandColors.swift          — per-team-id brand-color overrides for clubs ESPN gets wrong
-└── Assets.xcassets/                   — app icons, accent color, `Crests/` (16 NWSL crests: 11 vector SVG + 5 raster PNG), `Flags/` (16 national-team flags, vector SVG) — bundled for zero-network first launch
+└── Assets.xcassets/                   — app icons, accent color, `Crests/` (16 NWSL crests: 11 vector SVG + 5 raster PNG), `Flags/` (8 FEATURED national-team flags, vector SVG; browse-all = download+cache) — bundled for zero-network first launch
 
 supabase/schema.sql                    — Postgres: profiles, follows, competition_follows, device_tokens, notification_preferences, team_alert_preferences, bracket_*, prediction_scores, trivia_scores (+ RLS + authenticated GRANTs)
 NWSLApp.storekit                       — local StoreKit 2 config (4 tip consumables + monthly subs) for in-sim Support testing; referenced by the shared scheme. ASC products owner-gated
@@ -477,11 +487,12 @@ flips to locked; failure → "Couldn't submit — tap to retry"). No offline cac
   followed team + ESPN stats + a Haiku "why watch" blurb, weekly rotation.
 - **Player headshots** — real photos on all 6 avatar surfaces via the proxy `/headshots` map (monogram on a miss).
 - **Team crests + national-team flags — BUNDLED** (Tier-1 first-launch asset strategy): all 16
-  crests (11 vector SVG + 5 raster PNG) and 16 flags ship in the asset catalog and render frame-one
-  with zero network — no cold-CDN race on a fresh install. Proxy `/crest`/ESPN/flagcdn are the
-  fallback for non-NWSL sides + the source for a cadenced rebrand refresh (`AssetRefreshService` ↔
-  `/crest/manifest`, cache-overrides-bundle). Team colors + the formation pitch were already
-  network-free. (Team Detail banners deferred — licensing.)
+  crests (11 vector SVG + 5 raster PNG) and the 8 FEATURED national-team flags ship in the asset
+  catalog and render frame-one with zero network — no cold-CDN race on a fresh install (browse-all
+  flags = download+cache). Bundled vector is sharper than the live PNG, so bundled is authoritative;
+  proxy `/crest`/ESPN/flagcdn are fallback for non-NWSL sides + the cadenced rebrand-refresh source
+  (`AssetRefreshService` ↔ `/crest/manifest`, cache-overrides-bundle, never vector→raster downgrade).
+  Team colors + the formation pitch were already network-free. (Team Detail banners deferred — licensing.)
 - **Feed** (`feed-tab-design-spec.md`) — live `/feed`: reporters + news + social scoped to followed teams +
   league, with a source-class chip bar (All · News · Clubs · Reporters · Players). The proxy Haiku-team-tags
   the reporter/league bucket + filters to followed teams server-side.

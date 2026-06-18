@@ -461,11 +461,12 @@ NWSLApp.storekit                       — local StoreKit 2 config (4 tip consum
 ## What's Next
 
 Pending work only (ALIVE > core > hardening); shipped work lives in git history + the File Map, not here.
-- **First-launch perf — Tier 1 DONE; Tier 2 next** (Reference "First Launch Performance — Asset Strategy"):
-  Pending: (a) DEPLOY proxy `feature/asset-manifest` + run `build_asset_manifest.mjs` to activate the rebrand
-  refresh (until then `/crest/manifest` 404s → app no-ops); (b) **Tier 2** — prefetch priority after team select
-  (Home content → Schedule/Standings bg → headshots/Feed low-pri) + a `CachedThumbnail` DISK cache (revalidating)
-  so flags/headshots/feed thumbnails survive cold launches + reinstalls.
+- **First-launch perf — Tier 1 + 2 DONE** (Reference "First Launch Performance — Asset Strategy"): bundling,
+  ImageCache disk cache (revalidating, survives cold launch not reinstall), headshot-prefetch deprioritized,
+  Home critical path foreground. DEFERRED: (a) DEPLOY proxy `feature/asset-manifest` + run
+  `build_asset_manifest.mjs` to activate the rebrand refresh (until then `/crest/manifest` 404s → app no-ops);
+  (b) prewarm **Feed only** (the known-slow path) IF the first switch is slow on-device — Standings is fine
+  (bundled crests); (c) onboarding quick-tips screen — a deliberate design task, not a perf buffer.
 - **YouTube Shorts thumbnail pillarbox** — DEFERRED (owner). Baked-in side bars; fix is proxy-side.
 - **Pull-to-refresh polish** — keep the list visible during refresh (spinner only on first load).
 - **Bracket follow-ups (optional):** exact stat-edition seeding; more stat templates; full bracket-TREE

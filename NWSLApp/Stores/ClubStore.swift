@@ -56,6 +56,26 @@ final class ClubStore {
         }
     }
 
+    /// Tracks an in-flight `loadIfNeeded` so concurrent callers await the SAME load.
+    private var loadTask: Task<Void, Never>?
+
+    /// Ensure the directory is loaded, deduping concurrent callers: returns immediately if already
+    /// loaded, awaits an in-flight load if one is running, otherwise starts one.
+    ///
+    /// This is what content-SCOPING callers (Home `loadContent`, Feed) MUST use instead of the
+    /// `if case .idle { await load() }` guard: they resolve followed IDs → abbreviations from
+    /// `clubs`, so they must not proceed until clubs are actually `.loaded`. Proceeding while a
+    /// (e.g. prewarmed) load is still `.loading` yields an EMPTY scope → an unscoped `/team-videos`
+    /// request → an empty Home feed. (`load()` stays for forced pull-to-refresh.)
+    func loadIfNeeded() async {
+        if case .loaded = state { return }
+        if let loadTask { await loadTask.value; return }
+        let task = Task { await self.load() }
+        loadTask = task
+        await task.value
+        loadTask = nil
+    }
+
     /// The loaded directory (empty unless we're in `.loaded`).
     var clubs: [Club] {
         if case .loaded(let clubs) = state { return clubs }

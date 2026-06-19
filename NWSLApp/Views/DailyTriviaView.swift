@@ -30,6 +30,10 @@ struct DailyTriviaView: View {
     /// The game's signature accent (per the approved indigo theme).
     private let accent = Color.indigo
 
+    /// Presents the sign-in invite when a signed-out user finishes a game (their result
+    /// needs an account to reach the Supabase leaderboard). Skippable; local stats persist.
+    @State private var showSignIn = false
+
     var body: some View {
         Group {
             switch viewModel.state {
@@ -44,6 +48,13 @@ struct DailyTriviaView: View {
         }
         .nativeBackButton(title: "Daily Trivia")
         .background(Color(.systemGroupedBackground))
+        .sheet(isPresented: $showSignIn) {
+            // On sign-in, push the just-earned streak to the leaderboard; "Not now" leaves
+            // the local streak intact and honestly off the board (no fake submission).
+            SignInPromptView(onSignedIn: {
+                Task { await viewModel.refreshLeaderboard(store: store, auth: auth) }
+            })
+        }
         .task {
             // Start Game Center auth here (a game screen) rather than at launch, so
             // the GC banner only shows when the user is about to play. Idempotent.
@@ -185,10 +196,11 @@ struct DailyTriviaView: View {
                         .disabled(viewModel.selectedIndex == nil)
                 } else if viewModel.isLastQuestion {
                     Button("See Results") {
+                        // Double-tap guard: `finish()` flips `isFinished` synchronously, so a
+                        // second tap before the results view swaps in bails (no duplicate submits).
+                        guard !viewModel.isFinished else { return }
                         store.recordCompletion(correct: viewModel.score, outOf: viewModel.questionCount)
                         viewModel.finish()
-                        // Push the freshly-bumped best streak + refresh the board.
-                        Task { await viewModel.refreshLeaderboard(store: store, auth: auth) }
                         // Game Center (additive): streak board + achievements.
                         GameCenterManager.shared.submit(store.bestStreak, to: GameCenterID.Leaderboard.triviaStreak)
                         if viewModel.score == viewModel.questionCount {
@@ -196,6 +208,16 @@ struct DailyTriviaView: View {
                         }
                         if store.bestStreak >= 7 { GameCenterManager.shared.report(GameCenterID.Achievement.triviaStreak7) }
                         if store.bestStreak >= 30 { GameCenterManager.shared.report(GameCenterID.Achievement.triviaStreak30) }
+                        // The Supabase leaderboard needs an account: signed in → push the streak
+                        // now; signed out → invite sign-in (skippable) rather than silently NOT
+                        // submitting. The local streak/stats are saved either way.
+                        if auth.isSignedIn {
+                            Task { await viewModel.refreshLeaderboard(store: store, auth: auth) }
+                        } else if !FanZoneIntro.shared.declinedThisSession {
+                            // Skip the second modal if they just declined the up-front invite this
+                            // session; the local streak is saved either way (honest, not silent).
+                            showSignIn = true
+                        }
                     }
                 } else {
                     Button("Next Question") { viewModel.advance() }
@@ -220,7 +242,7 @@ struct DailyTriviaView: View {
             VStack(spacing: 24) {
                 VStack(spacing: 8) {
                     Image(systemName: "brain.head.profile")
-                        .font(.system(size: 44))
+                        .dsFont(44)
                         .foregroundStyle(accent)
                     Text(showRecap ? "Nice work!" : "You're all set for today")
                         .font(.title2.weight(.bold))
@@ -250,7 +272,7 @@ struct DailyTriviaView: View {
         VStack(spacing: 16) {
             VStack(spacing: 4) {
                 Text("\(store.lastScore) / \(viewModel.questionCount)")
-                    .font(.system(size: 48, weight: .heavy, design: .rounded))
+                    .dsFont(48, weight: .heavy, design: .rounded)
                     .foregroundStyle(accent)
                 Text("Today's score")
                     .font(.caption.weight(.semibold))

@@ -35,11 +35,11 @@ struct HowToWatchCard: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Text("How to watch")
-                        .font(.system(size: 17, weight: .bold))
+                        .dsFont(17, weight: .bold)
                         .foregroundStyle(Color.dsFgPrimary)
                     Spacer()
                     Text(access.free ? "FREE" : "SUBSCRIPTION")
-                        .font(.system(size: 10.5, weight: .bold))
+                        .dsFont(10.5, weight: .bold)
                         .tracking(0.5)
                         .foregroundStyle(access.free ? Color.dsSuccess : Color.dsFgSecondary)
                         .padding(.horizontal, 9)
@@ -51,12 +51,12 @@ struct HowToWatchCard: View {
                 HStack(spacing: 10) {
                     BroadcastChip(name: broadcast ?? info.name, small: false)
                     Text(access.label)
-                        .font(.system(size: 12.5))
+                        .dsFont(12.5)
                         .foregroundStyle(Color.dsFgSecondary)
                 }
 
                 Text(info.note)
-                    .font(.system(size: 13))
+                    .dsFont(13)
                     .lineSpacing(3)
                     .foregroundStyle(Color.dsFgSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -65,7 +65,7 @@ struct HowToWatchCard: View {
                     withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
                 } label: {
                     Text(expanded ? "Hide steps" : "Find it")
-                        .font(.system(size: 15, weight: .semibold))
+                        .dsFont(15, weight: .semibold)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
@@ -94,11 +94,11 @@ struct HowToWatchCard: View {
     private func deviceRow(_ device: BroadcastInfo.Device) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Text(device.device)
-                .font(.system(size: 13, weight: .semibold))
+                .dsFont(13, weight: .semibold)
                 .foregroundStyle(Color.dsFgPrimary)
                 .frame(width: 100, alignment: .leading)
             Text(device.steps)
-                .font(.system(size: 13))
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)

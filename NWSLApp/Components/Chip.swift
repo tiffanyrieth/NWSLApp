@@ -32,8 +32,11 @@ struct Chip: View {
                         .frame(width: 7, height: 7)
                 }
                 Text(label)
-                    .font(.system(size: compact ? 13 : 15, weight: compact ? .semibold : .medium))
+                    .dsFont(compact ? 13 : 15, weight: compact ? .semibold : .medium)
                     .lineLimit(1)
+                    // Scale down rather than truncate if a chip is ever width-constrained
+                    // (a no-op in the scrolling chip bars, a safety net at large text).
+                    .minimumScaleFactor(0.8)
             }
             .padding(.horizontal, DS.chipPaddingH)
             .padding(.vertical, compact ? 6 : DS.chipPaddingV)

@@ -73,14 +73,14 @@ struct FeedView: View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .center) {
                 Text("Feed")
-                    .font(.system(size: 32, weight: .bold))
+                    .dsFont(32, weight: .bold)
                     .foregroundStyle(Color.dsFgPrimary)
                 Spacer()
                 Button { showSources = true } label: {
                     ZStack {
                         Circle().fill(Color.dsBgCard)
                         Image(systemName: "gearshape")
-                            .font(.system(size: 16))
+                            .dsFont(16)
                             .foregroundStyle(Color.dsAccent)
                     }
                     .frame(width: 38, height: 38)
@@ -88,7 +88,7 @@ struct FeedView: View {
                 .accessibilityLabel("Manage sources")
             }
             Text("Reporters & writers covering your teams")
-                .font(.system(size: 13))
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
         }
         .padding(.horizontal, 16)
@@ -152,7 +152,7 @@ struct FeedView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "dot.radiowaves.left.and.right")
-                .font(.system(size: 40))
+                .dsFont(40)
                 .foregroundStyle(.secondary)
             Text(emptyMessage)
                 .font(.subheadline)

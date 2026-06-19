@@ -38,7 +38,7 @@ struct ArticleContentCard: View {
             headerRow
             if let headline = card.headline {
                 Text(headline)
-                    .font(.system(size: 16, weight: .bold))
+                    .dsFont(16, weight: .bold)
                     .foregroundStyle(Color.dsFgPrimary)
                     .lineSpacing(2)
                     .lineLimit(3)
@@ -47,7 +47,7 @@ struct ArticleContentCard: View {
             }
             if let blurb = card.blurb, !blurb.isEmpty {
                 Text(blurb)
-                    .font(.system(size: 13))
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineSpacing(3)
                     .lineLimit(2)
@@ -76,14 +76,14 @@ struct ArticleContentCard: View {
             avatar
             VStack(alignment: .leading, spacing: 2) {
                 Text(primaryName)
-                    .font(.system(size: 14.5, weight: .semibold))
+                    .dsFont(14.5, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                     .lineLimit(1)
                 HStack(spacing: 6) {
                     newsPill
                     if let secondaryOutlet {
                         Text(secondaryOutlet)
-                            .font(.system(size: 12))
+                            .dsFont(12)
                             .foregroundStyle(Color.dsFgSecondary)
                             .lineLimit(1)
                     }
@@ -95,7 +95,7 @@ struct ArticleContentCard: View {
                     teamPill(abbr)
                 }
                 Text(card.timestamp.relativeAgo)
-                    .font(.system(size: 11))
+                    .dsFont(11)
                     .foregroundStyle(Color.dsFgSecondary)
             }
         }
@@ -105,7 +105,7 @@ struct ArticleContentCard: View {
         ZStack {
             Circle().fill(teamColor.opacity(0.15))
             Text(initials)
-                .font(.system(size: 14, weight: .bold))
+                .dsFont(14, weight: .bold)
                 .foregroundStyle(teamColor)
         }
         .frame(width: DS.contentAvatar, height: DS.contentAvatar)
@@ -119,7 +119,7 @@ struct ArticleContentCard: View {
 
     private var newsPill: some View {
         Text("NEWS")
-            .font(.system(size: 9.5, weight: .bold))
+            .dsFont(9.5, weight: .bold)
             .tracking(0.4)
             .foregroundStyle(Color.dsStateFinal)
             .padding(.horizontal, 6)
@@ -129,7 +129,7 @@ struct ArticleContentCard: View {
 
     private func teamPill(_ abbr: String) -> some View {
         Text(abbr)
-            .font(.system(size: 10.5, weight: .bold))
+            .dsFont(10.5, weight: .bold)
             .tracking(0.3)
             .foregroundStyle(teamColor)
             .padding(.horizontal, 7)
@@ -158,9 +158,9 @@ struct ArticleContentCard: View {
     private var readOnOutlet: some View {
         HStack(spacing: 4) {
             Text("Read on \(outlet)")
-                .font(.system(size: 13, weight: .semibold))
+                .dsFont(13, weight: .semibold)
             Image(systemName: "arrow.right")
-                .font(.system(size: 11, weight: .semibold))
+                .dsFont(11, weight: .semibold)
         }
         .foregroundStyle(Color.dsAccent)
     }

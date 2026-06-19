@@ -104,7 +104,10 @@ final class NotificationSyncCoordinator {
             if let oldID = lastUserID, let token = bridge.deviceToken {
                 // Detach this device's token from the account we're leaving, so a
                 // shared phone stops getting the previous user's alerts.
-                Task { try? await tokenService.removeToken(token, userID: oldID) }
+                Task {
+                    do { try await tokenService.removeToken(token, userID: oldID) }
+                    catch { Diagnostics.shared.record(.apiFailure, "notif removeToken: \(error.localizedDescription)") }
+                }
             }
             lastUploadedToken = nil
             lastPushedSnapshot = nil
@@ -124,14 +127,29 @@ final class NotificationSyncCoordinator {
         guard let userID = newID else { return }
 
         if let token = bridge.deviceToken, token != lastUploadedToken {
-            lastUploadedToken = token
-            Task { try? await tokenService.registerToken(token, userID: userID) }
+            // Advance the shadow ONLY after the write succeeds — otherwise a failure (after a
+            // pre-emptive shadow bump) could be skipped by a racing second sync and never retry.
+            // The upsert is idempotent, so a rare double-send while one is in flight is harmless.
+            Task {
+                do {
+                    try await tokenService.registerToken(token, userID: userID)
+                    lastUploadedToken = token
+                } catch {
+                    Diagnostics.shared.record(.apiFailure, "notif registerToken: \(error.localizedDescription)")
+                }
+            }
         }
 
         let snapshot = preferences.snapshot
         if snapshot != lastPushedSnapshot {
-            lastPushedSnapshot = snapshot
-            Task { try? await prefsService.pushPreferences(snapshot, userID: userID) }
+            Task {
+                do {
+                    try await prefsService.pushPreferences(snapshot, userID: userID)
+                    lastPushedSnapshot = snapshot
+                } catch {
+                    Diagnostics.shared.record(.apiFailure, "notif pushPreferences: \(error.localizedDescription)")
+                }
+            }
         }
     }
 }

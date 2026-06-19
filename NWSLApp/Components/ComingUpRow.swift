@@ -38,7 +38,7 @@ struct ComingUpRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 matchupLine
                 Text(detailLine)
-                    .font(.system(size: 12))
+                    .dsFont(12)
                     .foregroundStyle(detailColor)
                     .lineLimit(1)
             }
@@ -57,7 +57,7 @@ struct ComingUpRow: View {
         HStack(spacing: 6) {
             TeamLogo(urlString: event.homeCompetitor?.team?.logo, teamAbbreviation: event.homeCompetitor?.team?.abbreviation, size: 28)
             Text("v")
-                .font(.system(size: 10, weight: .semibold))
+                .dsFont(10, weight: .semibold)
                 .foregroundStyle(Color.dsFgQuaternary)
             TeamLogo(urlString: event.awayCompetitor?.team?.logo, teamAbbreviation: event.awayCompetitor?.team?.abbreviation, size: 28)
         }
@@ -70,7 +70,7 @@ struct ComingUpRow: View {
             Text("vs").foregroundStyle(Color.dsFgTertiary)
             Text(awayAbbr).foregroundStyle(awayColor)
         }
-        .font(.system(size: 14, weight: .semibold))
+        .dsFont(14, weight: .semibold)
         .lineLimit(1)
     }
 

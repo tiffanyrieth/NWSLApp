@@ -264,6 +264,13 @@ understanding each change matters as much as shipping it.
 - Clarity over density — screens should breathe (~4–5 schedule cards/screen; avoid oversized
   NWSL/MLB-style cards).
 - **Dark appearance app-wide**, no toggle (page `#1C1C1E`, cards `#2C2C2E`).
+- **Dynamic Type (accessibility text):** text uses `.dsFont(size:…)` (`DSText.swift`, `@ScaledMetric`),
+  NOT raw `.font(.system(size:))`, so it scales with the user's text-size setting. Crests/flags scale
+  on the SAME `.body` axis (`TeamLogo`/`NationalTeamCard` `@ScaledMetric`) — a crest is HERO content
+  that grows WITH its paired abbreviation, never a fixed icon. **Capped at AX1** at the root
+  (`RootTabView` `.dynamicTypeSize(...accessibility1)`): supports larger-text needs, clamps the
+  extreme sizes so dense tables don't break. EXCEPT the geometric formation-pitch text (PlayerDot/
+  PitchDot/CombinedPitchView), sized to the pitch not the text. Dense rows hold via `minimumScaleFactor`.
 - **Crest rule:** bare crests via `TeamLogo`, no ring (only player monograms get a ring).
 - **Team colors:** `DesignTeamColors` by abbreviation so ESPN near-black primaries stay legible.
   **Always use each club's default brand colors; do not add manual color overrides (e.g. the
@@ -330,7 +337,7 @@ NWSLApp/
 ├── DesignSystem/
 │   ├── DSColor.swift                  — `Color.ds*` tokens (dark-only hex)
 │   ├── DSMetrics.swift                — `enum DS` spacing/radii/avatar/crest/game-card dims
-│   └── DSText.swift                   — modifiers: `.trackedCaps()`, `.sectionTitle()`, `.nativeBackButton(title:)` (bare ‹ chevron + centered inline title; nil title = identity-header screens), `Font.dsScore`
+│   └── DSText.swift                   — modifiers: `.dsFont(size:weight:design:relativeTo:monospacedDigit:)` (@ScaledMetric — Dynamic Type; the standard way to set text size, NOT raw `.font(.system(size:))`) + `.dsScoreFont()`; `.trackedCaps()`, `.sectionTitle()` (route through dsFont), `.nativeBackButton(title:)` (bare ‹ chevron + centered inline title; nil title = identity-header screens)
 ├── Models/
 │   ├── BracketEdition.swift           — Bracket Battle: BracketRound/Entrant/Matchup/Edition (64→6 rounds, flat Codable)
 │   ├── Club.swift                     — flat Club + ESPN /teams decode (brand/alternate color → crests)
@@ -368,7 +375,7 @@ NWSLApp/
 │   ├── GameCenterIDs.swift            — GameKit ID constants (4 leaderboards + 6 achievements) + pure cross-game score helpers (GameKit-free, unit-tested)
 │   ├── GameCenterManager.swift        — @MainActor @Observable `.shared`; LAZY idempotent `authenticate()` (on-appear from game screens + Profile, not launch) + best-effort submit/report/syncAll/showDashboard. Only file importing GameKit
 │   ├── TeamAlertPrefsSyncService.swift— Supabase `team_alert_preferences` client (per-team on/off upsert/fetchAll, composite key); RLS-scoped
-│   ├── SupportStore.swift             — @MainActor @Observable StoreKit 2 for Support: 4 tip tiers (one-time + monthly), load/purchase/restore, `purchased` thank-you flag
+│   ├── SupportStore.swift             — @MainActor @Observable StoreKit 2 for Support: 4 tip tiers (one-time + monthly), load/purchase/restore, `purchased` thank-you flag + `errorMessage` honest-failure state (unverified/pending/failed purchase → user-facing message + telemetry, NEVER a fake success)
 │   ├── PredictLeaderboardService.swift— Supabase per-team Predict board: upsertScore + standings(team); a read failure shows only your real local score (no fabricated rivals)
 │   ├── TriviaLeaderboardService.swift — Supabase league-wide Trivia best-streak board: upsertScore + standings; read failure shows only your real local streak
 │   ├── PredictionScoring.swift        — pure Predict-the-XI scorer (Mastermind partial, max 88). Unit-tested
@@ -405,9 +412,9 @@ NWSLApp/
 │   ├── TeamDetailViewModel.swift      — roster + social links + real season stats/leaders
 │   └── TriviaViewModel.swift          — one Daily-Trivia session; questions ← TriviaService (throws→error state); non-repeating daily-5 (unit-tested); best-streak leaderboard (+ GC submit)
 ├── Views/                             — one screen per file
-│   ├── RootTabView.swift              — app root; 5-tab TabView; injects stores; restores session + coordinators; Game Center syncAll (auth deferred to game screens); routes live-push tap
+│   ├── RootTabView.swift              — app root; gates the 5-tab TabView behind `hasOnboarded` (full-screen OnboardingView until done — un-skippable + tab bar's first layout lands in the settled hub); injects stores; restores session + coordinators; Game Center syncAll (auth deferred to game screens); routes live-push tap
 │   ├── HomeView.swift                 — your-teams hub (32pt header + avatar): 4 modules; M1 round-robin + per-team chips (2+ teams) + "See more →" (per-module error+retry card); M2 Spotlight carousel; M3 Fan Zone featured + tiles; refetch on pull + follows-change
-│   ├── HomeContentListView.swift      — "See more from your teams" full firehose: ALL followed-team content, no cap, reverse-chron, respects the active team chip (+ `HomeTeamChips` bar: [All] + per-team)
+│   ├── HomeContentListView.swift      — "See more from your teams" full firehose: ALL followed-team content, no cap, reverse-chron, respects the active team chip (+ `HomeTeamChips` bar: [All] + per-team, horizontal-scrolling so it holds all 16 follows)
 │   ├── ProfileView.swift              — account & settings sheet: identity / Fan Zone stats (🏆 → Game Center) / Settings (Notifications → hub · Support → SupportView) / My Teams / Account
 │   ├── NotificationsView.swift        — the ONE notifications hub: §Match alerts (per-team on/off) · §Alert types (global, dimmed when no team on) · §Activity; 3 doors. INVARIANT: Tier-2 ON ⟹ signed in (default OFF, sign-out resets); unfollow clears alerts
 │   ├── SupportView.swift              — "Support NWSLApp" (StoreKit tips): hero · one-time/monthly toggle · 4 tip tiers · CTA · Restore · "Where it goes" · thank-you state
@@ -415,8 +422,9 @@ NWSLApp/
 │   ├── BracketBattleView.swift        — Bracket Battle (teal): 5 screens — Edition Intro · Voting · Save/Submit · Results · Bracket Overview
 │   ├── PredictXIView.swift            — Predict the XI (pink): open fixtures + Results breakdown + per-team leaderboard cards
 │   ├── XIPickerView.swift             — Predict picker sheet: formation chips → pitch-grid slots → scoreline → Save/Submit (+ Game Center first-prediction)
-│   ├── OnboardingView.swift           — first-open club picker (+ a quiet pointer to Teams → Follow competitions; the old inert competition toggles are gone)
-│   ├── SignInPromptView.swift         — sign-in half-sheet shown ONLY on a genuine sign-in-required action (Bracket submit); never auto-presented post-onboarding
+│   ├── OnboardingView.swift           — first-open club picker, shown FULL-SCREEN by RootTabView (no tab bar) until onboarded — can't be skipped by tapping a tab (+ a quiet pointer to Teams → Follow competitions; the old inert competition toggles are gone)
+│   ├── SignInPromptView.swift         — sign-in half-sheet on a genuine sign-in-required action (Bracket Lock-in, Trivia/Predict at-submit); optional `onSignedIn` callback; never auto-presented post-onboarding
+│   ├── FanZoneIntroView.swift         — OPTIONAL one-time "set up your Fan Zone profile" invite on first game entry (skippable; Sign in with Apple + name step + triggers Game Center). `.fanZoneIntro()` modifier (applied in HomeView.destination), gated `!introSeen && !isSignedIn` (@AppStorage `fanZone.introSeen`). `FanZoneIntro.shared.declinedThisSession` suppresses a same-session 2nd modal at Trivia/Predict submit. Rollback = drop `.fanZoneIntro()` + delete file
 │   ├── NotificationAuthPromptView.swift — contextual "sign in for live alerts" half-sheet (Tier 2)
 │   ├── ScheduleView.swift             — full-season cards; filter chips (NWSL · My teams = followed clubs + national teams + Champions Cup); "SAT · MAR 14" headers + TODAY chip; opens at the past/upcoming boundary (ScrollViewReader + opacity gate, no flash, incl. Home-preload); re-tap + filter animate back
 │   ├── TeamsView.swift                — all-16 directory: ONE list (followed floated up) + subtitle; follow-competitions row; per-row 🔔 toggles (+ bottom confirmation toast → hub) + "{N} teams · Manage" line + nav-bar 🔔 → NotificationsView; first-visit coach mark (zIndex-lifted above the grid)

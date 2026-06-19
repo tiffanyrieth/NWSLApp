@@ -119,9 +119,10 @@ final class FollowSyncCoordinator {
                 knownFollows = union
                 try await service.pushFollows(union, userID: userID)  // sync-up
             } catch {
-                // Offline / transient: local state is already correct; we'll
-                // reconcile again on the next launch.
-                print("[FollowSyncCoordinator] reconcile failed: \(error)")
+                // Offline / transient: local state is already correct; we'll reconcile again
+                // on the next launch. NOT silent — flag it so a persistent sync failure (e.g.
+                // a missing RLS GRANT) surfaces instead of follows quietly never syncing.
+                Diagnostics.shared.record(.apiFailure, "follows reconcile: \(error.localizedDescription)")
                 knownFollows = following.followedIDs
             }
         }
@@ -140,7 +141,7 @@ final class FollowSyncCoordinator {
                 knownCompetitionFollows = union
                 try await compService.pushFollows(union, userID: userID)  // sync-up
             } catch {
-                print("[FollowSyncCoordinator] competition reconcile failed: \(error)")
+                Diagnostics.shared.record(.apiFailure, "competition reconcile: \(error.localizedDescription)")
                 knownCompetitionFollows = following.competitionFollowKeys
             }
         }
@@ -161,10 +162,12 @@ final class FollowSyncCoordinator {
         guard !added.isEmpty || !removed.isEmpty else { return }
         Task {
             for id in added {
-                try? await service.addFollow(id, userID: userID)
+                do { try await service.addFollow(id, userID: userID) }
+                catch { Diagnostics.shared.record(.apiFailure, "follows addFollow \(id): \(error.localizedDescription)") }
             }
             for id in removed {
-                try? await service.removeFollow(id, userID: userID)
+                do { try await service.removeFollow(id, userID: userID) }
+                catch { Diagnostics.shared.record(.apiFailure, "follows removeFollow \(id): \(error.localizedDescription)") }
             }
         }
     }
@@ -182,10 +185,12 @@ final class FollowSyncCoordinator {
         guard !added.isEmpty || !removed.isEmpty else { return }
         Task {
             for key in added {
-                try? await compService.addFollow(key, userID: userID)
+                do { try await compService.addFollow(key, userID: userID) }
+                catch { Diagnostics.shared.record(.apiFailure, "competition addFollow \(key): \(error.localizedDescription)") }
             }
             for key in removed {
-                try? await compService.removeFollow(key, userID: userID)
+                do { try await compService.removeFollow(key, userID: userID) }
+                catch { Diagnostics.shared.record(.apiFailure, "competition removeFollow \(key): \(error.localizedDescription)") }
             }
         }
     }

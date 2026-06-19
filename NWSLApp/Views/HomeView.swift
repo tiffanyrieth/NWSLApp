@@ -42,15 +42,9 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if following.hasOnboarded {
-                    hubContent
-                } else {
-                    // First open: pick your teams (rides this NavigationStack so
-                    // the tab bar stays visible, per the spec).
-                    OnboardingView()
-                }
-            }
+            // Onboarding is gated above this view now (RootTabView shows OnboardingView
+            // full-screen until `hasOnboarded`), so Home only ever renders the hub.
+            hubContent
         }
         .task {
             // Hand the view model the shared stores, load the shared stores once
@@ -129,7 +123,7 @@ struct HomeView: View {
     private var homeHeader: some View {
         HStack(alignment: .center) {
             Text("Home")
-                .font(.system(size: 32, weight: .bold))
+                .dsFont(32, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             Spacer(minLength: 8)
             profileAvatarButton
@@ -147,7 +141,7 @@ struct HomeView: View {
             ZStack {
                 Circle().fill(Color.dsBgCard)
                 Image(systemName: "person.fill")
-                    .font(.system(size: 14))
+                    .dsFont(14)
                     .foregroundStyle(Color.dsFgSecondary)
             }
             .frame(width: 32, height: 32)
@@ -196,7 +190,7 @@ struct HomeView: View {
                     }
                     if result.cards.isEmpty {
                         Text("No content from \(viewModel.selectedTeam ?? "") right now.")
-                            .font(.system(size: 13))
+                            .dsFont(13)
                             .foregroundStyle(Color.dsFgSecondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
@@ -225,7 +219,7 @@ struct HomeView: View {
         } label: {
             HStack {
                 Text("See more from your teams →")
-                    .font(.system(size: 13, weight: .semibold))
+                    .dsFont(13, weight: .semibold)
                     .foregroundStyle(Color.dsAccent)
                 Spacer()
             }
@@ -239,7 +233,7 @@ struct HomeView: View {
     private var followPrompt: some View {
         VStack(spacing: 12) {
             Image(systemName: "star")
-                .font(.system(size: 32))
+                .dsFont(32)
                 .foregroundStyle(Color.dsFgSecondary)
             Text("Follow your teams to fill your home feed with their latest content.")
                 .font(.subheadline)
@@ -374,10 +368,12 @@ struct HomeView: View {
 
     @ViewBuilder
     private func destination(for game: FanGame) -> some View {
+        // `.fanZoneIntro()` wraps each game (outside its own body, so it doesn't collide with the
+        // game's existing sheets) to show the one-time, skippable sign-in invite on first entry.
         switch game {
-        case .predict: PredictXIView()
-        case .bracket: BracketBattleView()
-        case .trivia:  DailyTriviaView()
+        case .predict: PredictXIView().fanZoneIntro()
+        case .bracket: BracketBattleView().fanZoneIntro()
+        case .trivia:  DailyTriviaView().fanZoneIntro()
         }
     }
 
@@ -444,7 +440,7 @@ struct HomeView: View {
             HStack(spacing: 5) {
                 Circle().fill(Color.dsGameBracket).frame(width: 6, height: 6)
                 Text("\(n) active")
-                    .font(.system(size: 11))
+                    .dsFont(11)
                     .foregroundStyle(Color.dsFgSecondary)
             }
         }
@@ -512,7 +508,7 @@ struct HomeView: View {
     private var fullScheduleLink: some View {
         Button { router.selectedTab = .schedule } label: {
             Text("Full schedule →")
-                .font(.system(size: 12))
+                .dsFont(12)
                 .foregroundStyle(Color.dsAccent)
         }
         .buttonStyle(.plain)
@@ -531,14 +527,14 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(title)
-                        .font(.system(size: 20, weight: .bold))
+                        .dsFont(20, weight: .bold)
                         .foregroundStyle(Color.dsFgPrimary)
                     Spacer(minLength: 8)
                     accessory()
                 }
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.system(size: 12))
+                        .dsFont(12)
                         .foregroundStyle(Color.dsFgSecondary)
                 }
             }
@@ -554,10 +550,10 @@ struct HomeView: View {
         Button { Task { await retry() } } label: {
             VStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 22))
+                    .dsFont(22)
                     .foregroundStyle(Color.dsFgSecondary)
                 Text(message)
-                    .font(.system(size: 14, weight: .medium))
+                    .dsFont(14, weight: .medium)
                     .foregroundStyle(Color.dsFgSecondary)
             }
             .frame(maxWidth: .infinity)

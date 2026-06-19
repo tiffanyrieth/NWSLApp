@@ -85,13 +85,13 @@ struct TeamDetailView: View {
                 TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 64)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(club.displayName)
-                        .font(.system(size: 21, weight: .bold))
+                        .dsFont(21, weight: .bold)
                         .foregroundStyle(Color.dsFgPrimary)
                         .lineLimit(2)
                     // Live standing line; fall back to the abbreviation so the header
                     // never looks empty while the roster loads.
                     Text(viewModel.standingLine ?? club.abbreviation)
-                        .font(.system(size: 13.5))
+                        .dsFont(13.5)
                         .foregroundStyle(Color.dsFgSecondary)
                 }
                 Spacer(minLength: 8)
@@ -140,7 +140,7 @@ struct TeamDetailView: View {
 
     private func bellCircle(on: Bool) -> some View {
         Image(systemName: on ? "bell.fill" : "bell")
-            .font(.system(size: 15, weight: .medium))
+            .dsFont(15, weight: .medium)
             .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
             .frame(width: 38, height: 38)
             .background(on ? Color.dsAccentMuted : Color.dsBgTertiary, in: Circle())
@@ -150,7 +150,7 @@ struct TeamDetailView: View {
         let isFollowing = following.isFollowing(club)
         return Button { following.toggle(club) } label: {
             Image(systemName: isFollowing ? "star.fill" : "star")
-                .font(.system(size: 16, weight: .medium))
+                .dsFont(16, weight: .medium)
                 .foregroundStyle(isFollowing ? Color.dsFollowStar : Color.dsFgSecondary)
                 .frame(width: 38, height: 38)
                 .background(Color.dsBgTertiary, in: Circle())
@@ -175,7 +175,7 @@ struct TeamDetailView: View {
         if !official.isEmpty {
             VStack(alignment: .leading, spacing: 9) {
                 Text("OFFICIAL")
-                    .font(.system(size: 11, weight: .semibold)).tracking(0.5)
+                    .dsFont(11, weight: .semibold).tracking(0.5)
                     .foregroundStyle(Color.dsFgTertiary)
                     .padding(.horizontal, 16)
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -192,11 +192,11 @@ struct TeamDetailView: View {
             VStack(alignment: .leading, spacing: 11) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Fan community")
-                        .font(.system(size: 15, weight: .bold))
+                        .dsFont(15, weight: .bold)
                         .foregroundStyle(Color.dsFgPrimary)
                     Spacer()
                     Text("FAN-RUN · UNOFFICIAL")
-                        .font(.system(size: 10, weight: .semibold)).tracking(0.4)
+                        .dsFont(10, weight: .semibold).tracking(0.4)
                         .foregroundStyle(Color.dsFgTertiary)
                 }
                 HStack(spacing: 8) {
@@ -221,10 +221,10 @@ struct TeamDetailView: View {
         Button { openURL(link.url) } label: {
             HStack(spacing: 7) {
                 Image(systemName: link.platform.symbol)
-                    .font(.system(size: 13, weight: .semibold))
+                    .dsFont(13, weight: .semibold)
                     .foregroundStyle(platformColor(link.platform))
                 Text(link.platform.label)
-                    .font(.system(size: 13, weight: .semibold))
+                    .dsFont(13, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                     .fixedSize()
             }
@@ -256,7 +256,7 @@ struct TeamDetailView: View {
                 Button { section = sec } label: {
                     VStack(spacing: 8) {
                         Text(sec.rawValue.uppercased())
-                            .font(.system(size: 12, weight: .semibold)).tracking(1)
+                            .dsFont(12, weight: .semibold).tracking(1)
                             .foregroundStyle(section == sec ? Color.dsFgPrimary : Color.dsFgTertiary)
                         Rectangle()
                             .fill(section == sec ? accent : .clear)
@@ -308,7 +308,7 @@ struct TeamDetailView: View {
             ForEach(viewModel.positionGroups) { group in
                 VStack(alignment: .leading, spacing: 10) {
                     Text(group.label)
-                        .font(.system(size: 13, weight: .bold)).tracking(0.3)
+                        .dsFont(13, weight: .bold).tracking(0.3)
                         .foregroundStyle(accent)
                     LazyVGrid(columns: columns, spacing: 10) {
                         ForEach(group.athletes) { athlete in
@@ -329,7 +329,7 @@ struct TeamDetailView: View {
                 ZStack {
                     Circle().fill(accent.opacity(0.16))
                     Text(initials(for: athlete))
-                        .font(.system(size: 14, weight: .bold))
+                        .dsFont(14, weight: .bold)
                         .foregroundStyle(accent)
                         .minimumScaleFactor(0.7).lineLimit(1)
                 }
@@ -337,12 +337,12 @@ struct TeamDetailView: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(athlete.shortName ?? athlete.name)
-                    .font(.system(size: 14.5, weight: .semibold))
+                    .dsFont(14.5, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                     .lineLimit(1)
                 if let jersey = athlete.jersey, !jersey.isEmpty {
                     Text("#\(jersey)")
-                        .font(.system(size: 11.5).monospaced())
+                        .dsFont(11.5).monospaced()
                         .foregroundStyle(Color.dsFgSecondary)
                 }
             }
@@ -387,7 +387,7 @@ struct TeamDetailView: View {
     private func seasonCard(_ s: (gp: Int, w: Int, d: Int, l: Int, pts: Int)) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Season")
-                .font(.system(size: 15, weight: .bold))
+                .dsFont(15, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             HStack(spacing: 0) {
                 statCell("GP", s.gp)
@@ -406,10 +406,10 @@ struct TeamDetailView: View {
     private func statCell(_ label: String, _ value: Int, emphasized: Bool = false) -> some View {
         VStack(spacing: 4) {
             Text("\(value)")
-                .font(.system(size: 20, weight: .heavy)).monospacedDigit()
+                .dsFont(20, weight: .heavy, monospacedDigit: true)
                 .foregroundStyle(emphasized ? accent : Color.dsFgPrimary)
             Text(label)
-                .font(.system(size: 11)).foregroundStyle(Color.dsFgSecondary)
+                .dsFont(11).foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -420,21 +420,21 @@ struct TeamDetailView: View {
         if !leaders.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text(title)
-                    .font(.system(size: 14, weight: .bold))
+                    .dsFont(14, weight: .bold)
                     .foregroundStyle(accent)
                 VStack(spacing: 0) {
                     ForEach(Array(leaders.enumerated()), id: \.element.id) { index, leader in
                         HStack {
                             Text("\(index + 1)")
-                                .font(.system(size: 13, weight: .semibold))
+                                .dsFont(13, weight: .semibold)
                                 .foregroundStyle(Color.dsFgSecondary)
                                 .frame(width: 18, alignment: .leading)
                             Text(leader.name)
-                                .font(.system(size: 14.5))
+                                .dsFont(14.5)
                                 .foregroundStyle(Color.dsFgPrimary)
                             Spacer()
                             Text("\(leader.value)")
-                                .font(.system(size: 15, weight: .bold)).monospacedDigit()
+                                .dsFont(15, weight: .bold, monospacedDigit: true)
                                 .foregroundStyle(Color.dsFgPrimary)
                         }
                         .padding(.vertical, 9)

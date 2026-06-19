@@ -39,7 +39,9 @@ struct TriviaLeaderboardService {
                 .upsert(row, onConflict: "user_id,season")
                 .execute()
         } catch {
-            // Local store already holds the streak; next load retries the push.
+            // Local store already holds the streak; next load retries the push. NOT silent:
+            // flag it so a failing push (e.g. RLS/auth, network) reaches the owner via telemetry.
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "trivia upsertScore: \(error.localizedDescription)") }
         }
     }
 
@@ -56,6 +58,9 @@ struct TriviaLeaderboardService {
                 .value
             return rows.map { Standing(userID: $0.user_id, name: $0.display_name ?? "Fan", bestStreak: $0.best_streak) }
         } catch {
+            // Caller still shows the user's own live streak (honest degrade), but the read
+            // failure is flagged so a down board doesn't go silently unnoticed by the owner.
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "trivia standings: \(error.localizedDescription)") }
             return []
         }
     }

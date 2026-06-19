@@ -50,12 +50,17 @@ final class HeadshotStore {
         guard !didLoad, let url = AppConfig.headshotsMapURL() else { return }
         do {
             let (data, response) = try await URLSession.shared.data(from: url)
-            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return }
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                Diagnostics.shared.record(.apiFailure, "headshots map: HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+                return
+            }
             let decoded = try JSONDecoder().decode([String: String].self, from: data)
             map = decoded
             didLoad = true
         } catch {
-            // Best-effort: leave the map empty; a later launch retries. No UI impact.
+            // Best-effort: leave the map empty (avatars stay monograms); a later launch retries.
+            // NOT silent — flag it so a broken headshots pipeline is visible to the owner.
+            Diagnostics.shared.record(.apiFailure, "headshots map: \(error.localizedDescription)")
         }
     }
 }

@@ -21,6 +21,11 @@ import AuthenticationServices
 import SwiftUI
 
 struct SignInPromptView: View {
+    /// Optional: run after a SUCCESSFUL sign-in, before the sheet dismisses — e.g. a game
+    /// pushing the just-earned result to its leaderboard now that there's an account.
+    /// Omitted by callers that only need the account to exist (e.g. Bracket re-tap).
+    var onSignedIn: (() -> Void)? = nil
+
     @Environment(AuthStore.self) private var auth
     @Environment(\.dismiss) private var dismiss
     @State private var errorMessage: String?
@@ -30,7 +35,7 @@ struct SignInPromptView: View {
             Spacer()
 
             Image(systemName: "star.circle.fill")
-                .font(.system(size: 56))
+                .dsFont(56)
                 .foregroundStyle(Color.accentColor)
 
             VStack(spacing: 10) {
@@ -76,6 +81,7 @@ struct SignInPromptView: View {
     private func complete(_ result: Result<ASAuthorization, Error>) async {
         do {
             try await auth.handleSignIn(result)
+            onSignedIn?()
             dismiss()
         } catch {
             // User-cancelled is expected — don't surface it as an error.

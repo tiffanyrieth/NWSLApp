@@ -61,7 +61,10 @@ final class TeamAlertSyncCoordinator {
         // Mirror each on/off edit up. No-op while signed out.
         alerts.onAlertChanged = { [weak self] teamID, enabled in
             guard let self, let userID = self.auth.userID else { return }
-            Task { try? await self.service.push(teamID: teamID, enabled: enabled, userID: userID) }
+            Task {
+                do { try await self.service.push(teamID: teamID, enabled: enabled, userID: userID) }
+                catch { Diagnostics.shared.record(.apiFailure, "team-alert push \(teamID): \(error.localizedDescription)") }
+            }
         }
 
         reconcileIfSignedIn()   // covers an already-restored session
@@ -108,12 +111,16 @@ final class TeamAlertSyncCoordinator {
     private func reconcileIfSignedIn() {
         guard let userID = auth.userID else { return }
         Task {
-            if let remote = try? await service.fetchAll(userID: userID) {
+            do {
+                let remote = try await service.fetchAll(userID: userID)
                 alerts.mergeFromRemote(remote)
+            } catch {
+                Diagnostics.shared.record(.apiFailure, "team-alert fetchAll: \(error.localizedDescription)")
             }
             // Push every locally enabled team up (idempotent upserts on the composite key).
             for teamID in alerts.teamsWithAlerts() {
-                try? await service.push(teamID: teamID, enabled: true, userID: userID)
+                do { try await service.push(teamID: teamID, enabled: true, userID: userID) }
+                catch { Diagnostics.shared.record(.apiFailure, "team-alert reconcile push \(teamID): \(error.localizedDescription)") }
             }
         }
     }

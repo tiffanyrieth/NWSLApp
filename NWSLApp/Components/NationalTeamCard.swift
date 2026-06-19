@@ -24,6 +24,11 @@ struct NationalTeamCard: View {
     // National-team alert bells share the club alert store (keyed by FIFA code).
     @Environment(TeamAlertStore.self) private var teamAlerts
 
+    // Flag dimensions scale with Dynamic Type (capped at the root), like the club crest —
+    // the flag is hero content paired with the FIFA code + name, so it grows with the text.
+    @ScaledMetric(relativeTo: .body) private var flagWidth: CGFloat = 52
+    @ScaledMetric(relativeTo: .body) private var flagHeight: CGFloat = 36
+
     init(_ team: NationalTeam) { self.team = team }
 
     private var isFollowing: Bool { following.isFollowing(nationalTeam: team) }
@@ -33,15 +38,18 @@ struct NationalTeamCard: View {
         VStack(spacing: 9) {
             flag
             Text(team.code)
-                .font(.system(size: 12, weight: .heavy))
+                .dsFont(12, weight: .heavy)
                 .tracking(0.4)
                 .foregroundStyle(accent)
             Text(team.name)
-                .font(.system(size: 14, weight: .semibold))
+                .dsFont(14, weight: .semibold)
                 .foregroundStyle(Color.dsFgPrimary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .lineSpacing(1)
+                // Keep long names (or large text) within two lines rather than spilling
+                // a third line that misaligns the grid; scale down instead.
+                .minimumScaleFactor(0.8)
                 // Reserve two lines so flag (above) + controls (below) stay vertically
                 // aligned across 1- and 2-line names, centered like the club card.
                 .frame(minHeight: 35, alignment: .center)
@@ -72,7 +80,7 @@ struct NationalTeamCard: View {
     // it falls back to a country-color block so the mark never goes blank.
     private var flag: some View {
         flagImage
-        .frame(width: 52, height: 36)
+        .frame(width: flagWidth, height: flagHeight)
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -133,11 +141,13 @@ struct NationalTeamCard: View {
         Button { toggleFollow() } label: {
             HStack(spacing: 5) {
                 Image(systemName: isFollowing ? "star.fill" : "star")
-                    .font(.system(size: 11))
+                    .dsFont(11)
                     .foregroundStyle(isFollowing ? Color.dsFollowStar : Color.dsFgSecondary)
                 Text(isFollowing ? "Following" : "Follow")
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .dsFont(12.5, weight: .semibold)
                     .foregroundStyle(isFollowing ? Color.dsFgPrimary : Color.dsFgSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 32)
@@ -155,7 +165,7 @@ struct NationalTeamCard: View {
         // hub's job); the Teams-tab coach mark covers the education.
         return Button { teamAlerts.toggle(for: team.code) } label: {
             Image(systemName: on ? "bell.fill" : "bell")
-                .font(.system(size: 13, weight: .medium))
+                .dsFont(13, weight: .medium)
                 .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
                 .frame(width: 36, height: 32)
                 .background(on ? Color.dsAccentMuted : Color.dsBgTertiary)

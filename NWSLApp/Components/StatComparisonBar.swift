@@ -37,17 +37,19 @@ struct StatComparisonBar: View {
         VStack(spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 0) {
                 Text(homeDisplay)
-                    .font(.system(size: 15, weight: .bold))
-                    .monospacedDigit()
+                    .dsFont(15, weight: .bold, monospacedDigit: true)
                     .foregroundStyle(homeColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .frame(width: 52, alignment: .leading)
                 Text(label)
                     .trackedCaps(size: 10, tracking: 1, weight: .semibold)
                     .frame(maxWidth: .infinity)
                 Text(awayDisplay)
-                    .font(.system(size: 15, weight: .bold))
-                    .monospacedDigit()
+                    .dsFont(15, weight: .bold, monospacedDigit: true)
                     .foregroundStyle(awayColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .frame(width: 52, alignment: .trailing)
             }
 

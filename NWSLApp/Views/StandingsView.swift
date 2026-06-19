@@ -107,11 +107,15 @@ struct StandingsView: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Standings")
-                    .font(.system(size: 32, weight: .bold))
+                    .dsFont(32, weight: .bold)
                     .foregroundStyle(Color.dsFgPrimary)
+                    // Keep the large title on one line beside the "TOP N ADVANCE" pill at
+                    // larger text sizes (it otherwise wraps mid-word to "Standing"/"s").
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
                 Spacer()
                 Text("TOP \(playoffSpots) ADVANCE")
-                    .font(.system(size: 11, weight: .bold))
+                    .dsFont(11, weight: .bold)
                     .tracking(0.4)
                     .foregroundStyle(Color.dsStateKickoff)
                     .padding(.horizontal, 9)
@@ -120,7 +124,7 @@ struct StandingsView: View {
             }
             // `String(...)` so the year renders "2026", not the locale-grouped "2,026".
             Text("\(String(seasonYear)) NWSL · Regular season")
-                .font(.system(size: 13))
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
         }
         .padding(.horizontal, DS.pagePadding)
@@ -158,6 +162,10 @@ struct StandingsView: View {
             Text("Last 5").frame(width: Col.form, alignment: .trailing)
         }
         .trackedCaps(size: 11, tracking: 0.4, weight: .semibold, color: .dsFgTertiary)
+        // Keep the tight column headers on one line at larger text (else "GP" stacks
+        // to "G/P"); they share the rows' fixed widths so they scale down to match.
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
         .padding(.leading, Inset.headerLead)
         .padding(.trailing, Inset.headerTrail)
         .padding(.bottom, 8)
@@ -194,7 +202,7 @@ struct StandingsView: View {
         HStack(spacing: 10) {
             playoffRule
             Text("PLAYOFF LINE")
-                .font(.system(size: 10, weight: .bold))
+                .dsFont(10, weight: .bold)
                 .tracking(0.8)
                 .foregroundStyle(Color.dsStateKickoff)
             playoffRule
@@ -224,10 +232,10 @@ struct StandingsView: View {
         } label: {
             HStack(spacing: Col.gap) {
                 Text("\(row.rank)")
-                    .font(.system(size: 14, weight: .bold))
-                    .monospacedDigit()
+                    .dsFont(14, weight: .bold, monospacedDigit: true)
                     .foregroundStyle(rankColor)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     // Right-aligned + monospaced so 1–9 sit in the ones position under
                     // the second digit of 10–16, all ending at the same right edge.
                     .frame(width: Col.rank, alignment: .trailing)
@@ -240,7 +248,7 @@ struct StandingsView: View {
                              size: DS.avatarTeams)
                     // Abbreviation demoted to a 14pt label beside the crest.
                     Text(row.club.abbreviation)
-                        .font(.system(size: 14, weight: .bold))
+                        .dsFont(14, weight: .bold)
                         .tracking(0.3)
                         .foregroundStyle(accent)
                         .lineLimit(1)
@@ -250,9 +258,10 @@ struct StandingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text("\(row.points)")
-                    .font(.system(size: 17, weight: .heavy))
-                    .monospacedDigit()
+                    .dsFont(17, weight: .heavy, monospacedDigit: true)
                     .foregroundStyle(Color.dsFgPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .frame(width: Col.pts, alignment: .trailing)
                 statCell(row.gamesPlayed, width: Col.gp)
                 statCell(row.wins, width: Col.wdl)
@@ -284,9 +293,10 @@ struct StandingsView: View {
 
     private func statCell(_ value: Int, width: CGFloat) -> some View {
         Text("\(value)")
-            .font(.system(size: 14, weight: .medium))
-            .monospacedDigit()
+            .dsFont(14, weight: .medium, monospacedDigit: true)
             .foregroundStyle(Color.dsFgSecondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             .frame(width: width, alignment: .trailing)
     }
 
@@ -305,7 +315,7 @@ struct StandingsView: View {
 
     private var footer: some View {
         Text("Tap any club for its full page · Last 5 shows recent results, newest on the right.")
-            .font(.system(size: 11.5))
+            .dsFont(11.5)
             .lineSpacing(2)
             .multilineTextAlignment(.center)
             .foregroundStyle(Color.dsFgSecondary)

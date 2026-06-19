@@ -45,7 +45,9 @@ struct PredictLeaderboardService {
                 .upsert(row, onConflict: "user_id,team_abbreviation,season")
                 .execute()
         } catch {
-            // Local store already holds the score; next load retries the push.
+            // Local store already holds the score; next load retries the push. NOT silent:
+            // flag it so a failing push (RLS/auth, network) reaches the owner via telemetry.
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict upsertScore \(teamAbbreviation): \(error.localizedDescription)") }
         }
     }
 
@@ -63,6 +65,9 @@ struct PredictLeaderboardService {
                 .value
             return rows.map { Standing(userID: $0.user_id, name: $0.display_name ?? "Fan", points: $0.points) }
         } catch {
+            // Caller still shows the user's own live total (honest degrade); flag the read
+            // failure so a down board isn't silently invisible to the owner.
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict standings \(teamAbbreviation): \(error.localizedDescription)") }
             return []
         }
     }

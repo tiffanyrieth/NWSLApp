@@ -26,21 +26,20 @@ struct GameCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 0) {
-                Text(emoji).font(.system(size: 30))
+                Text(emoji).dsFont(30)
                 Spacer(minLength: 0)
                 if let badge {
                     HStack(spacing: 3) {
-                        if let badgeIcon { Text(badgeIcon).font(.system(size: 12)) }
+                        if let badgeIcon { Text(badgeIcon).dsFont(12) }
                         Text(badge)
-                            .font(.system(size: 13, weight: .bold))
-                            .monospacedDigit()
+                            .dsFont(13, weight: .bold, monospacedDigit: true)
                             .foregroundStyle(accent)
                     }
                 }
             }
             Spacer(minLength: 0)
             Text(title)
-                .font(.system(size: 17, weight: .bold))
+                .dsFont(17, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             statusPill
                 .padding(.top, 8)
@@ -67,7 +66,7 @@ struct GameCard: View {
     // the game's done for the day (no arrow on a completed state).
     private var statusPill: some View {
         Text(completed ? statusLine : "\(statusLine) →")
-            .font(.system(size: 12.5, weight: .bold))
+            .dsFont(12.5, weight: .bold)
             .foregroundStyle(completed ? Color.dsFgSecondary : accent)
             .padding(.horizontal, 11)
             .padding(.vertical, 5)

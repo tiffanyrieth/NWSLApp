@@ -121,7 +121,7 @@ struct MatchDetailView: View {
                 Button { tab = item } label: {
                     VStack(spacing: 6) {
                         Text(tabLabel(item).uppercased())
-                            .font(.system(size: 12, weight: .semibold))
+                            .dsFont(12, weight: .semibold)
                             .tracking(1)
                             .foregroundStyle(effectiveTab == item ? Color.dsFgPrimary : Color.dsFgTertiary)
                         ZStack {
@@ -394,7 +394,7 @@ struct MatchDetailView: View {
                 .font(.caption2)
             if player.subbedIn == true {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 9))
+                    .dsFont(9)
                     .foregroundStyle(.green.opacity(0.8))
             }
         }
@@ -570,7 +570,7 @@ struct MatchDetailView: View {
     private func seasonComparison(_ preview: MatchPreview) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Season comparison")
-                .font(.system(size: 17, weight: .bold))
+                .dsFont(17, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             // Crest + abbreviation per side (two-team context — never full names).
             HStack {
@@ -598,7 +598,7 @@ struct MatchDetailView: View {
             TeamLogo(urlString: competitor?.team?.logo,
                      teamAbbreviation: competitor?.team?.abbreviation, size: 22)
             Text(competitor?.team?.abbreviation ?? "—")
-                .font(.system(size: 14, weight: .bold))
+                .dsFont(14, weight: .bold)
                 .tracking(0.3)
                 .foregroundStyle(color)
         }
@@ -615,7 +615,7 @@ struct MatchDetailView: View {
     private func recentForm(_ preview: MatchPreview) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Recent form")
-                .font(.system(size: 17, weight: .bold))
+                .dsFont(17, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             formRow(event.homeCompetitor, color: matchColors.home.fill, form: preview.home)
             formRow(event.awayCompetitor, color: matchColors.away.fill, form: preview.away)
@@ -707,14 +707,14 @@ struct MatchDetailView: View {
             }
             if let venue = event.venueName {
                 Text(venue)
-                    .font(.system(size: 12))
+                    .dsFont(12)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
             }
             if viewModel.temporalState == .past, let attendance = attendanceText {
                 Circle().fill(Color.dsFgQuaternary).frame(width: 3, height: 3)
                 Text("\(attendance) attending")
-                    .font(.system(size: 12))
+                    .dsFont(12)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
             }
@@ -730,7 +730,7 @@ struct MatchDetailView: View {
     private var spanishBroadcastRow: some View {
         if competition.surfacesSpanishSecondary, !event.broadcastNames.isEmpty {
             Text("Español · \(event.broadcastNames.joined(separator: " · "))")
-                .font(.system(size: 12))
+                .dsFont(12)
                 .foregroundStyle(Color.dsFgSecondary)
                 .lineLimit(1)
         }
@@ -789,7 +789,7 @@ struct MatchDetailView: View {
             // Abbreviation directly below the crest, in the team's color — the
             // two-team-context rule (crest + ABBREVIATION, never a full club name).
             Text(competitor?.team?.abbreviation ?? "—")
-                .font(.system(size: 16, weight: .bold))
+                .dsFont(16, weight: .bold)
                 .tracking(0.5)
                 .foregroundStyle(color)
                 .lineLimit(1)
@@ -799,11 +799,13 @@ struct MatchDetailView: View {
             ZStack {
                 if showScores, let score = competitor?.score {
                     Text(score)
-                        .font(.dsScore)
+                        .dsScoreFont()
                         .foregroundStyle(Color.dsFgPrimary)
                 }
             }
-            .frame(height: 44)
+            // minHeight (not a fixed height) so the score band keeps a consistent
+            // baseline at default text but can grow with the scaled score at larger sizes.
+            .frame(minHeight: 44)
         }
         .frame(maxWidth: .infinity)
     }
@@ -817,23 +819,22 @@ struct MatchDetailView: View {
                 liveIndicator
                 if let clockLine {
                     Text(clockLine)
-                        .font(.system(size: 13, weight: .medium))
+                        .dsFont(13, weight: .medium)
                         .foregroundStyle(Color.dsStateClock)   // orange live clock
                         .multilineTextAlignment(.center)
                 }
             case .past:
                 Text("FULL TIME")
-                    .font(.system(size: 12, weight: .bold))
+                    .dsFont(12, weight: .bold)
                     .tracking(0.6)
                     .foregroundStyle(Color.dsStateFinal)
             case .future:
                 Text("KICKOFF")
-                    .font(.system(size: 12, weight: .bold))
+                    .dsFont(12, weight: .bold)
                     .tracking(0.6)
                     .foregroundStyle(Color.dsStateKickoff)
                 Text(kickoffTimeText)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .monospacedDigit()
+                    .dsFont(28, weight: .bold, design: .rounded, monospacedDigit: true)
                     .foregroundStyle(Color.dsStateKickoff)
                 if let date = dateHeadline {
                     Text(date)
@@ -875,7 +876,7 @@ struct MatchDetailView: View {
 
     private func competitionPill(_ label: String) -> some View {
         Text(label.uppercased())
-            .font(.system(size: 10.5, weight: .bold))
+            .dsFont(10.5, weight: .bold)
             .tracking(0.6)
             .foregroundStyle(Color.dsFgSecondary)
             .padding(.horizontal, 10)

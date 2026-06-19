@@ -58,7 +58,7 @@ struct AvatarContentCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 5) {
                     Text(displayName)
-                        .font(.system(size: 14.5, weight: .semibold))
+                        .dsFont(14.5, weight: .semibold)
                         .foregroundStyle(Color.dsFgPrimary)
                         .lineLimit(1)
                     PlatformBadge(platform: card.platform, size: 14)
@@ -66,7 +66,7 @@ struct AvatarContentCard: View {
                 HStack(spacing: 6) {
                     Circle().fill(platformColor).frame(width: 6, height: 6)
                     Text(handleLine)
-                        .font(.system(size: 12))
+                        .dsFont(12)
                         .foregroundStyle(Color.dsFgSecondary)
                         .lineLimit(1)
                 }
@@ -77,7 +77,7 @@ struct AvatarContentCard: View {
                     teamPill(abbr)
                 }
                 Text(card.timestamp.relativeAgo)
-                    .font(.system(size: 11))
+                    .dsFont(11)
                     .foregroundStyle(Color.dsFgSecondary)
             }
         }
@@ -100,7 +100,7 @@ struct AvatarContentCard: View {
         ZStack {
             Circle().fill(teamColor.opacity(0.15))
             Text(initials)
-                .font(.system(size: 14, weight: .bold))
+                .dsFont(14, weight: .bold)
                 .foregroundStyle(teamColor)
         }
         .frame(width: DS.contentAvatar, height: DS.contentAvatar)
@@ -114,7 +114,7 @@ struct AvatarContentCard: View {
 
     private func teamPill(_ abbr: String) -> some View {
         Text(abbr)
-            .font(.system(size: 10.5, weight: .bold))
+            .dsFont(10.5, weight: .bold)
             .tracking(0.3)
             .foregroundStyle(teamColor)
             .padding(.horizontal, 7)
@@ -151,7 +151,7 @@ struct AvatarContentCard: View {
     private var postBody: some View {
         if let text = card.bodyText, !text.isEmpty {
             Text(text)
-                .font(.system(size: 14.5))
+                .dsFont(14.5)
                 .foregroundStyle(Color.dsFgPrimary)
                 .lineSpacing(3)
                 .lineLimit(bodyClamp)
@@ -208,7 +208,7 @@ struct AvatarContentCard: View {
         HStack(spacing: 8) {
             PlatformBadge(platform: .instagram, size: 20)
             Text("View full post on Instagram")
-                .font(.system(size: 13, weight: .semibold))
+                .dsFont(13, weight: .semibold)
                 .foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity)
@@ -265,7 +265,7 @@ struct EngagementRow: View {
             Image(systemName: symbol)
             Text("\(count)")
         }
-        .font(.system(size: 12))
+        .dsFont(12)
         .foregroundStyle(Color.dsFgSecondary)
     }
 }
@@ -278,9 +278,9 @@ struct CTARow: View {
     var body: some View {
         HStack(spacing: 4) {
             Text(label)
-                .font(.system(size: 13, weight: .semibold))
+                .dsFont(13, weight: .semibold)
             Image(systemName: "arrow.up.right")
-                .font(.system(size: 11, weight: .semibold))
+                .dsFont(11, weight: .semibold)
         }
         .foregroundStyle(Color.dsAccent)
     }

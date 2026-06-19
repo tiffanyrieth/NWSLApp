@@ -170,19 +170,48 @@ enum AssetRefreshService {
     }
 
     private static func fetchManifest(_ url: URL) async -> Manifest? {
-        guard let (data, response) = try? await URLSession.shared.data(from: url),
-              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
-        return try? JSONDecoder().decode(Manifest.self, from: data)
+        let data: Data
+        do {
+            let (d, response) = try await URLSession.shared.data(from: url)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                // Refresh silently does nothing on a bad manifest; flag a real CDN/proxy outage.
+                Diagnostics.shared.record(.apiFailure, "asset manifest: HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+                return nil
+            }
+            data = d
+        } catch {
+            Diagnostics.shared.record(.apiFailure, "asset manifest fetch: \(error.localizedDescription)")
+            return nil
+        }
+        do {
+            return try JSONDecoder().decode(Manifest.self, from: data)
+        } catch {
+            Diagnostics.shared.record(.parseError, "asset manifest decode: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     /// Download `url` and write it atomically to `<name>.png` in the cache dir. Returns whether
     /// the bytes were a decodable image (so a 404/HTML error page never overwrites a good file).
     private static func download(_ url: URL, to name: String) async -> Bool {
-        guard let (data, response) = try? await URLSession.shared.data(from: url),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              UIImage(data: data) != nil else { return false }
-        let dest = cacheDir.appendingPathComponent("\(name).png")
-        return (try? data.write(to: dest, options: .atomic)) != nil
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard (response as? HTTPURLResponse)?.statusCode == 200, UIImage(data: data) != nil else {
+                Diagnostics.shared.record(.apiFailure, "asset download \(name): bad response / non-image")
+                return false
+            }
+            let dest = cacheDir.appendingPathComponent("\(name).png")
+            do {
+                try data.write(to: dest, options: .atomic)
+                return true
+            } catch {
+                Diagnostics.shared.record(.apiFailure, "asset write \(name): \(error.localizedDescription)")
+                return false
+            }
+        } catch {
+            Diagnostics.shared.record(.apiFailure, "asset download \(name): \(error.localizedDescription)")
+            return false
+        }
     }
 
     private static let cacheDir: URL = {

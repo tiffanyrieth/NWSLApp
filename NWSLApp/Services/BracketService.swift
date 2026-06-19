@@ -88,6 +88,9 @@ struct BracketService {
             let byID = Dictionary(uniqueKeysWithValues: entrantRows.map { ($0.entrant_id, $0.entrant) })
             return rows.compactMap { $0.matchup(entrants: byID) }
         } catch {
+            // Bracket scoring reads this; a failed read silently using an empty set would
+            // mis-score a settled round — flag it so the owner sees the read failed.
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "bracket results r\(round.rawValue): \(error.localizedDescription)") }
             return []
         }
     }
@@ -106,7 +109,9 @@ struct BracketService {
                 .execute().value
             others = rows.map { (name: $0.display_name ?? "Fan", points: $0.points) }
         } catch {
+            // Honest degrade to just-you, but flag the read failure (never silent).
             others = []
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "bracket leaderboard: \(error.localizedDescription)") }
         }
         var all = others.map { (name: $0.name, points: $0.points, isYou: false) }
         all.append((name: myName, points: myPoints, isYou: true))

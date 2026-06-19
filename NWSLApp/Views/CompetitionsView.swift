@@ -31,7 +31,7 @@ struct CompetitionsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 Text("Go beyond the league. Anything you turn on here folds into My teams on your schedule.")
-                    .font(.system(size: 13))
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineSpacing(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -42,7 +42,7 @@ struct CompetitionsView: View {
 
                 section("NATIONAL TEAMS") {
                     Text("Follow your national team. Their matches appear in My teams alongside your clubs.")
-                        .font(.system(size: 12.5))
+                        .dsFont(12.5)
                         .foregroundStyle(Color.dsFgSecondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     searchField
@@ -65,17 +65,17 @@ struct CompetitionsView: View {
         let on = following.isConcacafFollowed
         return HStack(spacing: 13) {
             Image(systemName: "trophy.fill")
-                .font(.system(size: 19))
+                .dsFont(19)
                 .foregroundStyle(on ? Color.dsSuccess : Color.dsFgSecondary)
                 .frame(width: 44, height: 44)
                 .background(on ? Color.dsSuccess.opacity(0.16) : Color.dsBgTertiary,
                             in: RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 Text("Concacaf W Champions Cup")
-                    .font(.system(size: 15, weight: .semibold))
+                    .dsFont(15, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                 Text("Adds your clubs' Champions Cup matches to My teams.")
-                    .font(.system(size: 12.5))
+                    .dsFont(12.5)
                     .foregroundStyle(Color.dsFgSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -100,17 +100,17 @@ struct CompetitionsView: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 14))
+                .dsFont(14)
                 .foregroundStyle(Color.dsFgSecondary)
             TextField("Search by name or code", text: $query)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .font(.system(size: 15))
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgPrimary)
             if !query.isEmpty {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 15))
+                        .dsFont(15)
                         .foregroundStyle(Color.dsFgTertiary)
                 }
                 .buttonStyle(.plain)
@@ -163,7 +163,7 @@ struct CompetitionsView: View {
             let results = filter(teams)
             if results.isEmpty {
                 Text("No teams match “\(query)”.")
-                    .font(.system(size: 13))
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
@@ -198,7 +198,7 @@ struct CompetitionsView: View {
     private var retryView: some View {
         VStack(spacing: 10) {
             Text("Couldn't load teams — tap to retry")
-                .font(.system(size: 13))
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
             Button("Try again") { Task { await store.load() } }
                 .buttonStyle(.borderedProminent)

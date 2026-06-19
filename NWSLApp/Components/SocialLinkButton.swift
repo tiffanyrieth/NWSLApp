@@ -33,7 +33,7 @@ struct SocialLinkButton: View {
         } label: {
             VStack(spacing: 6) {
                 Image(systemName: link.platform.symbol)
-                    .font(.system(size: 16, weight: .semibold))
+                    .dsFont(16, weight: .semibold)
                     .foregroundStyle(accent.on)
                     .frame(width: 36, height: 36)
                     .background(accent.fill, in: Circle())

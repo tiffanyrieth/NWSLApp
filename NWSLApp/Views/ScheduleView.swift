@@ -85,7 +85,7 @@ struct ScheduleView: View {
     private var scheduleHeader: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Schedule")
-                .font(.system(size: 32, weight: .bold))
+                .dsFont(32, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
                 .padding(.horizontal, 16)
                 .padding(.top, 4)
@@ -224,7 +224,7 @@ struct ScheduleView: View {
     private var followPrompt: some View {
         VStack(spacing: 12) {
             Image(systemName: "star")
-                .font(.system(size: 40))
+                .dsFont(40)
                 .foregroundStyle(.secondary)
             Text("Follow your teams to see their matches here")
                 .font(.headline)
@@ -244,7 +244,7 @@ struct ScheduleView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "calendar")
-                .font(.system(size: 40))
+                .dsFont(40)
                 .foregroundStyle(.secondary)
             // Honest + contextual: a followed team (incl. a sparse national team) with no fixtures
             // in the season feed reads as a real "no matches" state, never a blank screen.
@@ -282,12 +282,12 @@ private struct DayHeader: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(formatted)
-                .font(.system(size: 12, weight: .bold))
+                .dsFont(12, weight: .bold)
                 .tracking(0.6)
                 .foregroundStyle(isToday ? Color.dsFgPrimary : Color.dsFgSecondary)
             if isToday {
                 Text("TODAY")
-                    .font(.system(size: 10, weight: .bold))
+                    .dsFont(10, weight: .bold)
                     .tracking(0.5)
                     .foregroundStyle(Color.dsStateKickoff)
                     .padding(.horizontal, 7)

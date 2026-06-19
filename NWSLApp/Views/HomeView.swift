@@ -34,6 +34,9 @@ struct HomeView: View {
     @Environment(FollowingStore.self) private var following
     @Environment(MatchStore.self) private var matchStore
     @Environment(ClubStore.self) private var clubStore
+    // The shared, warmable/prewarmable Home content store — its raw items feed the
+    // view model's derivation. Warmed during onboarding + prewarmed at launch.
+    @Environment(HomeContentStore.self) private var homeContent
     @Environment(TriviaStore.self) private var trivia
     @Environment(BracketStore.self) private var bracket
     @Environment(PredictionStore.self) private var predict
@@ -56,9 +59,12 @@ struct HomeView: View {
             // content loading after them costs nothing visible.
             viewModel.store = matchStore
             viewModel.clubStore = clubStore
+            viewModel.contentStore = homeContent
             if case .idle = matchStore.state { await matchStore.load() }
             await clubStore.loadIfNeeded()   // dedupe-aware: never scope content before clubs are loaded
-            await viewModel.loadContent(following: following)
+            // Scope-aware: an instant no-op if the onboarding warm (or the launch prewarm)
+            // already loaded this exact followed set; otherwise it fetches.
+            await homeContent.loadIfNeeded(following: following, clubStore: clubStore)
             await loadBracketSummary()
         }
         // A newly-followed (or unfollowed) team should change Module 1 without a
@@ -67,7 +73,9 @@ struct HomeView: View {
         // chip if the team it pointed at was just unfollowed.
         .onChange(of: following.followedIDs) {
             viewModel.reconcileSelectedTeam(following: following)
-            Task { await viewModel.loadContent(following: following, force: true) }
+            // Scope-aware: a follow added/removed changes the abbr set → the store refetches;
+            // unchanged set → no-op (e.g. onboarding already warmed the exact final scope).
+            Task { await homeContent.loadIfNeeded(following: following, clubStore: clubStore) }
         }
         .sheet(isPresented: $showTeamPicker) {
             NavigationStack { OnboardingView() }
@@ -661,6 +669,7 @@ struct HomeView: View {
         .environment(FollowingStore())
         .environment(MatchStore())
         .environment(ClubStore())
+        .environment(HomeContentStore())
         .environment(TriviaStore())
         .environment(BracketStore())
         .environment(PredictionStore())

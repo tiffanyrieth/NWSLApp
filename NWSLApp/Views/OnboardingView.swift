@@ -29,6 +29,9 @@ struct OnboardingView: View {
     // The shared club directory (injected in RootTabView); the view model reads
     // its state/clubs through this.
     @Environment(ClubStore.self) private var clubStore
+    // The shared Home content store — warmed the instant a team is picked so Home is
+    // already populated by the time onboarding finishes (no first-paint loading flash).
+    @Environment(HomeContentStore.self) private var homeContent
     @Environment(\.dismiss) private var dismiss
 
     private var followCount: Int { following.followedIDs.count }
@@ -106,6 +109,9 @@ struct OnboardingView: View {
         let isFollowing = following.isFollowing(club)
         return Button {
             following.toggle(club)
+            // Warm Home's content for the current selection (debounced) so it's ready by
+            // the time onboarding finishes — re-warms as the selection changes.
+            homeContent.warm(following: following, clubStore: clubStore)
         } label: {
             HStack(spacing: 12) {
                 TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 32)
@@ -220,5 +226,6 @@ struct OnboardingView: View {
         OnboardingView()
             .environment(FollowingStore())
             .environment(ClubStore())
+            .environment(HomeContentStore())
     }
 }

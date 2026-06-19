@@ -19,31 +19,26 @@
 
 import Foundation
 
+@MainActor
 @Observable
 final class HomeViewModel {
-    // Module 1/2 live content, loaded in loadContent() alongside the shared store
-    // loads. Online-only: a failed fetch sets the matching per-module error below
-    // (and clears the items) so the module shows an honest "Couldn't load — tap to
-    // retry" — never stale/seed content.
-    private(set) var teamContentItems: [ContentCard] = []
-    // Named `allSpotlights` (not `spotlights`) so it doesn't collide with the
-    // derived `spotlights(following:)` below.
-    private(set) var allSpotlights: [PlayerSpotlight] = []
+    // Module 1/2 live content lives in the shared HomeContentStore (handed in by the view,
+    // like `store`/`clubStore`), so it can be warmed during onboarding and prewarmed at
+    // launch. HomeViewModel reads the raw items from it and does ALL the derivation below
+    // (round-robin, staleness, per-team chip) — one fetch, many readers.
+    var contentStore: HomeContentStore?
 
-    // Per-module load errors (Module 1 = content, Module 2 = spotlight). Each module
-    // fails independently — one going down doesn't blank the other. nil = no error.
-    private(set) var contentError: String? = nil
-    private(set) var spotlightError: String? = nil
+    // Passthroughs so the view's existing reads (error/loading state) are unchanged — the
+    // store is the source of truth for the raw content + its load lifecycle.
+    var contentError: String? { contentStore?.contentError }
+    var spotlightError: String? { contentStore?.spotlightError }
+    var isLoadingContent: Bool { contentStore?.isLoadingContent ?? false }
+    var hasCompletedContentLoad: Bool { contentStore?.hasCompletedContentLoad ?? false }
 
-    // Module-1 load lifecycle, so the view can tell "still loading" from "loaded but
-    // genuinely empty". Without it the empty/Retry card flashes for a frame during the
-    // initial fetch — a loading state must never look identical to an empty result (#5).
-    // Mirrors FeedStore's isLoadingItems + hasCompletedItemsLoad.
-    private(set) var isLoadingContent = false
-    private(set) var hasCompletedContentLoad = false
-
-    /// The one simple, honest message both modules show on a failed load.
-    static let loadFailureMessage = "Couldn't load — tap to retry"
+    // Raw content the derivation methods read, sourced from the store (so those methods
+    // are unchanged). Empty until the store has loaded.
+    private var teamContentItems: [ContentCard] { contentStore?.teamContentItems ?? [] }
+    private var allSpotlights: [PlayerSpotlight] { contentStore?.allSpotlights ?? [] }
 
     // The active PER-TEAM chip on Module 1 (chip redesign): nil = "All" (the mixed,
     // round-robin feed); else a followed team's abbreviation = just that club's
@@ -61,88 +56,32 @@ final class HomeViewModel {
     var store: MatchStore?
     var clubStore: ClubStore?
 
-    private let contentService: ContentService
     private let calendar: Calendar
     private let now: () -> Date
 
     init(
-        contentService: ContentService = ContentService(),
         calendar: Calendar = .current,
         now: @escaping () -> Date = Date.init
     ) {
-        self.contentService = contentService
         self.calendar = calendar
         self.now = now
     }
 
-    /// Loads Module-1 content via `ContentService` (live `/team-videos` once
-    /// enabled; the Part-1 ⚠️seed today) plus the Module-2 spotlight seed. Runs
-    /// AFTER the shared ClubStore so `followedAbbreviations` is resolvable (the
-    /// live route is scoped to followed teams; the seed ignores the arg and returns
-    /// all, leaving the per-follow filtering to `teamContent`).
-    ///
-    /// `force == false` loads once (the first-open `.task`); `force == true` refetches
-    /// (pull-to-refresh + a follows change), so a newly-followed team's content appears
-    /// without relaunching. (Replaces the old idempotent-only TEMP guard.)
-    func loadContent(following: FollowingStore, force: Bool = false) async {
-        // Reload when forced, when nothing's loaded yet, or when a prior load errored
-        // (so the per-module "tap to retry" actually retries).
-        guard force || (teamContentItems.isEmpty && contentError == nil
-                        && allSpotlights.isEmpty && spotlightError == nil) else { return }
-        // Mark the module as loading BEFORE the first await so the view shows a loading
-        // state (not the empty/Retry card) during the directory-load → content-load gap.
-        // `hasCompletedContentLoad` latches true at the end and stays true across forced
-        // refetches (those keep the existing cards on screen, so no flash).
-        isLoadingContent = true
-        defer { isLoadingContent = false; hasCompletedContentLoad = true }
-        // CRITICAL: content is scoped to followed-team ABBREVIATIONS resolved from the club
-        // directory, so we must not proceed until ClubStore is `.loaded`. Otherwise a prewarmed-
-        // but-still-loading directory yields an empty scope → `/team-videos` with no `teams=` →
-        // an empty Home feed (the race this fixes). Dedupe-aware, so it's a no-op once loaded.
-        await clubStore?.loadIfNeeded()
-        let followed = followedAbbreviations(following)
-        // Module 1 (content) and Module 2 (spotlight) load + fail independently.
-        do {
-            var cards = try await contentService.homeCards(followedAbbreviations: followed)
-            // A followed team returning ZERO cards is unexpected — content normally exists and
-            // there's a 6-card floor — and it's intermittent (reproduced in-sim: same team,
-            // empty on one run, populated on others → a transient/cold-proxy empty). Treat it as
-            // a no-silent-failure event: flag it AND auto-retry once after a beat so it self-heals.
-            if cards.isEmpty && !followed.isEmpty {
-                await MainActor.run { Diagnostics.shared.record(.unexpectedEmpty, "home content empty for \(followed.count) team(s)") }
-                try? await Task.sleep(for: .milliseconds(800))
-                cards = try await contentService.homeCards(followedAbbreviations: followed)
-                if cards.isEmpty {
-                    await MainActor.run { Diagnostics.shared.record(.unexpectedEmpty, "home content still empty after retry (\(followed.count) team(s))") }
-                }
-            }
-            teamContentItems = cards
-            contentError = nil
-        } catch {
-            teamContentItems = []
-            contentError = Self.loadFailureMessage
-        }
-        do {
-            allSpotlights = try await contentService.spotlightCards(followedAbbreviations: followed)
-            spotlightError = nil
-        } catch {
-            allSpotlights = []
-            spotlightError = Self.loadFailureMessage
-        }
-    }
-
     /// Retry a failed content/spotlight load (the per-module "tap to retry"). Forces a
-    /// refetch of both modules — they share the proxy, so one tap recovers both.
+    /// refetch of both modules through the shared store — they share the proxy, so one
+    /// tap recovers both.
     func retryContent(following: FollowingStore) async {
-        await loadContent(following: following, force: true)
+        guard let contentStore, let clubStore else { return }
+        await contentStore.reload(following: following, clubStore: clubStore)
     }
 
     /// Pull-to-refresh: refetch, reset the chip to All, then either lead with the new
     /// content (offsets cleared so newest surfaces) or — when nothing new arrived —
     /// advance the rotation window so the user still sees cards they hadn't seen.
     func refresh(following: FollowingStore) async {
+        guard let contentStore, let clubStore else { return }
         let previousIDs = Set(teamContentItems.map(\.id))
-        await loadContent(following: following, force: true)
+        await contentStore.reload(following: following, clubStore: clubStore)
         selectedTeam = nil
         let newIDs = Set(teamContentItems.map(\.id))
         if newIDs == previousIDs {

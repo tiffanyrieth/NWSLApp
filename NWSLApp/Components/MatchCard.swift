@@ -116,6 +116,10 @@ struct MatchCard: View {
                 Text(kickoffTimeText)
                     .dsFont(22, weight: .bold, design: .rounded, monospacedDigit: true)
                     .foregroundStyle(Color.dsStateKickoff)
+                    // At larger text the time would outgrow the center column and clip
+                    // ("8:00…"); shrink to keep "8:00 PM" whole.
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
             }
         }
         .frame(minHeight: 104)

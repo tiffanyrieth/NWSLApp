@@ -109,6 +109,10 @@ struct StandingsView: View {
                 Text("Standings")
                     .dsFont(32, weight: .bold)
                     .foregroundStyle(Color.dsFgPrimary)
+                    // Keep the large title on one line beside the "TOP N ADVANCE" pill at
+                    // larger text sizes (it otherwise wraps mid-word to "Standing"/"s").
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
                 Spacer()
                 Text("TOP \(playoffSpots) ADVANCE")
                     .dsFont(11, weight: .bold)
@@ -158,6 +162,10 @@ struct StandingsView: View {
             Text("Last 5").frame(width: Col.form, alignment: .trailing)
         }
         .trackedCaps(size: 11, tracking: 0.4, weight: .semibold, color: .dsFgTertiary)
+        // Keep the tight column headers on one line at larger text (else "GP" stacks
+        // to "G/P"); they share the rows' fixed widths so they scale down to match.
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
         .padding(.leading, Inset.headerLead)
         .padding(.trailing, Inset.headerTrail)
         .padding(.bottom, 8)

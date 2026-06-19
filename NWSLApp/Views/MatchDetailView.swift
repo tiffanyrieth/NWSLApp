@@ -803,7 +803,9 @@ struct MatchDetailView: View {
                         .foregroundStyle(Color.dsFgPrimary)
                 }
             }
-            .frame(height: 44)
+            // minHeight (not a fixed height) so the score band keeps a consistent
+            // baseline at default text but can grow with the scaled score at larger sizes.
+            .frame(minHeight: 44)
         }
         .frame(maxWidth: .infinity)
     }

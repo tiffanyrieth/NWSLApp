@@ -213,7 +213,9 @@ struct DailyTriviaView: View {
                         // submitting. The local streak/stats are saved either way.
                         if auth.isSignedIn {
                             Task { await viewModel.refreshLeaderboard(store: store, auth: auth) }
-                        } else {
+                        } else if !FanZoneIntro.shared.declinedThisSession {
+                            // Skip the second modal if they just declined the up-front invite this
+                            // session; the local streak is saved either way (honest, not silent).
                             showSignIn = true
                         }
                     }

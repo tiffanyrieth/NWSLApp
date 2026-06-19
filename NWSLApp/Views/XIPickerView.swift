@@ -269,8 +269,10 @@ struct XIPickerView: View {
                 // reaching the board. Either choice closes the picker via the sheet onDismiss.
                 if auth.isSignedIn {
                     dismiss()
-                } else {
+                } else if !FanZoneIntro.shared.declinedThisSession {
                     showSignIn = true
+                } else {
+                    dismiss()   // declined the up-front invite this session → keep it local, just close
                 }
             } label: {
                 Text(picker.isComplete ? "Submit & lock in" : "Pick all 11 to submit (\(picker.assignedCount)/11)")

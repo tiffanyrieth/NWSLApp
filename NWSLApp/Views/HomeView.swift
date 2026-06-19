@@ -176,11 +176,16 @@ struct HomeView: View {
             if let error = viewModel.contentError {
                 moduleError(error) { await viewModel.retryContent(following: following) }
             }
-            // Follow prompt only when on "All" with nothing to show (no follows / no
-            // fresh content). A per-team chip coming up empty is a quiet team, not an
-            // empty home — show the chips + a "No content from X" note instead.
+            // Nothing to show on "All": distinguish genuinely-no-follows (invite to choose)
+            // from has-follows-but-empty-content (honest "no fresh posts" + retry). The old
+            // code showed "Follow your teams" for BOTH — misleading to someone who already
+            // follows a team (the bug reproduced in-sim on the brother's exact state).
             else if result.cards.isEmpty && viewModel.selectedTeam == nil {
-                followPrompt
+                if following.followedIDs.isEmpty {
+                    followPrompt
+                } else {
+                    emptyFollowedContent { await viewModel.retryContent(following: following) }
+                }
             } else {
                 VStack(spacing: 14) {
                     // Per-team chips only when following 2+ teams — with one team
@@ -241,6 +246,27 @@ struct HomeView: View {
                 .multilineTextAlignment(.center)
             Button("Choose your teams") { showTeamPicker = true }
                 .buttonStyle(.borderedProminent)
+        }
+        .padding(28)
+        .frame(maxWidth: .infinity)
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+    }
+
+    /// Shown when the user HAS follows but their content came back empty — an honest, retryable
+    /// state. Distinct from `followPrompt` (which is only for genuinely-zero follows) so we never
+    /// tell someone who already follows a team to "follow your teams."
+    private func emptyFollowedContent(retry: @escaping () async -> Void) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: "tray")
+                .dsFont(28)
+                .foregroundStyle(Color.dsFgSecondary)
+            Text("No fresh posts from your teams right now.")
+                .font(.subheadline)
+                .foregroundStyle(Color.dsFgSecondary)
+                .multilineTextAlignment(.center)
+            Button("Retry") { Task { await retry() } }
+                .buttonStyle(.bordered)
         }
         .padding(28)
         .frame(maxWidth: .infinity)

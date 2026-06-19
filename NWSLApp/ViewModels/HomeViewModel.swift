@@ -85,7 +85,20 @@ final class HomeViewModel {
         let followed = followedAbbreviations(following)
         // Module 1 (content) and Module 2 (spotlight) load + fail independently.
         do {
-            teamContentItems = try await contentService.homeCards(followedAbbreviations: followed)
+            var cards = try await contentService.homeCards(followedAbbreviations: followed)
+            // A followed team returning ZERO cards is unexpected — content normally exists and
+            // there's a 6-card floor — and it's intermittent (reproduced in-sim: same team,
+            // empty on one run, populated on others → a transient/cold-proxy empty). Treat it as
+            // a no-silent-failure event: flag it AND auto-retry once after a beat so it self-heals.
+            if cards.isEmpty && !followed.isEmpty {
+                await MainActor.run { Diagnostics.shared.record(.unexpectedEmpty, "home content empty for \(followed.count) team(s)") }
+                try? await Task.sleep(for: .milliseconds(800))
+                cards = try await contentService.homeCards(followedAbbreviations: followed)
+                if cards.isEmpty {
+                    await MainActor.run { Diagnostics.shared.record(.unexpectedEmpty, "home content still empty after retry (\(followed.count) team(s))") }
+                }
+            }
+            teamContentItems = cards
             contentError = nil
         } catch {
             teamContentItems = []

@@ -52,6 +52,8 @@ struct FeaturedGameCard: View {
                 Text(title)
                     .dsFont(20, weight: .bold)
                     .foregroundStyle(Color.dsFgPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .padding(.top, 3)
                 Text(tagline)
                     .dsFont(12.5)

@@ -34,6 +34,9 @@ struct HomeView: View {
     @Environment(FollowingStore.self) private var following
     @Environment(MatchStore.self) private var matchStore
     @Environment(ClubStore.self) private var clubStore
+    // The shared, warmable/prewarmable Home content store — its raw items feed the
+    // view model's derivation. Warmed during onboarding + prewarmed at launch.
+    @Environment(HomeContentStore.self) private var homeContent
     @Environment(TriviaStore.self) private var trivia
     @Environment(BracketStore.self) private var bracket
     @Environment(PredictionStore.self) private var predict
@@ -56,9 +59,12 @@ struct HomeView: View {
             // content loading after them costs nothing visible.
             viewModel.store = matchStore
             viewModel.clubStore = clubStore
+            viewModel.contentStore = homeContent
             if case .idle = matchStore.state { await matchStore.load() }
-            if case .idle = clubStore.state { await clubStore.load() }
-            await viewModel.loadContent(following: following)
+            await clubStore.loadIfNeeded()   // dedupe-aware: never scope content before clubs are loaded
+            // Scope-aware: an instant no-op if the onboarding warm (or the launch prewarm)
+            // already loaded this exact followed set; otherwise it fetches.
+            await homeContent.loadIfNeeded(following: following, clubStore: clubStore)
             await loadBracketSummary()
         }
         // A newly-followed (or unfollowed) team should change Module 1 without a
@@ -67,7 +73,9 @@ struct HomeView: View {
         // chip if the team it pointed at was just unfollowed.
         .onChange(of: following.followedIDs) {
             viewModel.reconcileSelectedTeam(following: following)
-            Task { await viewModel.loadContent(following: following, force: true) }
+            // Scope-aware: a follow added/removed changes the abbr set → the store refetches;
+            // unchanged set → no-op (e.g. onboarding already warmed the exact final scope).
+            Task { await homeContent.loadIfNeeded(following: following, clubStore: clubStore) }
         }
         .sheet(isPresented: $showTeamPicker) {
             NavigationStack { OnboardingView() }
@@ -176,11 +184,23 @@ struct HomeView: View {
             if let error = viewModel.contentError {
                 moduleError(error) { await viewModel.retryContent(following: following) }
             }
-            // Follow prompt only when on "All" with nothing to show (no follows / no
-            // fresh content). A per-team chip coming up empty is a quiet team, not an
-            // empty home — show the chips + a "No content from X" note instead.
+            // Nothing to show on "All": distinguish genuinely-no-follows (invite to choose)
+            // from has-follows-but-empty-content (honest "no fresh posts" + retry). The old
+            // code showed "Follow your teams" for BOTH — misleading to someone who already
+            // follows a team (the bug reproduced in-sim on the brother's exact state).
             else if result.cards.isEmpty && viewModel.selectedTeam == nil {
-                followPrompt
+                if following.followedIDs.isEmpty {
+                    followPrompt
+                } else if viewModel.hasCompletedContentLoad && !viewModel.isLoadingContent {
+                    // A load actually completed empty → honest "no fresh posts" + retry.
+                    emptyFollowedContent { await viewModel.retryContent(following: following) }
+                } else {
+                    // Still loading (the directory-load → content-load gap, after the
+                    // hub's full-screen spinner clears): an honest loading state, NEVER
+                    // the empty/Retry card (a loading state must not look identical to an
+                    // empty result, #5). Mirrors FeedView's gate.
+                    contentLoadingPlaceholder
+                }
             } else {
                 VStack(spacing: 14) {
                     // Per-team chips only when following 2+ teams — with one team
@@ -246,6 +266,38 @@ struct HomeView: View {
         .frame(maxWidth: .infinity)
         .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+    }
+
+    /// Shown when the user HAS follows but their content came back empty — an honest, retryable
+    /// state. Distinct from `followPrompt` (which is only for genuinely-zero follows) so we never
+    /// tell someone who already follows a team to "follow your teams."
+    private func emptyFollowedContent(retry: @escaping () async -> Void) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: "tray")
+                .dsFont(28)
+                .foregroundStyle(Color.dsFgSecondary)
+            Text("No fresh posts from your teams right now.")
+                .font(.subheadline)
+                .foregroundStyle(Color.dsFgSecondary)
+                .multilineTextAlignment(.center)
+            Button("Retry") { Task { await retry() } }
+                .buttonStyle(.bordered)
+        }
+        .padding(28)
+        .frame(maxWidth: .infinity)
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+    }
+
+    /// Shown while Module-1 content is still fetching (after the hub's full-screen spinner
+    /// clears but before the cards arrive) — an honest loading card, so the empty/Retry
+    /// state never flashes during a normal load.
+    private var contentLoadingPlaceholder: some View {
+        ProgressView()
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 44)
+            .background(Color.dsBgCard)
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
     }
 
     // MARK: - Module 2: Get to know your players (spotlight)
@@ -617,6 +669,7 @@ struct HomeView: View {
         .environment(FollowingStore())
         .environment(MatchStore())
         .environment(ClubStore())
+        .environment(HomeContentStore())
         .environment(TriviaStore())
         .environment(BracketStore())
         .environment(PredictionStore())

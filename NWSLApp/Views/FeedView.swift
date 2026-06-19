@@ -62,7 +62,7 @@ struct FeedView: View {
             // already loaded elsewhere.
             viewModel.clubStore = clubStore
             viewModel.store = feedStore
-            if case .idle = clubStore.state { await clubStore.load() }
+            await clubStore.loadIfNeeded()   // dedupe-aware: scope the feed only after clubs are loaded
             await viewModel.loadItemsIfNeeded(following: following)
         }
     }

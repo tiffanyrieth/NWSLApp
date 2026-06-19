@@ -371,6 +371,7 @@ NWSLApp/
 │   ├── ClubStore.swift                — shared club directory; one fetch, many readers
 │   ├── FeedPreferencesStore.swift     — Feed content-type toggles + muted sources + `defaultFeedFilter` (the chip the Feed opens to, raw string)
 │   ├── FeedStore.swift                — @Observable shared Feed cards + load state (one fetch, many readers); PREWARMED low-pri from RootTabView (first Feed switch instant); honest loading (isLoadingItems + hasCompletedItemsLoad → never a fake-empty)
+│   ├── HomeContentStore.swift         — @MainActor @Observable shared Home M1+M2 content (raw items + load lifecycle; HomeViewModel derives off it). SCOPE-AWARE loadIfNeeded (no-op when `loadedScope` matches the followed set, refetch when it changed) + debounced `warm()` WARMED FROM ONBOARDING on each team pick (Home populated on arrival, no first-paint flash) + prewarmed at launch; honest loading (isLoadingContent + hasCompletedContentLoad)
 │   ├── FollowSyncCoordinator.swift    — @MainActor; the ONLY follows↔Supabase bridge (sign-in union-merge + ongoing sync) — clubs (`follows`) AND competition follows (`competition_follows`)
 │   ├── NotificationSyncCoordinator.swift — @MainActor; device-token + notif-prefs↔Supabase bridge
 │   ├── TeamAlertStore.swift           — @Observable; per-team match-alert ON/OFF (`Set<String>`) → UserDefaults; `migrateFromGlobalIfNeeded`; `onAlertChanged` sync seam
@@ -384,7 +385,7 @@ NWSLApp/
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
 │   ├── BracketViewModel.swift         — Bracket session: round phase, progress, results, leaderboard, settled-round scoring (+ Game Center submit)
 │   ├── FeedViewModel.swift            — source-class chips (All/News/Clubs/Reporters/Players by `sourceType`; Reporters = league outlets too) + filtered [ContentCard] (follows∩ OR league, 7d staleness); `itemsError` on fetch failure
-│   ├── HomeViewModel.swift            — derives Home modules from MatchStore+ClubStore+Following; M1/M2 via ContentService; per-module `contentError`/`spotlightError` + `retryContent`
+│   ├── HomeViewModel.swift            — @MainActor; derives Home modules from MatchStore+ClubStore+Following; M1/M2 raw content read from the shared HomeContentStore (passthrough `contentError`/`spotlightError`/loading flags + `retryContent`/`refresh` drive the store)
 │   ├── MatchDetailViewModel.swift     — one match: temporalState (past/live/future) + /summary + live refresh + preview
 │   ├── PredictXIViewModel.swift       — Predict slate (open fixtures per followed team) + scoring via /summary + per-team leaderboards (+ GC submit)
 │   ├── XIPickerViewModel.swift        — in-flight XI picker: formation + slot→athlete + scoreline; read-only once submitted
@@ -394,7 +395,7 @@ NWSLApp/
 │   ├── TeamDetailViewModel.swift      — roster + social links + real season stats/leaders
 │   └── TriviaViewModel.swift          — one Daily-Trivia session; questions ← TriviaService (throws→error state); non-repeating daily-5 (unit-tested); best-streak leaderboard (+ GC submit)
 ├── Views/                             — one screen per file
-│   ├── RootTabView.swift              — app root; gates the 5-tab TabView behind `hasOnboarded` (full-screen OnboardingView until done — un-skippable + tab bar first-layout in the settled hub); injects stores; restores session + coordinators; GC syncAll; routes live-push tap
+│   ├── RootTabView.swift              — app root; gates the 5-tab TabView behind `hasOnboarded` (full-screen OnboardingView until done — un-skippable + tab bar first-layout in the settled hub); injects stores; restores session + coordinators; PREWARMS matches (so Home/Schedule first paint isn't gated on the scoreboard) + Feed + Home content (low-pri) — during onboarding too, so the post-onboarding Home arrives populated; GC syncAll; routes live-push tap
 │   ├── HomeView.swift                 — your-teams hub (32pt header + avatar): 4 modules; M1 round-robin + per-team chips + "See more →" (per-module error+retry); M2 Spotlight carousel; M3 Fan Zone featured + tiles; refetch on pull + follows-change
 │   ├── HomeContentListView.swift      — "See more from your teams" firehose: ALL followed-team content, no cap, reverse-chron, respects the active team chip (+ horizontal-scrolling `HomeTeamChips` bar: [All] + per-team, holds all 16 follows)
 │   ├── ProfileView.swift              — account & settings sheet: identity (editable display name) · Fan Zone stats (🏆 → Game Center) · Settings · My Teams · Account

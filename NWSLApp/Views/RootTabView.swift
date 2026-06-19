@@ -69,6 +69,11 @@ struct RootTabView: View {
     // Shared, prewarmable Feed cards store (Feed is the known-slow path; prewarmed below).
     @State private var feedStore = FeedStore()
 
+    // Shared Home content store (Module 1 + spotlight), warmed during onboarding (as teams
+    // are picked) and prewarmed at launch — so Home renders populated on arrival. Survives
+    // the onboarding→Home flip because it lives here at the root (see HomeContentStore).
+    @State private var homeContent = HomeContentStore()
+
     // The account layer (Sign in with Apple → Supabase user), created once and
     // shared so the post-onboarding sign-in prompt and the Profile screen read the
     // same signed-in state (see AuthStore).
@@ -171,6 +176,7 @@ struct RootTabView: View {
         .environment(predict)
         .environment(feedPreferences)
         .environment(feedStore)
+        .environment(homeContent)
         .environment(auth)
         .environment(notifications)
         .environment(teamAlerts)
@@ -183,6 +189,14 @@ struct RootTabView: View {
             following.onCompetitionFollowsChanged = { [matches] in
                 Task { await matches.load() }
             }
+            // Prewarm the season schedule so Home/Schedule's first paint isn't gated on it.
+            // DURING ONBOARDING this runs while the user picks teams, so by the time they reach
+            // Home it's already past the full-screen "Loading…" gate (which needs clubs AND
+            // matches loaded) — Home renders populated on arrival, not after a spinner. Guarded
+            // on `.idle` (HomeView/ScheduleView guard the same way), so no double fetch; the NWSL
+            // spine loads regardless of follows, and a later NT/competition follow reloads via
+            // `onCompetitionFollowsChanged` above.
+            Task { if case .idle = matches.state { await matches.load() } }
             // Restore any saved Supabase session, then start follow sync. Guard so
             // re-running .task (it can fire again on scene changes) doesn't build a
             // second coordinator.
@@ -257,8 +271,18 @@ struct RootTabView: View {
             // to the Feed tab is instant. Needs the directory loaded for follow-scoping; the
             // load self-guards, so the tab's own first-appearance load is then a no-op.
             Task(priority: .utility) {
-                await clubs.load()
+                await clubs.loadIfNeeded()
                 await feedStore.loadIfNeeded(following: following, clubStore: clubs)
+            }
+            // Prewarm Home content too, so the first Home paint on an already-onboarded launch
+            // is instant (same rationale as the Feed prewarm). Guarded on `hasOnboarded`: a fresh
+            // install has no followed set yet (an empty `?teams=` returns 0 home cards), and the
+            // onboarding warm path covers the picking phase. Scope-aware, so Home's own load is a no-op.
+            if following.hasOnboarded {
+                Task(priority: .utility) {
+                    await clubs.loadIfNeeded()
+                    await homeContent.loadIfNeeded(following: following, clubStore: clubs)
+                }
             }
         }
         // A tapped live push routes to its match (see PushBridge / AppRouter).

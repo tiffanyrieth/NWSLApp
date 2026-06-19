@@ -360,6 +360,8 @@ struct TeamsView: View {
                 Text(isFollowing ? "Following" : "Follow")
                     .dsFont(12.5, weight: .semibold)
                     .foregroundStyle(isFollowing ? Color.dsFgPrimary : Color.dsFgSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 32)

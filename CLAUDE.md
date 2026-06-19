@@ -264,6 +264,13 @@ understanding each change matters as much as shipping it.
 - Clarity over density — screens should breathe (~4–5 schedule cards/screen; avoid oversized
   NWSL/MLB-style cards).
 - **Dark appearance app-wide**, no toggle (page `#1C1C1E`, cards `#2C2C2E`).
+- **Dynamic Type (accessibility text):** text uses `.dsFont(size:…)` (`DSText.swift`, `@ScaledMetric`),
+  NOT raw `.font(.system(size:))`, so it scales with the user's text-size setting. Crests/flags scale
+  on the SAME `.body` axis (`TeamLogo`/`NationalTeamCard` `@ScaledMetric`) — a crest is HERO content
+  that grows WITH its paired abbreviation, never a fixed icon. **Capped at AX1** at the root
+  (`RootTabView` `.dynamicTypeSize(...accessibility1)`): supports larger-text needs, clamps the
+  extreme sizes so dense tables don't break. EXCEPT the geometric formation-pitch text (PlayerDot/
+  PitchDot/CombinedPitchView), sized to the pitch not the text. Dense rows hold via `minimumScaleFactor`.
 - **Crest rule:** bare crests via `TeamLogo`, no ring (only player monograms get a ring).
 - **Team colors:** `DesignTeamColors` by abbreviation so ESPN near-black primaries stay legible.
   **Always use each club's default brand colors; do not add manual color overrides (e.g. the
@@ -330,7 +337,7 @@ NWSLApp/
 ├── DesignSystem/
 │   ├── DSColor.swift                  — `Color.ds*` tokens (dark-only hex)
 │   ├── DSMetrics.swift                — `enum DS` spacing/radii/avatar/crest/game-card dims
-│   └── DSText.swift                   — modifiers: `.trackedCaps()`, `.sectionTitle()`, `.nativeBackButton(title:)` (bare ‹ chevron + centered inline title; nil title = identity-header screens), `Font.dsScore`
+│   └── DSText.swift                   — modifiers: `.dsFont(size:weight:design:relativeTo:monospacedDigit:)` (@ScaledMetric — Dynamic Type; the standard way to set text size, NOT raw `.font(.system(size:))`) + `.dsScoreFont()`; `.trackedCaps()`, `.sectionTitle()` (route through dsFont), `.nativeBackButton(title:)` (bare ‹ chevron + centered inline title; nil title = identity-header screens)
 ├── Models/
 │   ├── BracketEdition.swift           — Bracket Battle: BracketRound/Entrant/Matchup/Edition (64→6 rounds, flat Codable)
 │   ├── Club.swift                     — flat Club + ESPN /teams decode (brand/alternate color → crests)

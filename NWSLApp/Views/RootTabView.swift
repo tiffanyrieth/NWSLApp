@@ -156,6 +156,12 @@ struct RootTabView: View {
                 NavigationStack { OnboardingView() }
             }
         }
+        // Accessibility: honor the user's text-size setting (Dynamic Type) for text AND
+        // crests (which scale on the same axis — see DSText.dsFont / TeamLogo), but CAP at
+        // AX1. This covers larger-text needs (older eyes, mild low-vision) without forcing
+        // the dense tables to survive the extreme accessibility sizes (AX2–AX5 clamp to AX1);
+        // beyond that the system reader is the right tool. Also bounds the system tab-bar labels.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .environment(router)
         .environment(following)
         .environment(matches)

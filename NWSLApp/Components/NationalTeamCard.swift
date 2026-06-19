@@ -24,6 +24,11 @@ struct NationalTeamCard: View {
     // National-team alert bells share the club alert store (keyed by FIFA code).
     @Environment(TeamAlertStore.self) private var teamAlerts
 
+    // Flag dimensions scale with Dynamic Type (capped at the root), like the club crest —
+    // the flag is hero content paired with the FIFA code + name, so it grows with the text.
+    @ScaledMetric(relativeTo: .body) private var flagWidth: CGFloat = 52
+    @ScaledMetric(relativeTo: .body) private var flagHeight: CGFloat = 36
+
     init(_ team: NationalTeam) { self.team = team }
 
     private var isFollowing: Bool { following.isFollowing(nationalTeam: team) }
@@ -75,7 +80,7 @@ struct NationalTeamCard: View {
     // it falls back to a country-color block so the mark never goes blank.
     private var flag: some View {
         flagImage
-        .frame(width: 52, height: 36)
+        .frame(width: flagWidth, height: flagHeight)
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 6, style: .continuous)

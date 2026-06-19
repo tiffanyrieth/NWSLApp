@@ -799,7 +799,7 @@ struct MatchDetailView: View {
             ZStack {
                 if showScores, let score = competitor?.score {
                     Text(score)
-                        .font(.dsScore)
+                        .dsScoreFont()
                         .foregroundStyle(Color.dsFgPrimary)
                 }
             }

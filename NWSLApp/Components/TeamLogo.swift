@@ -35,8 +35,21 @@ struct TeamLogo: View {
     let urlString: String?
     /// When set, the crisp NWSL crest (proxy `/crest?team=…`) is tried FIRST, with the ESPN
     /// `urlString` as the fallback if it isn't loaded (404) or fails. Nil keeps ESPN-only.
-    var teamAbbreviation: String? = nil
-    var size: CGFloat = 24
+    let teamAbbreviation: String?
+
+    // The rendered crest size at the DEFAULT text setting, scaled with Dynamic Type (capped
+    // at the root — see RootTabView). The crest is HERO content, not a fixed icon: it grows/
+    // shrinks WITH the paired abbreviation. Scaled relative to `.body` — the same axis `dsFont`
+    // uses — so crest + text move in lockstep. Size still locks per layout pass before the async
+    // load, so the "no reflow on image arrival" guarantee holds.
+    @ScaledMetric private var size: CGFloat
+
+    init(urlString: String?, teamAbbreviation: String? = nil, size: CGFloat = 24,
+         relativeTo: Font.TextStyle = .body) {
+        self.urlString = urlString
+        self.teamAbbreviation = teamAbbreviation
+        _size = ScaledMetric(wrappedValue: size, relativeTo: relativeTo)
+    }
 
     // The decoded crest, once resolved. Seeded synchronously from the cache (see
     // body) so a cached image is shown on the first frame.

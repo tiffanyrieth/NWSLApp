@@ -37,6 +37,12 @@ final class GameCenterManager {
     /// three game screens + the Profile leaderboards strip) rather than at launch.
     private var didStartAuthentication = false
 
+    /// True once GameKit's auth handler has reached a DEFINITIVE outcome (signed in OR
+    /// declined/error) — i.e. auth is no longer "still resolving". Used to tell a real
+    /// timing race (a game finished before auth resolved) apart from the expected
+    /// "this user has no Game Center" case, so we only emit telemetry for the former.
+    private var authResolved = false
+
     // MARK: - Authentication
 
     /// Install GKLocalPlayer's auth handler. Triggered lazily the first time the user
@@ -59,9 +65,11 @@ final class GameCenterManager {
                 print("[GameCenter] auth error: \(error.localizedDescription)")
                 #endif
                 self.isAuthenticated = false
+                self.authResolved = true       // definitive: declined / unavailable
                 return
             }
             self.isAuthenticated = GKLocalPlayer.local.isAuthenticated
+            self.authResolved = true           // definitive outcome reached
         }
     }
 
@@ -71,7 +79,15 @@ final class GameCenterManager {
     /// additive) but NOT silent — it's flagged via telemetry so a wrong ASC id / offline /
     /// unlinked-account failure reaches the owner instead of vanishing.
     func submit(_ value: Int, to leaderboardID: String) {
-        guard isAuthenticated else { return }
+        guard isAuthenticated else {
+            // Genuine race: a game finished before GC auth resolved. The foreground/auth-change
+            // `syncAll` re-pushes current store state once it does, so this self-heals — but flag
+            // it. (Skip telemetry when auth HAS resolved: that's just a user without Game Center.)
+            if !authResolved {
+                Diagnostics.shared.record(.apiFailure, "GC submit \(leaderboardID): auth not resolved yet")
+            }
+            return
+        }
         Task {
             do {
                 try await GKLeaderboard.submitScore(
@@ -86,7 +102,12 @@ final class GameCenterManager {
     /// server-idempotent — re-reporting a completed one is harmless and never lowers
     /// a higher prior percent — so callers fire-and-forget with no local bookkeeping.
     func report(_ achievementID: String, percent: Double = 100) {
-        guard isAuthenticated else { return }
+        guard isAuthenticated else {
+            if !authResolved {
+                Diagnostics.shared.record(.apiFailure, "GC report \(achievementID): auth not resolved yet")
+            }
+            return
+        }
         let achievement = GKAchievement(identifier: achievementID)
         achievement.percentComplete = percent
         achievement.showsCompletionBanner = true

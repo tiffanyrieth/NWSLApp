@@ -127,13 +127,14 @@ final class NotificationSyncCoordinator {
         guard let userID = newID else { return }
 
         if let token = bridge.deviceToken, token != lastUploadedToken {
-            lastUploadedToken = token
+            // Advance the shadow ONLY after the write succeeds — otherwise a failure (after a
+            // pre-emptive shadow bump) could be skipped by a racing second sync and never retry.
+            // The upsert is idempotent, so a rare double-send while one is in flight is harmless.
             Task {
-                do { try await tokenService.registerToken(token, userID: userID) }
-                catch {
-                    // The APNs token never reached the server → the match-watcher can't push
-                    // to this device. Reset the shadow so the next sync retries, and flag it.
-                    lastUploadedToken = nil
+                do {
+                    try await tokenService.registerToken(token, userID: userID)
+                    lastUploadedToken = token
+                } catch {
                     Diagnostics.shared.record(.apiFailure, "notif registerToken: \(error.localizedDescription)")
                 }
             }
@@ -141,11 +142,11 @@ final class NotificationSyncCoordinator {
 
         let snapshot = preferences.snapshot
         if snapshot != lastPushedSnapshot {
-            lastPushedSnapshot = snapshot
             Task {
-                do { try await prefsService.pushPreferences(snapshot, userID: userID) }
-                catch {
-                    lastPushedSnapshot = nil   // retry on the next sync
+                do {
+                    try await prefsService.pushPreferences(snapshot, userID: userID)
+                    lastPushedSnapshot = snapshot
+                } catch {
                     Diagnostics.shared.record(.apiFailure, "notif pushPreferences: \(error.localizedDescription)")
                 }
             }

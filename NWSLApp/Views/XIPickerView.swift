@@ -25,6 +25,7 @@ struct XIPickerView: View {
     @State private var picker: XIPickerViewModel
     @State private var activeSlot: SlotRef?
     @State private var showSignIn = false
+    @State private var didSubmit = false   // double-tap guard for the one-way submit
     @Environment(PredictionStore.self) private var store
     @Environment(AuthStore.self) private var auth
     @Environment(\.dismiss) private var dismiss
@@ -255,6 +256,8 @@ struct XIPickerView: View {
     private var footerButtons: some View {
         VStack(spacing: 10) {
             Button {
+                guard !didSubmit else { return }          // double-tap guard (submit is one-way)
+                didSubmit = true
                 store.saveDraft(picker.toPrediction())   // persist the latest as a draft…
                 store.submit(fixtureID: fixture.id)       // …then flip it to submitted (one-way)
                 // Game Center (additive): "First Prediction" — idempotent, so firing

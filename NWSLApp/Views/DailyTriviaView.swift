@@ -196,6 +196,9 @@ struct DailyTriviaView: View {
                         .disabled(viewModel.selectedIndex == nil)
                 } else if viewModel.isLastQuestion {
                     Button("See Results") {
+                        // Double-tap guard: `finish()` flips `isFinished` synchronously, so a
+                        // second tap before the results view swaps in bails (no duplicate submits).
+                        guard !viewModel.isFinished else { return }
                         store.recordCompletion(correct: viewModel.score, outOf: viewModel.questionCount)
                         viewModel.finish()
                         // Game Center (additive): streak board + achievements.

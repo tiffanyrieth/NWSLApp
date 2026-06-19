@@ -183,8 +183,15 @@ struct HomeView: View {
             else if result.cards.isEmpty && viewModel.selectedTeam == nil {
                 if following.followedIDs.isEmpty {
                     followPrompt
-                } else {
+                } else if viewModel.hasCompletedContentLoad && !viewModel.isLoadingContent {
+                    // A load actually completed empty → honest "no fresh posts" + retry.
                     emptyFollowedContent { await viewModel.retryContent(following: following) }
+                } else {
+                    // Still loading (the directory-load → content-load gap, after the
+                    // hub's full-screen spinner clears): an honest loading state, NEVER
+                    // the empty/Retry card (a loading state must not look identical to an
+                    // empty result, #5). Mirrors FeedView's gate.
+                    contentLoadingPlaceholder
                 }
             } else {
                 VStack(spacing: 14) {
@@ -272,6 +279,17 @@ struct HomeView: View {
         .frame(maxWidth: .infinity)
         .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+    }
+
+    /// Shown while Module-1 content is still fetching (after the hub's full-screen spinner
+    /// clears but before the cards arrive) — an honest loading card, so the empty/Retry
+    /// state never flashes during a normal load.
+    private var contentLoadingPlaceholder: some View {
+        ProgressView()
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 44)
+            .background(Color.dsBgCard)
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
     }
 
     // MARK: - Module 2: Get to know your players (spotlight)

@@ -35,6 +35,13 @@ final class HomeViewModel {
     private(set) var contentError: String? = nil
     private(set) var spotlightError: String? = nil
 
+    // Module-1 load lifecycle, so the view can tell "still loading" from "loaded but
+    // genuinely empty". Without it the empty/Retry card flashes for a frame during the
+    // initial fetch — a loading state must never look identical to an empty result (#5).
+    // Mirrors FeedStore's isLoadingItems + hasCompletedItemsLoad.
+    private(set) var isLoadingContent = false
+    private(set) var hasCompletedContentLoad = false
+
     /// The one simple, honest message both modules show on a failed load.
     static let loadFailureMessage = "Couldn't load — tap to retry"
 
@@ -82,6 +89,12 @@ final class HomeViewModel {
         // (so the per-module "tap to retry" actually retries).
         guard force || (teamContentItems.isEmpty && contentError == nil
                         && allSpotlights.isEmpty && spotlightError == nil) else { return }
+        // Mark the module as loading BEFORE the first await so the view shows a loading
+        // state (not the empty/Retry card) during the directory-load → content-load gap.
+        // `hasCompletedContentLoad` latches true at the end and stays true across forced
+        // refetches (those keep the existing cards on screen, so no flash).
+        isLoadingContent = true
+        defer { isLoadingContent = false; hasCompletedContentLoad = true }
         // CRITICAL: content is scoped to followed-team ABBREVIATIONS resolved from the club
         // directory, so we must not proceed until ClubStore is `.loaded`. Otherwise a prewarmed-
         // but-still-loading directory yields an empty scope → `/team-videos` with no `teams=` →

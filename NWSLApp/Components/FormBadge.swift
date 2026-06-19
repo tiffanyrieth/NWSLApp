@@ -58,7 +58,7 @@ struct FormBadge: View {
 
     var body: some View {
         Text(letter)
-            .font(.system(size: fontSize, weight: .bold))
+            .dsFont(fontSize, weight: .bold)
             .foregroundStyle(.white)
             .frame(width: size, height: size)
             .background(color, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))

@@ -30,7 +30,7 @@ struct SignInPromptView: View {
             Spacer()
 
             Image(systemName: "star.circle.fill")
-                .font(.system(size: 56))
+                .dsFont(56)
                 .foregroundStyle(Color.accentColor)
 
             VStack(spacing: 10) {

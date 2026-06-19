@@ -164,7 +164,7 @@ struct TeamsView: View {
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: toast.on ? "bell.fill" : "bell.slash.fill")
-                    .font(.system(size: 14, weight: .semibold))
+                    .dsFont(14, weight: .semibold)
                     .foregroundStyle(toast.on ? Color.dsAccent : Color.dsFgSecondary)
                 Group {
                     if toast.on {
@@ -176,7 +176,7 @@ struct TeamsView: View {
                         Text("Match alerts off.").foregroundStyle(Color.dsFgPrimary)
                     }
                 }
-                .font(.system(size: 13))
+                .dsFont(13)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
@@ -196,7 +196,7 @@ struct TeamsView: View {
     private var header: some View {
         HStack {
             Text("Teams")
-                .font(.system(size: 32, weight: .bold))
+                .dsFont(32, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             Spacer()
             Button {
@@ -206,7 +206,7 @@ struct TeamsView: View {
             } label: {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "bell")
-                        .font(.system(size: 17, weight: .semibold))
+                        .dsFont(17, weight: .semibold)
                         .foregroundStyle(Color.dsAccent)
                         .frame(width: 40, height: 40)
                         .background(Color.dsBgCard)
@@ -240,7 +240,7 @@ struct TeamsView: View {
 
     private var subtitle: some View {
         Text("Tap any club to explore their squad and stats.")
-            .font(.system(size: 13))
+            .dsFont(13)
             .foregroundStyle(Color.dsFgSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
@@ -259,7 +259,7 @@ struct TeamsView: View {
                 .frame(width: 16, height: 8)
                 .padding(.trailing, 12)
             Text("Manage your match alerts here")
-                .font(.system(size: 13, weight: .semibold))
+                .dsFont(13, weight: .semibold)
                 .foregroundStyle(.white)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
@@ -284,7 +284,7 @@ struct TeamsView: View {
                 VStack(spacing: 9) {
                     crest(for: club)
                     Text(club.displayName)
-                        .font(.system(size: 14, weight: .semibold))
+                        .dsFont(14, weight: .semibold)
                         .foregroundStyle(Color.dsFgPrimary)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
@@ -355,10 +355,10 @@ struct TeamsView: View {
         Button { following.toggle(club) } label: {
             HStack(spacing: 5) {
                 Image(systemName: isFollowing ? "star.fill" : "star")
-                    .font(.system(size: 11))
+                    .dsFont(11)
                     .foregroundStyle(isFollowing ? Color.dsFollowStar : Color.dsFgSecondary)
                 Text(isFollowing ? "Following" : "Follow")
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .dsFont(12.5, weight: .semibold)
                     .foregroundStyle(isFollowing ? Color.dsFgPrimary : Color.dsFgSecondary)
             }
             .frame(maxWidth: .infinity)
@@ -381,7 +381,7 @@ struct TeamsView: View {
         // on a first toggle-on (Bell-Tap fix, Bug 3).
         return Button { toggleAlerts(for: club) } label: {
             Image(systemName: on ? "bell.fill" : "bell")
-                .font(.system(size: 13, weight: .medium))
+                .dsFont(13, weight: .medium)
                 .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
                 .frame(width: 36, height: 32)
                 .background(on ? Color.dsAccentMuted : Color.dsBgTertiary)
@@ -411,28 +411,28 @@ struct TeamsView: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "globe")
-                    .font(.system(size: 18))
+                    .dsFont(18)
                     .foregroundStyle(Color.dsAccent)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Follow competitions")
-                        .font(.system(size: 15, weight: .semibold))
+                        .dsFont(15, weight: .semibold)
                         .foregroundStyle(Color.dsFgPrimary)
                     Text(competitionsSubtitle)
-                        .font(.system(size: 12.5))
+                        .dsFont(12.5)
                         .foregroundStyle(Color.dsFgSecondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
                 if competitionFollowCount > 0 {
                     Text("\(competitionFollowCount) ON")
-                        .font(.system(size: 11, weight: .bold))
+                        .dsFont(11, weight: .bold)
                         .foregroundStyle(Color.dsSuccess)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)
                         .background(Color.dsSuccess.opacity(0.18), in: Capsule())
                 }
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 15, weight: .semibold))
+                    .dsFont(15, weight: .semibold)
                     .foregroundStyle(Color.dsFgTertiary)
             }
             .padding(.horizontal, 16)
@@ -481,7 +481,7 @@ struct TeamsView: View {
                     .foregroundStyle(Color.dsFgSecondary)
             }
         }
-        .font(.system(size: 13))
+        .dsFont(13)
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 16)

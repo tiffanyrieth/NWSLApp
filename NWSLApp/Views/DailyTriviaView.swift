@@ -220,7 +220,7 @@ struct DailyTriviaView: View {
             VStack(spacing: 24) {
                 VStack(spacing: 8) {
                     Image(systemName: "brain.head.profile")
-                        .font(.system(size: 44))
+                        .dsFont(44)
                         .foregroundStyle(accent)
                     Text(showRecap ? "Nice work!" : "You're all set for today")
                         .font(.title2.weight(.bold))
@@ -250,7 +250,7 @@ struct DailyTriviaView: View {
         VStack(spacing: 16) {
             VStack(spacing: 4) {
                 Text("\(store.lastScore) / \(viewModel.questionCount)")
-                    .font(.system(size: 48, weight: .heavy, design: .rounded))
+                    .dsFont(48, weight: .heavy, design: .rounded)
                     .foregroundStyle(accent)
                 Text("Today's score")
                     .font(.caption.weight(.semibold))

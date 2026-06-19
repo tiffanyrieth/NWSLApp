@@ -101,7 +101,7 @@ struct ThumbnailContentCard: View {
         VStack(alignment: .leading, spacing: 6) {
             if let title = card.title {
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .dsFont(15, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -113,7 +113,7 @@ struct ThumbnailContentCard: View {
                 Text("·")
                 Text(card.timestamp.relativeAgo)
             }
-            .font(.system(size: 12))
+            .dsFont(12)
             .foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -126,28 +126,28 @@ struct ThumbnailContentCard: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Text(card.authorName ?? "")
-                    .font(.system(size: 14, weight: .bold))
+                    .dsFont(14, weight: .bold)
                     .foregroundStyle(Color.dsFgPrimary)
                     .lineLimit(1)
                 if let sub = card.subreddit {
                     Text("via")
-                        .font(.system(size: 12))
+                        .dsFont(12)
                         .foregroundStyle(Color.dsFgSecondary)
                     PlatformBadge(platform: .reddit, size: 13)
                     Text("r/\(sub)")
-                        .font(.system(size: 12, weight: .semibold))
+                        .dsFont(12, weight: .semibold)
                         .foregroundStyle(Color(hex: "#FF4500"))
                         .lineLimit(1)
                 }
                 Text("· \(card.timestamp.relativeAgo)")
-                    .font(.system(size: 12))
+                    .dsFont(12)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
             if let caption = card.bodyText ?? card.title {
                 Text(caption)
-                    .font(.system(size: 14))
+                    .dsFont(14)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineSpacing(3)
                     .lineLimit(2)
@@ -246,7 +246,7 @@ struct ThumbnailHeader: View {
             Circle().fill(Color.black.opacity(0.7))
             Circle().stroke(Color.white.opacity(0.25), lineWidth: 2)
             Image(systemName: "play.fill")
-                .font(.system(size: size >= 52 ? 18 : 14))
+                .dsFont(size >= 52 ? 18 : 14)
                 .foregroundStyle(.white)
         }
         .frame(width: size, height: size)
@@ -257,12 +257,12 @@ struct ThumbnailHeader: View {
             ZStack {
                 Circle().stroke(teamColor, lineWidth: 1.5)
                 Text(abbreviation)
-                    .font(.system(size: 6, weight: .bold))
+                    .dsFont(6, weight: .bold)
                     .foregroundStyle(teamColor)
             }
             .frame(width: 16, height: 16)
             Text(abbreviation)
-                .font(.system(size: 11, weight: .semibold))
+                .dsFont(11, weight: .semibold)
                 .foregroundStyle(teamColor)
         }
         .padding(.vertical, 4)
@@ -275,7 +275,7 @@ struct ThumbnailHeader: View {
         HStack(spacing: 5) {
             PlatformBadge(platform: chip.platform, size: 14)
             Text(chip.label)
-                .font(.system(size: 11, weight: .semibold))
+                .dsFont(11, weight: .semibold)
                 .foregroundStyle(.white)
         }
         .padding(.vertical, 4)
@@ -286,8 +286,7 @@ struct ThumbnailHeader: View {
 
     private func durationPill(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 11, weight: .semibold))
-            .monospacedDigit()
+            .dsFont(11, weight: .semibold, monospacedDigit: true)
             .foregroundStyle(.white)
             .padding(.vertical, 2)
             .padding(.horizontal, 6)

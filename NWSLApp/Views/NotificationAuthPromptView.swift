@@ -37,7 +37,7 @@ struct NotificationAuthPromptView: View {
             Spacer()
 
             Image(systemName: "bell.badge.fill")
-                .font(.system(size: 52))
+                .dsFont(52)
                 .foregroundStyle(Color.accentColor)
 
             VStack(spacing: 10) {

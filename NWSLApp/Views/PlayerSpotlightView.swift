@@ -50,8 +50,7 @@ struct PlayerSpotlightView: View {
     private var hero: some View {
         ZStack(alignment: .topTrailing) {
             Text("\(spotlight.jerseyNumber)")
-                .font(.system(size: 120, weight: .heavy))
-                .monospacedDigit()
+                .dsFont(120, weight: .heavy, monospacedDigit: true)
                 .foregroundStyle(.white.opacity(0.06))
                 .offset(x: 8, y: -18)
                 .allowsHitTesting(false)
@@ -64,8 +63,7 @@ struct PlayerSpotlightView: View {
                     ZStack {
                         Circle().fill(jersey.fill)
                         Text("\(spotlight.jerseyNumber)")
-                            .font(.system(size: 20, weight: .heavy))
-                            .monospacedDigit()
+                            .dsFont(20, weight: .heavy, monospacedDigit: true)
                             .foregroundStyle(jersey.on)
                     }
                     .frame(width: 52, height: 52)
@@ -73,11 +71,11 @@ struct PlayerSpotlightView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         if !nameParts.first.isEmpty {
                             Text(nameParts.first)
-                                .font(.system(size: 22, weight: .medium))
+                                .dsFont(22, weight: .medium)
                                 .foregroundStyle(Color.dsFgSecondary)
                         }
                         Text(nameParts.last)
-                            .font(.system(size: 30, weight: .bold))
+                            .dsFont(30, weight: .bold)
                             .foregroundStyle(Color.dsFgPrimary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -99,7 +97,7 @@ struct PlayerSpotlightView: View {
                 Text("Age \(age)")
             }
         }
-        .font(.system(size: 13, weight: .medium))
+        .dsFont(13, weight: .medium)
         .foregroundStyle(Color.dsFgSecondary)
     }
 
@@ -129,11 +127,10 @@ struct PlayerSpotlightView: View {
     private func seasonStat(_ value: String, _ label: String, highlight: Bool = false) -> some View {
         VStack(spacing: 4) {
             Text(value)
-                .font(.system(size: 28, weight: .bold))
-                .monospacedDigit()
+                .dsFont(28, weight: .bold, monospacedDigit: true)
                 .foregroundStyle(highlight ? accent : Color.dsFgPrimary)
             Text(label)
-                .font(.system(size: 12))
+                .dsFont(12)
                 .foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity)
@@ -148,7 +145,7 @@ struct PlayerSpotlightView: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader("The Story")
             Text(spotlight.bioBlurb)
-                .font(.system(size: 15))
+                .dsFont(15)
                 .lineSpacing(4)
                 .foregroundStyle(Color.dsFgPrimary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -171,10 +168,10 @@ struct PlayerSpotlightView: View {
                     ForEach(facts, id: \.self) { fact in
                         HStack(alignment: .firstTextBaseline, spacing: 10) {
                             Text("★")
-                                .font(.system(size: 11))
+                                .dsFont(11)
                                 .foregroundStyle(accent)
                             Text(fact)
-                                .font(.system(size: 14))
+                                .dsFont(14)
                                 .foregroundStyle(Color.dsFgPrimary)
                                 .fixedSize(horizontal: false, vertical: true)
                             Spacer(minLength: 0)
@@ -203,7 +200,7 @@ struct PlayerSpotlightView: View {
                         ZStack {
                             heroBackground
                             Image(systemName: "play.circle.fill")
-                                .font(.system(size: 52))
+                                .dsFont(52)
                                 .foregroundStyle(.white.opacity(0.95))
                                 .shadow(radius: 6)
                         }
@@ -214,13 +211,13 @@ struct PlayerSpotlightView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             if let title = spotlight.videoTitle {
                                 Text(title)
-                                    .font(.system(size: 15, weight: .semibold))
+                                    .dsFont(15, weight: .semibold)
                                     .foregroundStyle(Color.dsFgPrimary)
                                     .multilineTextAlignment(.leading)
                             }
                             if let source = spotlight.videoSource {
                                 Text("Watch on \(source)")
-                                    .font(.system(size: 13, weight: .semibold))
+                                    .dsFont(13, weight: .semibold)
                                     .foregroundStyle(accent)
                             }
                         }
@@ -258,7 +255,7 @@ struct PlayerSpotlightView: View {
     // MARK: - Helpers
 
     private func sectionHeader(_ title: String) -> some View {
-        Text(title).font(.system(size: 17, weight: .bold)).foregroundStyle(Color.dsFgPrimary)
+        Text(title).dsFont(17, weight: .bold).foregroundStyle(Color.dsFgPrimary)
     }
 
     /// Split the name into a first line + a bold last line. A single-word name

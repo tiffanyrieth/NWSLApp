@@ -29,7 +29,7 @@ struct BroadcastChip: View {
                 .fill(color)
                 .frame(width: 5, height: 5)
             Text(name)
-                .font(.system(size: small ? 10 : 11, weight: .bold))
+                .dsFont(small ? 10 : 11, weight: .bold)
                 .tracking(0.4)
                 .lineLimit(1)
         }

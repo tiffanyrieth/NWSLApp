@@ -27,7 +27,7 @@ struct HomeContentListView: View {
                 }
                 if cards.isEmpty {
                     Text(emptyText)
-                        .font(.system(size: 13))
+                        .dsFont(13)
                         .foregroundStyle(Color.dsFgSecondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.top, 8)

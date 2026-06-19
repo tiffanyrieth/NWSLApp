@@ -38,11 +38,11 @@ struct NationalTeamCard: View {
         VStack(spacing: 9) {
             flag
             Text(team.code)
-                .font(.system(size: 12, weight: .heavy))
+                .dsFont(12, weight: .heavy)
                 .tracking(0.4)
                 .foregroundStyle(accent)
             Text(team.name)
-                .font(.system(size: 14, weight: .semibold))
+                .dsFont(14, weight: .semibold)
                 .foregroundStyle(Color.dsFgPrimary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
@@ -141,10 +141,10 @@ struct NationalTeamCard: View {
         Button { toggleFollow() } label: {
             HStack(spacing: 5) {
                 Image(systemName: isFollowing ? "star.fill" : "star")
-                    .font(.system(size: 11))
+                    .dsFont(11)
                     .foregroundStyle(isFollowing ? Color.dsFollowStar : Color.dsFgSecondary)
                 Text(isFollowing ? "Following" : "Follow")
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .dsFont(12.5, weight: .semibold)
                     .foregroundStyle(isFollowing ? Color.dsFgPrimary : Color.dsFgSecondary)
             }
             .frame(maxWidth: .infinity)
@@ -163,7 +163,7 @@ struct NationalTeamCard: View {
         // hub's job); the Teams-tab coach mark covers the education.
         return Button { teamAlerts.toggle(for: team.code) } label: {
             Image(systemName: on ? "bell.fill" : "bell")
-                .font(.system(size: 13, weight: .medium))
+                .dsFont(13, weight: .medium)
                 .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
                 .frame(width: 36, height: 32)
                 .background(on ? Color.dsAccentMuted : Color.dsBgTertiary)

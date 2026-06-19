@@ -74,7 +74,7 @@ struct NotificationsView: View {
         ) {
             if followed.isEmpty {
                 Text("Follow teams to turn on match alerts.")
-                    .font(.system(size: 13))
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
@@ -92,7 +92,7 @@ struct NotificationsView: View {
         HStack(spacing: 12) {
             TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: DS.avatarMd)
             Text(club.displayName)
-                .font(.system(size: 15))
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgPrimary)
             Spacer(minLength: 8)
             Toggle("", isOn: Binding(

@@ -31,7 +31,7 @@ struct MatchCard: View {
             // (redundant on the home league). E.g. "SHEBELIEVES CUP", "INTERNATIONAL FRIENDLY".
             if let label = match.competition.displayLabel {
                 Text(label.uppercased())
-                    .font(.system(size: 10, weight: .bold))
+                    .dsFont(10, weight: .bold)
                     .tracking(0.6)
                     .foregroundStyle(Color.dsFgTertiary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -78,7 +78,7 @@ struct MatchCard: View {
             // two-team-context rule (crest + ABBREVIATION, never crest-only). Matches
             // the Standings / match-detail convention (bold, tracked, team color).
             Text(competitor?.team?.abbreviation ?? "")
-                .font(.system(size: 14, weight: .bold))
+                .dsFont(14, weight: .bold)
                 .tracking(0.3)
                 .foregroundStyle(color)
                 .lineLimit(1)
@@ -88,8 +88,7 @@ struct MatchCard: View {
             ZStack {
                 if showScores, let score = competitor?.score {
                     Text(score)
-                        .font(.system(size: 32, weight: .heavy, design: .rounded))
-                        .monospacedDigit()
+                        .dsFont(32, weight: .heavy, design: .rounded, monospacedDigit: true)
                         .foregroundStyle(Color.dsFgPrimary)
                 }
             }
@@ -108,15 +107,14 @@ struct MatchCard: View {
                 EmptyView()
             case "post":
                 Text("FULL TIME")
-                    .font(.system(size: 11))
+                    .dsFont(11)
                     .tracking(0.3)
                     .foregroundStyle(Color.dsFgSecondary)
             default:
                 // Cyan kickoff time — completes the temporal-color set with the
                 // orange live clock and green FT.
                 Text(kickoffTimeText)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .monospacedDigit()
+                    .dsFont(22, weight: .bold, design: .rounded, monospacedDigit: true)
                     .foregroundStyle(Color.dsStateKickoff)
             }
         }
@@ -134,24 +132,23 @@ struct MatchCard: View {
                     .opacity(pulse ? 0.3 : 1)
                     .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: pulse)
                 Text("LIVE")
-                    .font(.system(size: 11, weight: .bold))
+                    .dsFont(11, weight: .bold)
                     .tracking(0.6)
                     .foregroundStyle(Color.dsStateLive)
                 if let clock = event.status?.displayClock {
                     Text(clock)
-                        .font(.system(size: 11, weight: .bold))
-                        .monospacedDigit()
+                        .dsFont(11, weight: .bold, monospacedDigit: true)
                         .foregroundStyle(Color.dsStateClock)
                 }
             }
         case "post":
             Text("FT")
-                .font(.system(size: 11, weight: .bold))
+                .dsFont(11, weight: .bold)
                 .tracking(0.6)
                 .foregroundStyle(Color.dsStateFinal)
         default:
             Text("KICKOFF")
-                .font(.system(size: 11, weight: .bold))
+                .dsFont(11, weight: .bold)
                 .tracking(0.6)
                 .foregroundStyle(Color.dsStateKickoff)
         }
@@ -178,7 +175,7 @@ struct MatchCard: View {
             }
             if let venue = event.venueName {
                 Text(venue)
-                    .font(.system(size: 11.5))
+                    .dsFont(11.5)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)

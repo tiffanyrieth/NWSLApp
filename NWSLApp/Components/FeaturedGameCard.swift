@@ -36,26 +36,25 @@ struct FeaturedGameCard: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("FEATURED")
-                        .font(.system(size: 10, weight: .bold))
+                        .dsFont(10, weight: .bold)
                         .tracking(1.4)
                         .foregroundStyle(accent)
                     Spacer(minLength: 8)
                     if let badge {
                         HStack(spacing: 3) {
-                            if let badgeIcon { Text(badgeIcon).font(.system(size: 12)) }
+                            if let badgeIcon { Text(badgeIcon).dsFont(12) }
                             Text(badge)
-                                .font(.system(size: 13, weight: .bold))
-                                .monospacedDigit()
+                                .dsFont(13, weight: .bold, monospacedDigit: true)
                                 .foregroundStyle(accent)
                         }
                     }
                 }
                 Text(title)
-                    .font(.system(size: 20, weight: .bold))
+                    .dsFont(20, weight: .bold)
                     .foregroundStyle(Color.dsFgPrimary)
                     .padding(.top, 3)
                 Text(tagline)
-                    .font(.system(size: 12.5))
+                    .dsFont(12.5)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -85,7 +84,7 @@ struct FeaturedGameCard: View {
         ZStack {
             Circle().fill(accent.opacity(0.18))
             Circle().stroke(accent.opacity(0.4), lineWidth: 1)
-            Text(emoji).font(.system(size: 34))
+            Text(emoji).dsFont(34)
         }
         .frame(width: 64, height: 64)
     }
@@ -93,7 +92,7 @@ struct FeaturedGameCard: View {
     // Solid-accent CTA pill (white label) — louder than the tile's tinted pill.
     private var statusPill: some View {
         Text(completed ? statusLine : "\(statusLine) →")
-            .font(.system(size: 13, weight: .bold))
+            .dsFont(13, weight: .bold)
             .foregroundStyle(completed ? Color.dsFgSecondary : .white)
             .padding(.horizontal, 14)
             .padding(.vertical, 7)

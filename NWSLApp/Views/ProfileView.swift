@@ -92,7 +92,7 @@ struct ProfileView: View {
             .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
             Text("Match alerts, alert types, and activity — all in one place.")
-                .font(.system(size: 11))
+                .dsFont(11)
                 .foregroundStyle(Color.dsFgQuaternary)
                 .padding(.horizontal, 4)
         }
@@ -110,22 +110,22 @@ struct ProfileView: View {
                         .fill(LinearGradient(colors: [Color(hex: "FF375F"), Color(hex: "FF6B8A")],
                                              startPoint: .topLeading, endPoint: .bottomTrailing))
                     Image(systemName: "heart.fill")
-                        .font(.system(size: 18))
+                        .dsFont(18)
                         .foregroundStyle(.white)
                 }
                 .frame(width: 40, height: 40)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Support NWSLApp")
-                        .font(.system(size: 16, weight: .semibold))
+                        .dsFont(16, weight: .semibold)
                         .foregroundStyle(Color.dsFgPrimary)
                     Text("Help keep this app free and growing")
-                        .font(.system(size: 13))
+                        .dsFont(13)
                         .foregroundStyle(Color.dsFgSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .dsFont(13, weight: .semibold)
                     .foregroundStyle(Color.dsFgTertiary)
             }
             .padding(.horizontal, 16)
@@ -150,20 +150,20 @@ struct ProfileView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.dsAccent)
                 Image(systemName: "bell.fill")
-                    .font(.system(size: 15))
+                    .dsFont(15)
                     .foregroundStyle(.white)
             }
             .frame(width: 29, height: 29)
             Text("Notifications")
-                .font(.system(size: 15))
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgPrimary)
             Spacer(minLength: 8)
             Text(alerts.enabledCount == 0 ? "Off"
                  : "\(alerts.enabledCount) team\(alerts.enabledCount == 1 ? "" : "s")")
-                .font(.system(size: 15))
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgSecondary)
             Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
+                .dsFont(13, weight: .semibold)
                 .foregroundStyle(Color.dsFgTertiary)
         }
         .padding(.horizontal, 16)
@@ -180,10 +180,10 @@ struct ProfileView: View {
                 avatarCircle(initials)
                 VStack(spacing: 2) {
                     Text(auth.displayName ?? "Member")
-                        .font(.system(size: 20, weight: .bold))
+                        .dsFont(20, weight: .bold)
                         .foregroundStyle(Color.dsFgPrimary)
                     Text("Signed in with Apple")
-                        .font(.system(size: 12))
+                        .dsFont(12)
                         .foregroundStyle(Color.dsFgSecondary)
                 }
             }
@@ -196,10 +196,10 @@ struct ProfileView: View {
         VStack(spacing: 12) {
             avatarCircle("?")
             Text("Not signed in")
-                .font(.system(size: 20, weight: .bold))
+                .dsFont(20, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             Text("Sign in to save your Fan Zone points and sync your follows across devices. The app works the same either way.")
-                .font(.system(size: 13))
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 16)
@@ -224,7 +224,7 @@ struct ProfileView: View {
         ZStack {
             Circle().fill(Color.dsBgTertiary)
             Text(text)
-                .font(.system(size: 24, weight: .bold))
+                .dsFont(24, weight: .bold)
                 .foregroundStyle(Color.dsFgSecondary)
         }
         .frame(width: DS.avatarProfile, height: DS.avatarProfile)
@@ -262,10 +262,10 @@ struct ProfileView: View {
     private func statCell(_ value: String, _ label: String) -> some View {
         VStack(spacing: 3) {
             Text(value)
-                .font(.system(size: 17, weight: .bold))
+                .dsFont(17, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             Text(label)
-                .font(.system(size: 11))
+                .dsFont(11)
                 .foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity)
@@ -288,11 +288,11 @@ struct ProfileView: View {
                 HStack(spacing: 12) {
                     TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: DS.avatarMd)
                     Text(club.displayName)
-                        .font(.system(size: 15))
+                        .dsFont(15)
                         .foregroundStyle(Color.dsFgPrimary)
                     Spacer(minLength: 8)
                     Image(systemName: "star.fill")
-                        .font(.system(size: 16))
+                        .dsFont(16)
                         .foregroundStyle(Color.dsFollowStar)
                 }
                 .padding(.horizontal, 16)
@@ -305,11 +305,11 @@ struct ProfileView: View {
             } label: {
                 HStack {
                     Text("Manage follows")
-                        .font(.system(size: 15))
+                        .dsFont(15)
                         .foregroundStyle(Color.dsAccent)
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
+                        .dsFont(13, weight: .semibold)
                         .foregroundStyle(Color.dsFgTertiary)
                 }
                 .padding(.horizontal, 16)
@@ -339,7 +339,7 @@ struct ProfileView: View {
             .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
             Text("Signing out keeps your follows on this device. Your Fan Zone points and rank stay with your account.")
-                .font(.system(size: 11))
+                .dsFont(11)
                 .foregroundStyle(Color.dsFgQuaternary)
                 .padding(.horizontal, 4)
         }
@@ -347,7 +347,7 @@ struct ProfileView: View {
 
     private func accountRow(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 15))
+            .dsFont(15)
             .foregroundStyle(Color.dsError)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
@@ -385,7 +385,7 @@ struct ProfileView: View {
 
     private var versionLabel: some View {
         Text("NWSLApp \(appVersion)")
-            .font(.system(size: 11))
+            .dsFont(11)
             .foregroundStyle(Color.dsFgQuaternary)
             .frame(maxWidth: .infinity)
     }

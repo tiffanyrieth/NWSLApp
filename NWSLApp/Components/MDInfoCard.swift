@@ -19,7 +19,7 @@ struct MDInfoCard: View {
             Text(label)
                 .trackedCaps(size: 10, tracking: 0.6, color: .dsFgTertiary)
             Text(value)
-                .font(.system(size: 13, weight: .semibold))
+                .dsFont(13, weight: .semibold)
                 .foregroundStyle(Color.dsFgPrimary)
                 // Reserve two lines so a long Venue and a one-word Broadcast keep the
                 // SAME card height — the grid stays even (bug #8).

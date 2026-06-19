@@ -57,11 +57,11 @@ struct PlatformBadge: View {
         if platform == .reddit {
             // Reddit reads best as its wordmark "R", not a symbol.
             Text("R")
-                .font(.system(size: size * 0.62, weight: .heavy))
+                .dsFont(size * 0.62, weight: .heavy)
                 .foregroundStyle(.white)
         } else {
             Image(systemName: symbolName)
-                .font(.system(size: size * 0.55, weight: .bold))
+                .dsFont(size * 0.55, weight: .bold)
                 .foregroundStyle(.white)
         }
     }

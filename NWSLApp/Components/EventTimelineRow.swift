@@ -32,8 +32,7 @@ struct EventTimelineRow: View {
     var body: some View {
         HStack(spacing: 11) {
             Text(minute)
-                .font(.system(size: 13, weight: .bold))
-                .monospacedDigit()
+                .dsFont(13, weight: .bold, monospacedDigit: true)
                 .foregroundStyle(minuteColor)
                 .frame(width: 30, alignment: .center)
 
@@ -49,11 +48,11 @@ struct EventTimelineRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(primaryName)
-                    .font(.system(size: 14, weight: .semibold))
+                    .dsFont(14, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                 if let detail {
                     Text(detail)
-                        .font(.system(size: 11.5))
+                        .dsFont(11.5)
                         .foregroundStyle(Color.dsFgSecondary)
                 }
             }
@@ -62,8 +61,7 @@ struct EventTimelineRow: View {
 
             if isGoal, let score {
                 Text(score)
-                    .font(.system(size: 15, weight: .heavy, design: .rounded))
-                    .monospacedDigit()
+                    .dsFont(15, weight: .heavy, design: .rounded, monospacedDigit: true)
                     .foregroundStyle(Color.dsFgPrimary)
             }
         }
@@ -98,11 +96,11 @@ struct EventTimelineRow: View {
             cardRect(.dsLive)
         } else if type.contains("goal") {
             Image(systemName: "soccerball.inverse")
-                .font(.system(size: 15))
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgPrimary)
         } else {
             Image(systemName: "circle.fill")
-                .font(.system(size: 7))
+                .dsFont(7)
                 .foregroundStyle(.secondary)
         }
     }
@@ -152,6 +150,6 @@ private struct SubstitutionArrows: View {
             Image(systemName: "arrow.up").foregroundStyle(Color.dsSuccess)
             Image(systemName: "arrow.down").foregroundStyle(Color.dsError)
         }
-        .font(.system(size: 11, weight: .bold))
+        .dsFont(11, weight: .bold)
     }
 }

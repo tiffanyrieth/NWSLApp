@@ -41,6 +41,10 @@ struct GameCard: View {
             Text(title)
                 .dsFont(17, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
+                // Fixed 200pt tile: scale the title down rather than truncate ("Bracket Bat…")
+                // at large text.
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             statusPill
                 .padding(.top, 8)
         }

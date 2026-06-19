@@ -67,15 +67,18 @@ final class GameCenterManager {
 
     // MARK: - Submissions (best-effort; silent no-op when unauthenticated)
 
-    /// Submit a score to one leaderboard. Fire-and-forget; swallows network errors.
+    /// Submit a score to one leaderboard. Fire-and-forget; a failure is non-fatal (GC is
+    /// additive) but NOT silent — it's flagged via telemetry so a wrong ASC id / offline /
+    /// unlinked-account failure reaches the owner instead of vanishing.
     func submit(_ value: Int, to leaderboardID: String) {
         guard isAuthenticated else { return }
         Task {
-            try? await GKLeaderboard.submitScore(
-                value, context: 0, player: GKLocalPlayer.local, leaderboardIDs: [leaderboardID])
-            #if DEBUG
-            // (errors swallowed above; uncomment to debug ASC id mismatches)
-            #endif
+            do {
+                try await GKLeaderboard.submitScore(
+                    value, context: 0, player: GKLocalPlayer.local, leaderboardIDs: [leaderboardID])
+            } catch {
+                Diagnostics.shared.record(.apiFailure, "GC submit \(leaderboardID): \(error.localizedDescription)")
+            }
         }
     }
 
@@ -87,7 +90,10 @@ final class GameCenterManager {
         let achievement = GKAchievement(identifier: achievementID)
         achievement.percentComplete = percent
         achievement.showsCompletionBanner = true
-        Task { try? await GKAchievement.report([achievement]) }
+        Task {
+            do { try await GKAchievement.report([achievement]) }
+            catch { Diagnostics.shared.record(.apiFailure, "GC report \(achievementID): \(error.localizedDescription)") }
+        }
     }
 
     // MARK: - Cross-game sync (push everything; re-eval cross-game achievements)

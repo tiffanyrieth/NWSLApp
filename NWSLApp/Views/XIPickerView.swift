@@ -24,7 +24,9 @@ struct XIPickerView: View {
 
     @State private var picker: XIPickerViewModel
     @State private var activeSlot: SlotRef?
+    @State private var showSignIn = false
     @Environment(PredictionStore.self) private var store
+    @Environment(AuthStore.self) private var auth
     @Environment(\.dismiss) private var dismiss
 
     /// Identifiable wrapper so a slot index can drive `.sheet(item:)`.
@@ -65,6 +67,12 @@ struct XIPickerView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(picker.readOnly ? "Done" : "Cancel") { dismiss() }
                 }
+            }
+            // Sign-in invite after a signed-out submit. The prediction is already locked
+            // locally; closing the picker happens on dismiss whether they sign in or skip
+            // (so a "Not now" still exits) — never a silent never-reaches-the-board.
+            .sheet(isPresented: $showSignIn, onDismiss: { dismiss() }) {
+                SignInPromptView()
             }
         }
         .task { await picker.load() }
@@ -252,7 +260,15 @@ struct XIPickerView: View {
                 // Game Center (additive): "First Prediction" — idempotent, so firing
                 // on every submit is harmless. No-ops when not signed in.
                 GameCenterManager.shared.report(GameCenterID.Achievement.firstPrediction)
-                dismiss()
+                // The prediction is locked locally either way. The per-team leaderboard
+                // (written when this is later scored) needs an account: signed in → just
+                // close; signed out → invite sign-in (skippable) instead of silently never
+                // reaching the board. Either choice closes the picker via the sheet onDismiss.
+                if auth.isSignedIn {
+                    dismiss()
+                } else {
+                    showSignIn = true
+                }
             } label: {
                 Text(picker.isComplete ? "Submit & lock in" : "Pick all 11 to submit (\(picker.assignedCount)/11)")
                     .font(.headline)

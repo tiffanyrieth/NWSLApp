@@ -42,6 +42,9 @@ struct NationalTeamCard: View {
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .lineSpacing(1)
+                // Keep long names (or large text) within two lines rather than spilling
+                // a third line that misaligns the grid; scale down instead.
+                .minimumScaleFactor(0.8)
                 // Reserve two lines so flag (above) + controls (below) stay vertically
                 // aligned across 1- and 2-line names, centered like the club card.
                 .frame(minHeight: 35, alignment: .center)

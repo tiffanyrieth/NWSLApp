@@ -9,12 +9,12 @@
 //  running "Follow N teams" count and the "you can always change this later"
 //  reassurance.
 //
-//  It rides the Home tab's NavigationStack (rendered in place of the hub while
-//  `FollowingStore.hasOnboarded` is false) rather than a full-screen cover, so
-//  the tab bar stays visible from the start — signaling depth, per the spec.
-//  Tapping "Follow N teams" calls `completeOnboarding()`, which flips Home to
-//  the hub. It also `dismiss()`es so the same view works when re-presented as a
-//  sheet from Home's empty state.
+//  It's the full-screen first-open gate: RootTabView renders it (in its own
+//  NavigationStack) IN PLACE OF the whole TabView while `FollowingStore.hasOnboarded`
+//  is false, so there is NO tab bar and onboarding can't be skipped by tapping a tab.
+//  Tapping "Follow N teams" calls `completeOnboarding()`, which flips RootTabView to
+//  the TabView. It also `dismiss()`es (a harmless no-op in the gate path) so the same
+//  view still works when re-presented as a sheet from Home's "edit teams" empty state.
 //
 //  Reuses TeamsViewModel for the club fetch (identical need: the directory) and
 //  the shared FollowingStore for the toggles — the picks made here are the same

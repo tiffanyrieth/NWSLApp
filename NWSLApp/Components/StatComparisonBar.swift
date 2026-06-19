@@ -40,6 +40,8 @@ struct StatComparisonBar: View {
                     .font(.system(size: 15, weight: .bold))
                     .monospacedDigit()
                     .foregroundStyle(homeColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .frame(width: 52, alignment: .leading)
                 Text(label)
                     .trackedCaps(size: 10, tracking: 1, weight: .semibold)
@@ -48,6 +50,8 @@ struct StatComparisonBar: View {
                     .font(.system(size: 15, weight: .bold))
                     .monospacedDigit()
                     .foregroundStyle(awayColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .frame(width: 52, alignment: .trailing)
             }
 

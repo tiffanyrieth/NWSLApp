@@ -228,6 +228,7 @@ struct StandingsView: View {
                     .monospacedDigit()
                     .foregroundStyle(rankColor)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     // Right-aligned + monospaced so 1–9 sit in the ones position under
                     // the second digit of 10–16, all ending at the same right edge.
                     .frame(width: Col.rank, alignment: .trailing)
@@ -253,6 +254,8 @@ struct StandingsView: View {
                     .font(.system(size: 17, weight: .heavy))
                     .monospacedDigit()
                     .foregroundStyle(Color.dsFgPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .frame(width: Col.pts, alignment: .trailing)
                 statCell(row.gamesPlayed, width: Col.gp)
                 statCell(row.wins, width: Col.wdl)
@@ -287,6 +290,8 @@ struct StandingsView: View {
             .font(.system(size: 14, weight: .medium))
             .monospacedDigit()
             .foregroundStyle(Color.dsFgSecondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             .frame(width: width, alignment: .trailing)
     }
 

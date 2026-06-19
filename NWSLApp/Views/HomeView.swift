@@ -42,15 +42,9 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if following.hasOnboarded {
-                    hubContent
-                } else {
-                    // First open: pick your teams (rides this NavigationStack so
-                    // the tab bar stays visible, per the spec).
-                    OnboardingView()
-                }
-            }
+            // Onboarding is gated above this view now (RootTabView shows OnboardingView
+            // full-screen until `hasOnboarded`), so Home only ever renders the hub.
+            hubContent
         }
         .task {
             // Hand the view model the shared stores, load the shared stores once

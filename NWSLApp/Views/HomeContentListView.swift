@@ -55,30 +55,35 @@ struct HomeContentListView: View {
 }
 
 /// The Home per-team chip bar: [All] + one chip per followed team (abbreviations).
-/// Drives the shared HomeViewModel's `selectedTeam` (nil = All). A plain HStack, NOT
-/// a horizontal ScrollView — a nested scroll inside the hub scroll is the thing that
-/// caused the chip tap-leak, and the few short chips fit any iPhone width.
+/// Drives the shared HomeViewModel's `selectedTeam` (nil = All). A HORIZONTAL ScrollView
+/// so the bar holds the full followed set (up to all 16 teams → 17 chips) on any width —
+/// the old plain HStack overflowed off-screen with many follows. It used to be a plain
+/// HStack to dodge a "chip tap-leak" from a horizontal scroll nested in the hub's vertical
+/// scroll; Chip is a plain Button with its own hit-test rect, so taps route fine here
+/// (verified in-sim). If a regression ever resurfaces, the fallback is `FlowLayout` (wrap,
+/// no nested scroll). No horizontal padding here: the parent supplies the leading inset.
 struct HomeTeamChips: View {
     let viewModel: HomeViewModel
     let teams: [String]
 
     var body: some View {
-        HStack(spacing: 8) {
-            Chip(label: "All", isActive: viewModel.selectedTeam == nil) {
-                viewModel.selectedTeam = nil
-            }
-            ForEach(teams, id: \.self) { abbr in
-                Chip(
-                    label: abbr,
-                    isActive: viewModel.selectedTeam == abbr,
-                    // Active per-team chip carries the club's own color (home.jsx).
-                    activeColor: viewModel.club(forAbbreviation: abbr)?.accentColor ?? .dsAccent
-                ) {
-                    viewModel.selectedTeam = abbr
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                Chip(label: "All", isActive: viewModel.selectedTeam == nil) {
+                    viewModel.selectedTeam = nil
+                }
+                ForEach(teams, id: \.self) { abbr in
+                    Chip(
+                        label: abbr,
+                        isActive: viewModel.selectedTeam == abbr,
+                        // Active per-team chip carries the club's own color (home.jsx).
+                        activeColor: viewModel.club(forAbbreviation: abbr)?.accentColor ?? .dsAccent
+                    ) {
+                        viewModel.selectedTeam = abbr
+                    }
                 }
             }
-            Spacer(minLength: 0)
+            .padding(.vertical, 2)
         }
-        .padding(.vertical, 2)
     }
 }

@@ -122,26 +122,39 @@ struct RootTabView: View {
                 }
             }
         )
-        TabView(selection: tabSelection) {
-            HomeView()
-                .tabItem { Label("Home", systemImage: "house") }
-                .tag(AppTab.home)
+        Group {
+            if following.hasOnboarded {
+                TabView(selection: tabSelection) {
+                    HomeView()
+                        .tabItem { Label("Home", systemImage: "house") }
+                        .tag(AppTab.home)
 
-            ScheduleView()
-                .tabItem { Label("Schedule", systemImage: "calendar") }
-                .tag(AppTab.schedule)
+                    ScheduleView()
+                        .tabItem { Label("Schedule", systemImage: "calendar") }
+                        .tag(AppTab.schedule)
 
-            StandingsView()
-                .tabItem { Label("Standings", systemImage: "list.number") }
-                .tag(AppTab.standings)
+                    StandingsView()
+                        .tabItem { Label("Standings", systemImage: "list.number") }
+                        .tag(AppTab.standings)
 
-            TeamsView()
-                .tabItem { Label("Teams", systemImage: "person.3.fill") }
-                .tag(AppTab.teams)
+                    TeamsView()
+                        .tabItem { Label("Teams", systemImage: "person.3.fill") }
+                        .tag(AppTab.teams)
 
-            FeedView()
-                .tabItem { Label("Feed", systemImage: "dot.radiowaves.left.and.right") }
-                .tag(AppTab.feed)
+                    FeedView()
+                        .tabItem { Label("Feed", systemImage: "dot.radiowaves.left.and.right") }
+                        .tag(AppTab.feed)
+                }
+            } else {
+                // First open: full-screen team picker with NO tab bar. Two reasons:
+                // (1) onboarding can't be skipped by tapping another tab (the TabView
+                // isn't in the hierarchy yet); (2) the TabView's FIRST layout then happens
+                // into the settled hub *after* onboarding completes — not mid-onboarding —
+                // which avoids the iOS 26 floating-bar first-render label truncation a
+                // fresh install hit. OnboardingView needs a NavigationStack (it sets a
+                // navigationTitle) and reads FollowingStore + ClubStore from the env below.
+                NavigationStack { OnboardingView() }
+            }
         }
         .environment(router)
         .environment(following)

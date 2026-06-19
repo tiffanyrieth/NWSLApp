@@ -181,6 +181,7 @@ struct MatchCard: View {
                     .font(.system(size: 11.5))
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
         }
         .frame(maxWidth: .infinity)

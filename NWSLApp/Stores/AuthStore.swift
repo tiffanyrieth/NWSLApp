@@ -161,6 +161,21 @@ final class AuthStore {
         }
     }
 
+    /// Change how the user's name appears on the leaderboards. Trims + caps length, updates the
+    /// local cache immediately (so Profile + future leaderboard pushes use it), and upserts the
+    /// Supabase `profiles` row (telemetry-flagged on failure via `upsertProfile`). The user's own
+    /// row reflects it on the next board load; other players see it after the user's next submit.
+    /// (Length cap + trim only — no profanity filter yet; revisit before public launch.)
+    func updateDisplayName(_ newName: String) async {
+        let capped = String(newName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(20))
+        guard !capped.isEmpty, capped != displayName else { return }
+        displayName = capped
+        UserDefaults.standard.set(capped, forKey: Self.nameKey)
+        if let userID = currentUser?.id {
+            await upsertProfile(userID: userID, displayName: capped)
+        }
+    }
+
     // MARK: - Nonce helpers (standard Apple + OIDC pattern)
 
     /// Random URL-safe nonce. The hashed form rides in the Apple request; the raw

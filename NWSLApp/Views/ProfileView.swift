@@ -32,6 +32,8 @@ struct ProfileView: View {
 
     @State private var signInError: String?
     @State private var showDeleteConfirm = false
+    @State private var showNameEditor = false
+    @State private var draftName = ""
 
     var body: some View {
         NavigationStack {
@@ -54,6 +56,14 @@ struct ProfileView: View {
             // so start GC auth here (not at launch) — by the time the user taps it,
             // auth has typically resolved. Idempotent with the game screens.
             .task { GameCenterManager.shared.authenticate() }
+            .alert("Display name", isPresented: $showNameEditor) {
+                TextField("Name", text: $draftName)
+                    .textInputAutocapitalization(.words)
+                Button("Save") { Task { await auth.updateDisplayName(draftName) } }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("How your name appears on the Fan Zone leaderboards.")
+            }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // "Profile" as a PRINCIPAL item (not `.navigationTitle`) so it doesn't
@@ -179,9 +189,23 @@ struct ProfileView: View {
             VStack(spacing: 10) {
                 avatarCircle(initials)
                 VStack(spacing: 2) {
-                    Text(auth.displayName ?? "Member")
-                        .dsFont(20, weight: .bold)
-                        .foregroundStyle(Color.dsFgPrimary)
+                    HStack(spacing: 6) {
+                        Text(auth.displayName ?? "Member")
+                            .dsFont(20, weight: .bold)
+                            .foregroundStyle(Color.dsFgPrimary)
+                        // Edit how the name appears on the leaderboards (it's otherwise
+                        // locked to whatever Apple returned at first sign-in / "Fan").
+                        Button {
+                            draftName = auth.displayName ?? ""
+                            showNameEditor = true
+                        } label: {
+                            Image(systemName: "pencil")
+                                .dsFont(13, weight: .semibold)
+                                .foregroundStyle(Color.dsAccent)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Edit display name")
+                    }
                     Text("Signed in with Apple")
                         .dsFont(12)
                         .foregroundStyle(Color.dsFgSecondary)

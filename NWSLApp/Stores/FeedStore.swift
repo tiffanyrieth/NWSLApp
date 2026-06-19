@@ -54,7 +54,10 @@ final class FeedStore {
         isLoadingItems = true
         defer { isLoadingItems = false; hasCompletedItemsLoad = true }
         // Scope the live `/feed` query to the followed clubs' team posts (the proxy returns
-        // reporters + league regardless). Empty → reporters + league only.
+        // reporters + league regardless). Empty → reporters + league only. MUST wait for the club
+        // directory first — scoping before it's loaded yields an empty team set (same race the
+        // Home feed hit). Dedupe-aware, so a no-op once loaded.
+        await clubStore.loadIfNeeded()
         let followed = Set(
             clubStore.clubs
                 .filter { following.followedIDs.contains($0.id) }

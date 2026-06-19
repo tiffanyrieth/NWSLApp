@@ -82,6 +82,11 @@ final class HomeViewModel {
         // (so the per-module "tap to retry" actually retries).
         guard force || (teamContentItems.isEmpty && contentError == nil
                         && allSpotlights.isEmpty && spotlightError == nil) else { return }
+        // CRITICAL: content is scoped to followed-team ABBREVIATIONS resolved from the club
+        // directory, so we must not proceed until ClubStore is `.loaded`. Otherwise a prewarmed-
+        // but-still-loading directory yields an empty scope → `/team-videos` with no `teams=` →
+        // an empty Home feed (the race this fixes). Dedupe-aware, so it's a no-op once loaded.
+        await clubStore?.loadIfNeeded()
         let followed = followedAbbreviations(following)
         // Module 1 (content) and Module 2 (spotlight) load + fail independently.
         do {

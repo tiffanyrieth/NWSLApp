@@ -57,7 +57,7 @@ struct HomeView: View {
             viewModel.store = matchStore
             viewModel.clubStore = clubStore
             if case .idle = matchStore.state { await matchStore.load() }
-            if case .idle = clubStore.state { await clubStore.load() }
+            await clubStore.loadIfNeeded()   // dedupe-aware: never scope content before clubs are loaded
             await viewModel.loadContent(following: following)
             await loadBracketSummary()
         }

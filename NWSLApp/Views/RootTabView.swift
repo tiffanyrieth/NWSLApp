@@ -257,7 +257,7 @@ struct RootTabView: View {
             // to the Feed tab is instant. Needs the directory loaded for follow-scoping; the
             // load self-guards, so the tab's own first-appearance load is then a no-op.
             Task(priority: .utility) {
-                await clubs.load()
+                await clubs.loadIfNeeded()
                 await feedStore.loadIfNeeded(following: following, clubStore: clubs)
             }
         }

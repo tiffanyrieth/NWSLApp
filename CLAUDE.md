@@ -375,7 +375,7 @@ NWSLApp/
 │   ├── GameCenterIDs.swift            — GameKit ID constants (4 leaderboards + 6 achievements) + pure cross-game score helpers (GameKit-free, unit-tested)
 │   ├── GameCenterManager.swift        — @MainActor @Observable `.shared`; LAZY idempotent `authenticate()` (on-appear from game screens + Profile, not launch) + best-effort submit/report/syncAll/showDashboard. Only file importing GameKit
 │   ├── TeamAlertPrefsSyncService.swift— Supabase `team_alert_preferences` client (per-team on/off upsert/fetchAll, composite key); RLS-scoped
-│   ├── SupportStore.swift             — @MainActor @Observable StoreKit 2 for Support: 4 tip tiers (one-time + monthly), load/purchase/restore, `purchased` thank-you flag
+│   ├── SupportStore.swift             — @MainActor @Observable StoreKit 2 for Support: 4 tip tiers (one-time + monthly), load/purchase/restore, `purchased` thank-you flag + `errorMessage` honest-failure state (unverified/pending/failed purchase → user-facing message + telemetry, NEVER a fake success)
 │   ├── PredictLeaderboardService.swift— Supabase per-team Predict board: upsertScore + standings(team); a read failure shows only your real local score (no fabricated rivals)
 │   ├── TriviaLeaderboardService.swift — Supabase league-wide Trivia best-streak board: upsertScore + standings; read failure shows only your real local streak
 │   ├── PredictionScoring.swift        — pure Predict-the-XI scorer (Mastermind partial, max 88). Unit-tested

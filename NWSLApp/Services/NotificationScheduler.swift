@@ -104,7 +104,9 @@ final class NotificationScheduler {
             // is a clean rebuild (delivered/server pushes are unaffected).
             center.removeAllPendingNotificationRequests()
             for request in requests {
-                try? await center.add(request)
+                // A failed add means the user silently won't get that reminder — flag it.
+                do { try await center.add(request) }
+                catch { Diagnostics.shared.record(.apiFailure, "notif schedule \(request.identifier): \(error.localizedDescription)") }
             }
         }
     }

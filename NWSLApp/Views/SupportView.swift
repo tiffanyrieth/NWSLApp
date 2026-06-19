@@ -149,25 +149,37 @@ struct SupportView: View {
     private var cta: some View {
         let enabled = selected != nil
         let busy = store.purchasing != nil
-        return Button {
-            if let tier = selected { Task { await store.purchase(tier, monthly: monthly) } }
-        } label: {
-            Group {
-                if busy {
-                    ProgressView().tint(.white)
-                } else {
-                    Text(ctaLabel)
-                        .dsFont(16, weight: .semibold)
-                        .foregroundStyle(enabled ? .white : Color.dsFgTertiary)
+        return VStack(spacing: 10) {
+            Button {
+                if let tier = selected { Task { await store.purchase(tier, monthly: monthly) } }
+            } label: {
+                Group {
+                    if busy {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text(ctaLabel)
+                            .dsFont(16, weight: .semibold)
+                            .foregroundStyle(enabled ? .white : Color.dsFgTertiary)
+                    }
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 15)
+                .background(enabled ? AnyShapeStyle(pinkGradient) : AnyShapeStyle(Color.dsBgCard))
+                .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 15)
-            .background(enabled ? AnyShapeStyle(pinkGradient) : AnyShapeStyle(Color.dsBgCard))
-            .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
+            .buttonStyle(.plain)
+            .disabled(!enabled || busy)
+
+            // Honest outcome for a failed/unverified/pending purchase or a restore error —
+            // so a non-success NEVER silently looks like nothing happened (or a fake success).
+            if let message = store.errorMessage {
+                Text(message)
+                    .dsFont(13)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+            }
         }
-        .buttonStyle(.plain)
-        .disabled(!enabled || busy)
     }
 
     private var ctaLabel: String {

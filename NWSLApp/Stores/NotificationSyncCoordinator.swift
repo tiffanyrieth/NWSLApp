@@ -104,7 +104,10 @@ final class NotificationSyncCoordinator {
             if let oldID = lastUserID, let token = bridge.deviceToken {
                 // Detach this device's token from the account we're leaving, so a
                 // shared phone stops getting the previous user's alerts.
-                Task { try? await tokenService.removeToken(token, userID: oldID) }
+                Task {
+                    do { try await tokenService.removeToken(token, userID: oldID) }
+                    catch { Diagnostics.shared.record(.apiFailure, "notif removeToken: \(error.localizedDescription)") }
+                }
             }
             lastUploadedToken = nil
             lastPushedSnapshot = nil
@@ -125,13 +128,27 @@ final class NotificationSyncCoordinator {
 
         if let token = bridge.deviceToken, token != lastUploadedToken {
             lastUploadedToken = token
-            Task { try? await tokenService.registerToken(token, userID: userID) }
+            Task {
+                do { try await tokenService.registerToken(token, userID: userID) }
+                catch {
+                    // The APNs token never reached the server → the match-watcher can't push
+                    // to this device. Reset the shadow so the next sync retries, and flag it.
+                    lastUploadedToken = nil
+                    Diagnostics.shared.record(.apiFailure, "notif registerToken: \(error.localizedDescription)")
+                }
+            }
         }
 
         let snapshot = preferences.snapshot
         if snapshot != lastPushedSnapshot {
             lastPushedSnapshot = snapshot
-            Task { try? await prefsService.pushPreferences(snapshot, userID: userID) }
+            Task {
+                do { try await prefsService.pushPreferences(snapshot, userID: userID) }
+                catch {
+                    lastPushedSnapshot = nil   // retry on the next sync
+                    Diagnostics.shared.record(.apiFailure, "notif pushPreferences: \(error.localizedDescription)")
+                }
+            }
         }
     }
 }

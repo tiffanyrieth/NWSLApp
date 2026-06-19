@@ -48,6 +48,10 @@ final class SupportStore {
     private(set) var purchased = false
     /// The product id currently being purchased (drives the CTA spinner).
     private(set) var purchasing: String?
+    /// Honest, user-facing message for any non-success outcome (failed/unverified/pending
+    /// purchase, unreachable App Store). nil = nothing to show. NEVER let a failed tip look
+    /// like a success — the worst case is a "thank you" with no charge taken.
+    private(set) var errorMessage: String?
 
     private var allProductIDs: [String] {
         Self.tiers.flatMap { [$0.oneTimeID, $0.monthlyID] }
@@ -55,8 +59,14 @@ final class SupportStore {
 
     func loadProducts() async {
         guard products.isEmpty else { return }
-        let fetched = (try? await Product.products(for: allProductIDs)) ?? []
-        products = Dictionary(uniqueKeysWithValues: fetched.map { ($0.id, $0) })
+        do {
+            let fetched = try await Product.products(for: allProductIDs)
+            products = Dictionary(uniqueKeysWithValues: fetched.map { ($0.id, $0) })
+        } catch {
+            // The grid still renders with fallback prices, but a purchase can't proceed
+            // without a loaded Product — flag it so a dead StoreKit config/outage is seen.
+            Diagnostics.shared.record(.apiFailure, "support loadProducts: \(error.localizedDescription)")
+        }
     }
 
     private func productID(_ tier: SupportTier, monthly: Bool) -> String {
@@ -70,35 +80,57 @@ final class SupportStore {
         return monthly ? "\(base)/mo" : base
     }
 
-    /// Buy a tier. Verifies + finishes the transaction and flips `purchased` on
-    /// success; cancellation/pending/failure leave state unchanged.
+    /// Buy a tier. Verifies + finishes the transaction and flips `purchased` ONLY on a
+    /// verified success. Every other outcome is made HONEST: a verification failure or a
+    /// thrown error sets a "you weren't charged, try again" message (and telemetry); a
+    /// pending purchase says so; a user-cancel is silent (they chose). Never a fake success.
     func purchase(_ tier: SupportTier, monthly: Bool) async {
         let id = productID(tier, monthly: monthly)
-        guard let product = products[id] else { return }
+        errorMessage = nil
+        guard let product = products[id] else {
+            // Products never loaded (StoreKit outage / bad config) — don't pretend.
+            Diagnostics.shared.record(.apiFailure, "support purchase: product \(id) not loaded")
+            errorMessage = "Couldn't reach the App Store. Please try again in a moment."
+            return
+        }
         purchasing = id
         defer { purchasing = nil }
         do {
             switch try await product.purchase() {
-            case .success(let verification):
-                if case .verified(let transaction) = verification {
-                    await transaction.finish()
-                    purchased = true
-                }
-            case .userCancelled, .pending:
-                break
+            case .success(.verified(let transaction)):
+                await transaction.finish()
+                purchased = true
+            case .success(.unverified(_, let verificationError)):
+                // App Store couldn't verify the receipt — treat as NOT purchased.
+                Diagnostics.shared.record(.apiFailure, "support purchase unverified \(id): \(verificationError.localizedDescription)")
+                errorMessage = "Your purchase couldn't be verified, so you weren't charged. Please try again."
+            case .pending:
+                // Deferred (Ask to Buy / SCA) — honest: it isn't done yet.
+                errorMessage = "Your tip is pending approval — it'll complete once approved. You haven't been charged yet."
+            case .userCancelled:
+                break   // user chose to cancel — no error, no telemetry
             @unknown default:
-                break
+                Diagnostics.shared.record(.apiFailure, "support purchase \(id): unknown result")
+                errorMessage = "Something went wrong with the purchase. You weren't charged."
             }
         } catch {
-            // Surface nothing — a failed/declined tip just leaves the screen as-is.
+            Diagnostics.shared.record(.apiFailure, "support purchase \(id): \(error.localizedDescription)")
+            errorMessage = "Something went wrong with the purchase. You weren't charged — please try again."
         }
     }
 
-    /// Restore — re-syncs entitlements (matters for the monthly subscriptions).
+    /// Restore — re-syncs entitlements (matters for the monthly subscriptions). Honest on
+    /// failure: flags it (telemetry) and tells the user rather than silently doing nothing.
     func restore() async {
-        try? await AppStore.sync()
+        errorMessage = nil
+        do {
+            try await AppStore.sync()
+        } catch {
+            Diagnostics.shared.record(.apiFailure, "support restore: \(error.localizedDescription)")
+            errorMessage = "Couldn't restore purchases right now. Please try again."
+        }
     }
 
     /// Return from the thank-you state to the tier picker (e.g. to tip again).
-    func reset() { purchased = false }
+    func reset() { purchased = false; errorMessage = nil }
 }

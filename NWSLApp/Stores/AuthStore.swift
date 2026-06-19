@@ -155,7 +155,9 @@ final class AuthStore {
                     .execute()
             }
         } catch {
-            print("[AuthStore] profile upsert failed: \(error)")
+            // Non-fatal (auth still succeeded), but NOT silent: a failed profile upsert means
+            // the display name never persisted server-side — flag it for the owner.
+            Diagnostics.shared.record(.apiFailure, "profile upsert: \(error.localizedDescription)")
         }
     }
 

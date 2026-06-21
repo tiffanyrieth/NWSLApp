@@ -201,6 +201,20 @@ struct RootTabView: View {
             // re-running .task (it can fire again on scene changes) doesn't build a
             // second coordinator.
             await auth.restoreSession()
+            #if DEBUG
+            // `-resetOnboarding` simulates a brand-new install. Wiping the local
+            // follows (App.init's debugResetState) isn't enough on its own: the
+            // Supabase session lives in the keychain, untouched, so the restore
+            // above signs us back in and FollowSyncCoordinator.reconcile() merges
+            // the server's follows back DOWN into the just-cleared store — the
+            // onboarding picker then shows phantom "followed" teams. Signing out
+            // here clears the keychain session too, so reconcile has nothing to
+            // pull and the next launch is a true fresh user. DEBUG-only, matching
+            // the reset flag itself.
+            if ProcessInfo.processInfo.arguments.contains("-resetOnboarding") {
+                await auth.signOut()
+            }
+            #endif
             // Game Center auth is deliberately NOT started here. It's deferred until
             // the user actually reaches a Fan Zone game or the Game Center dashboard
             // (each game screen + the Profile leaderboards strip call

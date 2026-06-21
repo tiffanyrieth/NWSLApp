@@ -29,6 +29,17 @@ struct StandingsRow: Identifiable, Hashable {
     let draws: Int
     let losses: Int
     let points: Int
+    /// Goals scored / conceded and their difference (ESPN `pointsfor`/`pointsagainst`/
+    /// `pointdifferential` for soccer). `goalDifference` is the league-standard tiebreak
+    /// column shown after L.
+    let goalsFor: Int
+    let goalsAgainst: Int
+    let goalDifference: Int
+
+    /// Signed display for the GD column: "+12", "0", "-3".
+    var goalDifferenceText: String {
+        goalDifference > 0 ? "+\(goalDifference)" : "\(goalDifference)"
+    }
 
     var id: String { club.id }
 }
@@ -86,6 +97,12 @@ struct StandingsResponse: Decodable {
                 stats?.first { $0.type == type }.flatMap { $0.value }.map { Int($0) }
             }
 
+            // ESPN reports goals as "points" for soccer: pointsfor/pointsagainst, plus a
+            // precomputed pointdifferential. Fall back to GF−GA if the differential is
+            // ever missing (defensive — ESPN is unofficial).
+            let goalsFor = stat("pointsfor") ?? 0
+            let goalsAgainst = stat("pointsagainst") ?? 0
+
             return StandingsRow(
                 rank: stat("rank") ?? fallbackRank,
                 club: club,
@@ -93,7 +110,10 @@ struct StandingsResponse: Decodable {
                 wins: stat("wins") ?? 0,
                 draws: stat("ties") ?? 0,        // ESPN calls draws "ties"
                 losses: stat("losses") ?? 0,
-                points: stat("points") ?? 0
+                points: stat("points") ?? 0,
+                goalsFor: goalsFor,
+                goalsAgainst: goalsAgainst,
+                goalDifference: stat("pointdifferential") ?? (goalsFor - goalsAgainst)
             )
         }
     }

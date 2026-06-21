@@ -56,9 +56,21 @@ struct AvatarContentCard: View {
     // One meta row, matching Home (Feed.html): club code · category pill · source …
     // time. No initials avatar and no second identity line — the category pill carries
     // "what kind of voice", the club-code pill + color bar carry "which club".
+    /// True when this card renders a media image (so the team code rides bottom-left on
+    /// the media instead of inline in the meta row).
+    private var hasMediaImage: Bool {
+        switch card.layout {
+        case .blueskyTeamMedia: return true
+        case .blueskyReporter:  return card.thumbnailURL != nil
+        default:                return false   // text-only, or the IG-fallback strip
+        }
+    }
+
     private var headerRow: some View {
         HStack(spacing: 7) {
-            if !hideTeamIdentity, let abbr = card.teamAbbreviation {
+            // Inline team code ONLY for text-only cards; cards with media show it
+            // bottom-left ON the media (see `mediaThumbnail`). Gated on 2+ clubs.
+            if !hideTeamIdentity, !hasMediaImage, let abbr = card.teamAbbreviation {
                 teamPill(abbr)
             }
             CategoryPill(sourceType: card.resolvedSourceType)
@@ -157,6 +169,12 @@ struct AvatarContentCard: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: height)
+        // The single team label, bottom-left on the media (gated on 2+ clubs).
+        .overlay(alignment: .bottomLeading) {
+            if !hideTeamIdentity, let abbr = card.teamAbbreviation {
+                MediaTeamBadge(club: club, abbreviation: abbr).padding(8)
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
     }
 

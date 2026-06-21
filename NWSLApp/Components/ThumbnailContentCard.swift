@@ -77,7 +77,7 @@ struct ThumbnailContentCard: View {
                 teamColor: teamColor, club: club,
                 playSize: compact ? 40 : 52, duration: card.duration,
                 crestBadge: hideTeamIdentity ? nil : card.teamAbbreviation.map {
-                    ThumbnailHeader.BadgeSlot(abbreviation: $0, alignment: .topLeading)
+                    ThumbnailHeader.BadgeSlot(abbreviation: $0, alignment: .bottomLeading)
                 }
             )
         }
@@ -226,7 +226,7 @@ struct ThumbnailHeader: View {
                 playButton(playSize)
             }
             if let crestBadge {
-                crestBadgePill(crestBadge.abbreviation)
+                MediaTeamBadge(club: club, abbreviation: crestBadge.abbreviation)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: crestBadge.alignment)
                     .padding(10)
             }
@@ -254,25 +254,6 @@ struct ThumbnailHeader: View {
         .frame(width: size, height: size)
     }
 
-    private func crestBadgePill(_ abbreviation: String) -> some View {
-        HStack(spacing: 5) {
-            ZStack {
-                Circle().stroke(teamColor, lineWidth: 1.5)
-                Text(abbreviation)
-                    .dsFont(6, weight: .bold)
-                    .foregroundStyle(teamColor)
-            }
-            .frame(width: 16, height: 16)
-            Text(abbreviation)
-                .dsFont(11, weight: .semibold)
-                .foregroundStyle(teamColor)
-        }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
-        .background(Color.black.opacity(0.6))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-
     private func platformChipPill(_ chip: ChipSlot) -> some View {
         HStack(spacing: 5) {
             PlatformBadge(platform: chip.platform, size: 14)
@@ -294,5 +275,32 @@ struct ThumbnailHeader: View {
             .padding(.horizontal, 6)
             .background(Color.black.opacity(0.75))
             .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+    }
+}
+
+// MARK: - Media team badge
+
+/// The single bottom-left "which club" label overlaid on a content card's media: the
+/// real team crest + the abbreviation ONCE (team color). Replaces the old monogram pill
+/// that rendered the abbreviation twice ("WAS WAS"). Shared by all three card layouts'
+/// media so Home + Social read identically; gated by the caller on 2+ followed clubs.
+/// (A shared card component is a later cleanup — this just unifies the media label.)
+struct MediaTeamBadge: View {
+    var club: Club?
+    let abbreviation: String
+
+    private var teamColor: Color { club?.accentColor ?? .white }
+
+    var body: some View {
+        HStack(spacing: 5) {
+            TeamLogo(urlString: club?.logoURL, teamAbbreviation: abbreviation, size: 15)
+            Text(abbreviation)
+                .dsFont(11, weight: .semibold)
+                .foregroundStyle(teamColor)
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 7)
+        .background(Color.black.opacity(0.55))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }

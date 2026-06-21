@@ -70,9 +70,14 @@ struct ArticleContentCard: View {
 
     // Matches the social cards (Feed.html): no source-initials avatar, the NEWS
     // category pill replaces the old hand-rolled one, outlet is plain muted text.
+    /// Whether the article renders its image (so the team code rides on it, not inline).
+    private var hasImage: Bool { card.thumbnailURL != nil }
+
     private var headerRow: some View {
         HStack(spacing: 7) {
-            if !hideTeamIdentity, let abbr = card.teamAbbreviation {
+            // Inline team code ONLY when there's no image; otherwise it sits bottom-left
+            // on the article image (see `articleImage`). Gated on 2+ clubs.
+            if !hideTeamIdentity, !hasImage, let abbr = card.teamAbbreviation {
                 teamPill(abbr)
             }
             CategoryPill(sourceType: card.resolvedSourceType)
@@ -110,6 +115,12 @@ struct ArticleContentCard: View {
                                    startPoint: .topLeading, endPoint: .bottomTrailing)
                     // Cached so the frame survives a tab switch; a miss/404 → the gradient.
                     CachedThumbnail(url: card.thumbnailURL) { Color.clear }
+                }
+            }
+            // The single team label, bottom-left on the image (gated on 2+ clubs).
+            .overlay(alignment: .bottomLeading) {
+                if !hideTeamIdentity, let abbr = card.teamAbbreviation {
+                    MediaTeamBadge(club: club, abbreviation: abbr).padding(8)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))

@@ -338,7 +338,7 @@ NWSLApp/
 │   └── XIPrediction.swift             — Predict the XI: PositionGroup · Formation · PredictionFixture · XIPrediction (draft→submitted) · ActualResult · PredictionScore
 ├── Services/
 │   ├── BracketScoring.swift           — pure Bracket scorer (tiered per-round points). Unit-tested
-│   ├── ContentRoundRobin.swift        — pure COUNT-BASED fair-share (Home M1 + Feed club lane): `balanced` (EQUAL per-club slot allowance, volume-blind + age-agnostic, round-robin interleave + content-type mix) + `home/feedSlotsPerClub` + `advancedOffsets` (pull-refresh rotation). NO time window, NO chronological volume fill. Unit-tested
+│   ├── ContentRoundRobin.swift        — pure COUNT-BASED fair-share (Home M1 + Social): `balanced` (EQUAL per-club slot allowance, volume-blind + age-agnostic; STRICT recency within a club — round-robin across CLUBS only, NO type-interleave) + `home/feedSlotsPerClub` + `advancedOffsets` (pull-refresh rotation). NO time window, NO chronological volume fill. Unit-tested
 │   ├── BracketService.swift           — Bracket Supabase client: currentEdition/results/leaderboard/submit; all throw (online-only; nil currentEdition = genuinely no active edition)
 │   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats
 │   ├── ContentService.swift           — ALIVE content client: homeCards→/team-videos · feedCards→/feed · spotlightCards→/spotlight; all `throws` (online-only; no seed)
@@ -429,7 +429,8 @@ NWSLApp/
 │   ├── CategoryPill.swift             — the card's "what kind of voice" pill (NEWS·LEAGUE·REPORTER·PLAYER·CLUB by `resolvedSourceType`, mock colors); replaced the old source-initials avatar — one pill, 1:1 with the Social chips
 │   ├── BroadcastChip.swift            — color-coded broadcast pill (handoff palette, substring-matched); schedule cards + match detail (separate from BroadcastInfo's color DB)
 │   ├── ContentCardView.swift          — single entry point; routes a ContentCard by layout → the 3 card views; 3px team-color left-edge bar (color-block motif) on all layouts
-│   ├── ThumbnailContentCard.swift / AvatarContentCard.swift / ArticleContentCard.swift — the ContentCard layouts; unified meta row (club-code pill + CategoryPill + muted source + time, NO initials avatar); reporters/league/clubs/players = Bluesky social, news = article
+│   ├── ThumbnailContentCard.swift / AvatarContentCard.swift / ArticleContentCard.swift — the ContentCard layouts; unified meta row (CategoryPill + muted source + time, NO initials avatar); the ONE team code = `MediaTeamBadge` bottom-left ON the media (crest + abbr once), or inline club-code pill on text-only cards — gated on 2+ clubs; reporters/league/clubs/players = Bluesky social, news = article
+│   ├── MediaTeamBadge.swift (in ThumbnailContentCard.swift) — the single bottom-left media "which club" label (TeamLogo crest + abbr once); replaced the monogram pill that rendered the abbr twice
 │   ├── SettingsToggleRow.swift        — shared settings primitives: `SettingsToggleRow` + `SettingsGroup` (optional subtitle + `note` line) + `SettingsRowDivider`
 │   ├── PlatformBadge.swift            — platform glyph (YT/Bluesky/TikTok/IG/article/reddit)
 │   ├── FormBadge.swift                — W/D/L form badge (optional `size`/`fontSize`, default 22; `MatchResult` convenience init)

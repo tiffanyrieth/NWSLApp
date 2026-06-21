@@ -87,17 +87,20 @@ enum ContentRoundRobin {
             byTeam[abbr]!.sort(by: newestFirst)
         }
 
-        // 2. Per club: rotate by its window offset, interleave content TYPES so a
-        //    club's slots aren't all videos (a club article or a Bluesky post sits
-        //    alongside the clips — the feed stays varied, not a video channel), then
-        //    take EXACTLY its allowance (`slotsPerClub`). The rest is overflow — it is
-        //    NEVER redistributed to fill another club's round (that would reward volume).
+        // 2. Per club: take its most-recent `slotsPerClub` in STRICT recency order
+        //    (`byTeam` is already newest-first; all of a club's sources — YouTube, club
+        //    news, club IG — are merged into that one date-descending list). We do NOT
+        //    round-robin across sources/types within a club: that let a low-frequency
+        //    source inject its "newest" (a months-old item) above genuinely fresher
+        //    posts. Balancing is across CLUBS only. `rotate` just shifts the
+        //    pull-to-refresh discovery window (a no-op at offset 0). The rest is
+        //    overflow — never redistributed to another club's round (that rewards volume).
         var slotsByTeam: [String: [ContentCard]] = [:]
         for abbr in followedAbbreviations {
             let all = byTeam[abbr] ?? []
             guard !all.isEmpty else { continue }
-            let rotated = typeInterleaved(rotate(all, by: windowOffsets[abbr] ?? 0))
-            slotsByTeam[abbr] = Array(rotated.prefix(slotsPerClub))
+            let recencyOrdered = rotate(all, by: windowOffsets[abbr] ?? 0)
+            slotsByTeam[abbr] = Array(recencyOrdered.prefix(slotsPerClub))
         }
 
         // 3. Interleave the per-club slots round-robin: round 0 is one card per club
@@ -147,42 +150,6 @@ enum ContentRoundRobin {
     private static func newestFirst(_ lhs: ContentCard, _ rhs: ContentCard) -> Bool {
         if lhs.timestamp != rhs.timestamp { return lhs.timestamp > rhs.timestamp }
         return lhs.id > rhs.id
-    }
-
-    /// Reorder a team's cards (incoming newest-first) to mix content TYPES: round-robin
-    /// across categories — news / video / social — pulling the newest of each in turn.
-    /// The newest card overall still leads (categories cycle in order of their newest
-    /// item), but a team's top slots now span types instead of being all videos. A
-    /// single-category list is returned unchanged. Deterministic.
-    static func typeInterleaved(_ cards: [ContentCard]) -> [ContentCard] {
-        guard cards.count > 1 else { return cards }
-        var buckets: [Int: [ContentCard]] = [:]
-        var order: [Int] = []            // categories, in order of first (newest) appearance
-        for card in cards {
-            let cat = category(card)
-            if buckets[cat] == nil { buckets[cat] = []; order.append(cat) }
-            buckets[cat]!.append(card)
-        }
-        guard order.count > 1 else { return cards }   // one type → nothing to interleave
-        var result: [ContentCard] = []
-        var depth = 0
-        while result.count < cards.count {
-            for cat in order where depth < buckets[cat]!.count {
-                result.append(buckets[cat]![depth])
-            }
-            depth += 1
-        }
-        return result
-    }
-
-    /// Content category for type-interleaving: news / video / social. Mirrors the
-    /// chip groupings (a clip is a Video, like the `.videos` filter).
-    private static func category(_ card: ContentCard) -> Int {
-        switch card.layout {
-        case .newsArticle:           return 0   // news
-        case .youtube, .socialVideo: return 1   // video
-        default:                     return 2   // social / text
-        }
     }
 
     /// Rotate so element `offset` becomes first, wrapping around. `offset` is taken

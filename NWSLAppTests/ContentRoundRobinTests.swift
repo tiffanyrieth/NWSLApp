@@ -186,26 +186,24 @@ struct ContentRoundRobinTests {
         #expect(a2! < a0!)
     }
 
-    // MARK: - Type variety within a club's slots
+    // MARK: - Recency order (no type-interleave)
 
-    @Test func clubSlotsMixContentTypesNotJustVideos() {
-        // A club with a flood of videos + one older news article. The news must land in
-        // the club's slots (not be buried under newer clips), so the feed stays varied.
-        var cards: [ContentCard] = []
-        for i in 0..<10 { cards.append(card("V\(i)", "A", secondsAgo: Double(i), layout: .youtube)) }
-        cards.append(card("NEWS", "A", secondsAgo: 100, layout: .newsArticle))   // older than all videos
-
+    @Test func singleClubIsStrictRecencyOrder() {
+        // A single followed club with mixed sources + some old items must come out pure
+        // most-recent-first. A low-frequency source's "newest" (a months-old video/clip)
+        // must NOT be lifted above genuinely fresher posts — the type-interleave bug.
+        let day = 86_400.0
+        let cards = [
+            card("news-3d", "A", secondsAgo: 3 * day,  layout: .newsArticle),
+            card("vid-30d", "A", secondsAgo: 30 * day, layout: .youtube),       // newest video, but old
+            card("news-4d", "A", secondsAgo: 4 * day,  layout: .newsArticle),
+            card("ig-90d",  "A", secondsAgo: 90 * day, layout: .socialVideo),
+            card("news-6d", "A", secondsAgo: 6 * day,  layout: .newsArticle),
+        ]
         let result = ContentRoundRobin.balanced(
             cards: cards, followedAbbreviations: ["A"], slotsPerClub: 12)
 
-        // Type-interleaving puts the news at slot 1 (newest video, then the article).
-        #expect(result.cards.first?.id == "V0")
-        #expect(result.cards.count >= 2)
-        #expect(result.cards[1].id == "NEWS")
-    }
-
-    @Test func typeInterleavedIsNoOpForSingleType() {
-        let cards = (0..<5).map { card("V\($0)", "A", secondsAgo: Double($0)) }   // all youtube
-        #expect(ContentRoundRobin.typeInterleaved(cards).map(\.id) == cards.map(\.id))
+        // Strict date-descending: the old video/clip sit at the BOTTOM, never above fresh news.
+        #expect(result.cards.map(\.id) == ["news-3d", "news-4d", "news-6d", "vid-30d", "ig-90d"])
     }
 }

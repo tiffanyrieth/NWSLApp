@@ -139,4 +139,26 @@ final class TriviaStore {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
     }
+
+    #if DEBUG
+    /// Dev-only: wipe Trivia progress so `-resetOnboarding` simulates a brand-new
+    /// install (see NWSLAppApp.init). Static + key-name-aware so it runs before any
+    /// store instance exists. Local-only: the server leaderboard rows are untouched
+    /// (additive history, like AuthStore.deleteAccount), and nothing syncs them back
+    /// down into this store, so the wipe sticks.
+    ///
+    /// Writes cleared SENTINELS (0 / "") rather than `removeObject`, matching
+    /// FollowingStore.debugResetState: at App.init timing in the Simulator a key
+    /// *deletion* doesn't reliably propagate against cfprefsd's snapshot (a seeded
+    /// value reads back stale), but an explicit write always takes. "" reads as
+    /// "never played" through the day-gate (never equals today's key).
+    static func debugResetState(defaults: UserDefaults = .standard) {
+        defaults.set(0, forKey: Key.streak)
+        defaults.set(0, forKey: Key.bestStreak)
+        defaults.set(0, forKey: Key.totalCorrect)
+        defaults.set(0, forKey: Key.totalAnswered)
+        defaults.set(0, forKey: Key.lastScore)
+        defaults.set("", forKey: Key.lastCompletedDay)
+    }
+    #endif
 }

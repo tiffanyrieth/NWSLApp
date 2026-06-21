@@ -148,13 +148,27 @@ final class HomeViewModel {
             return ContentRoundRobin.Result(cards: Array(teamCards.prefix(cap)),
                                             overflowCount: max(0, teamCards.count - cap))
         }
-        return ContentRoundRobin.balanced(
+        let balanced = ContentRoundRobin.balanced(
             cards: cards,
             followedAbbreviations: ordered,
             slotsPerClub: ContentRoundRobin.homeSlotsPerClub(ordered.count),
             windowOffsets: windowOffsets
         )
+        // Cap the "All" preview at ~6–7 cards (design spec) so Spotlight + Fan Zone
+        // aren't pushed below the fold; the remainder spills into the "See more club
+        // news →" firehose via overflowCount. The per-team chip above is intentionally
+        // NOT capped (it's the full single-club lens — Part B Bug 3a/5).
+        guard balanced.cards.count > Self.homeAllCardCap else { return balanced }
+        let dropped = balanced.cards.count - Self.homeAllCardCap
+        return ContentRoundRobin.Result(
+            cards: Array(balanced.cards.prefix(Self.homeAllCardCap)),
+            overflowCount: balanced.overflowCount + dropped
+        )
     }
+
+    /// Max cards on Home's "All" content preview (design spec: 6–7). Overflow goes to
+    /// the "See more club news →" firehose.
+    private static let homeAllCardCap = 7
 
     /// Followed clubs' own Home cards (placement ≠ `.feed`, club ∈ follows) — the
     /// rotation pool and the per-team base. NO freshness filter: representation is

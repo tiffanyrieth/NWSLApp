@@ -189,11 +189,15 @@ struct FeedView: View {
     @ViewBuilder
     private var content: some View {
         let items = viewModel.items(following, preferences: feedPreferences)
+        // Following exactly one team → every card is obviously about that team, so the
+        // per-card team badge is redundant noise (same gate Home uses). Part B Bug 7.
+        let hideTeamIdentity = viewModel.followedClubs(following).count <= 1
         if !items.isEmpty {
             ScrollView {
                 LazyVStack(spacing: 12) {
                     ForEach(items) { card in
-                        ContentCardView(card: card, club: club(for: card), unified: true)
+                        ContentCardView(card: card, club: club(for: card),
+                                        hideTeamIdentity: hideTeamIdentity, unified: true)
                     }
                 }
                 .padding(16)

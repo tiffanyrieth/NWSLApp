@@ -29,6 +29,27 @@ struct NWSLAppApp: App {
         if ProcessInfo.processInfo.arguments.contains("-resetOnboarding") {
             FollowingStore.debugResetState()
             NotificationPreferencesStore.debugResetState()
+            // Per-team match alerts are independent of follows — clearing them is what
+            // makes the phantom "N teams with match alerts" footer go away on reset
+            // (Part B Bug 2). Alerts require following, so a fresh install has none.
+            TeamAlertStore.debugResetState()
+            // Fan Zone game progress is local source-of-truth (the server holds only
+            // additive leaderboard rows, never synced back down) — wipe it too so the
+            // reset is a true brand-new install, not just fresh follows. The Supabase
+            // session is cleared separately in RootTabView.task (signOut needs the
+            // async client, unavailable this early).
+            TriviaStore.debugResetState()
+            BracketStore.debugResetState()
+            PredictionStore.debugResetState()
+            // One-time coach marks + the Fan Zone sign-in invite are bare @AppStorage
+            // flags. Reset them (write `false` sentinels — same CFPreferences-snapshot
+            // reason as the stores) so a reset truly re-fires them: the Teams bell mark,
+            // the Social gear mark, and the Fan Zone intro (Part B Bug 9 — a sticky
+            // `fanZone.introSeen` was why the intro stopped appearing after the update).
+            let defaults = UserDefaults.standard
+            defaults.set(false, forKey: "hasSeenTeamsAlertTooltip")
+            defaults.set(false, forKey: "hasSeenSocialGearTooltip")
+            defaults.set(false, forKey: "fanZone.introSeen")
         }
         #endif
     }

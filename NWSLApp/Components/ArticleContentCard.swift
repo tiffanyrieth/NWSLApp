@@ -2,11 +2,13 @@
 //  ArticleContentCard.swift
 //  NWSLApp
 //
-//  The news-article content card (Content Card Spec variant 5; Feed + Home club
-//  news), facelift to `feed.jsx`: an identity row (author-initials avatar + name +
-//  a green NEWS pill + outlet, with a right-column team pill + time), a bold
-//  headline, a 2-line summary blurb, and — only when an image is on file — a
-//  FULL-WIDTH 16:9 image, closed by a "Read on {outlet} →" link. An image-less
+//  The news-article content card (Content Card Spec variant 5; Social Headlines +
+//  Home club news), unified with the social cards per `Feed.html`: ONE meta row —
+//  club-code pill + a green NEWS category pill + plain muted outlet + time (no
+//  source-initials avatar) — then a bold headline, a 2-line summary blurb, and —
+//  only when an image is on file — a FULL-WIDTH 16:9 image, closed by a "Read on
+//  {outlet} →" link. This is the only card kept in article format; reporters/league
+//  render as Bluesky social posts. An image-less
 //  article still reads as deliberate (left team bar + identity + headline + blurb +
 //  link carry it — no empty placeholder block). Per the Feed's legal note we only
 //  ever show the headline + blurb + link, never the article body.
@@ -23,13 +25,8 @@ struct ArticleContentCard: View {
 
     private var teamColor: Color { club?.accentColor ?? .dsAccent }
 
-    /// The outlet name (for the NEWS line and the CTA).
+    /// The outlet name (the muted source text + the "Read on …" CTA).
     private var outlet: String { card.sourceName ?? card.authorName ?? "News" }
-    /// The prominent identity: a byline author when known, else the outlet.
-    private var primaryName: String { card.authorName ?? outlet }
-    /// Show the outlet on the NEWS line only when the author is the primary name
-    /// (otherwise it'd just repeat the outlet).
-    private var secondaryOutlet: String? { card.authorName != nil ? card.sourceName : nil }
 
     var body: some View {
         // `.onTapGesture`, not a `Button` — see ThumbnailContentCard for why (a chip
@@ -69,62 +66,27 @@ struct ArticleContentCard: View {
         }
     }
 
-    // MARK: - Header (avatar + name / NEWS · outlet + team pill / time)
+    // MARK: - Header (one meta row: club code · NEWS pill · outlet … time)
 
+    // Matches the social cards (Feed.html): no source-initials avatar, the NEWS
+    // category pill replaces the old hand-rolled one, outlet is plain muted text.
     private var headerRow: some View {
-        HStack(alignment: .top, spacing: 11) {
-            avatar
-            VStack(alignment: .leading, spacing: 2) {
-                Text(primaryName)
-                    .dsFont(14.5, weight: .semibold)
-                    .foregroundStyle(Color.dsFgPrimary)
-                    .lineLimit(1)
-                HStack(spacing: 6) {
-                    newsPill
-                    if let secondaryOutlet {
-                        Text(secondaryOutlet)
-                            .dsFont(12)
-                            .foregroundStyle(Color.dsFgSecondary)
-                            .lineLimit(1)
-                    }
-                }
+        HStack(spacing: 7) {
+            if !hideTeamIdentity, let abbr = card.teamAbbreviation {
+                teamPill(abbr)
             }
-            Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 4) {
-                if !hideTeamIdentity, let abbr = card.teamAbbreviation {
-                    teamPill(abbr)
-                }
-                Text(card.timestamp.relativeAgo)
-                    .dsFont(11)
-                    .foregroundStyle(Color.dsFgSecondary)
-            }
+            CategoryPill(sourceType: card.resolvedSourceType)
+            Text(outlet)
+                .dsFont(12)
+                .foregroundStyle(Color.dsFgSecondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 6)
+            Text(card.timestamp.relativeAgo)
+                .dsFont(11)
+                .foregroundStyle(Color.dsFgSecondary)
+                .layoutPriority(1)
         }
-    }
-
-    private var avatar: some View {
-        ZStack {
-            Circle().fill(teamColor.opacity(0.15))
-            Text(initials)
-                .dsFont(14, weight: .bold)
-                .foregroundStyle(teamColor)
-        }
-        .frame(width: DS.contentAvatar, height: DS.contentAvatar)
-    }
-
-    private var initials: String {
-        let parts = primaryName.split(separator: " ").prefix(2)
-        let letters = parts.compactMap { $0.first }.map(String.init)
-        return letters.isEmpty ? "•" : letters.joined().uppercased()
-    }
-
-    private var newsPill: some View {
-        Text("NEWS")
-            .dsFont(9.5, weight: .bold)
-            .tracking(0.4)
-            .foregroundStyle(Color.dsStateFinal)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 1)
-            .background(Color.dsStateFinal.opacity(0.16), in: Capsule())
     }
 
     private func teamPill(_ abbr: String) -> some View {

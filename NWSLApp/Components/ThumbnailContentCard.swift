@@ -108,6 +108,7 @@ struct ThumbnailContentCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 6) {
+                CategoryPill(sourceType: card.resolvedSourceType)   // CLUB
                 PlatformBadge(platform: .youtube, size: 14)
                 Text("YouTube")
                 Text("·")
@@ -125,6 +126,7 @@ struct ThumbnailContentCard: View {
     private var socialFooter: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
+                CategoryPill(sourceType: card.resolvedSourceType)   // PLAYER
                 Text(card.authorName ?? "")
                     .dsFont(14, weight: .bold)
                     .foregroundStyle(Color.dsFgPrimary)

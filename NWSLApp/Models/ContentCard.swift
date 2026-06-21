@@ -116,6 +116,22 @@ struct ContentCard: Identifiable, Codable, Hashable {
     /// else the author (reporter/creator/team).
     var muteKey: String { sourceName ?? authorName ?? "" }
 
+    /// The card's source class — the proxy-set `sourceType` when present, else inferred
+    /// from `layout` (seed/older cards, and player cards from a cron snapshot built
+    /// before the proxy emitted `sourceType`). Drives the category pill (the card's
+    /// "what kind of voice" label) and the Social filter chips — one source of truth so
+    /// the pill and the chip never disagree.
+    var resolvedSourceType: SourceType {
+        if let sourceType { return sourceType }
+        switch layout {
+        case .newsArticle:                          return .news
+        case .blueskyReporter:                      return .reporter
+        case .blueskyTeamText, .blueskyTeamMedia:   return .club
+        case .youtube:                              return .club
+        case .socialVideo, .instagramFallback:      return .player
+        }
+    }
+
     /// The public 480×360 thumbnail YouTube always serves for a valid video id.
     static func youTubeThumbnail(_ videoID: String) -> URL? {
         URL(string: "https://img.youtube.com/vi/\(videoID)/hqdefault.jpg")

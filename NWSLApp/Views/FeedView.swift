@@ -72,7 +72,7 @@ struct FeedView: View {
     private var feedHeader: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .center) {
-                Text("Feed")
+                Text("Social")
                     .dsFont(32, weight: .bold)
                     .foregroundStyle(Color.dsFgPrimary)
                 Spacer()
@@ -87,7 +87,7 @@ struct FeedView: View {
                 }
                 .accessibilityLabel("Manage sources")
             }
-            Text("Reporters & writers covering your teams")
+            Text("The world talking about your teams")
                 .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
         }
@@ -109,18 +109,21 @@ struct FeedView: View {
         .background(Color.dsBgGrouped)
     }
 
+    // All 5 chips on ONE row, no horizontal scroll (Feed.html): content-sized pills
+    // distributed across the width (space-between).
     private var chipsBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(viewModel.chips, id: \.self) { filter in
-                    Chip(label: filter.label, isActive: viewModel.selectedFilter == filter, compact: true) {
-                        viewModel.selectedFilter = filter
-                    }
+        HStack(spacing: 6) {
+            ForEach(Array(viewModel.chips.enumerated()), id: \.element) { index, filter in
+                Chip(label: filter.label, isActive: viewModel.selectedFilter == filter,
+                     compact: true, horizontalPadding: 10) {
+                    viewModel.selectedFilter = filter
                 }
+                if index < viewModel.chips.count - 1 { Spacer(minLength: 0) }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
         .background(Color.dsBgGrouped)
     }
 
@@ -177,7 +180,7 @@ struct FeedView: View {
         case .all:
             return "No posts yet. As your teams make news, it'll show up here."
         case .news:
-            return "No news articles right now. Check back soon."
+            return "No headlines right now. Check back soon."
         case .clubs:
             return "No club posts right now. Check back soon."
         case .reporters:

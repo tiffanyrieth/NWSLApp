@@ -45,7 +45,7 @@ struct HomeContentListView: View {
         }
         .contentMargins(.horizontal, 16, for: .scrollContent)
         .background(Color.dsBgGrouped)
-        .nativeBackButton(title: "From your teams")
+        .nativeBackButton(title: "Club News")
     }
 
     private var emptyText: String {

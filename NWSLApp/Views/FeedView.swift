@@ -134,7 +134,7 @@ struct FeedView: View {
             ScrollView {
                 LazyVStack(spacing: 12) {
                     ForEach(items) { card in
-                        ContentCardView(card: card, club: club(for: card))
+                        ContentCardView(card: card, club: club(for: card), unified: true)
                     }
                 }
                 .padding(16)

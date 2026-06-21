@@ -22,8 +22,11 @@ struct ThumbnailContentCard: View {
     var club: Club?
     /// YouTube only: the compact 120pt thumbnail instead of the 180pt hero.
     var compact: Bool = false
-    /// Following one team → drop the team crest badge on the thumbnail (redundant).
+    /// Following one team → drop the team label on the thumbnail (redundant).
     var hideTeamIdentity: Bool = false
+    /// Social tab: show the source-class category pill in the footer. Home keeps its
+    /// original footer (no category pill) — this is the only per-tab card difference.
+    var unified: Bool = false
     @Environment(\.openURL) private var openURL
 
     /// Team accent for the stripe/badges/gradient. A creator clip with no team
@@ -108,7 +111,7 @@ struct ThumbnailContentCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 6) {
-                CategoryPill(sourceType: card.resolvedSourceType)   // CLUB
+                if unified { CategoryPill(sourceType: card.resolvedSourceType) }   // CLUB (Social only)
                 PlatformBadge(platform: .youtube, size: 14)
                 Text("YouTube")
                 Text("·")
@@ -126,7 +129,7 @@ struct ThumbnailContentCard: View {
     private var socialFooter: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                CategoryPill(sourceType: card.resolvedSourceType)   // PLAYER
+                if unified { CategoryPill(sourceType: card.resolvedSourceType) }   // PLAYER (Social only)
                 Text(card.authorName ?? "")
                     .dsFont(14, weight: .bold)
                     .foregroundStyle(Color.dsFgPrimary)
@@ -280,11 +283,11 @@ struct ThumbnailHeader: View {
 
 // MARK: - Media team badge
 
-/// The single bottom-left "which club" label overlaid on a content card's media: the
-/// real team crest + the abbreviation ONCE (team color). Replaces the old monogram pill
-/// that rendered the abbreviation twice ("WAS WAS"). Shared by all three card layouts'
-/// media so Home + Social read identically; gated by the caller on 2+ followed clubs.
-/// (A shared card component is a later cleanup — this just unifies the media label.)
+/// The single bottom-left "which club" label overlaid on a content card's media: just
+/// the team ABBREVIATION in team color on a subtle translucent-dark chip — no crest
+/// (the abbreviation alone identifies the club; the crest was visual noise). Shared by
+/// all card layouts' media so Home + Social read identically; gated by the caller on 2+
+/// followed clubs.
 struct MediaTeamBadge: View {
     var club: Club?
     let abbreviation: String
@@ -292,15 +295,12 @@ struct MediaTeamBadge: View {
     private var teamColor: Color { club?.accentColor ?? .white }
 
     var body: some View {
-        HStack(spacing: 5) {
-            TeamLogo(urlString: club?.logoURL, teamAbbreviation: abbreviation, size: 15)
-            Text(abbreviation)
-                .dsFont(11, weight: .semibold)
-                .foregroundStyle(teamColor)
-        }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 7)
-        .background(Color.black.opacity(0.55))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        Text(abbreviation)
+            .dsFont(11, weight: .semibold)
+            .foregroundStyle(teamColor)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .background(Color.black.opacity(0.55))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }

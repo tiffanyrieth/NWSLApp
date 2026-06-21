@@ -713,7 +713,7 @@ struct MatchDetailView: View {
             }
             if viewModel.temporalState == .past, let attendance = attendanceText {
                 Circle().fill(Color.dsFgQuaternary).frame(width: 3, height: 3)
-                Text("\(attendance) attending")
+                Text("Attendance: \(attendance)")
                     .dsFont(12)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)

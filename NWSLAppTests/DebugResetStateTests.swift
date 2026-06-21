@@ -81,6 +81,25 @@ struct DebugResetStateTests {
         #expect(reloaded.points(forTeam: "WAS") == 0)
     }
 
+    // MARK: - Team alerts (array key → []) — Part B Bug 2
+
+    @Test func teamAlertsResetClearsEnabledTeams() {
+        let defaults = isolatedDefaults("test.reset.teamAlerts")
+        let store = TeamAlertStore(defaults: defaults)
+        store.setAlertsEnabled(true, for: "21422")
+        store.setAlertsEnabled(true, for: "22187")
+        // Sanity: the phantom "N teams with match alerts" footer reads this count.
+        #expect(store.enabledCount == 2)
+
+        TeamAlertStore.debugResetState(defaults: defaults)
+
+        let reloaded = TeamAlertStore(defaults: defaults)
+        // The whole point of Bug 2: zero teams followed ⟹ zero alerts after reset.
+        #expect(reloaded.enabledCount == 0)
+        #expect(!reloaded.alertsEnabled(for: "21422"))
+        #expect(reloaded.teamsWithAlerts().isEmpty)
+    }
+
     // MARK: - Bracket Battle (JSON keys → empty Data(), editionID → "")
 
     @Test func bracketResetClearsProgress() {

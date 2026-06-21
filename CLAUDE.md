@@ -332,7 +332,7 @@ NWSLApp/
 │   ├── PlayerStats.swift              — per-player season stats + team-leaders (real ESPN data)
 │   ├── Roster.swift                   — squad + team profile from one roster fetch
 │   ├── Scoreboard.swift               — ESPN scoreboard structs + Event helpers
-│   ├── Standings.swift                — table rows (rank + Club + GP/W/D/L/PTS)
+│   ├── Standings.swift                — table rows (rank + Club + GP/W/D/L/PTS + GF/GA/GD from ESPN pointsfor/against/differential)
 │   ├── TeamSocialLinks.swift          — per-team social links for TeamDetail (reference data, no live API)
 │   ├── TriviaQuestion.swift           — one Daily-Trivia question (4 options)
 │   └── XIPrediction.swift             — Predict the XI: PositionGroup · Formation · PredictionFixture · XIPrediction (draft→submitted) · ActualResult · PredictionScore
@@ -385,7 +385,7 @@ NWSLApp/
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
 │   ├── BracketViewModel.swift         — Bracket session: round phase, progress, results, leaderboard, settled-round scoring (+ Game Center submit)
 │   ├── FeedViewModel.swift            — Social-tab source-class chips (All·Headlines·Reporters·Players·Clubs by `resolvedSourceType`; Headlines = news articles + league outlets) + `arranged` = SINGLE per-club `ContentRoundRobin.balanced` over ALL team-tagged cards (same model as Home, volume-blind), rare team-less card appended; no time window; `itemsError` on fetch failure
-│   ├── HomeViewModel.swift            — @MainActor; derives Home modules from MatchStore+ClubStore+Following; M1/M2 raw content read from the shared HomeContentStore (passthrough `contentError`/`spotlightError`/loading flags + `retryContent`/`refresh` drive the store)
+│   ├── HomeViewModel.swift            — @MainActor; derives Home modules from MatchStore+ClubStore+Following; M1/M2 raw content read from the shared HomeContentStore (passthrough `contentError`/`spotlightError`/loading flags + `retryContent`/`refresh` drive the store). M1 "All" view capped at 7 cards (overflow → "See more"); per-team chip is the full single-club lens
 │   ├── MatchDetailViewModel.swift     — one match: temporalState (past/live/future) + /summary + live refresh + preview
 │   ├── PredictXIViewModel.swift       — Predict slate (open fixtures per followed team) + scoring via /summary + per-team leaderboards (+ GC submit)
 │   ├── XIPickerViewModel.swift        — in-flight XI picker: formation + slot→athlete + scoreline; read-only once submitted
@@ -418,7 +418,7 @@ NWSLApp/
 │   ├── FormationPitchView.swift       — single-team XI on a pitch; per-team list fallback
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
 │   ├── PlayerSpotlightView.swift      — editorial spotlight: ghosted jersey # + hero, This Season grid, Story (Haiku blurb), Fast Facts + Watch
-│   ├── StandingsView.swift            — color-block table (# · TEAM · PTS · GP · W · D · L · LAST 5); crest + color-coded abbr per row; cyan PLAYOFF LINE the only cutoff cue; team-color spine + tint + accent rank = FOLLOW indicator; Last-5 via RecentForm over `nwslEvents`
+│   ├── StandingsView.swift            — color-block table (# · TEAM · PTS · GP · W · D · L · GD · LAST 5); GD signed (+12/-3, positive white else muted); crest + color-coded abbr per row; cyan PLAYOFF LINE the only cutoff cue; team-color spine + tint + accent rank = FOLLOW indicator; Last-5 via RecentForm over `nwslEvents`
 │   ├── FeedView.swift                 — **Social** tab ("The world talking about your teams"): header + 5 one-row source-class chips + per-club-balanced ContentCardViews; opens to `defaultFeedFilter`; full-screen error+retry on fetch failure
 │   ├── FeedSourcesView.swift          — Feed content preferences: Default-view picker + content-type toggles + mute sources
 │   ├── _ColorAuditView.swift          — 🔧 DEBUG-only 16-club color audit (`-colorAudit`); remove once verified
@@ -462,6 +462,7 @@ NWSLApp.storekit                       — local StoreKit 2 config (4 tip consum
 ## What's Next
 
 Pending work only (ALIVE > core > hardening); shipped work lives in git history + the File Map.
+- **⚠️ Proxy content gaps (circle back — owner-requested)** — diagnosed live, both proxy-side (`~/Projects/nwslapp-proxy`), app side is correct: (1) `/team-videos` returns ZERO club-news (newsArticle) cards — only IG + YouTube — so Home's "Club News" is missing club website posts (Part B Bug 3b); (2) `/feed` returns content (~46 cards) but the reporter bucket is thin (~3) during the transfer window — likely Haiku `isNWSL strict` over-gating transfer posts that mention non-NWSL entities (Part B Bug 4). Fix the club-OG-news fetch + loosen reporter gating.
 - **First-launch perf** — Tier 1+2 shipped; onboarding quick-tips screen DEFERRED (design task, build only if wanted).
 - **YouTube Shorts thumbnail pillarbox** — DEFERRED; fix is proxy-side.
 - **Pull-to-refresh polish** — keep the list visible during refresh (spinner only on first load).

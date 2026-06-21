@@ -47,7 +47,8 @@ struct StandingsView: View {
         static let pts: CGFloat = 34
         static let gp: CGFloat = 22
         static let wdl: CGFloat = 19     // W · D · L
-        static let form: CGFloat = 60    // five 11pt badges + 1pt gaps
+        static let gd: CGFloat = 26      // signed goal difference: "+12" / "-3"
+        static let form: CGFloat = 58    // five 11pt badges + 1pt gaps
         static let gap: CGFloat = 5
     }
     // Row content insets (inside the card) and the card's own side margin. The
@@ -159,6 +160,7 @@ struct StandingsView: View {
             Text("W").frame(width: Col.wdl, alignment: .trailing)
             Text("D").frame(width: Col.wdl, alignment: .trailing)
             Text("L").frame(width: Col.wdl, alignment: .trailing)
+            Text("GD").frame(width: Col.gd, alignment: .trailing)
             Text("Last 5").frame(width: Col.form, alignment: .trailing)
         }
         .trackedCaps(size: 11, tracking: 0.4, weight: .semibold, color: .dsFgTertiary)
@@ -267,6 +269,7 @@ struct StandingsView: View {
                 statCell(row.wins, width: Col.wdl)
                 statCell(row.draws, width: Col.wdl)
                 statCell(row.losses, width: Col.wdl)
+                gdCell(row)
                 formCell(recent)
             }
             .padding(.leading, Inset.rowLead)
@@ -298,6 +301,17 @@ struct StandingsView: View {
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .frame(width: width, alignment: .trailing)
+    }
+
+    /// Goal difference: signed, monospaced. A positive GD reads in white (a strength
+    /// signal); zero and negative stay muted like the other secondary stats.
+    private func gdCell(_ row: StandingsRow) -> some View {
+        Text(row.goalDifferenceText)
+            .dsFont(14, weight: .medium, monospacedDigit: true)
+            .foregroundStyle(row.goalDifference > 0 ? Color.dsFgPrimary : Color.dsFgSecondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .frame(width: Col.gd, alignment: .trailing)
     }
 
     /// Up to five W/D/L badges, oldest → newest (newest on the right). Teams with

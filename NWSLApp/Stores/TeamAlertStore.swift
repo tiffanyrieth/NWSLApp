@@ -106,4 +106,16 @@ final class TeamAlertStore {
         }
         defaults.set(true, forKey: Self.migratedKey)
     }
+
+    #if DEBUG
+    /// Dev-only: clear all per-team match-alert state so `-resetOnboarding` reproduces a
+    /// brand-new install (no phantom "N teams with match alerts" footer left over from a
+    /// prior session — Part B Bug 2). Static + key-aware so it runs before any instance
+    /// exists, in `NWSLAppApp.init()`. Writes cleared sentinels (not `removeObject`) for
+    /// the same CFPreferences-snapshot reason as `FollowingStore.debugResetState()`.
+    static func debugResetState(defaults: UserDefaults = .standard) {
+        defaults.set([String](), forKey: storageKey)
+        defaults.set(false, forKey: migratedKey)
+    }
+    #endif
 }

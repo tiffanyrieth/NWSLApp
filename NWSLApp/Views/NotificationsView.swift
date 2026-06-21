@@ -69,8 +69,10 @@ struct NotificationsView: View {
         let followed = clubStore.clubs.filter { following.isFollowing($0) }
         return SettingsGroup(
             title: "Match alerts — your teams",
-            subtitle: "Which teams buzz your phone on match day",
-            note: "Basic alerts are free. Live match updates require an account."
+            subtitle: "Which teams buzz your phone on match day"
+            // No "basic alerts are free / live updates require an account" note: the app
+            // is always free, and the sign-in gate explains Tier-2 contextually when a
+            // push toggle is tapped. The pre-emptive line read as a paywall (Part B Bug 8).
         ) {
             if followed.isEmpty {
                 Text("Follow teams to turn on match alerts.")

@@ -9,11 +9,18 @@
 //  quiet club sits ALONGSIDE the loud one at the top, then the rest fills
 //  chronologically up to a cap that scales with how many teams you follow.
 //
+//  Representation is COUNT-BASED, age-agnostic, and volume-blind: each followed club
+//  contributes up to `slotsPerClub` of its most-recent posts (regardless of age), and
+//  the rounds interleave one-per-club so every club gets an EQUAL allowance. A club
+//  posting 40×/week can never exceed its allowance or steal a quieter club's slot — and
+//  a club that's been silent for months still surfaces its most-recent posts as its
+//  share. There is deliberately NO time window and NO chronological "fill the rest from
+//  whoever posted most" pass (that rewarded volume — the LinkedIn failure mode).
+//
 //  Everything here is PURE + deterministic (no Date(), no randomness) so it unit-tests
-//  like BracketScoring / PredictionScoring: HomeViewModel does the freshness filtering
-//  (`.fresh(.home, now:)`) and the content-type chip filtering, then hands the result
-//  in. The content-type classifier (Change 3) lives here too — it's content
-//  categorisation, the same family of logic.
+//  like BracketScoring / PredictionScoring: the caller (HomeViewModel / FeedViewModel)
+//  scopes the cards to followed clubs and hands them in. The content-type classifier
+//  lives here too — it's content categorisation, the same family of logic.
 //
 
 import Foundation
@@ -27,28 +34,47 @@ enum ContentRoundRobin {
         let overflowCount: Int
     }
 
-    /// Guaranteed slots per team + the hard total ceiling, scaled by follow count
-    /// (the spec's fair-share table). More follows → fewer guaranteed each, but a
-    /// higher ceiling, so the module never balloons past ~2 screens.
-    static func tier(_ teamCount: Int) -> (guaranteed: Int, cap: Int) {
+    /// Per-club slot allowance for Home's Module-1 PREVIEW, scaled by follow count so
+    /// the preview stays bounded while the share stays equal. A single club has no
+    /// fairness to enforce, so it gets a full preview; the rest split an equal
+    /// allowance. The remainder beyond a club's allowance overflows to "See more →".
+    static func homeSlotsPerClub(_ teamCount: Int) -> Int {
         switch teamCount {
-        case ...2: return (4, 10)   // 1–2 teams
-        case 3...4: return (3, 12)
-        case 5...7: return (2, 16)
-        default:    return (2, 20)  // 8+ teams, hard ceiling
+        case ...1:  return 12   // one club — no fairness needed, show a full preview
+        case 2:     return 6
+        case 3...4: return 4
+        case 5...7: return 3
+        default:    return 2    // 8+ clubs
         }
     }
 
-    /// Balance + cap the cards for Home Module 1.
+    /// Per-club slot allowance for the FEED club lane — larger than Home's preview
+    /// (the Feed is the dedicated stream, not a teaser), still equal per club so a
+    /// chatty club never dominates.
+    static func feedSlotsPerClub(_ teamCount: Int) -> Int {
+        switch teamCount {
+        case ...2:  return 12
+        case 3...4: return 8
+        case 5...7: return 6
+        default:    return 4    // 8+ clubs
+        }
+    }
+
+    /// Balance cards across followed clubs by EQUAL count — volume-blind, age-agnostic.
     ///
-    /// - cards: already freshness- and chip-filtered by the caller.
+    /// - cards: scoped to followed clubs by the caller (no freshness filter — there is
+    ///   no time window anymore).
     /// - followedAbbreviations: the followed clubs in a STABLE order (alphabetical),
     ///   so the round-robin interleave is deterministic.
+    /// - slotsPerClub: the equal per-club allowance (`homeSlotsPerClub` /
+    ///   `feedSlotsPerClub`). Each club shows `min(slotsPerClub, itsCount)` of its
+    ///   most-recent posts; anything beyond is overflow (never another club's slot).
     /// - windowOffsets: per-team rotation offset for pull-to-refresh (see
     ///   `advancedOffsets`); 0 = newest.
     static func balanced(
         cards: [ContentCard],
         followedAbbreviations: [String],
+        slotsPerClub: Int,
         windowOffsets: [String: Int] = [:]
     ) -> Result {
         // 1. Group by team, newest-first within each (id-desc tiebreak = determinism).
@@ -61,25 +87,23 @@ enum ContentRoundRobin {
             byTeam[abbr]!.sort(by: newestFirst)
         }
 
-        let (guaranteed, cap) = tier(followedAbbreviations.count)
-
-        // 2. Per team: rotate by its window offset, interleave content TYPES so a
-        //    team's guaranteed slots aren't all videos (a club article or a Bluesky
-        //    post sits alongside the clips — Home stays a varied feed, not a video
-        //    channel; bug #4), reserve the first `guaranteed`, spill the rest into the
-        //    shared leftover pool.
-        var reservedByTeam: [String: [ContentCard]] = [:]
-        var leftover: [ContentCard] = []
+        // 2. Per club: rotate by its window offset, interleave content TYPES so a
+        //    club's slots aren't all videos (a club article or a Bluesky post sits
+        //    alongside the clips — the feed stays varied, not a video channel), then
+        //    take EXACTLY its allowance (`slotsPerClub`). The rest is overflow — it is
+        //    NEVER redistributed to fill another club's round (that would reward volume).
+        var slotsByTeam: [String: [ContentCard]] = [:]
         for abbr in followedAbbreviations {
             let all = byTeam[abbr] ?? []
             guard !all.isEmpty else { continue }
             let rotated = typeInterleaved(rotate(all, by: windowOffsets[abbr] ?? 0))
-            reservedByTeam[abbr] = Array(rotated.prefix(guaranteed))
-            leftover.append(contentsOf: rotated.dropFirst(guaranteed))
+            slotsByTeam[abbr] = Array(rotated.prefix(slotsPerClub))
         }
 
-        // 3. Interleave reserved slots round-robin: round 0 is one card per team (so a
-        //    quiet team sits at the top beside a loud one), round 1 the seconds, etc.
+        // 3. Interleave the per-club slots round-robin: round 0 is one card per club
+        //    (so a quiet club sits at the top beside a loud one), round 1 the seconds,
+        //    etc. A club that runs out simply stops contributing — the others continue,
+        //    but no club exceeds its own `slotsPerClub` allowance.
         var shown: [ContentCard] = []
         var seen = Set<String>()
         var round = 0
@@ -87,41 +111,31 @@ enum ContentRoundRobin {
         while addedThisRound {
             addedThisRound = false
             for abbr in followedAbbreviations {
-                guard let reserved = reservedByTeam[abbr], round < reserved.count else { continue }
-                let card = reserved[round]
+                guard let slots = slotsByTeam[abbr], round < slots.count else { continue }
+                let card = slots[round]
                 if seen.insert(card.id).inserted { shown.append(card) }
                 addedThisRound = true
             }
             round += 1
         }
 
-        // 4. Fill remaining capacity chronologically from the leftover pool.
-        leftover.sort(by: newestFirst)
-        for card in leftover {
-            if shown.count >= cap { break }
-            if seen.insert(card.id).inserted { shown.append(card) }
-        }
-
-        // 5. Hard ceiling (guaranteed × teams can exceed cap with many follows).
-        if shown.count > cap { shown = Array(shown.prefix(cap)) }
-
         let totalEligible = byTeam.values.reduce(0) { $0 + $1.count }
         return Result(cards: shown, overflowCount: max(0, totalEligible - shown.count))
     }
 
     /// Pull-to-refresh rotation: when no NEW content arrived, shift each team's window
-    /// forward by one page (`guaranteed`), wrapping, so the user discovers cards they
-    /// hadn't seen — natural forward motion, never random. `availableCounts` is each
-    /// team's eligible-card count (the wrap modulus).
+    /// forward by one page (`pageSize`, = the per-club slot allowance), wrapping, so the
+    /// user discovers cards they hadn't seen — natural forward motion, never random.
+    /// `availableCounts` is each team's eligible-card count (the wrap modulus).
     static func advancedOffsets(
         current: [String: Int],
         availableCounts: [String: Int],
-        guaranteed: Int
+        pageSize: Int
     ) -> [String: Int] {
         var next = current
         for (abbr, count) in availableCounts where count > 0 {
             let cur = current[abbr] ?? 0
-            next[abbr] = (cur + guaranteed) % count
+            next[abbr] = (cur + pageSize) % count
         }
         return next
     }

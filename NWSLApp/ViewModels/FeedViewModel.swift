@@ -101,17 +101,69 @@ final class FeedViewModel {
 
     // MARK: - Filtered cards
 
-    /// Cards visible for the current `selectedFilter`, already newest-first. The
-    /// base set is always scoped to the user's world (followed teams + league-wide),
-    /// then narrowed by the content-type chip and the user's content preferences.
+    /// Cards visible for the current `selectedFilter`. The base set is scoped to the
+    /// user's world (followed teams + league-wide), narrowed by the content-type chip
+    /// and the user's content preferences, then arranged in TWO LANES (no time window):
+    ///  • Club lane — a followed club's OWN posts → count-based equal share per club
+    ///    (`ContentRoundRobin.balanced`), so a chatty club never crowds out a quiet one
+    ///    and a club that's been silent still surfaces its most-recent posts.
+    ///  • League lane — reporters / league outlets / news / players (no per-club team)
+    ///    → chronological, capped + woven in so it can't push club content below its
+    ///    equal share.
+    /// On a club-only chip the league lane is empty (→ just the balanced clubs); on a
+    /// league chip (News/Reporters/Players) the club lane is empty (→ chronological).
     func items(_ following: FollowingStore, preferences: FeedPreferencesStore) -> [ContentCard] {
         let followed = Set(followedClubs(following).map(\.abbreviation))
-        return allItems
+        let filtered = allItems
             .filter { isRelevant($0, followed) }
             .filter { passesFilter($0) }
             .filter { passesPreferences($0, preferences) }
-            .fresh(.feed)
+        return Self.arrange(filtered, followedAbbreviations: followedClubs(following).map(\.abbreviation))
+    }
+
+    /// PURE two-lane arrangement (no time window, count-based — unit-tested):
+    ///  • Club lane — each followed club's OWN posts balanced to an EQUAL per-club share
+    ///    (`ContentRoundRobin.balanced`), volume-blind and age-agnostic.
+    ///  • League lane — reporters / league / news / players (no per-club team), newest-first,
+    ///    capped + woven in so it can't push club content below its share.
+    /// `orderedClubs` is the followed clubs in stable (directory/alphabetical) order.
+    static func arrange(_ filtered: [ContentCard], followedAbbreviations orderedClubs: [String]) -> [ContentCard] {
+        let followed = Set(orderedClubs)
+        let balancedClubs = ContentRoundRobin.balanced(
+            cards: filtered.filter { isClubScoped($0, followed) },
+            followedAbbreviations: orderedClubs,
+            slotsPerClub: ContentRoundRobin.feedSlotsPerClub(orderedClubs.count)
+        ).cards
+        let leagueLane = filtered
+            .filter { !isClubScoped($0, followed) }
             .sorted { $0.timestamp > $1.timestamp }
+        return merge(club: balancedClubs, league: leagueLane)
+    }
+
+    /// A card that belongs to ONE followed club (its own official posts) — the only
+    /// content the per-club fairness applies to. Reporters/league/news/players are
+    /// league-wide (no team) and ride the league lane.
+    static func isClubScoped(_ card: ContentCard, _ followed: Set<String>) -> Bool {
+        guard sourceType(of: card) == .club, let abbr = card.teamAbbreviation else { return false }
+        return followed.contains(abbr)
+    }
+
+    /// Weave the league lane into the balanced club lane at a bounded ~2 club : 1 league
+    /// cadence, with the league lane capped at the club count. Club content always leads
+    /// each cycle, so league voices appear at natural spots but can never push a club's
+    /// fair share down. Either lane empty → the other, unchanged.
+    static func merge(club: [ContentCard], league: [ContentCard]) -> [ContentCard] {
+        guard !club.isEmpty else { return league }
+        guard !league.isEmpty else { return club }
+        let cappedLeague = Array(league.prefix(min(league.count, club.count)))
+        var result: [ContentCard] = []
+        var ci = 0, li = 0
+        while ci < club.count || li < cappedLeague.count {
+            if ci < club.count { result.append(club[ci]); ci += 1 }
+            if ci < club.count { result.append(club[ci]); ci += 1 }
+            if li < cappedLeague.count { result.append(cappedLeague[li]); li += 1 }
+        }
+        return result
     }
 
     /// Base scope: a Feed-eligible card that's either league-wide or about a
@@ -128,10 +180,10 @@ final class FeedViewModel {
     private func passesFilter(_ card: ContentCard) -> Bool {
         switch selectedFilter {
         case .all:       return true
-        case .news:      return sourceType(of: card) == .news
-        case .clubs:     return sourceType(of: card) == .club
-        case .reporters: return sourceType(of: card) == .reporter || sourceType(of: card) == .league
-        case .players:   return sourceType(of: card) == .player
+        case .news:      return Self.sourceType(of: card) == .news
+        case .clubs:     return Self.sourceType(of: card) == .club
+        case .reporters: return Self.sourceType(of: card) == .reporter || Self.sourceType(of: card) == .league
+        case .players:   return Self.sourceType(of: card) == .player
         }
     }
 
@@ -139,7 +191,7 @@ final class FeedViewModel {
     /// inferred from `layout` (seed/older cards, and player IG cards from a cron
     /// snapshot built before the proxy emitted `sourceType`). On the Feed,
     /// socialVideo/IG is a player clip (club social is placement "home").
-    private func sourceType(of card: ContentCard) -> ContentCard.SourceType {
+    static func sourceType(of card: ContentCard) -> ContentCard.SourceType {
         if let t = card.sourceType { return t }
         switch card.layout {
         case .newsArticle:                          return .news

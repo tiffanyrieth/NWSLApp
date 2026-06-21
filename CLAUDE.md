@@ -324,7 +324,7 @@ NWSLApp/
 │   ├── BracketEdition.swift           — Bracket Battle: BracketRound/Entrant/Matchup/Edition (64→6 rounds, flat Codable)
 │   ├── Club.swift                     — flat Club + ESPN /teams decode (brand/alternate color → crests)
 │   ├── Competition.swift              — `ScheduledMatch` (Event + `CompetitionType` tag) + `ChampionsCupFeed`/`NationalTeamFeed.all` (7 women's NT feeds; keep in sync with proxy `WOMENS_NT_FEEDS`); the seam folding non-NWSL feeds into Schedule. `CompetitionType.primaryBroadcastOverride` = curated US English-rights map for comps ESPN only carries in Spanish (CC→Paramount+; ESPN's feed → the `surfacesSpanishSecondary` line)
-│   ├── ContentCard.swift              — unified ALIVE-content model: 7 layouts + `sourceType` (club·reporter·player·league·news) + StalenessWindow (Home 72h / Feed 7d, 6-card-floored)
+│   ├── ContentCard.swift              — unified ALIVE-content model: 7 layouts + `sourceType` (club·reporter·player·league·news). NO time window — representation is count-based + age-agnostic (see ContentRoundRobin)
 │   ├── NationalTeam.swift             — followable women's NT: FIFA code + name + flag + brand color (followed wash/border/tint). Curated `featured(8)`/`all(16)` + a `discovered` init for data-driven Browse-all (ESPN flag by FIFA code; color via DesignTeamColors.displayHex else neutral)
 │   ├── AthleteStatistics.swift        — ESPN Core API /statistics → PlayerSeasonStats
 │   ├── MatchSummary.swift             — ESPN /summary: lineups+formation, boxscore, key-events timeline
@@ -338,7 +338,7 @@ NWSLApp/
 │   └── XIPrediction.swift             — Predict the XI: PositionGroup · Formation · PredictionFixture · XIPrediction (draft→submitted) · ActualResult · PredictionScore
 ├── Services/
 │   ├── BracketScoring.swift           — pure Bracket scorer (tiered per-round points). Unit-tested
-│   ├── ContentRoundRobin.swift        — pure Home Module-1 fair-share: `balanced` (per-team round-robin + content-type interleave + follow-scaled cap) + `advancedOffsets` (pull-refresh rotation). Unit-tested
+│   ├── ContentRoundRobin.swift        — pure COUNT-BASED fair-share (Home M1 + Feed club lane): `balanced` (EQUAL per-club slot allowance, volume-blind + age-agnostic, round-robin interleave + content-type mix) + `home/feedSlotsPerClub` + `advancedOffsets` (pull-refresh rotation). NO time window, NO chronological volume fill. Unit-tested
 │   ├── BracketService.swift           — Bracket Supabase client: currentEdition/results/leaderboard/submit; all throw (online-only; nil currentEdition = genuinely no active edition)
 │   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats
 │   ├── ContentService.swift           — ALIVE content client: homeCards→/team-videos · feedCards→/feed · spotlightCards→/spotlight; all `throws` (online-only; no seed)
@@ -384,7 +384,7 @@ NWSLApp/
 │   └── TriviaStore.swift              — Daily-Trivia streak/bestStreak/accuracy + one-play/day gate
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
 │   ├── BracketViewModel.swift         — Bracket session: round phase, progress, results, leaderboard, settled-round scoring (+ Game Center submit)
-│   ├── FeedViewModel.swift            — source-class chips (All/News/Clubs/Reporters/Players by `sourceType`; Reporters = league outlets too) + filtered [ContentCard] (follows∩ OR league, 7d staleness); `itemsError` on fetch failure
+│   ├── FeedViewModel.swift            — source-class chips (All/News/Clubs/Reporters/Players by `sourceType`; Reporters = league outlets too) + TWO-LANE `arrange` (club lane = count-based per-club fair-share via ContentRoundRobin; league lane = reporters/news/league/players chrono, capped + woven so it never buries club share); no time window; `itemsError` on fetch failure
 │   ├── HomeViewModel.swift            — @MainActor; derives Home modules from MatchStore+ClubStore+Following; M1/M2 raw content read from the shared HomeContentStore (passthrough `contentError`/`spotlightError`/loading flags + `retryContent`/`refresh` drive the store)
 │   ├── MatchDetailViewModel.swift     — one match: temporalState (past/live/future) + /summary + live refresh + preview
 │   ├── PredictXIViewModel.swift       — Predict slate (open fixtures per followed team) + scoring via /summary + per-team leaderboards (+ GC submit)

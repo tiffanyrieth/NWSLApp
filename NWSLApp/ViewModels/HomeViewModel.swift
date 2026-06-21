@@ -96,14 +96,14 @@ final class HomeViewModel {
     private func advanceRotation(following: FollowingStore) {
         let ordered = orderedFollowedAbbreviations(following)
         var counts: [String: Int] = [:]
-        for card in freshFollowedCards(following: following) {
+        for card in followedTeamCards(following: following) {
             if let abbr = card.teamAbbreviation { counts[abbr, default: 0] += 1 }
         }
-        let (guaranteed, _) = ContentRoundRobin.tier(ordered.count)
+        let pageSize = ContentRoundRobin.homeSlotsPerClub(ordered.count)
         windowOffsets = ContentRoundRobin.advancedOffsets(
             current: windowOffsets,
             availableCounts: counts,
-            guaranteed: guaranteed
+            pageSize: pageSize
         )
     }
 
@@ -128,47 +128,46 @@ final class HomeViewModel {
     // MARK: - Module 1: From your teams
 
     /// The "From your teams" module. On **All** (`selectedTeam == nil`): the
-    /// round-robin fair-share across followed clubs (every team a guaranteed minimum,
-    /// interleaved so a quiet club sits beside a loud one), capped by follow count.
-    /// On a **per-team** chip: just that club's content, reverse-chron (balancing is
-    /// moot for one team), capped the same so the module doesn't bury what's below.
+    /// count-based, volume-blind round-robin across followed clubs (every club an equal
+    /// slot allowance, interleaved so a quiet club sits beside a loud one — a chatty
+    /// club can't crowd it out, and no time window applies). On a **per-team** chip:
+    /// just that club's content, newest-first (balancing is moot for one club).
     /// Returns the cards AND the overflow count (drives the "See more →" link).
     ///
     /// Returns a value (no stored state) so it's side-effect-free to call from `body`.
     func teamContent(following: FollowingStore) -> ContentRoundRobin.Result {
         let ordered = orderedFollowedAbbreviations(following)
-        let fresh = freshFollowedCards(following: following)
-        // Per-team chip (only honored if that team is still followed).
+        let cards = followedTeamCards(following: following)
+        // Per-team chip (only honored if that team is still followed): a focused
+        // single-club view, so it uses the single-club allowance.
         if let team = selectedTeam, ordered.contains(team) {
-            let cards = fresh
+            let teamCards = cards
                 .filter { $0.teamAbbreviation == team }
                 .sorted { $0.timestamp > $1.timestamp }
-            let cap = ContentRoundRobin.tier(ordered.count).cap
-            return ContentRoundRobin.Result(cards: Array(cards.prefix(cap)),
-                                            overflowCount: max(0, cards.count - cap))
+            let cap = ContentRoundRobin.homeSlotsPerClub(1)
+            return ContentRoundRobin.Result(cards: Array(teamCards.prefix(cap)),
+                                            overflowCount: max(0, teamCards.count - cap))
         }
         return ContentRoundRobin.balanced(
-            cards: fresh,
+            cards: cards,
             followedAbbreviations: ordered,
+            slotsPerClub: ContentRoundRobin.homeSlotsPerClub(ordered.count),
             windowOffsets: windowOffsets
         )
     }
 
-    /// Followed teams' own fresh cards (placement + follow + freshness) — the
-    /// rotation pool and the per-team base. News articles get the longer 7-day window
-    /// (the Feed's): club news posts a few times a week, so under the tight 72h window
-    /// a 4-day-old article is buried by the day's clip flood and Home reads like a
-    /// video channel (bug #4). Social/video keep the 72h window.
-    private func freshFollowedCards(following: FollowingStore) -> [ContentCard] {
+    /// Followed clubs' own Home cards (placement ≠ `.feed`, club ∈ follows) — the
+    /// rotation pool and the per-team base. NO freshness filter: representation is
+    /// count-based and age-agnostic, so `ContentRoundRobin.balanced` takes each club's
+    /// most-recent posts regardless of age and `typeInterleaved` mixes news/video/social
+    /// within a club's slots (so news isn't buried — no separate window needed).
+    private func followedTeamCards(following: FollowingStore) -> [ContentCard] {
         let followed = followedAbbreviations(following)
-        let owned = teamContentItems.filter { card in
+        return teamContentItems.filter { card in
             guard card.placement != .feed,
                   let abbr = card.teamAbbreviation else { return false }
             return followed.contains(abbr)
         }
-        let news = owned.filter { $0.layout == .newsArticle }.fresh(.feed, now: now())
-        let rest = owned.filter { $0.layout != .newsArticle }.fresh(.home, now: now())
-        return news + rest
     }
 
     /// The full firehose for the "See more from your teams" screen: ALL followed-team

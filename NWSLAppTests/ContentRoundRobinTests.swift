@@ -2,10 +2,12 @@
 //  ContentRoundRobinTests.swift
 //  NWSLAppTests
 //
-//  The pure brains of Home Module 1's round-robin fair-share (QOL Change 1): every
-//  followed team a guaranteed minimum, interleaved so a quiet club sits beside a loud
-//  one, then chronological fill up to a follow-count-scaled cap. All deterministic, so
-//  it tests like BracketScoring — fixed inputs, exact expected ordering.
+//  The pure brains of the count-based, volume-blind fair-share shared by Home Module 1
+//  and the Feed club lane: each followed club gets an EQUAL slot allowance of its
+//  most-recent posts (age-agnostic), interleaved one-per-club so a quiet club sits
+//  beside a loud one. A chatty club can never exceed its allowance or steal a quieter
+//  club's slot — there is no time window and no volume-rewarding chronological fill.
+//  All deterministic, so it tests like BracketScoring — fixed inputs, exact ordering.
 //
 
 import Foundation
@@ -33,70 +35,101 @@ struct ContentRoundRobinTests {
         result.cards.compactMap(\.teamAbbreviation)
     }
 
-    // MARK: - Tier table
+    // MARK: - Per-club allowance tables
 
-    @Test func respectsTierTable() {
-        #expect(ContentRoundRobin.tier(1).guaranteed == 4)
-        #expect(ContentRoundRobin.tier(1).cap == 10)
-        #expect(ContentRoundRobin.tier(2) == (4, 10))
-        #expect(ContentRoundRobin.tier(3) == (3, 12))
-        #expect(ContentRoundRobin.tier(4) == (3, 12))
-        #expect(ContentRoundRobin.tier(5) == (2, 16))
-        #expect(ContentRoundRobin.tier(7) == (2, 16))
-        #expect(ContentRoundRobin.tier(8) == (2, 20))
-        #expect(ContentRoundRobin.tier(12) == (2, 20))
+    @Test func homeSlotsPerClubTable() {
+        #expect(ContentRoundRobin.homeSlotsPerClub(1) == 12)   // one club → full preview
+        #expect(ContentRoundRobin.homeSlotsPerClub(2) == 6)
+        #expect(ContentRoundRobin.homeSlotsPerClub(3) == 4)
+        #expect(ContentRoundRobin.homeSlotsPerClub(4) == 4)
+        #expect(ContentRoundRobin.homeSlotsPerClub(5) == 3)
+        #expect(ContentRoundRobin.homeSlotsPerClub(7) == 3)
+        #expect(ContentRoundRobin.homeSlotsPerClub(8) == 2)
+        #expect(ContentRoundRobin.homeSlotsPerClub(16) == 2)
     }
 
-    // MARK: - Fair share
+    @Test func feedSlotsPerClubTable() {
+        #expect(ContentRoundRobin.feedSlotsPerClub(1) == 12)
+        #expect(ContentRoundRobin.feedSlotsPerClub(2) == 12)
+        #expect(ContentRoundRobin.feedSlotsPerClub(4) == 8)
+        #expect(ContentRoundRobin.feedSlotsPerClub(7) == 6)
+        #expect(ContentRoundRobin.feedSlotsPerClub(8) == 4)
+    }
 
-    @Test func quietTeamGetsGuaranteedSlotsAboveLoudTeam() {
-        // A posts 10, B posts 2. Pure reverse-chron would bury B; fair-share must not.
+    // MARK: - Fair share (count-based, volume-blind, age-agnostic)
+
+    @Test func quietClubSurvivesAndSitsBesideLoudClub() {
+        // A posts 10, B posts 2 (all older than A's). Pure reverse-chron would bury B.
         var cards: [ContentCard] = []
         for i in 0..<10 { cards.append(card("A\(i)", "A", secondsAgo: Double(i))) }      // A newest
         cards.append(card("B0", "B", secondsAgo: 100))
         cards.append(card("B1", "B", secondsAgo: 101))
 
-        let result = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A", "B"])
+        let result = ContentRoundRobin.balanced(
+            cards: cards, followedAbbreviations: ["A", "B"], slotsPerClub: 6)
 
-        // Both of B's cards survive despite being older than all of A's.
+        // Both of B's older cards survive.
         #expect(result.cards.contains { $0.id == "B0" })
         #expect(result.cards.contains { $0.id == "B1" })
         // Interleave puts B at the very top (index 1 — right after A's newest).
         #expect(result.cards[1].teamAbbreviation == "B")
-        // tier(2) caps at 10; 12 eligible → 2 overflow.
-        #expect(result.cards.count == 10)
-        #expect(result.overflowCount == 2)
+        // A capped at its allowance (6), B shows its 2 → 8 shown, 12 eligible → 4 overflow.
+        #expect(result.cards.filter { $0.teamAbbreviation == "A" }.count == 6)
+        #expect(result.cards.filter { $0.teamAbbreviation == "B" }.count == 2)
+        #expect(result.cards.count == 8)
+        #expect(result.overflowCount == 4)
     }
 
-    @Test func fillsRemainderChronologicallyAfterGuarantees() {
-        // 2 teams, 6 each. Guarantee 4 each = 8 interleaved; cap 10 → 2 chronological fill.
+    @Test func volumeEarnsNothingExtra() {
+        // The LinkedIn failure mode: a club relisting all day must NOT bury a quiet one.
+        // A posts 40 this week, B posts 2. Each gets the SAME allowance; A can't exceed it
+        // and can't take B's slots.
         var cards: [ContentCard] = []
-        for i in 0..<6 { cards.append(card("A\(i)", "A", secondsAgo: Double(i))) }
-        for i in 0..<6 { cards.append(card("B\(i)", "B", secondsAgo: Double(i) + 0.5)) }
+        for i in 0..<40 { cards.append(card("A\(i)", "A", secondsAgo: Double(i))) }
+        cards.append(card("B0", "B", secondsAgo: 500))
+        cards.append(card("B1", "B", secondsAgo: 501))
 
-        let result = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A", "B"])
+        let result = ContentRoundRobin.balanced(
+            cards: cards, followedAbbreviations: ["A", "B"], slotsPerClub: 6)
 
-        #expect(result.cards.count == 10)
-        #expect(result.overflowCount == 2)
-        // The 2 fill slots are the newest leftovers (A4/B4 era), not the oldest.
-        #expect(!result.cards.contains { $0.id == "A5" })
-        #expect(!result.cards.contains { $0.id == "B5" })
+        #expect(result.cards.filter { $0.teamAbbreviation == "A" }.count == 6)   // capped at allowance
+        #expect(result.cards.filter { $0.teamAbbreviation == "B" }.count == 2)   // all of B's, intact
+        #expect(result.overflowCount == 34)                                      // 42 − 8
     }
 
-    @Test func capIsHardCeiling() {
-        // 10 teams × 5 cards. tier(8+) caps at 20; reserved interleave alone hits it.
+    @Test func ageAgnosticSilentClubStillSurfaces() {
+        // B hasn't posted in "years" (huge secondsAgo). Its most-recent posts still
+        // surface as its fair share — no time window drops them.
+        var cards: [ContentCard] = []
+        for i in 0..<3 { cards.append(card("A\(i)", "A", secondsAgo: Double(i))) }
+        cards.append(card("B0", "B", secondsAgo: 300_000_000))   // ~10 years old
+        cards.append(card("B1", "B", secondsAgo: 300_000_100))
+
+        let result = ContentRoundRobin.balanced(
+            cards: cards, followedAbbreviations: ["A", "B"], slotsPerClub: 6)
+
+        #expect(result.cards.contains { $0.id == "B0" })
+        #expect(result.cards.contains { $0.id == "B1" })
+    }
+
+    @Test func eachClubLimitedToItsEqualAllowance() {
+        // 10 clubs × 5 cards, allowance 2 → every club contributes exactly 2 (no cap
+        // games, no volume bonus): 20 shown, 30 overflow, all 10 represented.
         var cards: [ContentCard] = []
         let teams = (0..<10).map { "T\($0)" }
         for t in teams {
             for i in 0..<5 { cards.append(card("\(t)-\(i)", t, secondsAgo: Double(i))) }
         }
 
-        let result = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: teams)
+        let result = ContentRoundRobin.balanced(
+            cards: cards, followedAbbreviations: teams, slotsPerClub: 2)
 
         #expect(result.cards.count == 20)
         #expect(result.overflowCount == 30)        // 50 eligible − 20 shown
-        // Every team is represented (round 0 = one per team, all 10 fit under the cap).
-        #expect(Set(abbrs(result)).count == 10)
+        #expect(Set(abbrs(result)).count == 10)    // every club represented
+        for t in teams {
+            #expect(result.cards.filter { $0.teamAbbreviation == t }.count == 2)
+        }
     }
 
     @Test func deterministicAcrossRuns() {
@@ -104,8 +137,10 @@ struct ContentRoundRobinTests {
         for i in 0..<5 { cards.append(card("A\(i)", "A", secondsAgo: Double(i))) }
         for i in 0..<5 { cards.append(card("B\(i)", "B", secondsAgo: Double(i))) }   // tie timestamps across teams
 
-        let first = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A", "B"])
-        let second = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A", "B"])
+        let first = ContentRoundRobin.balanced(
+            cards: cards, followedAbbreviations: ["A", "B"], slotsPerClub: 6)
+        let second = ContentRoundRobin.balanced(
+            cards: cards, followedAbbreviations: ["A", "B"], slotsPerClub: 6)
 
         #expect(first.cards.map(\.id) == second.cards.map(\.id))
     }
@@ -120,52 +155,50 @@ struct ContentRoundRobinTests {
     }
 
     @Test func advanceOffsetsShiftByPageAndWrap() {
-        // 1 team, 3 cards, page size (guaranteed) 2 → 0 → 2 → 1 → 0 …
-        var off = ContentRoundRobin.advancedOffsets(current: [:], availableCounts: ["A": 3], guaranteed: 2)
+        // 1 team, 3 cards, page size 2 → 0 → 2 → 1 → 0 …
+        var off = ContentRoundRobin.advancedOffsets(current: [:], availableCounts: ["A": 3], pageSize: 2)
         #expect(off["A"] == 2)
-        off = ContentRoundRobin.advancedOffsets(current: off, availableCounts: ["A": 3], guaranteed: 2)
+        off = ContentRoundRobin.advancedOffsets(current: off, availableCounts: ["A": 3], pageSize: 2)
         #expect(off["A"] == 1)
-        off = ContentRoundRobin.advancedOffsets(current: off, availableCounts: ["A": 3], guaranteed: 2)
+        off = ContentRoundRobin.advancedOffsets(current: off, availableCounts: ["A": 3], pageSize: 2)
         #expect(off["A"] == 0)
     }
 
     @Test func rotationSurfacesUnseenCards() {
-        // 5 teams (guaranteed 2). Team A has 4 cards; an offset of 2 should FEATURE its
+        // 5 teams (allowance 3). Team A has 4 cards; an offset of 2 should FEATURE its
         // 3rd-newest at the top instead of its newest — the "discover unseen" behavior.
-        // (Everything fits under the cap of 16, so rotation changes ORDER, not which
-        // cards appear; the featured/top card is the visible signal.)
         var cards: [ContentCard] = []
         for i in 0..<4 { cards.append(card("A\(i)", "A", secondsAgo: Double(i))) }   // A0 newest … A3 oldest
         for t in ["B", "C", "D", "E"] { cards.append(card("\(t)0", t, secondsAgo: 1)) }
 
         let teams = ["A", "B", "C", "D", "E"]   // A leads the round-robin interleave
-        let base = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: teams)
-        let rotated = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: teams,
-                                                 windowOffsets: ["A": 2])
+        let base = ContentRoundRobin.balanced(
+            cards: cards, followedAbbreviations: teams, slotsPerClub: 3)
+        let rotated = ContentRoundRobin.balanced(
+            cards: cards, followedAbbreviations: teams, slotsPerClub: 3, windowOffsets: ["A": 2])
 
-        // The featured (top) card is A's reserved[0]: A0 at offset 0, A2 at offset 2.
+        // The featured (top) card is A's slot[0]: A0 at offset 0, A2 at offset 2.
         #expect(base.cards.first?.id == "A0")
         #expect(rotated.cards.first?.id == "A2")
-        // Rotation lifts A2 above A0 (A0 falls from a reserved slot to the fill tail).
+        // Rotation lifts A2 above A0 within A's slots.
         let a0 = rotated.cards.firstIndex { $0.id == "A0" }
         let a2 = rotated.cards.firstIndex { $0.id == "A2" }
         #expect(a2! < a0!)
     }
 
-    // MARK: - Type variety within a team (bug #4)
+    // MARK: - Type variety within a club's slots
 
-    @Test func teamSlotsMixContentTypesNotJustVideos() {
-        // A team with a flood of videos + one older news article. The news must land
-        // in the team's guaranteed slots (not be buried under the newer clips), so
-        // Home stays a varied feed rather than a video channel.
+    @Test func clubSlotsMixContentTypesNotJustVideos() {
+        // A club with a flood of videos + one older news article. The news must land in
+        // the club's slots (not be buried under newer clips), so the feed stays varied.
         var cards: [ContentCard] = []
         for i in 0..<10 { cards.append(card("V\(i)", "A", secondsAgo: Double(i), layout: .youtube)) }
         cards.append(card("NEWS", "A", secondsAgo: 100, layout: .newsArticle))   // older than all videos
 
-        let result = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A"])
+        let result = ContentRoundRobin.balanced(
+            cards: cards, followedAbbreviations: ["A"], slotsPerClub: 12)
 
-        // tier(1) guarantees 4; with type-interleaving the news sits at slot 1
-        // (newest video, then the one news article).
+        // Type-interleaving puts the news at slot 1 (newest video, then the article).
         #expect(result.cards.first?.id == "V0")
         #expect(result.cards.count >= 2)
         #expect(result.cards[1].id == "NEWS")

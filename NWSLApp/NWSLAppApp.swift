@@ -29,6 +29,14 @@ struct NWSLAppApp: App {
         if ProcessInfo.processInfo.arguments.contains("-resetOnboarding") {
             FollowingStore.debugResetState()
             NotificationPreferencesStore.debugResetState()
+            // Fan Zone game progress is local source-of-truth (the server holds only
+            // additive leaderboard rows, never synced back down) — wipe it too so the
+            // reset is a true brand-new install, not just fresh follows. The Supabase
+            // session is cleared separately in RootTabView.task (signOut needs the
+            // async client, unavailable this early).
+            TriviaStore.debugResetState()
+            BracketStore.debugResetState()
+            PredictionStore.debugResetState()
         }
         #endif
     }

@@ -155,4 +155,26 @@ final class BracketStore {
         guard let data else { return nil }
         return try? JSONDecoder().decode(T.self, from: data)
     }
+
+    #if DEBUG
+    /// Dev-only: wipe Bracket Battle progress (picks, submitted rounds, banked
+    /// scores, edition snapshot) so `-resetOnboarding` simulates a brand-new install
+    /// (see NWSLAppApp.init). Static + key-name-aware so it runs before any store
+    /// instance exists. Local-only: the server leaderboard/edition rows are untouched
+    /// and nothing syncs them back down, so the wipe sticks.
+    ///
+    /// Writes cleared SENTINELS rather than `removeObject` (see the note in
+    /// FollowingStore.debugResetState — deletions don't reliably propagate against
+    /// cfprefsd's snapshot at App.init in the Simulator; explicit writes do). The
+    /// JSON-backed keys get an empty `Data()`: the store's `decode` does `try?`, which
+    /// fails on it and falls back to nil/`[:]` — same fresh state as an absent key,
+    /// and it sidesteps the `[Int: …]`-encodes-as-an-array decoding trap.
+    static func debugResetState(defaults: UserDefaults = .standard) {
+        defaults.set(Data(), forKey: Key.summary)
+        defaults.set(Data(), forKey: Key.picks)
+        defaults.set(Data(), forKey: Key.submitted)
+        defaults.set(Data(), forKey: Key.scores)
+        defaults.set("", forKey: Key.editionID)
+    }
+    #endif
 }

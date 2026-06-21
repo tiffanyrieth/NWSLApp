@@ -137,4 +137,23 @@ final class PredictionStore {
         guard let data else { return nil }
         return try? JSONDecoder().decode(T.self, from: data)
     }
+
+    #if DEBUG
+    /// Dev-only: wipe Predict-the-XI progress (drafts, scores, banked season points)
+    /// so `-resetOnboarding` simulates a brand-new install (see NWSLAppApp.init).
+    /// Static + key-name-aware so it runs before any store instance exists.
+    /// Local-only: the server per-team leaderboard rows are untouched and nothing
+    /// syncs them back down, so the wipe sticks.
+    ///
+    /// Writes cleared SENTINELS rather than `removeObject` (see the note in
+    /// FollowingStore.debugResetState — deletions don't reliably propagate against
+    /// cfprefsd's snapshot at App.init in the Simulator; explicit writes do). The
+    /// JSON-backed keys get an empty `Data()`, which `decode`'s `try?` falls back to
+    /// `[:]` on — same fresh state as an absent key.
+    static func debugResetState(defaults: UserDefaults = .standard) {
+        defaults.set(Data(), forKey: Key.predictions)
+        defaults.set(Data(), forKey: Key.scores)
+        defaults.set(0, forKey: Key.seasonPoints)
+    }
+    #endif
 }

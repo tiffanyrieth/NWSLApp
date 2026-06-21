@@ -32,7 +32,14 @@ struct OnboardingView: View {
     // The shared Home content store — warmed the instant a team is picked so Home is
     // already populated by the time onboarding finishes (no first-paint loading flash).
     @Environment(HomeContentStore.self) private var homeContent
+    // Per-team match-alert toggles. Onboarding rows surface a bell the moment a club is
+    // followed (OFF by default) so the follow-vs-alerts distinction is taught visually.
+    @Environment(TeamAlertStore.self) private var teamAlerts
     @Environment(\.dismiss) private var dismiss
+
+    // After the picker, a one-screen thesis statement frames what the app is before
+    // dropping the user into Home. "Let's go" there completes onboarding.
+    @State private var showThesis = false
 
     private var followCount: Int { following.followedIDs.count }
 
@@ -44,6 +51,21 @@ struct OnboardingView: View {
                 viewModel.clubStore = clubStore
                 if case .idle = clubStore.state { await viewModel.load() }
             }
+            .fullScreenCover(isPresented: $showThesis) {
+                ThesisView(
+                    clubs: followedClubsInOrder,
+                    alertCount: teamAlerts.enabledCount
+                ) {
+                    following.completeOnboarding()
+                    dismiss()
+                }
+            }
+    }
+
+    // Followed clubs in the same alphabetical order the picker shows them — feeds the
+    // thesis screen's crest row + name list.
+    private var followedClubsInOrder: [Club] {
+        viewModel.clubs.filter { following.isFollowing($0) }
     }
 
     @ViewBuilder
@@ -79,6 +101,7 @@ struct OnboardingView: View {
             }
 
             internationalSection
+            playerFollowingTeaser
         }
         .listStyle(.insetGrouped)
         // Persistent bottom bar: the running follow count + reassurance, always
@@ -88,14 +111,12 @@ struct OnboardingView: View {
 
     private var introBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Follow teams to see their matches, news, and more across the app.")
+            // Frame following as building a content feed (the YouTube/IG model), not
+            // declaring allegiance + alerts — the #1 first-time-user misread. The bell
+            // toggle on each followed row (below) teaches the alerts distinction visually,
+            // so the old "following isn't notifications" footnote is no longer needed.
+            Text("Your feed starts here. Add any clubs you're interested in — their news, videos, and social posts will show up on your Home tab.")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
-            // Clarifier that preempts the "will following spam me with alerts?" hesitation —
-            // following only feeds Home; alerts are opt-in and managed separately in Teams.
-            // Smaller than the subtitle but kept at .secondary so it stays legible.
-            Text("Following isn't the same as game notifications. Turn those on anytime in the Teams tab.")
-                .font(.footnote)
                 .foregroundStyle(.secondary)
                 // Guarantee full wrapping (never truncate) on the smallest screens (SE/mini).
                 .fixedSize(horizontal: false, vertical: true)
@@ -104,28 +125,69 @@ struct OnboardingView: View {
     }
 
     private func row(for club: Club) -> some View {
-        // The whole row toggles follow here (no navigation in onboarding), so a
-        // single plain button over the row is all we need.
+        // Two independent tap targets in one row: the crest+name+checkmark toggle follow,
+        // and (once followed) a separate bell toggles match alerts. Both are `.plain`
+        // buttons so List hit-tests them independently (the bell isn't a follow tap).
         let isFollowing = following.isFollowing(club)
-        return Button {
-            following.toggle(club)
-            // Warm Home's content for the current selection (debounced) so it's ready by
-            // the time onboarding finishes — re-warms as the selection changes.
-            homeContent.warm(following: following, clubStore: clubStore)
-        } label: {
-            HStack(spacing: 12) {
-                TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 32)
-                Text(club.displayName)
-                    .foregroundStyle(.primary)
-                Spacer(minLength: 8)
+        return HStack(spacing: 10) {
+            Button { toggleFollow(club) } label: {
+                HStack(spacing: 12) {
+                    TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 32)
+                    Text(club.displayName)
+                        .foregroundStyle(.primary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isFollowing ? "Unfollow \(club.displayName)" : "Follow \(club.displayName)")
+
+            // Bell appears only after following (alerts require following), OFF by default.
+            if isFollowing {
+                bellButton(for: club)
+                    .transition(.opacity)
+            }
+
+            Button { toggleFollow(club) } label: {
                 Image(systemName: isFollowing ? "checkmark.circle.fill" : "circle")
                     .imageScale(.large)
                     .foregroundStyle(isFollowing ? Color.accentColor : Color.secondary)
+                    .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .accessibilityHidden(true)
+        }
+        .animation(.easeOut(duration: 0.2), value: isFollowing)
+    }
+
+    // Toggle a follow + keep alerts honest: unfollowing clears the team's alert (alerts
+    // require following). Warms Home content for the new selection (debounced).
+    private func toggleFollow(_ club: Club) {
+        following.toggle(club)
+        if !following.isFollowing(club) {
+            teamAlerts.clearAlerts(for: club.id)
+        }
+        homeContent.warm(following: following, clubStore: clubStore)
+    }
+
+    // Match-alert bell — same chrome/behavior as the Teams-tab bell. Direct on/off toggle;
+    // never requests iOS notification permission (that fires only from the Notifications
+    // hub on a first toggle-on — the Bell-Tap fix).
+    private func bellButton(for club: Club) -> some View {
+        let on = teamAlerts.alertsEnabled(for: club.id)
+        return Button { teamAlerts.toggle(for: club.id) } label: {
+            Image(systemName: on ? "bell.fill" : "bell")
+                .dsFont(13, weight: .medium)
+                .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
+                .frame(width: 36, height: 32)
+                .background(on ? Color.dsAccentMuted : Color.dsBgTertiary)
+                .clipShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(isFollowing ? "Unfollow \(club.displayName)" : "Follow \(club.displayName)")
+        .accessibilityLabel(
+            on ? "Turn off match alerts for \(club.displayName)"
+               : "Turn on match alerts for \(club.displayName)"
+        )
     }
 
     // A quiet pointer, not a toggle list: international competitions (national teams
@@ -142,6 +204,36 @@ struct OnboardingView: View {
                     Text("Following a national team?")
                         .foregroundStyle(.primary)
                     Text("Add national teams + the Champions Cup later in Teams → Follow competitions.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    // A forward-looking teaser for the future player-following feature — purely
+    // informational (not tappable). Sits below the national-teams pointer, same styling.
+    private var playerFollowingTeaser: some View {
+        Section {
+            HStack(spacing: 12) {
+                Image(systemName: "person.fill")
+                    .foregroundStyle(Color.secondary)
+                    .frame(width: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 8) {
+                        Text("Follow individual players")
+                            .foregroundStyle(.primary)
+                        Text("COMING SOON")
+                            .dsFont(10, weight: .bold)
+                            .tracking(0.5)
+                            .foregroundStyle(Color.dsAccent)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Color.dsAccentMuted, in: Capsule())
+                    }
+                    Text("Keep tabs on your favorite players across the league — no matter what team they're on.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -175,8 +267,8 @@ struct OnboardingView: View {
     @ViewBuilder
     private var followButton: some View {
         let title = followCount == 0
-            ? "Follow your teams"
-            : "Follow \(followCount) team\(followCount == 1 ? "" : "s")"
+            ? "Add clubs to get started"
+            : "Continue with \(followCount) club\(followCount == 1 ? "" : "s")"
 
         if followCount == 0 {
             Button {} label: {
@@ -194,8 +286,9 @@ struct OnboardingView: View {
             .accessibilityHint("Select at least one team to continue")
         } else {
             Button {
-                following.completeOnboarding()
-                dismiss()
+                // Frame the app on a thesis screen before Home; "Let's go" there
+                // completes onboarding.
+                showThesis = true
             } label: {
                 Text(title)
                     .font(.headline)
@@ -227,5 +320,6 @@ struct OnboardingView: View {
             .environment(FollowingStore())
             .environment(ClubStore())
             .environment(HomeContentStore())
+            .environment(TeamAlertStore())
     }
 }

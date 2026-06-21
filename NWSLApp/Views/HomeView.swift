@@ -309,14 +309,14 @@ struct HomeView: View {
             // Module 2 failed its live fetch — honest tap-to-retry, scoped to it.
             section(
                 "Weekly Player Spotlight",
-                subtitle: "A featured player each week — get to know the squad you follow"
+                subtitle: "Meet your squad — a different player each week so you know who to watch on match day"
             ) {
                 moduleError(error) { await viewModel.retryContent(following: following) }
             }
         } else if !spotlights.isEmpty {
             section(
                 "Weekly Player Spotlight",
-                subtitle: "A featured player each week — get to know the squad you follow"
+                subtitle: "Meet your squad — a different player each week so you know who to watch on match day"
             ) {
                 VStack(spacing: 10) {
                     // Equal-weight cards in a snapping horizontal carousel (one per

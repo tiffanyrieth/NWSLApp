@@ -23,6 +23,11 @@ import SwiftUI
 struct FeedView: View {
     @State private var viewModel = FeedViewModel()
     @State private var showSources = false
+    // One-time coach mark pointing at the source-management gear — the feed looks like an
+    // algorithmic feed you can't control, so first-time users miss it. Same pattern as the
+    // Teams-tab bell coach mark (`hasSeenTeamsAlertTooltip`).
+    @AppStorage("hasSeenSocialGearTooltip") private var hasSeenGearTooltip = false
+    @State private var showGearTooltip = false
     @Environment(FollowingStore.self) private var following
     @Environment(FeedPreferencesStore.self) private var feedPreferences
     // The shared club directory (injected in RootTabView), for the per-team chips.
@@ -65,6 +70,7 @@ struct FeedView: View {
             await clubStore.loadIfNeeded()   // dedupe-aware: scope the feed only after clubs are loaded
             await viewModel.loadItemsIfNeeded(following: following)
         }
+        .onAppear { showGearTooltipIfNeeded() }
     }
 
     // Large "Feed" title + a circular gear (source management) + subtitle, drawn as
@@ -76,7 +82,10 @@ struct FeedView: View {
                     .dsFont(32, weight: .bold)
                     .foregroundStyle(Color.dsFgPrimary)
                 Spacer()
-                Button { showSources = true } label: {
+                Button {
+                    if showGearTooltip { dismissGearTooltip() }
+                    showSources = true
+                } label: {
                     ZStack {
                         Circle().fill(Color.dsBgCard)
                         Image(systemName: "gearshape")
@@ -96,6 +105,51 @@ struct FeedView: View {
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.dsBgGrouped)
+        // Coach mark hangs below the gear, arrow up. Anchored to the padded header so it
+        // stays inset from the screen edge (same placement as the Teams-tab bell mark).
+        .overlay(alignment: .topTrailing) {
+            if showGearTooltip {
+                gearTooltip
+                    .fixedSize()
+                    .padding(.trailing, 16)
+                    .offset(y: 44)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .topTrailing)))
+            }
+        }
+    }
+
+    // A small blue callout under the gear (arrow up), shown once. Tapping it dismisses
+    // (so does tapping the gear, or anywhere else).
+    private var gearTooltip: some View {
+        VStack(alignment: .trailing, spacing: 0) {
+            CoachMarkTriangle()
+                .fill(Color.dsAccent)
+                .frame(width: 16, height: 8)
+                .padding(.trailing, 12)
+            Text("Customize your feed — choose which sources you see")
+                .dsFont(13, weight: .semibold)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color.dsAccent, in: RoundedRectangle(cornerRadius: 10))
+        }
+        .onTapGesture { dismissGearTooltip() }
+        .accessibilityLabel("Customize your feed. Tap the gear to choose which sources you see.")
+    }
+
+    // Show once on first Social-tab visit; mark seen on show (not just dismiss) so it's
+    // truly one-and-done across force-quit / returning from a sheet.
+    private func showGearTooltipIfNeeded() {
+        guard !hasSeenGearTooltip else { return }
+        hasSeenGearTooltip = true
+        withAnimation(.easeOut(duration: 0.25).delay(0.35)) {
+            showGearTooltip = true
+        }
+    }
+
+    private func dismissGearTooltip() {
+        hasSeenGearTooltip = true
+        withAnimation(.easeOut(duration: 0.2)) { showGearTooltip = false }
     }
 
     // MARK: - Feed (chips + content)
@@ -107,6 +161,11 @@ struct FeedView: View {
             content
         }
         .background(Color.dsBgGrouped)
+        // Tap anywhere in the feed dismisses the gear coach mark (runs alongside the
+        // cards' own taps; no-op once it's gone).
+        .simultaneousGesture(TapGesture().onEnded {
+            if showGearTooltip { dismissGearTooltip() }
+        })
     }
 
     // All 5 chips on ONE row, no horizontal scroll (Feed.html): content-sized pills

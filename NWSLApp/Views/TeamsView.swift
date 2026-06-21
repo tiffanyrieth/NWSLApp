@@ -254,7 +254,7 @@ struct TeamsView: View {
     // bell. Tapping the bubble dismisses it (so does tapping anywhere / the bell).
     private var alertTooltip: some View {
         VStack(alignment: .trailing, spacing: 0) {
-            Triangle()
+            CoachMarkTriangle()
                 .fill(Color.dsAccent)
                 .frame(width: 16, height: 8)
                 .padding(.trailing, 12)
@@ -503,18 +503,6 @@ struct TeamsView: View {
             .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-// Upward-pointing triangle for the coach-mark arrow (apex centered at the top).
-private struct Triangle: Shape {
-    func path(in rect: CGRect) -> Path {
-        var p = Path()
-        p.move(to: CGPoint(x: rect.midX, y: rect.minY))
-        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        p.closeSubpath()
-        return p
     }
 }
 

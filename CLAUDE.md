@@ -405,7 +405,8 @@ NWSLApp/
 │   ├── BracketBattleView.swift        — Bracket Battle (teal): 5 screens — Edition Intro · Voting · Save/Submit · Results · Bracket Overview
 │   ├── PredictXIView.swift            — Predict the XI (pink): open fixtures + Results breakdown + per-team leaderboard cards
 │   ├── XIPickerView.swift             — Predict picker sheet: formation chips → pitch-grid slots → scoreline → Save/Submit (+ Game Center first-prediction)
-│   ├── OnboardingView.swift           — first-open club picker, shown FULL-SCREEN by RootTabView (no tab bar) until onboarded — can't be skipped by tapping a tab (+ a quiet pointer to Teams → Follow competitions)
+│   ├── OnboardingView.swift           — first-open club picker, shown FULL-SCREEN by RootTabView (no tab bar) until onboarded — can't be skipped by tapping a tab. Per-row alert bell (appears once followed, OFF default — teaches follow-vs-alerts) + pointer to Teams → Follow competitions + a "Follow players" COMING SOON teaser. Continue → ThesisView
+│   ├── ThesisView.swift               — one-screen "You're all set" framing between team picker and Home: brand-color crest row + adaptive thesis sentence + optional alerts line; "Let's go →" completes onboarding
 │   ├── SignInPromptView.swift         — sign-in half-sheet on a genuine sign-in-required action (Bracket Lock-in, Trivia/Predict at-submit); optional `onSignedIn` callback; never auto-presented post-onboarding
 │   ├── FanZoneIntroView.swift         — OPTIONAL one-time "set up your Fan Zone profile" invite on first game entry (skippable; Sign in with Apple + name step + triggers Game Center). `.fanZoneIntro()` modifier (in HomeView.destination), gated `!introSeen && !isSignedIn` (@AppStorage `fanZone.introSeen`); `FanZoneIntro.shared.declinedThisSession` suppresses a same-session 2nd at-submit modal
 │   ├── NotificationAuthPromptView.swift — contextual "sign in for live alerts" half-sheet (Tier 2)
@@ -438,7 +439,8 @@ NWSLApp/
 │   ├── FeaturedGameCard.swift         — Fan Zone full-width featured lead card (medallion + FEATURED eyebrow + title + tagline + CTA) anchoring M3
 │   ├── HowToWatchCard.swift / MDInfoCard.swift / StatComparisonBar.swift — match-detail tiles (HowToWatch = FREE/SUB badge + BroadcastChip + per-device "Find it" steps; MDInfoCard = label/value)
 │   ├── PitchDot.swift / PlayerDot.swift / PlayerCard.swift — player markers/cards (team-color monogram, no headshots)
-│   ├── ComingUpRow.swift / EventTimelineRow.swift / FlowLayout.swift — Home/match rows + wrapping layout
+│   ├── ComingUpRow.swift / EventTimelineRow.swift / FlowLayout.swift — Home/match rows + wrapping layout (ComingUpRow upcoming rows carry a `● Platform · FREE/SUB` broadcast line)
+│   ├── CoachMarkTriangle.swift        — shared upward arrow for one-time coach marks (Teams bell + Social gear nudges)
 │   ├── ImageCache.swift / TeamLogo.swift / CachedThumbnail.swift — cached crests + thumbnails; TeamLogo resolves cached-override → BUNDLED crest/flag (zero-network frame-one) → proxy `/crest`/ESPN; CachedThumbnail sync-seeds from ImageCache (no flash on tab-switch)
 │   ├── MatchCard.swift                — schedule card (`ScheduledMatch`) → MatchDetailView: team wash, 60pt crests + team-color abbr (non-NWSL via `DesignTeamColors.displayHex`), scores, temporal center, broadcast+venue rail, competition label, uniform height
 │   ├── NationalTeamCard.swift         — shared NT grid card (Competitions + Browse-all), mirrors the club card: flag (bundled `Flags/<FIFA>` → override → `team.flagURL`) + halo, FIFA code in country color, name, Follow pill + bell; followed → wash + border. Reads FollowingStore + TeamAlertStore

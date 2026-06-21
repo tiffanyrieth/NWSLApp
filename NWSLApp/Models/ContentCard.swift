@@ -103,7 +103,9 @@ struct ContentCard: Identifiable, Codable, Hashable {
     let likes: Int?
     let reposts: Int?
 
-    /// Drives staleness (Home ≤72h, Feed ≤7d) and the "2h ago" label.
+    /// Sort key (newest-first within a club's slots) and the "2h ago" label. NOT a
+    /// freshness gate — representation is count-based and age-agnostic (see
+    /// ContentRoundRobin): a club's most-recent posts always surface regardless of age.
     let timestamp: Date
     /// External tap target — opens the native app / Safari. Whole card is the link.
     let url: URL?
@@ -114,59 +116,24 @@ struct ContentCard: Identifiable, Codable, Hashable {
     /// else the author (reporter/creator/team).
     var muteKey: String { sourceName ?? authorName ?? "" }
 
+    /// The card's source class — the proxy-set `sourceType` when present, else inferred
+    /// from `layout` (seed/older cards, and player cards from a cron snapshot built
+    /// before the proxy emitted `sourceType`). Drives the category pill (the card's
+    /// "what kind of voice" label) and the Social filter chips — one source of truth so
+    /// the pill and the chip never disagree.
+    var resolvedSourceType: SourceType {
+        if let sourceType { return sourceType }
+        switch layout {
+        case .newsArticle:                          return .news
+        case .blueskyReporter:                      return .reporter
+        case .blueskyTeamText, .blueskyTeamMedia:   return .club
+        case .youtube:                              return .club
+        case .socialVideo, .instagramFallback:      return .player
+        }
+    }
+
     /// The public 480×360 thumbnail YouTube always serves for a valid video id.
     static func youTubeThumbnail(_ videoID: String) -> URL? {
         URL(string: "https://img.youtube.com/vi/\(videoID)/hqdefault.jpg")
-    }
-}
-
-// MARK: - Staleness
-
-/// How fresh a card must be to show, per screen: Home leads with same-day-ish
-/// team content; the Feed keeps a week of the wider conversation.
-enum StalenessWindow {
-    case home   // ≤ 72 hours, but never fewer than `floor` cards
-    case feed   // ≤ 7 days, but never fewer than `floor` cards
-
-    var interval: TimeInterval {
-        switch self {
-        case .home: return 72 * 3600
-        case .feed: return 7 * 24 * 3600
-        }
-    }
-
-    /// "72 hours OR X amount of content" — the floor keeps a surface populated
-    /// through a slow content stretch (an international break, the off-season)
-    /// while the age window keeps it tight when posts are flowing. When fewer than
-    /// `floor` cards fall inside `interval`, `fresh` relaxes the age cutoff to the
-    /// `floor` most-recent cards instead of going sparse. `nil` = strict window.
-    ///
-    /// Home's floor is 6 — exactly Module 1's display cap
-    /// (`HomeViewModel.teamContent(limit:)`), so a slow week still fills the hook
-    /// rather than leaving a near-empty module. **The Feed shares the same floor of
-    /// 6**: an empty Feed during a slow stretch (an international break, the
-    /// off-season) reads as "the app is broken" even when it's technically correct —
-    /// users don't know there's a World Cup break, they just see an empty tab. So a
-    /// dry window relaxes to the 6 most-recent posts regardless of age.
-    var floor: Int? {
-        switch self {
-        case .home: return 6
-        case .feed: return 6
-        }
-    }
-}
-
-extension Array where Element == ContentCard {
-    /// Cards within the window, measured from `now` (injectable for tests). Apply
-    /// before the reverse-chron sort so out-of-window items drop out entirely.
-    ///
-    /// Fast period: returns everything inside `window.interval`. Slow period: if
-    /// that's fewer than `window.floor` cards, returns the `floor` most-recent
-    /// cards regardless of age so the surface never goes sparse (see `floor`).
-    func fresh(_ window: StalenessWindow, now: Date = Date()) -> [ContentCard] {
-        let cutoff = now.addingTimeInterval(-window.interval)
-        let within = filter { $0.timestamp >= cutoff }
-        guard let floor = window.floor, within.count < floor else { return within }
-        return sorted { $0.timestamp > $1.timestamp }.prefix(floor).map { $0 }
     }
 }

@@ -22,6 +22,10 @@ struct ContentCardView: View {
     /// redundant noise — Home passes `true` to drop the team badge + name (keeping the
     /// platform badge + accent line). Feed never sets it.
     var hideTeamIdentity: Bool = false
+    /// Social tab passes `true` for the unified card chrome (category pills, no avatar).
+    /// Home leaves it `false` to keep its original card chrome — the team label is the
+    /// only thing that changed on Home (now a bottom-left on-media chip).
+    var unified: Bool = false
 
     var body: some View {
         // The facelift "color-block" signature: a 3px team-color bar down the card's
@@ -41,11 +45,12 @@ struct ContentCardView: View {
     private var layoutCard: some View {
         switch card.layout {
         case .youtube, .socialVideo:
-            ThumbnailContentCard(card: card, club: club, hideTeamIdentity: hideTeamIdentity)
+            ThumbnailContentCard(card: card, club: club, hideTeamIdentity: hideTeamIdentity, unified: unified)
         case .blueskyTeamText, .blueskyTeamMedia, .blueskyReporter, .instagramFallback:
+            // Avatar (Bluesky) cards are Social-only — always the unified chrome.
             AvatarContentCard(card: card, club: club, hideTeamIdentity: hideTeamIdentity)
         case .newsArticle:
-            ArticleContentCard(card: card, club: club, hideTeamIdentity: hideTeamIdentity)
+            ArticleContentCard(card: card, club: club, hideTeamIdentity: hideTeamIdentity, unified: unified)
         }
     }
 }

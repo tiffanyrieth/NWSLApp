@@ -2,11 +2,12 @@
 //  AvatarContentCard.swift
 //  NWSLApp
 //
-//  The avatar-led content cards (Feed social + Home club-social), facelift to
-//  `feed.jsx`: an author-initials avatar in the team tint, a TWO-LINE identity
-//  (name + platform badge / a platform-color dot + "handle · Platform"), and a
-//  right column (team-abbr pill + time). Below the header — full width — the post
-//  body, optional media, and the like/repost + CTA row. Covers four of the seven
+//  The social content cards (Social tab + Home club-social), unified with Home per
+//  the `Feed.html` mock: ONE meta row — club-code pill + a single category pill
+//  (CLUB/REPORTER/PLAYER/LEAGUE) + plain muted source text ("@handle · Bluesky") +
+//  time. No source-initials avatar (that was a second, competing labeling system).
+//  Below the header — full width — the post body, optional media, and the
+//  like/repost + "View on Bluesky" row. Covers four of the seven
 //  Content Card Spec variants that share this anatomy:
 //   • 2 blueskyTeamText  — team post, text only
 //   • 3 blueskyTeamMedia — team post with a media thumbnail
@@ -52,64 +53,45 @@ struct AvatarContentCard: View {
 
     // MARK: - Header (avatar + two-line identity + team pill / time)
 
+    // One meta row, matching Home (Feed.html): club code · category pill · source …
+    // time. No initials avatar and no second identity line — the category pill carries
+    // "what kind of voice", the club-code pill + color bar carry "which club".
+    /// True when this card renders a media image (so the team code rides bottom-left on
+    /// the media instead of inline in the meta row).
+    private var hasMediaImage: Bool {
+        switch card.layout {
+        case .blueskyTeamMedia: return true
+        case .blueskyReporter:  return card.thumbnailURL != nil
+        default:                return false   // text-only, or the IG-fallback strip
+        }
+    }
+
     private var headerRow: some View {
-        HStack(alignment: .top, spacing: 11) {
-            avatar
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 5) {
-                    Text(displayName)
-                        .dsFont(14.5, weight: .semibold)
-                        .foregroundStyle(Color.dsFgPrimary)
-                        .lineLimit(1)
-                    PlatformBadge(platform: card.platform, size: 14)
-                }
-                HStack(spacing: 6) {
-                    Circle().fill(platformColor).frame(width: 6, height: 6)
-                    Text(handleLine)
-                        .dsFont(12)
-                        .foregroundStyle(Color.dsFgSecondary)
-                        .lineLimit(1)
-                }
+        HStack(spacing: 7) {
+            // Inline team code ONLY for text-only cards; cards with media show it
+            // bottom-left ON the media (see `mediaThumbnail`). Gated on 2+ clubs.
+            if !hideTeamIdentity, !hasMediaImage, let abbr = card.teamAbbreviation {
+                teamPill(abbr)
             }
-            Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 4) {
-                if !hideTeamIdentity, let abbr = card.teamAbbreviation {
-                    teamPill(abbr)
-                }
-                Text(card.timestamp.relativeAgo)
-                    .dsFont(11)
-                    .foregroundStyle(Color.dsFgSecondary)
-            }
+            CategoryPill(sourceType: card.resolvedSourceType)
+            Text(sourceLine)
+                .dsFont(12)
+                .foregroundStyle(Color.dsFgSecondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 6)
+            Text(card.timestamp.relativeAgo)
+                .dsFont(11)
+                .foregroundStyle(Color.dsFgSecondary)
+                .layoutPriority(1)
         }
     }
 
-    /// The poster: a reporter/author name, else the club, else the abbreviation.
-    private var displayName: String {
-        card.authorName ?? club?.displayName ?? card.teamAbbreviation ?? "—"
-    }
-
-    /// "@handle · Bluesky" when a handle is known, else just the platform name.
-    private var handleLine: String {
-        if let handle = card.handle, !handle.isEmpty {
-            return "\(handle) · \(platformName)"
-        }
-        return platformName
-    }
-
-    private var avatar: some View {
-        ZStack {
-            Circle().fill(teamColor.opacity(0.15))
-            Text(initials)
-                .dsFont(14, weight: .bold)
-                .foregroundStyle(teamColor)
-        }
-        .frame(width: DS.contentAvatar, height: DS.contentAvatar)
-    }
-
-    private var initials: String {
-        let parts = displayName.split(separator: " ").prefix(2)
-        let letters = parts.compactMap { $0.first }.map(String.init)
-        return letters.isEmpty ? "•" : letters.joined().uppercased()
+    /// Plain muted source text — the author/handle with "· Platform" (mirrors the
+    /// mock's "@jeffkassouf · Bluesky"); not a colored badge.
+    private var sourceLine: String {
+        let name = card.authorName ?? card.handle ?? club?.displayName ?? card.teamAbbreviation ?? "—"
+        return "\(name) · \(platformName)"
     }
 
     private func teamPill(_ abbr: String) -> some View {
@@ -120,18 +102,6 @@ struct AvatarContentCard: View {
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
             .background(teamColor.opacity(0.13), in: Capsule())
-    }
-
-    /// The platform's brand color, for the meta-line dot (mirrors PlatformBadge).
-    private var platformColor: Color {
-        switch card.platform {
-        case .youtube:   return Color(hex: "#FF0000")
-        case .bluesky:   return Color(hex: "#0085FF")
-        case .tiktok:    return Color(hex: "#000000")
-        case .instagram: return Color(hex: "#DD2A7B")
-        case .article:   return Color(hex: "#636366")
-        case .reddit:    return Color(hex: "#FF4500")
-        }
     }
 
     private var platformName: String {
@@ -199,6 +169,12 @@ struct AvatarContentCard: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: height)
+        // The single team label, bottom-left on the media (gated on 2+ clubs).
+        .overlay(alignment: .bottomLeading) {
+            if !hideTeamIdentity, let abbr = card.teamAbbreviation {
+                MediaTeamBadge(club: club, abbreviation: abbr).padding(8)
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
     }
 

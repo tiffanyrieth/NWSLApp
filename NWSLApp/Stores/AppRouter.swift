@@ -40,7 +40,7 @@ final class AppRouter {
 
     init() {
         #if DEBUG
-        // DEBUG launch arg `-startTab <home|schedule|standings|teams|feed>` lands the
+        // DEBUG launch arg `-startTab <home|schedule|standings|teams|social>` lands the
         // app on a given tab at launch, so in-sim screenshot verification doesn't
         // depend on flaky synthetic tab taps (the UIKit tab bar responds, but precise
         // taps are unreliable — see CLAUDE.md → Commands). A testing affordance only,
@@ -52,7 +52,7 @@ final class AppRouter {
             case "schedule": selectedTab = .schedule
             case "standings": selectedTab = .standings
             case "teams": selectedTab = .teams
-            case "feed": selectedTab = .feed
+            case "social", "feed": selectedTab = .feed   // `.feed` is the internal case; "social" is the label
             default: break
             }
         }

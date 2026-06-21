@@ -22,8 +22,11 @@ struct ThumbnailContentCard: View {
     var club: Club?
     /// YouTube only: the compact 120pt thumbnail instead of the 180pt hero.
     var compact: Bool = false
-    /// Following one team → drop the team crest badge on the thumbnail (redundant).
+    /// Following one team → drop the team label on the thumbnail (redundant).
     var hideTeamIdentity: Bool = false
+    /// Social tab: show the source-class category pill in the footer. Home keeps its
+    /// original footer (no category pill) — this is the only per-tab card difference.
+    var unified: Bool = false
     @Environment(\.openURL) private var openURL
 
     /// Team accent for the stripe/badges/gradient. A creator clip with no team
@@ -77,7 +80,7 @@ struct ThumbnailContentCard: View {
                 teamColor: teamColor, club: club,
                 playSize: compact ? 40 : 52, duration: card.duration,
                 crestBadge: hideTeamIdentity ? nil : card.teamAbbreviation.map {
-                    ThumbnailHeader.BadgeSlot(abbreviation: $0, alignment: .topLeading)
+                    ThumbnailHeader.BadgeSlot(abbreviation: $0, alignment: .bottomLeading)
                 }
             )
         }
@@ -108,6 +111,7 @@ struct ThumbnailContentCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 6) {
+                if unified { CategoryPill(sourceType: card.resolvedSourceType) }   // CLUB (Social only)
                 PlatformBadge(platform: .youtube, size: 14)
                 Text("YouTube")
                 Text("·")
@@ -125,6 +129,7 @@ struct ThumbnailContentCard: View {
     private var socialFooter: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
+                if unified { CategoryPill(sourceType: card.resolvedSourceType) }   // PLAYER (Social only)
                 Text(card.authorName ?? "")
                     .dsFont(14, weight: .bold)
                     .foregroundStyle(Color.dsFgPrimary)
@@ -224,7 +229,7 @@ struct ThumbnailHeader: View {
                 playButton(playSize)
             }
             if let crestBadge {
-                crestBadgePill(crestBadge.abbreviation)
+                MediaTeamBadge(club: club, abbreviation: crestBadge.abbreviation)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: crestBadge.alignment)
                     .padding(10)
             }
@@ -252,25 +257,6 @@ struct ThumbnailHeader: View {
         .frame(width: size, height: size)
     }
 
-    private func crestBadgePill(_ abbreviation: String) -> some View {
-        HStack(spacing: 5) {
-            ZStack {
-                Circle().stroke(teamColor, lineWidth: 1.5)
-                Text(abbreviation)
-                    .dsFont(6, weight: .bold)
-                    .foregroundStyle(teamColor)
-            }
-            .frame(width: 16, height: 16)
-            Text(abbreviation)
-                .dsFont(11, weight: .semibold)
-                .foregroundStyle(teamColor)
-        }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
-        .background(Color.black.opacity(0.6))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-
     private func platformChipPill(_ chip: ChipSlot) -> some View {
         HStack(spacing: 5) {
             PlatformBadge(platform: chip.platform, size: 14)
@@ -292,5 +278,29 @@ struct ThumbnailHeader: View {
             .padding(.horizontal, 6)
             .background(Color.black.opacity(0.75))
             .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+    }
+}
+
+// MARK: - Media team badge
+
+/// The single bottom-left "which club" label overlaid on a content card's media: just
+/// the team ABBREVIATION in team color on a subtle translucent-dark chip — no crest
+/// (the abbreviation alone identifies the club; the crest was visual noise). Shared by
+/// all card layouts' media so Home + Social read identically; gated by the caller on 2+
+/// followed clubs.
+struct MediaTeamBadge: View {
+    var club: Club?
+    let abbreviation: String
+
+    private var teamColor: Color { club?.accentColor ?? .white }
+
+    var body: some View {
+        Text(abbreviation)
+            .dsFont(11, weight: .semibold)
+            .foregroundStyle(teamColor)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .background(Color.black.opacity(0.55))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }

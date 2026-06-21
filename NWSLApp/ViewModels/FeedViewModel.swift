@@ -28,19 +28,22 @@ import Foundation
 
 @Observable
 final class FeedViewModel {
-    /// The Feed's source-class filter (the chip bar): All · News · Clubs · Reporters
-    /// · Players, keyed off each card's `sourceType`. (Reporters also covers NWSL
-    /// media/league-outlet accounts — the `league` source class.)
+    /// The Social tab's source-class filter (the chip bar): All · Headlines · Reporters
+    /// · Players · Clubs, keyed off each card's `resolvedSourceType`. Headlines covers
+    /// BOTH `news` (Google-News articles) AND `league` (NWSL media/league-outlet
+    /// accounts) — the league's own coverage, one chip. Declaration order IS the chip
+    /// order (`chips` = `allCases`). The `.news` rawValue is kept (just relabeled) so
+    /// the persisted `defaultFeedFilter` doesn't orphan.
     enum ContentFilter: String, CaseIterable, Hashable {
-        case all, news, clubs, reporters, players
+        case all, news, reporters, players, clubs
 
         var label: String {
             switch self {
             case .all:       return "All"
-            case .news:      return "News"
-            case .clubs:     return "Clubs"
+            case .news:      return "Headlines"
             case .reporters: return "Reporters"
             case .players:   return "Players"
+            case .clubs:     return "Clubs"
             }
         }
     }
@@ -101,17 +104,37 @@ final class FeedViewModel {
 
     // MARK: - Filtered cards
 
-    /// Cards visible for the current `selectedFilter`, already newest-first. The
-    /// base set is always scoped to the user's world (followed teams + league-wide),
-    /// then narrowed by the content-type chip and the user's content preferences.
+    /// Cards visible for the current `selectedFilter`, arranged by the SAME single
+    /// per-club balance as Home (no two-lane, no time window). The base set is scoped to
+    /// the user's world (followed teams + league-wide), narrowed by the chip + content
+    /// preferences, then every team-tagged card (club/news/reporter/player/league — the
+    /// proxy team-tags ~all of them) is balanced per `teamAbbreviation` so each followed
+    /// club gets an equal slot count, volume-blind. The rare genuinely team-less card is
+    /// appended (never capped or laned).
     func items(_ following: FollowingStore, preferences: FeedPreferencesStore) -> [ContentCard] {
         let followed = Set(followedClubs(following).map(\.abbreviation))
-        return allItems
+        let filtered = allItems
             .filter { isRelevant($0, followed) }
             .filter { passesFilter($0) }
             .filter { passesPreferences($0, preferences) }
-            .fresh(.feed)
+
+        return Self.arranged(filtered, followedAbbreviations: followedClubs(following).map(\.abbreviation))
+    }
+
+    /// PURE arrangement (unit-tested): single per-club balance over the team-tagged cards
+    /// — identical to Home, volume-blind, age-agnostic — with the rare genuinely team-less
+    /// card appended newest-first (never given a lane or a cap). `orderedClubs` is the
+    /// followed clubs in stable (directory/alphabetical) order.
+    static func arranged(_ filtered: [ContentCard], followedAbbreviations orderedClubs: [String]) -> [ContentCard] {
+        let balanced = ContentRoundRobin.balanced(
+            cards: filtered.filter { $0.teamAbbreviation != nil },
+            followedAbbreviations: orderedClubs,
+            slotsPerClub: ContentRoundRobin.feedSlotsPerClub(orderedClubs.count)
+        ).cards
+        let leagueWide = filtered
+            .filter { $0.teamAbbreviation == nil }
             .sorted { $0.timestamp > $1.timestamp }
+        return balanced + leagueWide
     }
 
     /// Base scope: a Feed-eligible card that's either league-wide or about a
@@ -123,30 +146,16 @@ final class FeedViewModel {
         return false
     }
 
-    /// The chip → which source classes it admits, keyed off `sourceType(of:)`.
-    /// Reporters also covers `league` (NWSL media/league-outlet social accounts).
+    /// The chip → which source classes it admits, keyed off `resolvedSourceType`.
+    /// Headlines covers BOTH `news` (articles) AND `league` (NWSL media/league outlets);
+    /// Reporters is beat writers only.
     private func passesFilter(_ card: ContentCard) -> Bool {
         switch selectedFilter {
         case .all:       return true
-        case .news:      return sourceType(of: card) == .news
-        case .clubs:     return sourceType(of: card) == .club
-        case .reporters: return sourceType(of: card) == .reporter || sourceType(of: card) == .league
-        case .players:   return sourceType(of: card) == .player
-        }
-    }
-
-    /// The card's source class: the proxy-set `sourceType` when present, else
-    /// inferred from `layout` (seed/older cards, and player IG cards from a cron
-    /// snapshot built before the proxy emitted `sourceType`). On the Feed,
-    /// socialVideo/IG is a player clip (club social is placement "home").
-    private func sourceType(of card: ContentCard) -> ContentCard.SourceType {
-        if let t = card.sourceType { return t }
-        switch card.layout {
-        case .newsArticle:                          return .news
-        case .blueskyReporter:                      return .reporter
-        case .blueskyTeamText, .blueskyTeamMedia:   return .club
-        case .youtube:                              return .club
-        case .socialVideo, .instagramFallback:      return .player
+        case .news:      return card.resolvedSourceType == .news || card.resolvedSourceType == .league
+        case .reporters: return card.resolvedSourceType == .reporter
+        case .players:   return card.resolvedSourceType == .player
+        case .clubs:     return card.resolvedSourceType == .club
         }
     }
 

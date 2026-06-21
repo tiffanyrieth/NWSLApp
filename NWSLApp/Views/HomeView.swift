@@ -178,7 +178,7 @@ struct HomeView: View {
     private var fromYourTeams: some View {
         let teams = viewModel.followedTeamAbbreviations(following: following)
         let result = viewModel.teamContent(following: following)
-        section("From your teams") {
+        section("Club News") {
             // Online-only: a failed live fetch shows an honest tap-to-retry card for
             // THIS module only (the rest of Home stays usable) — never stale/seed.
             if let error = viewModel.contentError {
@@ -238,7 +238,7 @@ struct HomeView: View {
             HomeContentListView(viewModel: viewModel)
         } label: {
             HStack {
-                Text("See more from your teams →")
+                Text("See more club news →")
                     .dsFont(13, weight: .semibold)
                     .foregroundStyle(Color.dsAccent)
                 Spacer()

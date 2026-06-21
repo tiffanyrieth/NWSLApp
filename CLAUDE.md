@@ -324,7 +324,7 @@ NWSLApp/
 │   ├── BracketEdition.swift           — Bracket Battle: BracketRound/Entrant/Matchup/Edition (64→6 rounds, flat Codable)
 │   ├── Club.swift                     — flat Club + ESPN /teams decode (brand/alternate color → crests)
 │   ├── Competition.swift              — `ScheduledMatch` (Event + `CompetitionType` tag) + `ChampionsCupFeed`/`NationalTeamFeed.all` (7 women's NT feeds; keep in sync with proxy `WOMENS_NT_FEEDS`); the seam folding non-NWSL feeds into Schedule. `CompetitionType.primaryBroadcastOverride` = curated US English-rights map for comps ESPN only carries in Spanish (CC→Paramount+; ESPN's feed → the `surfacesSpanishSecondary` line)
-│   ├── ContentCard.swift              — unified ALIVE-content model: 7 layouts + `sourceType` (club·reporter·player·league·news) + StalenessWindow (Home 72h / Feed 7d, 6-card-floored)
+│   ├── ContentCard.swift              — unified ALIVE-content model: 7 layouts + `sourceType` (club·reporter·player·league·news). NO time window — representation is count-based + age-agnostic (see ContentRoundRobin)
 │   ├── NationalTeam.swift             — followable women's NT: FIFA code + name + flag + brand color (followed wash/border/tint). Curated `featured(8)`/`all(16)` + a `discovered` init for data-driven Browse-all (ESPN flag by FIFA code; color via DesignTeamColors.displayHex else neutral)
 │   ├── AthleteStatistics.swift        — ESPN Core API /statistics → PlayerSeasonStats
 │   ├── MatchSummary.swift             — ESPN /summary: lineups+formation, boxscore, key-events timeline
@@ -338,7 +338,7 @@ NWSLApp/
 │   └── XIPrediction.swift             — Predict the XI: PositionGroup · Formation · PredictionFixture · XIPrediction (draft→submitted) · ActualResult · PredictionScore
 ├── Services/
 │   ├── BracketScoring.swift           — pure Bracket scorer (tiered per-round points). Unit-tested
-│   ├── ContentRoundRobin.swift        — pure Home Module-1 fair-share: `balanced` (per-team round-robin + content-type interleave + follow-scaled cap) + `advancedOffsets` (pull-refresh rotation). Unit-tested
+│   ├── ContentRoundRobin.swift        — pure COUNT-BASED fair-share (Home M1 + Social): `balanced` (EQUAL per-club slot allowance, volume-blind + age-agnostic; STRICT recency within a club — round-robin across CLUBS only, NO type-interleave) + `home/feedSlotsPerClub` + `advancedOffsets` (pull-refresh rotation). NO time window, NO chronological volume fill. Unit-tested
 │   ├── BracketService.swift           — Bracket Supabase client: currentEdition/results/leaderboard/submit; all throw (online-only; nil currentEdition = genuinely no active edition)
 │   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats
 │   ├── ContentService.swift           — ALIVE content client: homeCards→/team-videos · feedCards→/feed · spotlightCards→/spotlight; all `throws` (online-only; no seed)
@@ -384,7 +384,7 @@ NWSLApp/
 │   └── TriviaStore.swift              — Daily-Trivia streak/bestStreak/accuracy + one-play/day gate
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
 │   ├── BracketViewModel.swift         — Bracket session: round phase, progress, results, leaderboard, settled-round scoring (+ Game Center submit)
-│   ├── FeedViewModel.swift            — source-class chips (All/News/Clubs/Reporters/Players by `sourceType`; Reporters = league outlets too) + filtered [ContentCard] (follows∩ OR league, 7d staleness); `itemsError` on fetch failure
+│   ├── FeedViewModel.swift            — Social-tab source-class chips (All·Headlines·Reporters·Players·Clubs by `resolvedSourceType`; Headlines = news articles + league outlets) + `arranged` = SINGLE per-club `ContentRoundRobin.balanced` over ALL team-tagged cards (same model as Home, volume-blind), rare team-less card appended; no time window; `itemsError` on fetch failure
 │   ├── HomeViewModel.swift            — @MainActor; derives Home modules from MatchStore+ClubStore+Following; M1/M2 raw content read from the shared HomeContentStore (passthrough `contentError`/`spotlightError`/loading flags + `retryContent`/`refresh` drive the store)
 │   ├── MatchDetailViewModel.swift     — one match: temporalState (past/live/future) + /summary + live refresh + preview
 │   ├── PredictXIViewModel.swift       — Predict slate (open fixtures per followed team) + scoring via /summary + per-team leaderboards (+ GC submit)
@@ -397,7 +397,7 @@ NWSLApp/
 ├── Views/                             — one screen per file
 │   ├── RootTabView.swift              — app root; gates the 5-tab TabView behind `hasOnboarded` (full-screen OnboardingView until done — un-skippable + tab bar first-layout in the settled hub); injects stores; restores session + coordinators; PREWARMS matches (so Home/Schedule first paint isn't gated on the scoreboard) + Feed + Home content (low-pri) — during onboarding too, so the post-onboarding Home arrives populated; GC syncAll; routes live-push tap
 │   ├── HomeView.swift                 — your-teams hub (32pt header + avatar): 4 modules; M1 round-robin + per-team chips + "See more →" (per-module error+retry); M2 Spotlight carousel; M3 Fan Zone featured + tiles; refetch on pull + follows-change
-│   ├── HomeContentListView.swift      — "See more from your teams" firehose: ALL followed-team content, no cap, reverse-chron, respects the active team chip (+ horizontal-scrolling `HomeTeamChips` bar: [All] + per-team, holds all 16 follows)
+│   ├── HomeContentListView.swift      — "Club News" ("See more →") firehose: ALL followed-team content, no cap, reverse-chron, respects the active team chip (+ horizontal-scrolling `HomeTeamChips` bar: [All] + per-team, holds all 16 follows)
 │   ├── ProfileView.swift              — account & settings sheet: identity (editable display name) · Fan Zone stats (🏆 → Game Center) · Settings · My Teams · Account
 │   ├── NotificationsView.swift        — the ONE notifications hub: §Match alerts (per-team) · §Alert types (global, dimmed when no team on) · §Activity. INVARIANT: Tier-2 ON ⟹ signed in (default OFF, sign-out resets); unfollow clears alerts
 │   ├── SupportView.swift              — "Support NWSLApp" (StoreKit tips): hero · one-time/monthly toggle · 4 tip tiers · CTA · Restore · "Where it goes" · thank-you state
@@ -419,16 +419,18 @@ NWSLApp/
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
 │   ├── PlayerSpotlightView.swift      — editorial spotlight: ghosted jersey # + hero, This Season grid, Story (Haiku blurb), Fast Facts + Watch
 │   ├── StandingsView.swift            — color-block table (# · TEAM · PTS · GP · W · D · L · LAST 5); crest + color-coded abbr per row; cyan PLAYOFF LINE the only cutoff cue; team-color spine + tint + accent rank = FOLLOW indicator; Last-5 via RecentForm over `nwslEvents`
-│   ├── FeedView.swift                 — Feed tab: header + source-class chip bar + chronological ContentCardViews; opens to `defaultFeedFilter`; full-screen error+retry on fetch failure
+│   ├── FeedView.swift                 — **Social** tab ("The world talking about your teams"): header + 5 one-row source-class chips + per-club-balanced ContentCardViews; opens to `defaultFeedFilter`; full-screen error+retry on fetch failure
 │   ├── FeedSourcesView.swift          — Feed content preferences: Default-view picker + content-type toggles + mute sources
 │   ├── _ColorAuditView.swift          — 🔧 DEBUG-only 16-club color audit (`-colorAudit`); remove once verified
 │   └── _AssetAuditView.swift          — 🔧 DEBUG-only bundled-crest/flag fidelity audit (`-assetAudit`); remove once verified
 ├── Components/
 │   ├── BroadcastInfo.swift / BroadcastLink.swift — "How to Watch" DB + broadcast→watch-URL
-│   ├── Chip.swift                     — pill filter chip (Schedule + Feed chip bars); optional `compact` (13pt) for the redesigned Schedule bar
+│   ├── Chip.swift                     — pill filter chip (Schedule + Social chip bars); optional `compact` (13pt) + `horizontalPadding` override (Social packs 5 on one no-scroll row)
+│   ├── CategoryPill.swift             — the card's "what kind of voice" pill (NEWS·LEAGUE·REPORTER·PLAYER·CLUB by `resolvedSourceType`, mock colors); replaced the old source-initials avatar — one pill, 1:1 with the Social chips
 │   ├── BroadcastChip.swift            — color-coded broadcast pill (handoff palette, substring-matched); schedule cards + match detail (separate from BroadcastInfo's color DB)
 │   ├── ContentCardView.swift          — single entry point; routes a ContentCard by layout → the 3 card views; 3px team-color left-edge bar (color-block motif) on all layouts
-│   ├── ThumbnailContentCard.swift / AvatarContentCard.swift / ArticleContentCard.swift — the ContentCard layouts
+│   ├── ThumbnailContentCard.swift / AvatarContentCard.swift / ArticleContentCard.swift — the ContentCard layouts. PER-TAB via `unified` (ContentCardView): Home keeps its ORIGINAL chrome (no category pills; article = avatar + NEWS pill identity row); Social = unified (CategoryPill + muted source, no avatar). The ONE team label both share = `MediaTeamBadge` bottom-left ON the media (or inline on text-only cards), gated on 2+ clubs. Avatar cards are Social-only (always unified)
+│   ├── MediaTeamBadge.swift (in ThumbnailContentCard.swift) — the single bottom-left media "which club" label: team ABBREVIATION only (team-color text on translucent-dark chip), NO crest
 │   ├── SettingsToggleRow.swift        — shared settings primitives: `SettingsToggleRow` + `SettingsGroup` (optional subtitle + `note` line) + `SettingsRowDivider`
 │   ├── PlatformBadge.swift            — platform glyph (YT/Bluesky/TikTok/IG/article/reddit)
 │   ├── FormBadge.swift                — W/D/L form badge (optional `size`/`fontSize`, default 22; `MatchResult` convenience init)

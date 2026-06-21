@@ -2,14 +2,15 @@
 //  ArticleContentCard.swift
 //  NWSLApp
 //
-//  The news-article content card (Content Card Spec variant 5; Feed + Home club
-//  news), facelift to `feed.jsx`: an identity row (author-initials avatar + name +
-//  a green NEWS pill + outlet, with a right-column team pill + time), a bold
-//  headline, a 2-line summary blurb, and — only when an image is on file — a
-//  FULL-WIDTH 16:9 image, closed by a "Read on {outlet} →" link. An image-less
-//  article still reads as deliberate (left team bar + identity + headline + blurb +
-//  link carry it — no empty placeholder block). Per the Feed's legal note we only
-//  ever show the headline + blurb + link, never the article body.
+//  The news-article content card (Content Card Spec variant 5): club news on Home,
+//  Headlines on Social. The header differs per tab (`unified`): Social uses the unified
+//  meta row (NEWS category pill + muted outlet, no avatar); Home keeps its ORIGINAL
+//  identity row (author-initials avatar + name + green NEWS pill). Both then show a bold
+//  headline, a 2-line summary blurb, and — only when an image is on file — a FULL-WIDTH
+//  16:9 image closed by a "Read on {outlet} →" link. The ONE team label is the
+//  abbreviation-only chip bottom-left ON the image (or inline when there's no image),
+//  gated on 2+ clubs. Per the Feed's legal note we only ever show headline + blurb +
+//  link, never the article body.
 //
 
 import SwiftUI
@@ -17,18 +18,19 @@ import SwiftUI
 struct ArticleContentCard: View {
     let card: ContentCard
     var club: Club?
-    /// Following one team → drop the right-column team pill (redundant on Home).
+    /// Following one team → drop the team label (redundant on Home).
     var hideTeamIdentity: Bool = false
+    /// Social tab: the unified meta row (no avatar). Home keeps its original identity row.
+    var unified: Bool = false
     @Environment(\.openURL) private var openURL
 
     private var teamColor: Color { club?.accentColor ?? .dsAccent }
 
-    /// The outlet name (for the NEWS line and the CTA).
+    /// The outlet name (the muted source text + the "Read on …" CTA).
     private var outlet: String { card.sourceName ?? card.authorName ?? "News" }
-    /// The prominent identity: a byline author when known, else the outlet.
+    /// Home identity row: a byline author when known, else the outlet.
     private var primaryName: String { card.authorName ?? outlet }
-    /// Show the outlet on the NEWS line only when the author is the primary name
-    /// (otherwise it'd just repeat the outlet).
+    /// Home identity row: the outlet on the NEWS line only when the author is primary.
     private var secondaryOutlet: String? { card.authorName != nil ? card.sourceName : nil }
 
     var body: some View {
@@ -69,9 +71,42 @@ struct ArticleContentCard: View {
         }
     }
 
-    // MARK: - Header (avatar + name / NEWS · outlet + team pill / time)
+    // MARK: - Header (per-tab)
 
+    /// Whether the article renders its image (so the team code rides on it, not inline).
+    private var hasImage: Bool { card.thumbnailURL != nil }
+
+    @ViewBuilder
     private var headerRow: some View {
+        if unified { unifiedHeader } else { legacyHeader }
+    }
+
+    /// Social: one meta row — NEWS category pill + muted outlet, no avatar (Feed.html).
+    private var unifiedHeader: some View {
+        HStack(spacing: 7) {
+            // Inline team code ONLY when there's no image; otherwise it sits bottom-left
+            // on the article image (see `articleImage`). Gated on 2+ clubs.
+            if !hideTeamIdentity, !hasImage, let abbr = card.teamAbbreviation {
+                teamPill(abbr)
+            }
+            CategoryPill(sourceType: card.resolvedSourceType)
+            Text(outlet)
+                .dsFont(12)
+                .foregroundStyle(Color.dsFgSecondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 6)
+            Text(card.timestamp.relativeAgo)
+                .dsFont(11)
+                .foregroundStyle(Color.dsFgSecondary)
+                .layoutPriority(1)
+        }
+    }
+
+    /// Home: the ORIGINAL identity row — avatar + name + green NEWS pill + time. The team
+    /// code moved OUT of the right column to the bottom-left on-media chip (or stays inline
+    /// on the right only when there's no image to host it). Gated on 2+ clubs.
+    private var legacyHeader: some View {
         HStack(alignment: .top, spacing: 11) {
             avatar
             VStack(alignment: .leading, spacing: 2) {
@@ -91,7 +126,7 @@ struct ArticleContentCard: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 4) {
-                if !hideTeamIdentity, let abbr = card.teamAbbreviation {
+                if !hideTeamIdentity, !hasImage, let abbr = card.teamAbbreviation {
                     teamPill(abbr)
                 }
                 Text(card.timestamp.relativeAgo)
@@ -148,6 +183,12 @@ struct ArticleContentCard: View {
                                    startPoint: .topLeading, endPoint: .bottomTrailing)
                     // Cached so the frame survives a tab switch; a miss/404 → the gradient.
                     CachedThumbnail(url: card.thumbnailURL) { Color.clear }
+                }
+            }
+            // The single team label, bottom-left on the image (gated on 2+ clubs).
+            .overlay(alignment: .bottomLeading) {
+                if !hideTeamIdentity, let abbr = card.teamAbbreviation {
+                    MediaTeamBadge(club: club, abbreviation: abbr).padding(8)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))

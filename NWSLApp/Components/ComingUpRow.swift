@@ -41,6 +41,7 @@ struct ComingUpRow: View {
                     .dsFont(12)
                     .foregroundStyle(detailColor)
                     .lineLimit(1)
+                broadcastLine
             }
             Spacer(minLength: 8)
             if isLive { liveBadge }
@@ -119,5 +120,42 @@ struct ComingUpRow: View {
         formatter.timeStyle = .short
         formatter.dateStyle = .none
         return formatter.string(from: kickoff)
+    }
+
+    // MARK: - Broadcast ("where do I watch this?" — the #1 new-NWSL-fan question)
+
+    // Only for upcoming matches: the platform + a FREE/SUB access badge under the time
+    // line. Live/finished rows don't need it (you're already watching / it's over).
+    @ViewBuilder
+    private var broadcastLine: some View {
+        if event.statusState != "in", event.statusState != "post",
+           let name = event.broadcastName {
+            let color = BroadcastChip.color(for: name)
+            let free = Self.isFreeToWatch(name)
+            HStack(spacing: 5) {
+                Circle().fill(color).frame(width: 5, height: 5)
+                Text(name)
+                    .dsFont(11, weight: .bold)
+                    .foregroundStyle(color)
+                    .lineLimit(1)
+                Text(free ? "FREE" : "SUB")
+                    .dsFont(9.5, weight: .bold)
+                    .foregroundStyle(free ? Color.dsSuccess : Color.dsFgTertiary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(
+                        (free ? Color.dsSuccess : Color.dsFgTertiary).opacity(free ? 0.15 : 0.12),
+                        in: Capsule()
+                    )
+            }
+        }
+    }
+
+    // Curated free-to-watch mapping (not API-derived): over-air / free-tier partners.
+    // Everything else (Prime Video, ESPN+, Paramount+) needs a subscription.
+    static func isFreeToWatch(_ name: String) -> Bool {
+        let n = name.lowercased()
+        return n.contains("cbs") || n.contains("ion")
+            || n.contains("victory") || n.contains("abc")
     }
 }

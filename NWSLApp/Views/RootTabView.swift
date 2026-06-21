@@ -147,7 +147,7 @@ struct RootTabView: View {
                         .tag(AppTab.teams)
 
                     FeedView()
-                        .tabItem { Label("Feed", systemImage: "dot.radiowaves.left.and.right") }
+                        .tabItem { Label("Social", systemImage: "dot.radiowaves.left.and.right") }
                         .tag(AppTab.feed)
                 }
             } else {

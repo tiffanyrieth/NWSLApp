@@ -21,6 +21,9 @@ struct Chip: View {
     /// The fill when active — defaults to the app accent. Home's per-team chips pass
     /// each club's own color so the active chip carries its team identity (home.jsx).
     var activeColor: Color = .dsAccent
+    /// Override the horizontal padding (default `DS.chipPaddingH`). The Social tab packs
+    /// 5 chips onto one no-scroll row, so it passes a tighter value (Feed.html).
+    var horizontalPadding: CGFloat? = nil
     let action: () -> Void
 
     var body: some View {
@@ -38,7 +41,7 @@ struct Chip: View {
                     // (a no-op in the scrolling chip bars, a safety net at large text).
                     .minimumScaleFactor(0.8)
             }
-            .padding(.horizontal, DS.chipPaddingH)
+            .padding(.horizontal, horizontalPadding ?? DS.chipPaddingH)
             .padding(.vertical, compact ? 6 : DS.chipPaddingV)
             .background(isActive ? activeColor : Color.dsBgCard)
             .foregroundStyle(isActive ? Color.white : Color.dsFgPrimary)

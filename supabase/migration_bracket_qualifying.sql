@@ -43,6 +43,7 @@ on conflict (key) do nothing;
 alter table public.bracket_config enable row level security;
 -- World-readable so the app can show e.g. the mode; writes are service-role only (the
 -- operator's SQL/loader or the Worker). RLS does not imply privilege (the 42501 gotcha).
+drop policy if exists "Anyone can read bracket config" on public.bracket_config;
 create policy "Anyone can read bracket config"
   on public.bracket_config for select using (true);
 grant select on public.bracket_config to anon, authenticated;
@@ -66,6 +67,7 @@ create table if not exists public.bracket_stats_editions (
 );
 
 alter table public.bracket_stats_editions enable row level security;
+drop policy if exists "Anyone can read stats editions" on public.bracket_stats_editions;
 create policy "Anyone can read stats editions"
   on public.bracket_stats_editions for select using (true);
 grant select on public.bracket_stats_editions to anon, authenticated;
@@ -100,6 +102,7 @@ alter table public.bracket_user_edition_stats
   add column if not exists longest_streak int not null default 0;
 
 alter table public.bracket_user_edition_stats enable row level security;
+drop policy if exists "Anyone can read bracket user stats" on public.bracket_user_edition_stats;
 create policy "Anyone can read bracket user stats"
   on public.bracket_user_edition_stats for select using (true);
 grant select on public.bracket_user_edition_stats to anon, authenticated;

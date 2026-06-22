@@ -27,6 +27,40 @@ struct BracketLeaderboardRow: Identifiable, Equatable {
     var id: String { "\(rank)-\(name)" }
 }
 
+/// A richer standings row for the standalone Leaderboard screen — adds the accuracy
+/// backing (correct/total picks) the Rankings table shows alongside points.
+struct BracketStanding: Identifiable, Equatable {
+    let rank: Int
+    let name: String
+    let points: Int
+    let correct: Int
+    let total: Int
+    let isYou: Bool
+    var id: String { "\(rank)-\(name)-\(isYou)" }
+    /// Pick accuracy 0…1, or nil before any pick is scored (shown as "—", never faked).
+    var accuracy: Double? { total > 0 ? Double(correct) / Double(total) : nil }
+}
+
+/// One edition in the signed-in user's history (the Leaderboard "Your Stats" tab).
+struct BracketEditionStat: Identifiable, Equatable {
+    let editionID: String
+    let title: String
+    let themeLabel: String
+    let points: Int
+    let maxPoints: Int       // rule-derived from the edition's pool (0 when unknown)
+    let correct: Int
+    let total: Int
+    let bestRoundRaw: Int?   // BracketRound rawValue of the user's best round (or nil)
+    let bestRoundCorrect: Int
+    let bestRoundTotal: Int
+    let currentStreak: Int   // consecutive correct picks, carried across rounds (0 on a miss)
+    let longestStreak: Int   // the per-edition best run
+    let isComplete: Bool
+    var id: String { editionID }
+    var accuracy: Double? { total > 0 ? Double(correct) / Double(total) : nil }
+    var bestRoundAccuracy: Double? { bestRoundTotal > 0 ? Double(bestRoundCorrect) / Double(bestRoundTotal) : nil }
+}
+
 struct BracketService {
     private var client: SupabaseClient { SupabaseManager.client }
 
@@ -120,6 +154,81 @@ struct BracketService {
             BracketLeaderboardRow(rank: i + 1, name: r.name, points: r.points, isYou: r.isYou)
         }
     }
+
+    // MARK: - Standalone Leaderboard screen
+
+    /// Full standings for an edition (Rankings tab): `bracket_scores` joined with
+    /// `bracket_user_edition_stats` for accuracy, the signed-in user spliced in if not
+    /// yet scored. Real data only — a read failure or empty board honestly shows just
+    /// you (or nothing). No fabricated rivals, no padded accuracy.
+    func standings(editionID: String, myUserID: UUID?, myName: String, myPoints: Int) async -> [BracketStanding] {
+        var scoreRows: [StandingScoreRow] = []
+        var accByUser: [String: (correct: Int, total: Int)] = [:]
+        do {
+            scoreRows = try await client.from("bracket_scores")
+                .select("user_id, display_name, points")
+                .eq("edition_id", value: editionID).order("points", ascending: false)
+                .execute().value
+            let statRows: [StandingStatRow] = try await client.from("bracket_user_edition_stats")
+                .select("user_id, correct_picks, total_picks")
+                .eq("edition_id", value: editionID).execute().value
+            for s in statRows { accByUser[s.user_id.lowercased()] = (s.correct_picks, s.total_picks) }
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "bracket standings: \(error.localizedDescription)") }
+        }
+        let myID = myUserID?.uuidString.lowercased()
+        var built: [(name: String, points: Int, correct: Int, total: Int, isYou: Bool)] = scoreRows.map { r in
+            let acc = accByUser[r.user_id.lowercased()] ?? (0, 0)
+            return (r.display_name ?? "Fan", r.points, acc.correct, acc.total, r.user_id.lowercased() == myID)
+        }
+        // Splice "You" when signed in but not yet in the scored set (so you always see yourself).
+        if let myID, !built.contains(where: { $0.isYou }) {
+            let acc = accByUser[myID] ?? (0, 0)
+            built.append((myName, myPoints, acc.correct, acc.total, true))
+        }
+        built.sort { $0.points != $1.points ? $0.points > $1.points : ($0.isYou && !$1.isYou) }
+        return built.enumerated().map { i, r in
+            BracketStanding(rank: i + 1, name: r.name, points: r.points, correct: r.correct, total: r.total, isYou: r.isYou)
+        }
+    }
+
+    /// Every edition the signed-in user has played (Your Stats tab), newest-scoring first.
+    /// Joins their per-edition stats + banked points + the edition's metadata (for the
+    /// rule-derived max). A read failure flags Diagnostics and returns [] (honest empty).
+    func myEditionStats(userID: UUID) async -> [BracketEditionStat] {
+        do {
+            let stats: [MyStatRow] = try await client.from("bracket_user_edition_stats")
+                .select("edition_id, correct_picks, total_picks, best_round, best_round_correct, best_round_total, current_streak, longest_streak")
+                .eq("user_id", value: userID).execute().value
+            let scores: [MyScoreRow] = try await client.from("bracket_scores")
+                .select("edition_id, points").eq("user_id", value: userID).execute().value
+            let pointsByEd = Dictionary(scores.map { ($0.edition_id, $0.points) }, uniquingKeysWith: { a, _ in a })
+            let statByEd = Dictionary(stats.map { ($0.edition_id, $0) }, uniquingKeysWith: { a, _ in a })
+            let edIDs = Set(stats.map(\.edition_id)).union(scores.map(\.edition_id))
+            guard !edIDs.isEmpty else { return [] }
+            let eds: [EdMetaRow] = try await client.from("bracket_editions")
+                .select("id, title, theme_label, pool_size, is_active")
+                .in("id", values: Array(edIDs)).execute().value
+            let edByID = Dictionary(eds.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            return edIDs.compactMap { id -> BracketEditionStat? in
+                guard let ed = edByID[id] else { return nil }
+                let st = statByEd[id]
+                let pool = ed.pool_size ?? 0
+                let maxPts = pool > 0 ? BracketScoring.maxPoints(rounds: BracketRound.rounds(forEntrants: pool)) : 0
+                return BracketEditionStat(
+                    editionID: id, title: ed.title, themeLabel: ed.theme_label,
+                    points: pointsByEd[id] ?? 0, maxPoints: maxPts,
+                    correct: st?.correct_picks ?? 0, total: st?.total_picks ?? 0,
+                    bestRoundRaw: st?.best_round, bestRoundCorrect: st?.best_round_correct ?? 0,
+                    bestRoundTotal: st?.best_round_total ?? 0,
+                    currentStreak: st?.current_streak ?? 0, longestStreak: st?.longest_streak ?? 0,
+                    isComplete: !ed.is_active)
+            }.sorted { $0.points > $1.points }
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "bracket my-stats: \(error.localizedDescription)") }
+            return []
+        }
+    }
 }
 
 // MARK: - Postgres row DTOs (snake_case → PostgREST maps 1:1)
@@ -179,6 +288,27 @@ private struct MatchupRow: Decodable {
 private struct ScoreRow: Decodable {
     let display_name: String?
     let points: Int
+}
+
+private struct StandingScoreRow: Decodable { let user_id: String; let display_name: String?; let points: Int }
+private struct StandingStatRow: Decodable { let user_id: String; let correct_picks: Int; let total_picks: Int }
+private struct MyStatRow: Decodable {
+    let edition_id: String
+    let correct_picks: Int
+    let total_picks: Int
+    let best_round: Int?
+    let best_round_correct: Int
+    let best_round_total: Int
+    let current_streak: Int
+    let longest_streak: Int
+}
+private struct MyScoreRow: Decodable { let edition_id: String; let points: Int }
+private struct EdMetaRow: Decodable {
+    let id: String
+    let title: String
+    let theme_label: String
+    let pool_size: Int?
+    let is_active: Bool
 }
 
 private struct VoteInsert: Encodable {

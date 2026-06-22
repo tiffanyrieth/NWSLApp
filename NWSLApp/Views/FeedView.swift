@@ -168,21 +168,23 @@ struct FeedView: View {
         })
     }
 
-    // All 5 chips on ONE row, no horizontal scroll (Feed.html): content-sized pills
-    // distributed across the width (space-between).
+    // Source-class chips, LEFT-ALIGNED with a small fixed gap — same layout as Home's
+    // `HomeTeamChips`: a horizontal ScrollView + HStack(spacing: 8), content-sized pills.
+    // (Not space-between — chips hug the left edge; scrolls if labels ever overflow.)
     private var chipsBar: some View {
-        HStack(spacing: 6) {
-            ForEach(Array(viewModel.chips.enumerated()), id: \.element) { index, filter in
-                Chip(label: filter.label, isActive: viewModel.selectedFilter == filter,
-                     compact: true, horizontalPadding: 10) {
-                    viewModel.selectedFilter = filter
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(viewModel.chips, id: \.self) { filter in
+                    Chip(label: filter.label, isActive: viewModel.selectedFilter == filter) {
+                        viewModel.selectedFilter = filter
+                    }
                 }
-                if index < viewModel.chips.count - 1 { Spacer(minLength: 0) }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 2)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.dsBgGrouped)
     }
 

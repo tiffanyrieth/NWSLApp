@@ -112,6 +112,11 @@ struct RootTabView: View {
     // TeamAlertSyncCoordinator).
     @State private var teamAlertSyncCoordinator: TeamAlertSyncCoordinator?
 
+    // TEMP (iOS 27 beta Liquid Glass tab-bar workaround — remove once Apple patches):
+    // one-shot flag so the relayout bridge fires exactly once per session (see
+    // TabBarRelayoutBridge at the bottom of this file).
+    @State private var didRelayoutBar = false
+
     var body: some View {
         @Bindable var router = router
         // A custom selection binding so we can detect a re-tap of the ALREADY-active
@@ -129,24 +134,34 @@ struct RootTabView: View {
         )
         Group {
             if following.hasOnboarded {
+                // The `.background(TabBarRelayoutBridge…)` on each tab's CONTENT is the
+                // iOS 27 beta Liquid Glass tab-bar workaround (see the struct at the bottom):
+                // whichever tab appears first forces one corrective UITabBar relayout pass and
+                // flips `didRelayoutBar`, so the rest no-op. On the content (not the TabView's
+                // own background) so the hosting controller resolves `.tabBarController`.
                 TabView(selection: tabSelection) {
                     HomeView()
+                        .background(TabBarRelayoutBridge(done: $didRelayoutBar))
                         .tabItem { Label("Home", systemImage: "house") }
                         .tag(AppTab.home)
 
                     ScheduleView()
+                        .background(TabBarRelayoutBridge(done: $didRelayoutBar))
                         .tabItem { Label("Schedule", systemImage: "calendar") }
                         .tag(AppTab.schedule)
 
                     StandingsView()
+                        .background(TabBarRelayoutBridge(done: $didRelayoutBar))
                         .tabItem { Label("Standings", systemImage: "list.number") }
                         .tag(AppTab.standings)
 
                     TeamsView()
+                        .background(TabBarRelayoutBridge(done: $didRelayoutBar))
                         .tabItem { Label("Teams", systemImage: "person.3.fill") }
                         .tag(AppTab.teams)
 
                     FeedView()
+                        .background(TabBarRelayoutBridge(done: $didRelayoutBar))
                         .tabItem { Label("Social", systemImage: "dot.radiowaves.left.and.right") }
                         .tag(AppTab.feed)
                 }
@@ -323,6 +338,45 @@ struct RootTabView: View {
             if phase == .background {
                 Task { await Diagnostics.shared.flushRemote() }
             }
+        }
+    }
+}
+
+// TEMP: iOS 27 beta Liquid Glass tab-bar relayout workaround — remove once Apple patches.
+//
+// On iOS 27 beta 1 / iPhone 17 Pro hardware, the bottom tab-bar labels render garbled/ghosted
+// on first appearance and only clean up after the user taps each tab a second time — a known
+// system Liquid Glass compositing regression (reproduces in Apple's own apps; NOT our code; does
+// NOT reproduce on regular iPhone 17, older Pros, or the simulator). This bridge programmatically
+// does what the manual "second tap" does: it forces ONE corrective UITabBar relayout pass on first
+// appearance, deferred to the next runloop (the first pass is the corrupted one). Gated by the
+// shared `done` binding so it fires exactly once per session, then no-ops.
+//
+// Attach via `.background(...)` on each tab's CONTENT (a content hosting controller reliably
+// resolves `.tabBarController`; the TabView's own background may not). Defensive only — verify by
+// "builds, runs, doesn't break other devices," not by reproducing the glitch.
+//
+// FALLBACK (do NOT implement unless asked): if the bar still re-corrupts on device, opt the tab bar
+// out of the Liquid Glass material with an opaque `UITabBarAppearance`. Escalation: if it re-corrupts
+// on tab *switch* (not just cold launch), gate on each selection change instead of once per session.
+private struct TabBarRelayoutBridge: UIViewControllerRepresentable {
+    @Binding var done: Bool
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        let vc = UIViewController()
+        vc.view.backgroundColor = .clear
+        vc.view.isUserInteractionEnabled = false
+        return vc
+    }
+
+    func updateUIViewController(_ vc: UIViewController, context: Context) {
+        guard !done else { return }
+        DispatchQueue.main.async {
+            guard let bar = vc.tabBarController?.tabBar else { return }
+            bar.setNeedsLayout()
+            bar.layoutIfNeeded()
+            bar.subviews.forEach { $0.setNeedsDisplay() }
+            done = true
         }
     }
 }

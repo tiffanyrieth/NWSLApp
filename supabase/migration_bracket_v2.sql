@@ -44,6 +44,7 @@ alter table public.bracket_creative_editions enable row level security;
 -- World-readable (same as the other bracket content); writes are service-role only
 -- (the Worker / the owner's load script with the service-role key) — no authenticated
 -- insert/update policy, so RLS blocks app writes.
+drop policy if exists "Anyone can read creative editions" on public.bracket_creative_editions;
 create policy "Anyone can read creative editions"
   on public.bracket_creative_editions for select using (true);
 

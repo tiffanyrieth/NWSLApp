@@ -34,6 +34,21 @@ enum ContentRoundRobin {
         let overflowCount: Int
     }
 
+    /// First-load-only article preference (surface club-site articles for the weekly/biweekly
+    /// opener). When passed to `balanced`, lead-eligible articles are preferred WITHIN each
+    /// club's own slot allowance (never changing slot count or cross-club balance) and floated
+    /// to the top positions. Gated on a RELATIVE staleness guard (NO time window): an article is
+    /// lead-eligible unless it's `staleRatio`× older than the freshest non-article content, with
+    /// `floorDays` only as the ratio's denominator floor — no card is ever filtered by age.
+    /// `now` is injected so the whole thing stays pure + deterministic to unit-test.
+    struct ArticlePriority {
+        var now: Date
+        var quota: Int = 3          // ≤ N lead-eligible articles preferred per club's slots ("2-3")
+        var staleRatio: Double = 4
+        var floorDays: Double = 14
+        var maxLead: Int = 3        // ≤ N articles floated to the very front (round-robin)
+    }
+
     /// Per-club slot allowance for Home's Module-1 PREVIEW, scaled by follow count so
     /// the preview stays bounded while the share stays equal. A single club has no
     /// fairness to enforce, so it gets a full preview; the rest split an equal
@@ -75,7 +90,8 @@ enum ContentRoundRobin {
         cards: [ContentCard],
         followedAbbreviations: [String],
         slotsPerClub: Int,
-        windowOffsets: [String: Int] = [:]
+        windowOffsets: [String: Int] = [:],
+        articlePriority: ArticlePriority? = nil
     ) -> Result {
         // 1. Group by team, newest-first within each (id-desc tiebreak = determinism).
         var byTeam: [String: [ContentCard]] = [:]
@@ -87,20 +103,46 @@ enum ContentRoundRobin {
             byTeam[abbr]!.sort(by: newestFirst)
         }
 
-        // 2. Per club: take its most-recent `slotsPerClub` in STRICT recency order
-        //    (`byTeam` is already newest-first; all of a club's sources — YouTube, club
-        //    news, club IG — are merged into that one date-descending list). We do NOT
-        //    round-robin across sources/types within a club: that let a low-frequency
-        //    source inject its "newest" (a months-old item) above genuinely fresher
-        //    posts. Balancing is across CLUBS only. `rotate` just shifts the
-        //    pull-to-refresh discovery window (a no-op at offset 0). The rest is
-        //    overflow — never redistributed to another club's round (that rewards volume).
+        // Lead-eligibility (first-load article preference only): an article is eligible unless
+        // it's dramatically older than the freshest NON-article content — a RELATIVE guard, not
+        // a date cutoff (the floor is only the ratio's denominator; no card is filtered by age).
+        // When `articlePriority` is nil this is a no-op, so the default path is unchanged.
+        let isArticle: (ContentCard) -> Bool = { $0.layout == .newsArticle }
+        let leadEligible: (ContentCard) -> Bool
+        if let ap = articlePriority {
+            if let freshestOther = cards.lazy.filter({ !isArticle($0) }).map(\.timestamp).max() {
+                let denom = max(ap.now.timeIntervalSince(freshestOther), ap.floorDays * 86_400)
+                let maxAge = ap.staleRatio * denom
+                leadEligible = { isArticle($0) && ap.now.timeIntervalSince($0.timestamp) <= maxAge }
+            } else {
+                leadEligible = isArticle      // no non-article content to defer to → all eligible
+            }
+        } else {
+            leadEligible = { _ in false }
+        }
+
+        // 2. Per club: take its most-recent `slotsPerClub` in STRICT recency order — UNLESS
+        //    article priority is on (first load), in which case prefer up to `quota` lead-
+        //    eligible articles FIRST within the club's OWN allowance, then fill the rest by
+        //    recency. Same slot COUNT, same cross-club balance, still volume-blind — only WHICH
+        //    of a club's own sources fill its slots changes (articles over IG/YT when fresh
+        //    enough). A stale article gets no preference → it competes by plain recency.
+        //    `rotate` shifts the pull-to-refresh window (a no-op at offset 0).
         var slotsByTeam: [String: [ContentCard]] = [:]
         for abbr in followedAbbreviations {
             let all = byTeam[abbr] ?? []
             guard !all.isEmpty else { continue }
             let recencyOrdered = rotate(all, by: windowOffsets[abbr] ?? 0)
-            slotsByTeam[abbr] = Array(recencyOrdered.prefix(slotsPerClub))
+            if let ap = articlePriority {
+                let articles = recencyOrdered.filter(leadEligible)
+                let take = min(ap.quota, slotsPerClub, articles.count)
+                let chosen = Array(articles.prefix(take))
+                let chosenIDs = Set(chosen.map(\.id))
+                let fill = recencyOrdered.filter { !chosenIDs.contains($0.id) }.prefix(max(0, slotsPerClub - take))
+                slotsByTeam[abbr] = chosen + Array(fill)
+            } else {
+                slotsByTeam[abbr] = Array(recencyOrdered.prefix(slotsPerClub))
+            }
         }
 
         // 3. Interleave the per-club slots round-robin: round 0 is one card per club
@@ -120,6 +162,32 @@ enum ContentRoundRobin {
                 addedThisRound = true
             }
             round += 1
+        }
+
+        // 4. First-load article reorder: float up to `maxLead` lead-eligible articles to the
+        //    very front, round-robined one-per-club-per-round (so 2+ clubs interleave and a
+        //    no-article club's content doesn't sit between two articles). Everything else keeps
+        //    its order — the SAME multiset, just reordered (per-club counts untouched).
+        if let ap = articlePriority {
+            var articlesByClub: [String: [ContentCard]] = [:]
+            for card in shown where leadEligible(card) {
+                if let abbr = card.teamAbbreviation { articlesByClub[abbr, default: []].append(card) }
+            }
+            var lead: [ContentCard] = []
+            var r = 0
+            var more = true
+            while more && lead.count < ap.maxLead {
+                more = false
+                for abbr in followedAbbreviations {
+                    guard let arr = articlesByClub[abbr], r < arr.count else { continue }
+                    lead.append(arr[r])
+                    more = true
+                    if lead.count >= ap.maxLead { break }
+                }
+                r += 1
+            }
+            let leadIDs = Set(lead.map(\.id))
+            shown = lead + shown.filter { !leadIDs.contains($0.id) }
         }
 
         let totalEligible = byTeam.values.reduce(0) { $0 + $1.count }

@@ -50,6 +50,11 @@ final class HomeViewModel {
     // content, so the user discovers cards they hadn't seen.
     private(set) var windowOffsets: [String: Int] = [:]
 
+    // Article priority is FIRST-LOAD presentation only: club-site articles lead the "All"
+    // view on open, then drop to normal recency once the user pulls to refresh (set below).
+    // In-memory, per-session (a relaunch is a fresh "first load").
+    private(set) var hasRefreshed = false
+
     // The shared season + club stores, handed in by the view (mirrors
     // ScheduleViewModel): Home derives its modules from the same events Schedule
     // renders and the same directory Teams lists — no re-downloading.
@@ -80,6 +85,7 @@ final class HomeViewModel {
     /// advance the rotation window so the user still sees cards they hadn't seen.
     func refresh(following: FollowingStore) async {
         guard let contentStore, let clubStore else { return }
+        hasRefreshed = true   // article priority is first-load only — drop it from here on
         let previousIDs = Set(teamContentItems.map(\.id))
         await contentStore.reload(following: following, clubStore: clubStore)
         selectedTeam = nil
@@ -148,11 +154,15 @@ final class HomeViewModel {
             return ContentRoundRobin.Result(cards: Array(teamCards.prefix(cap)),
                                             overflowCount: max(0, teamCards.count - cap))
         }
+        // First load (not yet pulled-to-refresh): float club-site articles to the top —
+        // preferred within each club's OWN slots, then floated, gated on a relative staleness
+        // guard. Drops to plain recency after the first pull-to-refresh (`hasRefreshed`).
         let balanced = ContentRoundRobin.balanced(
             cards: cards,
             followedAbbreviations: ordered,
             slotsPerClub: ContentRoundRobin.homeSlotsPerClub(ordered.count),
-            windowOffsets: windowOffsets
+            windowOffsets: windowOffsets,
+            articlePriority: hasRefreshed ? nil : ContentRoundRobin.ArticlePriority(now: now())
         )
         // Cap the "All" preview at ~6–7 cards (design spec) so Spotlight + Fan Zone
         // aren't pushed below the fold; the remainder spills into the "See more club

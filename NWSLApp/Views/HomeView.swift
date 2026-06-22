@@ -621,7 +621,16 @@ struct HomeView: View {
         if !fixtures.isEmpty {
             section("Coming up", accessory: { fullScheduleLink }) {
                 VStack(spacing: 8) {
-                    ForEach(fixtures) { ComingUpRow(fixture: $0) }
+                    // Closure-based NavigationLink (Event isn't Hashable) — the whole row is
+                    // the label so the card taps through to its fixture, like Schedule's cards.
+                    ForEach(fixtures) { fixture in
+                        NavigationLink {
+                            MatchDetailView(event: fixture.event)
+                        } label: {
+                            ComingUpRow(fixture: fixture)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }

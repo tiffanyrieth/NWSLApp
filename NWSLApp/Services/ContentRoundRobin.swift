@@ -43,10 +43,11 @@ enum ContentRoundRobin {
     /// `now` is injected so the whole thing stays pure + deterministic to unit-test.
     struct ArticlePriority {
         var now: Date
-        var quota: Int = 3          // ≤ N lead-eligible articles preferred per club's slots ("2-3")
+        var quota: Int = 3          // GLOBAL cap: ≤ N lead-eligible articles preferred + floated in
+                                    // TOTAL (round-robined across clubs), NOT per club — so the rest
+                                    // of the 7 stay a normal recency mix of IG/YouTube/articles.
         var staleRatio: Double = 4
         var floorDays: Double = 14
-        var maxLead: Int = 3        // ≤ N articles floated to the very front (round-robin)
     }
 
     /// Per-club slot allowance for Home's Module-1 PREVIEW, scaled by follow count so
@@ -121,24 +122,47 @@ enum ContentRoundRobin {
             leadEligible = { _ in false }
         }
 
-        // 2. Per club: take its most-recent `slotsPerClub` in STRICT recency order — UNLESS
-        //    article priority is on (first load), in which case prefer up to `quota` lead-
-        //    eligible articles FIRST within the club's OWN allowance, then fill the rest by
-        //    recency. Same slot COUNT, same cross-club balance, still volume-blind — only WHICH
-        //    of a club's own sources fill its slots changes (articles over IG/YT when fresh
-        //    enough). A stale article gets no preference → it competes by plain recency.
-        //    `rotate` shifts the pull-to-refresh window (a no-op at offset 0).
+        // 1b. First-load article picks: choose up to `quota` lead-eligible articles in TOTAL
+        //    (a GLOBAL cap, not per club), round-robined across clubs by recency, respecting each
+        //    club's slot allowance. These are the only articles given preference; every other
+        //    slot competes by plain recency, so the 7 lead with ≤quota articles then a normal mix.
+        var leadArticles: [ContentCard] = []
+        if let ap = articlePriority {
+            var eligibleByClub: [String: [ContentCard]] = [:]
+            for abbr in followedAbbreviations {
+                eligibleByClub[abbr] = rotate(byTeam[abbr] ?? [], by: windowOffsets[abbr] ?? 0).filter(leadEligible)
+            }
+            var perClub: [String: Int] = [:]
+            var depth = 0
+            var addedThisPass = true
+            while addedThisPass && leadArticles.count < ap.quota {
+                addedThisPass = false
+                for abbr in followedAbbreviations {
+                    guard let arts = eligibleByClub[abbr], depth < arts.count,
+                          (perClub[abbr] ?? 0) < slotsPerClub else { continue }
+                    leadArticles.append(arts[depth])
+                    perClub[abbr, default: 0] += 1
+                    addedThisPass = true
+                    if leadArticles.count >= ap.quota { break }
+                }
+                depth += 1
+            }
+        }
+        let leadIDs = Set(leadArticles.map(\.id))
+
+        // 2. Per club: its `slotsPerClub` most-recent in STRICT recency order — but with article
+        //    priority, this club's globally-picked articles take their slots FIRST, then the rest
+        //    fill by recency (articles beyond the global cap compete equally here). Same slot
+        //    COUNT, same cross-club balance, still volume-blind. `rotate` shifts the
+        //    pull-to-refresh window (a no-op at offset 0).
         var slotsByTeam: [String: [ContentCard]] = [:]
         for abbr in followedAbbreviations {
             let all = byTeam[abbr] ?? []
             guard !all.isEmpty else { continue }
             let recencyOrdered = rotate(all, by: windowOffsets[abbr] ?? 0)
-            if let ap = articlePriority {
-                let articles = recencyOrdered.filter(leadEligible)
-                let take = min(ap.quota, slotsPerClub, articles.count)
-                let chosen = Array(articles.prefix(take))
-                let chosenIDs = Set(chosen.map(\.id))
-                let fill = recencyOrdered.filter { !chosenIDs.contains($0.id) }.prefix(max(0, slotsPerClub - take))
+            if articlePriority != nil {
+                let chosen = recencyOrdered.filter { leadIDs.contains($0.id) }
+                let fill = recencyOrdered.filter { !leadIDs.contains($0.id) }.prefix(max(0, slotsPerClub - chosen.count))
                 slotsByTeam[abbr] = chosen + Array(fill)
             } else {
                 slotsByTeam[abbr] = Array(recencyOrdered.prefix(slotsPerClub))
@@ -164,30 +188,12 @@ enum ContentRoundRobin {
             round += 1
         }
 
-        // 4. First-load article reorder: float up to `maxLead` lead-eligible articles to the
-        //    very front, round-robined one-per-club-per-round (so 2+ clubs interleave and a
-        //    no-article club's content doesn't sit between two articles). Everything else keeps
-        //    its order — the SAME multiset, just reordered (per-club counts untouched).
-        if let ap = articlePriority {
-            var articlesByClub: [String: [ContentCard]] = [:]
-            for card in shown where leadEligible(card) {
-                if let abbr = card.teamAbbreviation { articlesByClub[abbr, default: []].append(card) }
-            }
-            var lead: [ContentCard] = []
-            var r = 0
-            var more = true
-            while more && lead.count < ap.maxLead {
-                more = false
-                for abbr in followedAbbreviations {
-                    guard let arr = articlesByClub[abbr], r < arr.count else { continue }
-                    lead.append(arr[r])
-                    more = true
-                    if lead.count >= ap.maxLead { break }
-                }
-                r += 1
-            }
-            let leadIDs = Set(lead.map(\.id))
-            shown = lead + shown.filter { !leadIDs.contains($0.id) }
+        // 4. First-load reorder: float the globally-picked articles to the very front in their
+        //    round-robin pick order (≤ `quota` total). Everything else keeps its order — the SAME
+        //    multiset, just reordered (per-club counts untouched); articles beyond the global cap
+        //    stay wherever recency placed them.
+        if articlePriority != nil, !leadArticles.isEmpty {
+            shown = leadArticles + shown.filter { !leadIDs.contains($0.id) }
         }
 
         let totalEligible = byTeam.values.reduce(0) { $0 + $1.count }

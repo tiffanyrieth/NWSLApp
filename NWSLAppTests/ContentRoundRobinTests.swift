@@ -211,8 +211,8 @@ struct ContentRoundRobinTests {
 
     /// Fixed "now" = the card builder's epoch, so a card's age == its `secondsAgo`.
     private var epoch: Date { Date(timeIntervalSince1970: 1_000_000) }
-    private func priority(quota: Int = 3, maxLead: Int = 3) -> ContentRoundRobin.ArticlePriority {
-        ContentRoundRobin.ArticlePriority(now: epoch, quota: quota, maxLead: maxLead)
+    private func priority(quota: Int = 3) -> ContentRoundRobin.ArticlePriority {
+        ContentRoundRobin.ArticlePriority(now: epoch, quota: quota)
     }
     private func teamCounts(_ r: ContentRoundRobin.Result) -> [String: Int] {
         Dictionary(grouping: r.cards.compactMap(\.teamAbbreviation), by: { $0 }).mapValues(\.count)
@@ -304,6 +304,28 @@ struct ContentRoundRobinTests {
                                            slotsPerClub: 2, articlePriority: priority())
         #expect(r.cards.first?.id == "b-news-3d")
         #expect(r.cards.first?.id != "a-news-90d")
+    }
+
+    @Test func globalCapLimitsLeadArticlesToThree() {
+        // The bug: a per-club quota meant 2 clubs × 3 = 6 articles led, burying IG/YT to #7.
+        // The cap is GLOBAL (3 total), so ≤3 articles lead and the rest is the recency mix.
+        // Both clubs have 3 articles (older) + a fresher IG.
+        let day = 86_400.0
+        let cards = [
+            card("a-ig",    "A", secondsAgo: 1 * day, layout: .socialVideo),
+            card("a-news1", "A", secondsAgo: 5 * day, layout: .newsArticle),
+            card("a-news2", "A", secondsAgo: 6 * day, layout: .newsArticle),
+            card("a-news3", "A", secondsAgo: 7 * day, layout: .newsArticle),
+            card("b-ig",    "B", secondsAgo: 1 * day, layout: .socialVideo),
+            card("b-news1", "B", secondsAgo: 5 * day, layout: .newsArticle),
+            card("b-news2", "B", secondsAgo: 6 * day, layout: .newsArticle),
+            card("b-news3", "B", secondsAgo: 7 * day, layout: .newsArticle),
+        ]
+        let r = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A", "B"],
+                                           slotsPerClub: 6, articlePriority: priority())
+        // Exactly 3 articles lead (global cap), then a non-article (the fresh IG) by position 4.
+        #expect(r.cards.prefix(3).allSatisfy { $0.layout == .newsArticle })
+        #expect(r.cards[3].layout != .newsArticle)
     }
 
     @Test func nilPriorityIsUnchanged() {

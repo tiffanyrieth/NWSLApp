@@ -384,38 +384,45 @@ struct HomeView: View {
     @ViewBuilder
     private var playSection: some View {
         let games = visibleGames
-        if let featured = games.first {
-            let rest = Array(games.dropFirst())
+        if !games.isEmpty {
             section(
                 "Fan Zone",
                 subtitle: "Test your NWSL knowledge and compete with other fans",
                 accessory: { activeGamesIndicator }
             ) {
-                VStack(spacing: 12) {
-                    // A full-width featured card anchors the section (so Fan Zone reads
-                    // as prominent, not a runt) ...
-                    NavigationLink { destination(for: featured) } label: {
-                        featuredCard(for: featured)
+                VStack(spacing: 10) {
+                    // The cross-game Superfan summary, shown once the user has real scores
+                    // in at least two games (never a meaningless "0" for a newcomer).
+                    if superfanBannerVisible {
+                        SuperfanBanner(
+                            predictPoints: predict.seasonPoints,
+                            bracketPoints: bracket.points,
+                            triviaCorrect: trivia.totalCorrect
+                        )
                     }
-                    .buttonStyle(.plain)
-
-                    // ... then the remaining games as a scrolling row of tiles.
-                    if !rest.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(rest, id: \.self) { game in
-                                    NavigationLink { destination(for: game) } label: {
-                                        tileCard(for: game)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(.horizontal, 2)
+                    // Equal-weight, full-width stacked cards — every active game visible
+                    // without a swipe, differentiated by accent color, not size.
+                    ForEach(games, id: \.self) { game in
+                        NavigationLink { destination(for: game) } label: {
+                            FanZoneGameCard(model: cardModel(for: game))
                         }
+                        .buttonStyle(.plain)
                     }
                 }
             }
         }
+    }
+
+    /// Show the Superfan banner only once the user has genuine scores in ≥2 games AND a
+    /// non-zero total — never a meaningless "0" for a new user (handoff visibility rule).
+    private var superfanBannerVisible: Bool {
+        let played = [predict.hasPredicted, bracket.hasPlayed, trivia.totalAnswered > 0]
+            .filter { $0 }.count
+        let total = GameCenterScores.superfanTotal(
+            triviaTotalCorrect: trivia.totalCorrect,
+            predictSeasonPoints: predict.seasonPoints,
+            bracketPoints: bracket.points)
+        return played >= 2 && total > 0
     }
 
     @ViewBuilder
@@ -429,59 +436,159 @@ struct HomeView: View {
         }
     }
 
-    @ViewBuilder
-    private func tileCard(for game: FanGame) -> some View {
+    // MARK: Fan Zone card models — HomeView owns the per-game state logic and hands
+    // FanZoneGameCard a flat model to render.
+
+    private func cardModel(for game: FanGame) -> FanZoneCardModel {
         switch game {
-        case .predict: predictGameCard
-        case .bracket: bracketGameCard
-        case .trivia:  triviaGameCard
+        case .predict: return predictCardModel
+        case .bracket: return bracketCardModel
+        case .trivia:  return triviaCardModel
         }
     }
 
-    @ViewBuilder
-    private func featuredCard(for game: FanGame) -> some View {
-        switch game {
-        case .predict:
-            FeaturedGameCard(
-                emoji: "⚽", title: "Predict the XI",
-                statusLine: predict.hasPredicted ? "\(predict.seasonPoints) pts" : "Predict now",
-                tagline: "Pick your team's XI before kickoff",
-                accent: .dsGamePredict,
-                badge: predict.seasonPoints > 0 ? "\(predict.seasonPoints)" : nil, badgeIcon: "⚽"
-            )
-        case .bracket:
-            FeaturedGameCard(
-                emoji: "🏆", title: "Bracket Battle",
-                statusLine: bracketStateLine,
-                tagline: "Vote the bracket, climb the leaderboard",
-                accent: .dsGameBracket,
-                badge: bracket.points > 0 ? "\(bracket.points)" : nil, badgeIcon: "🏆"
-            )
-        case .trivia:
-            FeaturedGameCard(
-                emoji: "🧠", title: "Daily Trivia",
-                statusLine: trivia.hasPlayedToday ? "Done today ✓" : "Play now",
-                tagline: "5 questions a day — keep your streak alive",
-                accent: .dsGameTrivia,
-                badge: trivia.streak > 0 ? "\(trivia.streak)" : nil, badgeIcon: "🔥",
-                completed: trivia.hasPlayedToday
-            )
+    private var predictCardModel: FanZoneCardModel {
+        let context: String
+        if let fixture = nextPredictFixture {
+            context = "\(fixture.teamAbbreviation) vs \(fixture.opponentAbbreviation) · \(Self.kickoffLabel(fixture.kickoff))"
+        } else {
+            context = "Pick your team's XI"
         }
+        var model = FanZoneCardModel(game: .predict, title: "Predict the XI", contextLine: context)
+        let points = predict.seasonPoints
+        if points > 0 { model.badge = "\(points)" }
+
+        // Submitted for this fixture → the locked-in done line (no status/progress).
+        let draft = nextPredictFixture.flatMap { predict.prediction(for: $0.id) }
+        if draft?.state == .submitted {
+            let drop = nextPredictFixture.flatMap { compactCountdown(to: $0.deadline) }
+            model.doneLine = drop.map { "Picks locked in — results drop in \($0)" } ?? "Picks locked in"
+            return model
+        }
+
+        let picked = draft?.slots.count ?? 0
+        if points > 0 {
+            model.statusLine = "\(points) season pts · \(picked)/11 drafted"
+        } else if picked > 0 {
+            model.statusLine = "\(picked)/11 drafted"
+        } else {
+            model.statusLine = "Make your prediction"
+        }
+        if let fixture = nextPredictFixture, let left = compactCountdown(to: fixture.deadline) {
+            model.countdown = "\(left) left"
+        }
+        if picked > 0, picked < 11 {
+            model.progress = .init(value: picked, max: 11,
+                                   label: "\(picked) of 11 players picked — tap to finish")
+        }
+        return model
     }
 
-    /// Predict the XI is active when a followed team has a fixture within the
-    /// 28-day window — the gate that hides the game (card + screen) in a long
-    /// break. Shares the horizon with PredictXIViewModel's slate.
-    private var predictXIActive: Bool {
+    private var bracketCardModel: FanZoneCardModel {
+        let summary = bracket.summary
+        let round = summary.flatMap { BracketRound(rawValue: $0.currentRoundRaw) }
+        let theme = summary?.title ?? "Bracket Battle"
+        let context = round.map { "\(theme) · \($0.title)" } ?? theme
+        var model = FanZoneCardModel(game: .bracket, title: "Bracket Battle", contextLine: context)
+
+        let points = bracket.points
+        if points > 0 { model.badge = "\(points)" }
+        let closes = summary?.roundClosesAt.flatMap { compactCountdown(to: $0) }
+
+        // The current round is submitted → locked-in done line.
+        if let round, bracket.hasSubmitted(round) {
+            model.doneLine = closes.map { "Picks locked in — results drop in \($0)" } ?? "Picks locked in"
+            return model
+        }
+
+        let picks = round.map { bracket.picks(for: $0).count } ?? 0
+        let total = round?.matchupCount ?? 0
+        if points > 0 {
+            model.statusLine = "\(points) pts · \(picks)/\(total) picks made"
+        } else if bracket.hasPlayed {
+            model.statusLine = "\(picks)/\(total) picks made"
+        } else {
+            model.statusLine = "Vote now"
+        }
+        if let closes { model.countdown = "\(closes) left" }
+        if picks > 0, total > 0, picks < total {
+            model.progress = .init(value: picks, max: total, label: "\(picks) of \(total) picks made")
+        }
+        return model
+    }
+
+    private var triviaCardModel: FanZoneCardModel {
+        var model = FanZoneCardModel(game: .trivia, title: "Daily Trivia",
+                                     contextLine: "5 questions · refreshes daily")
+        if trivia.streak > 0 { model.badge = "\(trivia.streak)🔥" }
+
+        if trivia.hasPlayedToday {
+            model.dimmed = true
+            model.contextLine = "\(trivia.lastScore)/5 correct today"
+            let fresh = compactCountdown(to: Self.nextLocalMidnight())
+            model.doneLine = fresh.map { "Done today · new questions in \($0)" } ?? "Done today"
+            return model
+        }
+        model.statusLine = trivia.streak > 0 ? "\(trivia.streak)-day streak" : "Play now"
+        if let fresh = compactCountdown(to: Self.nextLocalMidnight()) {
+            model.countdown = "New in \(fresh)"
+        }
+        return model
+    }
+
+    /// "Sat 7:30 PM" — the Predict context-line kickoff format (mirrors PredictXIView).
+    private static func kickoffLabel(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.timeZone = .current
+        formatter.dateFormat = "EEE h:mm a"
+        return formatter.string(from: date)
+    }
+
+    /// The next local midnight — when Daily Trivia refreshes (TriviaStore's day-gate
+    /// flips at local midnight).
+    private static func nextLocalMidnight(from now: Date = Date()) -> Date {
+        Calendar.current.nextDate(
+            after: now,
+            matching: DateComponents(hour: 0, minute: 0, second: 0),
+            matchingPolicy: .nextTime
+        ) ?? now.addingTimeInterval(24 * 3600)
+    }
+
+    /// Predict the XI is active when a followed team has a fixture within the 28-day
+    /// window — the gate that hides the game (card + screen) in a long break. Derived
+    /// from `nextPredictFixture` so the gate and the card read the SAME fixture.
+    private var predictXIActive: Bool { nextPredictFixture != nil }
+
+    /// The most imminent open Predict-the-XI fixture across followed teams — the same
+    /// derivation PredictXIViewModel.buildUpcoming uses (Event → PredictionFixture within
+    /// the 28-day horizon, soonest first), surfaced here so the Fan Zone card can show the
+    /// opponent + kickoff + deadline countdown. Nil → the game is dark (the gate).
+    private var nextPredictFixture: PredictionFixture? {
         let now = Date()
         let horizon = now.addingTimeInterval(PredictionFixture.activeWindow)
-        return following.followedIDs.contains { id in
-            guard let club = clubStore.club(id: id) else { return false }
-            return matchStore.matches(for: club).contains { event in
+        var fixtures: [PredictionFixture] = []
+        for id in following.followedIDs {
+            guard let club = clubStore.club(id: id) else { continue }
+            let next = matchStore.matches(for: club).first { event in
                 guard let kickoff = event.kickoff else { return false }
                 return kickoff > now && kickoff <= horizon
             }
+            guard let event = next,
+                  let kickoff = event.kickoff,
+                  let home = event.homeCompetitor?.team?.abbreviation,
+                  let away = event.awayCompetitor?.team?.abbreviation,
+                  home == club.abbreviation || away == club.abbreviation else { continue }
+            let isHome = home == club.abbreviation
+            fixtures.append(PredictionFixture(
+                eventID: event.id,
+                teamAbbreviation: club.abbreviation,
+                opponentAbbreviation: isHome ? away : home,
+                isHome: isHome,
+                kickoff: kickoff
+            ))
         }
+        return fixtures.min { $0.kickoff < $1.kickoff }
     }
 
     // "● 2 active" — a teal dot + count of games with something to do right now.
@@ -504,42 +611,6 @@ struct HomeView: View {
         if bracket.hasActiveEdition { n += 1 }
         if !trivia.hasPlayedToday { n += 1 }
         return n
-    }
-
-    private var triviaGameCard: some View {
-        GameCard(
-            emoji: "🧠", title: "Daily Trivia",
-            statusLine: trivia.hasPlayedToday ? "Done today ✓" : "Play now",
-            accent: .dsGameTrivia, completed: trivia.hasPlayedToday,
-            badge: trivia.streak > 0 ? "\(trivia.streak)" : nil, badgeIcon: "🔥"
-        )
-    }
-
-    private var bracketGameCard: some View {
-        GameCard(
-            emoji: "🏆", title: "Bracket Battle",
-            statusLine: bracketStateLine,
-            accent: .dsGameBracket, completed: false,
-            badge: bracket.points > 0 ? "\(bracket.points)" : nil, badgeIcon: "🏆"
-        )
-    }
-
-    private var predictGameCard: some View {
-        GameCard(
-            emoji: "⚽", title: "Predict the XI",
-            statusLine: predict.hasPredicted ? "\(predict.seasonPoints) pts" : "Predict now",
-            accent: .dsGamePredict,
-            badge: predict.seasonPoints > 0 ? "\(predict.seasonPoints)" : nil, badgeIcon: "⚽"
-        )
-    }
-
-    // "Play now" before any voting, "Complete ✓" once the final's closed, else the
-    // current round ("Round 2 of 4"). roundCount falls back to 4 (the current
-    // edition) until the game's been opened and stored it.
-    private var bracketStateLine: String {
-        guard let summary = bracket.summary, summary.isActive else { return "Play now" }
-        if !bracket.hasPlayed { return "Vote now" }
-        return BracketRound(rawValue: summary.currentRoundRaw)?.title ?? "In progress"
     }
 
     // MARK: - Module 4: Coming up (compact schedule strip)

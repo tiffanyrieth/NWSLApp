@@ -68,17 +68,21 @@ struct AvatarContentCard: View {
 
     private var headerRow: some View {
         HStack(spacing: 7) {
-            // Inline team code ONLY for text-only cards; cards with media show it
-            // bottom-left ON the media (see `mediaThumbnail`). Gated on 2+ clubs.
-            if !hideTeamIdentity, !hasMediaImage, let abbr = card.teamAbbreviation {
-                teamPill(abbr)
-            }
+            // The team code rides BOTTOM-LEFT, never inline here: on the media when there's
+            // an image (see `mediaThumbnail`), else on the bottom row (see `bottomRow`) — the
+            // same placement every card uses, so cards read identically across tabs/formats.
             CategoryPill(sourceType: card.resolvedSourceType)
-            Text(sourceLine)
-                .dsFont(12)
-                .foregroundStyle(Color.dsFgSecondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
+            // The source line is the post AUTHOR. For a club's own post it's just the club
+            // name again — redundant with the CLUB pill + color bar + team chip, so drop it.
+            // For reporters/players/creators the handle IS the content identity (and those
+            // cards have no color bar/team pill to fall back on), so it stays.
+            if card.resolvedSourceType != .club {
+                Text(sourceLine)
+                    .dsFont(12)
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
             Spacer(minLength: 6)
             Text(card.timestamp.relativeAgo)
                 .dsFont(11)
@@ -200,17 +204,22 @@ struct AvatarContentCard: View {
         )
     }
 
-    // MARK: - Bottom row (engagement + CTA, or just CTA for IG fallback)
+    // MARK: - Bottom row (team chip + engagement + CTA, or just CTA for IG fallback)
 
-    @ViewBuilder
+    /// The team abbr rides BOTTOM-LEFT here when there's no media to host it (media cards
+    /// carry it on the thumbnail — see `mediaThumbnail`), matching every other card layout.
+    /// Gated on 2+ clubs. The engagement/CTA fills the rest via its own internal spacing.
     private var bottomRow: some View {
-        if card.layout == .instagramFallback {
-            HStack {
+        HStack(spacing: 10) {
+            if !hideTeamIdentity, !hasMediaImage, let abbr = card.teamAbbreviation {
+                teamPill(abbr)
+            }
+            if card.layout == .instagramFallback {
                 CTARow(label: card.ctaLabel)
                 Spacer(minLength: 0)
+            } else {
+                EngagementRow(likes: card.likes, reposts: card.reposts, ctaLabel: card.ctaLabel)
             }
-        } else {
-            EngagementRow(likes: card.likes, reposts: card.reposts, ctaLabel: card.ctaLabel)
         }
     }
 }

@@ -109,3 +109,12 @@ alter table public.bracket_editions
   add column if not exists total_rounds int,
   add column if not exists started_at timestamptz,
   add column if not exists completed_at timestamptz;
+
+-- ── 5. Creative editions become recipe-only (drop per-player content) ─────────
+-- Creative editions now pull the whole-league pool from ESPN automatically (all
+-- positions, seeded by the same heuristic as stats editions) — only the THEME differs.
+-- The per-player `entries` JSON + content lines are gone, so the table is pure theme
+-- metadata (id, theme_label, title, description, status, season): the Worker no longer
+-- reads entries; it builds the pool live. Safe whether or not the column was ever created.
+alter table public.bracket_creative_editions
+  drop column if exists entries;

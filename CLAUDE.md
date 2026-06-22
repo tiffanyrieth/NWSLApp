@@ -400,7 +400,7 @@ NWSLApp/
 │   └── TriviaViewModel.swift          — one Daily-Trivia session; questions ← TriviaService (throws→error state); non-repeating daily-5 (unit-tested); best-streak leaderboard (+ GC submit)
 ├── Views/                             — one screen per file
 │   ├── RootTabView.swift              — app root; gates the 5-tab TabView behind `hasOnboarded` (full-screen OnboardingView until done — un-skippable + tab bar first-layout in the settled hub); injects stores; restores session + coordinators; PREWARMS matches (so Home/Schedule first paint isn't gated on the scoreboard) + Feed + Home content (low-pri) — during onboarding too, so the post-onboarding Home arrives populated; GC syncAll; routes live-push tap
-│   ├── HomeView.swift                 — your-teams hub (32pt header + avatar): 4 modules; M1 round-robin + per-team chips + "See more →" (per-module error+retry); M2 Spotlight carousel; M3 Fan Zone featured + tiles; refetch on pull + follows-change
+│   ├── HomeView.swift                 — your-teams hub (32pt header + avatar): 4 modules; M1 round-robin + per-team chips + "See more →" (per-module error+retry); M2 Spotlight carousel; M3 Fan Zone equal-weight stacked cards (per-game FanZoneCardModel built here) + Superfan banner (gated ≥2 games played); refetch on pull + follows-change
 │   ├── HomeContentListView.swift      — "Club News" ("See more →") firehose: ALL followed-team content, no cap, reverse-chron, respects the active team chip (+ horizontal-scrolling `HomeTeamChips` bar: [All] + per-team, holds all 16 follows)
 │   ├── ProfileView.swift              — account & settings sheet: identity (editable display name) · Fan Zone stats (🏆 → Game Center) · Settings · My Teams · Account
 │   ├── NotificationsView.swift        — the ONE notifications hub: §Match alerts (per-team) · §Alert types (global, dimmed when no team on) · §Activity. INVARIANT: Tier-2 ON ⟹ signed in (default OFF, sign-out resets); unfollow clears alerts
@@ -439,8 +439,7 @@ NWSLApp/
 │   ├── SettingsToggleRow.swift        — shared settings primitives: `SettingsToggleRow` + `SettingsGroup` (optional subtitle + `note` line) + `SettingsRowDivider`
 │   ├── PlatformBadge.swift            — platform glyph (YT/Bluesky/TikTok/IG/article/reddit)
 │   ├── FormBadge.swift                — W/D/L form badge (optional `size`/`fontSize`, default 22; `MatchResult` convenience init)
-│   ├── GameCard.swift                 — Fan Zone game tile (200×160, radial accent-glow corner + emoji + status pill + badge)
-│   ├── FeaturedGameCard.swift         — Fan Zone full-width featured lead card (medallion + FEATURED eyebrow + title + tagline + CTA) anchoring M3
+│   ├── FanZoneCard.swift              — Home M3 equal-weight game cards: `FanZoneGameCard` (accent left-bar + GameIcon SF Symbol + context + badge + status + `CountdownPill` + `MiniProgressBar` + green-check done state) driven by a flat `FanZoneCardModel`; `SuperfanBanner` (cross-game total, display-only); pure `compactCountdown(to:from:)` ("2d 14h"/"18h"/"<1m")
 │   ├── HowToWatchCard.swift / MDInfoCard.swift / StatComparisonBar.swift — match-detail tiles (HowToWatch = FREE/SUB badge + BroadcastChip + per-device "Find it" steps; MDInfoCard = label/value)
 │   ├── PitchDot.swift / PlayerDot.swift / PlayerCard.swift — player markers/cards (team-color monogram, no headshots)
 │   ├── ComingUpRow.swift / EventTimelineRow.swift / FlowLayout.swift — Home/match rows + wrapping layout (ComingUpRow upcoming rows carry a `● Platform · FREE/SUB` broadcast line)

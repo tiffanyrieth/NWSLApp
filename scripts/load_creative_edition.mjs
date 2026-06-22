@@ -1,21 +1,24 @@
 #!/usr/bin/env node
-// Bracket Battle — load a curated creative edition into Supabase.
+// Bracket Battle — load a CREATIVE edition (theme-only) into Supabase.
 //
-//   node scripts/load_creative_edition.mjs path/to/edition.json
+//   node scripts/load_creative_edition.mjs path/to/creative-edition.json
 //
-// Validates a creative-edition JSON (see Reference/Bracket Battle/creative-edition-
-// template.json) and prints an INSERT statement you paste into the Supabase SQL editor.
-// No secrets, no app changes — adding a future edition is pure data. The Worker picks
-// the new `ready` row on the next rotation.
+// A creative edition is now just a THEME: a label, a title, and a one-line description.
+// The Worker pulls the whole-league player pool from ESPN automatically (all positions,
+// seeded by the same visibility heuristic as stats editions) — there are no per-player
+// entries or content lines to curate. Matchup cards show name/jersey/team; the theme is
+// all the context fans need. Validates the theme and prints an INSERT you paste into the
+// Supabase SQL editor (no service-role key needed locally). The Worker picks the new
+// `ready` row on the next rotation.
 //
-// (We emit SQL rather than calling Supabase directly so you never need the service-role
-// key on your laptop — you run the statement in the dashboard, same as the schema.)
+// (The launch set is already authored in supabase/seed_bracket_creative_editions.sql;
+// use this loader to add a one-off theme later — the only manual input is the theme.)
 
 import { readFileSync } from "node:fs";
 
 const file = process.argv[2];
 if (!file) {
-  console.error("usage: node scripts/load_creative_edition.mjs <edition>.json");
+  console.error("usage: node scripts/load_creative_edition.mjs <creative-edition>.json");
   process.exit(1);
 }
 
@@ -31,46 +34,32 @@ try {
 const ed = Object.fromEntries(Object.entries(raw).filter(([k]) => !k.startsWith("_")));
 
 const errs = [];
-for (const f of ["id", "theme_label", "title", "description", "season", "entries"]) {
-  if (ed[f] === undefined || ed[f] === null || ed[f] === "") errs.push(`missing top-level "${f}"`);
+for (const f of ["id", "theme_label", "title", "description", "season"]) {
+  if (ed[f] === undefined || ed[f] === null || ed[f] === "") errs.push(`missing "${f}"`);
 }
-if (!Array.isArray(ed.entries) || ed.entries.length < 4) {
-  errs.push(`"entries" must be an array of at least 4 contenders`);
+if (ed.season !== undefined && !Number.isInteger(Number(ed.season))) {
+  errs.push(`"season" must be an integer year`);
 }
-
-const seeds = new Set();
-const ids = new Set();
-(ed.entries || []).forEach((e, i) => {
-  for (const f of ["player_id", "player_name", "team_abbreviation", "seed", "content", "source"]) {
-    if (e[f] === undefined || e[f] === null || e[f] === "") errs.push(`entry ${i}: missing "${f}"`);
-  }
-  if (ids.has(e.player_id)) errs.push(`entry ${i}: duplicate player_id "${e.player_id}"`);
-  ids.add(e.player_id);
-  if (seeds.has(e.seed)) errs.push(`entry ${i}: duplicate seed ${e.seed}`);
-  seeds.add(e.seed);
-  if (/EXAMPLE|REPLACE/i.test(`${e.content} ${e.source}`)) {
-    errs.push(`entry ${i} ("${e.player_name}"): still has placeholder EXAMPLE/REPLACE content — fill it in`);
-  }
-});
+if (ed.entries !== undefined) {
+  errs.push(`"entries" is no longer used — creative editions are theme-only (the Worker builds the pool). Remove it.`);
+}
 
 if (errs.length) {
   console.error(`✗ ${file} is not ready:\n  - ${errs.join("\n  - ")}`);
   process.exit(1);
 }
 
-const q = (s) => `'${String(s).replace(/'/g, "''")}'`;             // SQL string literal
-const jsonb = q(JSON.stringify(ed.entries));                        // entries as jsonb text
+const q = (s) => `'${String(s).replace(/'/g, "''")}'`; // SQL string literal
 
-const sql = `-- ${ed.entries.length} entries · season ${ed.season} · run in the Supabase SQL editor
+const sql = `-- creative theme · season ${ed.season} · run in the Supabase SQL editor
 insert into public.bracket_creative_editions
-  (id, theme_label, title, description, status, season, entries)
+  (id, theme_label, title, description, status, season)
 values
-  (${q(ed.id)}, ${q(ed.theme_label)}, ${q(ed.title)}, ${q(ed.description)}, 'ready', ${Number(ed.season)}, ${jsonb}::jsonb)
+  (${q(ed.id)}, ${q(ed.theme_label)}, ${q(ed.title)}, ${q(ed.description)}, 'ready', ${Number(ed.season)})
 on conflict (id) do update set
   theme_label = excluded.theme_label, title = excluded.title,
-  description = excluded.description, season = excluded.season,
-  entries = excluded.entries, status = 'ready';
+  description = excluded.description, season = excluded.season, status = 'ready';
 `;
 
-console.error(`✓ ${ed.title}: ${ed.entries.length} entries, valid. SQL below — paste into Supabase:\n`);
+console.error(`✓ ${ed.title}: valid creative theme. SQL below — paste into Supabase:\n`);
 console.log(sql);

@@ -31,6 +31,7 @@ import Foundation
 /// bracket totals 81. The set generalises to any power-of-two pool: a 32-player
 /// edition just starts at `.roundOf32`.
 enum BracketRound: Int, Codable, CaseIterable, Comparable {
+    // Main bracket — keyed by entrant count (64 → Round of 64 … 2 → Final).
     case roundOf64 = 64
     case roundOf32 = 32
     case roundOf16 = 16
@@ -38,12 +39,23 @@ enum BracketRound: Int, Codable, CaseIterable, Comparable {
     case semifinal = 4
     case final = 2
 
-    /// Matchups in this round (entrants ÷ 2): Rd of 64 = 32, … Final = 1.
-    var matchupCount: Int { rawValue / 2 }
+    // Qualifying rounds (pools >64) — NEGATIVE raw values, identical to the proxy
+    // Worker's round codes (the cross-repo contract: see nwslapp-proxy/src/bracket.ts).
+    // q1 is always the first round played (the lowest seeds); always 32 matchups, 1 point.
+    case qualifying1 = -4
+    case qualifying2 = -3
+    case qualifying3 = -2
+    case qualifying4 = -1
 
-    /// Points for ONE correct pick in this round (tiered 1·1·2·2·3·3, v2).
+    var isQualifying: Bool { rawValue < 0 }
+
+    /// Matchups in this round: qualifying is always 32; main is entrants ÷ 2.
+    var matchupCount: Int { isQualifying ? 32 : rawValue / 2 }
+
+    /// Points for ONE correct pick (qualifying = 1; main tiered 1·1·2·2·3·3, v2).
     var points: Int {
         switch self {
+        case .qualifying1, .qualifying2, .qualifying3, .qualifying4: return 1
         case .roundOf64: return 1
         case .roundOf32: return 1
         case .roundOf16: return 2
@@ -53,9 +65,13 @@ enum BracketRound: Int, Codable, CaseIterable, Comparable {
         }
     }
 
-    /// Full title for headers ("Round of 64", "Quarterfinals", "Final").
+    /// Full title for headers ("Qualifying 1", "Round of 64", "Final").
     var title: String {
         switch self {
+        case .qualifying1: return "Qualifying 1"
+        case .qualifying2: return "Qualifying 2"
+        case .qualifying3: return "Qualifying 3"
+        case .qualifying4: return "Qualifying 4"
         case .roundOf64: return "Round of 64"
         case .roundOf32: return "Round of 32"
         case .roundOf16: return "Round of 16"
@@ -65,9 +81,13 @@ enum BracketRound: Int, Codable, CaseIterable, Comparable {
         }
     }
 
-    /// Compact label for pills/overview ("Rd of 64", "QF", "SF", "Final").
+    /// Compact label for pills/overview ("Q1", "Rd of 64", "QF", "SF", "Final").
     var shortLabel: String {
         switch self {
+        case .qualifying1: return "Q1"
+        case .qualifying2: return "Q2"
+        case .qualifying3: return "Q3"
+        case .qualifying4: return "Q4"
         case .roundOf64: return "Rd of 64"
         case .roundOf32: return "Rd of 32"
         case .roundOf16: return "Rd of 16"
@@ -77,13 +97,33 @@ enum BracketRound: Int, Codable, CaseIterable, Comparable {
         }
     }
 
-    /// Earlier rounds (more entrants) sort first.
-    static func < (lhs: BracketRound, rhs: BracketRound) -> Bool { lhs.rawValue > rhs.rawValue }
+    /// Play order: qualifying first (q1 → q4), then the main bracket (more entrants first).
+    static func < (lhs: BracketRound, rhs: BracketRound) -> Bool {
+        if lhs.isQualifying != rhs.isQualifying { return lhs.isQualifying }      // qualifying before main
+        if lhs.isQualifying { return lhs.rawValue < rhs.rawValue }              // q1(-4) before q2(-3)
+        return lhs.rawValue > rhs.rawValue                                       // main: more entrants first
+    }
 
-    /// The ordered rounds for a pool of `entrants` (a power of two, ≤ 64): e.g.
-    /// 64 → [.roundOf64 … .final]; 32 → [.roundOf32 … .final].
+    /// The largest supported bracket size ≤ the pool (mirrors the proxy's plannedSize):
+    /// ≤64 passes through; 65..95 → 64; 96+ snaps to 64+32·q (q ≤ 4, so ≤192).
+    static func plannedSize(forEntrants entrants: Int) -> Int {
+        if entrants <= 64 { return entrants }
+        if entrants < 96 { return 64 }
+        return 64 + 32 * min(4, (entrants - 64) / 32)
+    }
+
+    /// The ordered rounds for a pool of `entrants`. ≤64 → the main bracket alone
+    /// (e.g. 64 → [.roundOf64 … .final]); >64 → q qualifying rounds prepended
+    /// (e.g. 128 → [.qualifying1, .qualifying2, .roundOf64 … .final]).
     static func rounds(forEntrants entrants: Int) -> [BracketRound] {
-        allCases.filter { $0.rawValue <= entrants }.sorted()
+        let size = plannedSize(forEntrants: entrants)
+        let main: [BracketRound] = [.roundOf64, .roundOf32, .roundOf16, .quarterfinal, .semifinal, .final]
+        if size <= 64 {
+            return main.filter { $0.rawValue <= size }   // already in play order
+        }
+        let q = (size - 64) / 32   // 1..4
+        let quals: [BracketRound] = [.qualifying1, .qualifying2, .qualifying3, .qualifying4]
+        return Array(quals.prefix(q)) + main
     }
 }
 

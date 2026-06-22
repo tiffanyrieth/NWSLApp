@@ -82,4 +82,42 @@ struct BracketScoringTests {
         // 16·1 + 8·2 + 4·2 + 2·3 + 1·3 = 49.
         #expect(BracketScoring.maxPoints(rounds: rounds) == 49)
     }
+
+    // MARK: - Qualifying rounds (large pools) — mirrors the proxy contract
+
+    @Test func qualifyingRoundsAreOnePointThirtyTwoMatchups() {
+        for q in [BracketRound.qualifying1, .qualifying2, .qualifying3, .qualifying4] {
+            #expect(q.isQualifying)
+            #expect(q.points == 1)
+            #expect(q.matchupCount == 32)
+        }
+        #expect(BracketRound.qualifying1.title == "Qualifying 1")
+        #expect(BracketRound.qualifying1.shortLabel == "Q1")
+    }
+
+    @Test func roundsPrependQualifyingForLargePools() {
+        // 128 → 2 qualifying rounds then the full main bracket, in play order.
+        #expect(BracketRound.rounds(forEntrants: 128) == [
+            .qualifying1, .qualifying2, .roundOf64, .roundOf32, .roundOf16, .quarterfinal, .semifinal, .final,
+        ])
+        // 192 → 4 qualifying rounds; 96 → 1; >192 snaps to 192 (4 qualifying rounds).
+        #expect(BracketRound.rounds(forEntrants: 96).first == .qualifying1)
+        #expect(BracketRound.rounds(forEntrants: 96).filter(\.isQualifying).count == 1)
+        #expect(BracketRound.rounds(forEntrants: 192).filter(\.isQualifying).count == 4)
+        #expect(BracketRound.rounds(forEntrants: 256).filter(\.isQualifying).count == 4)
+    }
+
+    @Test func qualifyingSortsBeforeMainInPlayOrder() {
+        #expect(BracketRound.qualifying1 < BracketRound.qualifying2)   // q1 first
+        #expect(BracketRound.qualifying4 < BracketRound.roundOf64)     // qualifying before main
+        #expect(BracketRound.roundOf64 < BracketRound.final)          // main: more entrants first
+        // Sorting a shuffled set yields the canonical play order.
+        let sorted = [BracketRound.final, .qualifying2, .roundOf64, .qualifying1].sorted()
+        #expect(sorted == [.qualifying1, .qualifying2, .roundOf64, .final])
+    }
+
+    @Test func largePoolMaxIsRuleDerived() {
+        // 128: q1+q2 (32·1·2) + 32·1 + 16·1 + 8·2 + 4·2 + 2·3 + 1·3 = 145.
+        #expect(BracketScoring.maxPoints(rounds: BracketRound.rounds(forEntrants: 128)) == 145)
+    }
 }

@@ -86,11 +86,18 @@ create table if not exists public.bracket_user_edition_stats (
   best_round int,                        -- round int (BracketRound rawValue) of best accuracy
   best_round_correct int,                -- correct picks in that round (for an honest %)
   best_round_total int,                  -- picks in that round
+  current_streak int not null default 0, -- consecutive correct picks across rounds (resets on a miss)
+  longest_streak int not null default 0, -- per-edition best run of consecutive correct picks
   updated_at timestamptz default now(),
   primary key (user_id, edition_id)
 );
--- (Streak metrics for Your Stats are intentionally NOT stored yet — the exact definition
---  of "current/longest streak" is settled in the Leaderboard phase; add a column then.)
+-- Streak = consecutive correct picks across rounds within an edition (picks evaluated in
+-- slot order, carried across rounds); current resets to 0 on any miss, longest is the
+-- per-edition personal best. Both written by the tally. (Add-if-not-exists covers a table
+-- already created in an earlier test run.)
+alter table public.bracket_user_edition_stats
+  add column if not exists current_streak int not null default 0,
+  add column if not exists longest_streak int not null default 0;
 
 alter table public.bracket_user_edition_stats enable row level security;
 create policy "Anyone can read bracket user stats"

@@ -10,37 +10,38 @@
 //     set — the Feed only ever shows content about teams the user follows plus
 //     league-wide items.
 //
-//  The filter chips are SOURCE-CLASS, not per-team (All / News / Clubs / Reporters /
-//  Players), keyed off each card's proxy-set `sourceType`. The Feed is the
-//  league-wide "soccer conversation" — content is already scoped by the user's
-//  follows, so team chips would over-filter; team-specific content lives on Home.
+//  The filter chips are SOURCE-CLASS, not per-team (All / Reporters / Players / Clubs),
+//  keyed off each card's proxy-set `sourceType`. The Feed is YOUR clubs' "soccer
+//  conversation" — content is already scoped by the user's follows; team-specific
+//  framing lives on Home.
 //
 //  Filtering, in order:
 //   1. Base — placement != .home, AND (about a followed team OR league-wide).
-//   2. Chip — All / News / Clubs / Reporters (also NWSL media + league outlets) /
-//      Players, via sourceType(of:) (falls back to inferring from layout when the
-//      proxy hasn't set sourceType — seed cards, or player cards from an older cron).
-//   3. Preferences — drop muted sources + toggled-off content types.
-//   4. Staleness (≤7 days) + reverse-chronological.
+//   2. Recency — reporter/league/news cards older than 30 days are dropped; the user's
+//      own club/player content is age-agnostic (see `isFresh`).
+//   3. Chip — All / Reporters (Bluesky beat writers + outlet articles) / Players / Clubs,
+//      via `resolvedSourceType`; league posts have no chip and ride All only.
+//   4. Preferences — drop muted sources + toggled-off content types.
+//   5. Single per-club balance (see `arranged`), reverse-chronological.
 //
 
 import Foundation
 
 @Observable
 final class FeedViewModel {
-    /// The Social tab's source-class filter (the chip bar): All · Headlines · Reporters
-    /// · Players · Clubs, keyed off each card's `resolvedSourceType`. Headlines covers
-    /// BOTH `news` (Google-News articles) AND `league` (NWSL media/league-outlet
-    /// accounts) — the league's own coverage, one chip. Declaration order IS the chip
-    /// order (`chips` = `allCases`). The `.news` rawValue is kept (just relabeled) so
-    /// the persisted `defaultFeedFilter` doesn't orphan.
+    /// The Social tab's source-class filter (the chip bar): All · Reporters · Players ·
+    /// Clubs, keyed off each card's `resolvedSourceType`. Reporters covers BOTH `reporter`
+    /// (Bluesky beat writers) AND `news` (curated-outlet RSS articles) — the same
+    /// journalist voice in two formats (social post vs article), told apart by the card's
+    /// REPORTER / NEWS pill. `league` (NWSL media/outlet Bluesky accounts) has NO chip — it
+    /// surfaces only under All. Declaration order IS the chip order (`chips` = `allCases`);
+    /// a persisted `defaultFeedFilter` of the retired "news" value falls back to All.
     enum ContentFilter: String, CaseIterable, Hashable {
-        case all, news, reporters, players, clubs
+        case all, reporters, players, clubs
 
         var label: String {
             switch self {
             case .all:       return "All"
-            case .news:      return "Headlines"
             case .reporters: return "Reporters"
             case .players:   return "Players"
             case .clubs:     return "Clubs"
@@ -113,8 +114,10 @@ final class FeedViewModel {
     /// appended (never capped or laned).
     func items(_ following: FollowingStore, preferences: FeedPreferencesStore) -> [ContentCard] {
         let followed = Set(followedClubs(following).map(\.abbreviation))
+        let now = Date()
         let filtered = allItems
             .filter { isRelevant($0, followed) }
+            .filter { Self.isFresh($0, now: now) }
             .filter { passesFilter($0) }
             .filter { passesPreferences($0, preferences) }
 
@@ -137,6 +140,21 @@ final class FeedViewModel {
         return balanced + leagueWide
     }
 
+    /// Third-party voices go stale fast: reporter / league / news cards older than 30 days
+    /// are dropped. A user's OWN followed content — club + player posts — is age-agnostic
+    /// (a club's announcements have a long shelf life, and a quiet week shouldn't blank the
+    /// feed). Static + `now`-injected so it unit-tests deterministically.
+    static let thirdPartyMaxAge: TimeInterval = 30 * 24 * 60 * 60   // 30 days
+
+    static func isFresh(_ card: ContentCard, now: Date) -> Bool {
+        switch card.resolvedSourceType {
+        case .reporter, .league, .news:
+            return now.timeIntervalSince(card.timestamp) <= thirdPartyMaxAge
+        case .club, .player:
+            return true
+        }
+    }
+
     /// Base scope: a Feed-eligible card that's either league-wide or about a
     /// followed team. (Home-only cards never appear in the Feed.)
     private func isRelevant(_ card: ContentCard, _ followed: Set<String>) -> Bool {
@@ -147,13 +165,13 @@ final class FeedViewModel {
     }
 
     /// The chip → which source classes it admits, keyed off `resolvedSourceType`.
-    /// Headlines covers BOTH `news` (articles) AND `league` (NWSL media/league outlets);
-    /// Reporters is beat writers only.
+    /// Reporters covers BOTH `reporter` (Bluesky beat writers) AND `news` (curated-outlet
+    /// articles) — the same journalist voice in two formats. `league` posts have no chip;
+    /// they surface only under All.
     private func passesFilter(_ card: ContentCard) -> Bool {
         switch selectedFilter {
         case .all:       return true
-        case .news:      return card.resolvedSourceType == .news || card.resolvedSourceType == .league
-        case .reporters: return card.resolvedSourceType == .reporter
+        case .reporters: return card.resolvedSourceType == .reporter || card.resolvedSourceType == .news
         case .players:   return card.resolvedSourceType == .player
         case .clubs:     return card.resolvedSourceType == .club
         }

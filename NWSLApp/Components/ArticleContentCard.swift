@@ -79,12 +79,10 @@ struct ArticleContentCard: View {
     }
 
     /// Social: one meta row — source-class CategoryPill + timestamp, no source/club name.
-    /// Inline team code only when there's no image to host it (see `articleImage`).
+    /// The team code rides bottom-left exactly like Home (on the media, else on the CTA
+    /// footer row) so a card reads identically on both tabs — never inline here.
     private var unifiedHeader: some View {
         HStack(spacing: 7) {
-            if !hideTeamIdentity, !hasImage, let abbr = card.teamAbbreviation {
-                teamPill(abbr)
-            }
             CategoryPill(sourceType: card.resolvedSourceType)
             Spacer(minLength: 6)
             Text(card.timestamp.relativeAgo)
@@ -153,10 +151,10 @@ struct ArticleContentCard: View {
 
     /// The "Read on …" CTA, with the team abbreviation chip pinned BOTTOM-LEFT when the card
     /// has no image to carry it (image cards keep the chip on the media — see `articleImage`).
-    /// Home only: Social's `unifiedHeader` keeps its inline chip, so we'd double up otherwise.
+    /// Both tabs: the chip placement is identical on Home and Social (gated on 2+ clubs).
     private var footerRow: some View {
         HStack(spacing: 10) {
-            if !unified, !hideTeamIdentity, !hasImage, let abbr = card.teamAbbreviation {
+            if !hideTeamIdentity, !hasImage, let abbr = card.teamAbbreviation {
                 teamPill(abbr)
             }
             readOnOutlet

@@ -83,11 +83,26 @@ struct FeedBalancingTests {
     }
 
     @Test func ageAgnosticOldClubCardStillSurfaces() {
+        // The balance (`arranged`) itself is age-blind; recency is a separate pre-filter
+        // (`isFresh`) applied only to third-party voices — see the tests below.
         let cards = [
             card("A0", source: .reporter, abbr: "A", secondsAgo: 1),
             card("B0", source: .club, abbr: "B", secondsAgo: 300_000_000),   // ~10 years
         ]
         let result = FeedViewModel.arranged(cards, followedAbbreviations: ["A", "B"])
         #expect(result.contains { $0.id == "B0" })
+    }
+
+    @Test func recencyDropsStaleThirdPartyKeepsOwnContent() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let day = 24.0 * 60 * 60
+        // Third-party voices (reporter / league / news): 30-day cutoff.
+        #expect( FeedViewModel.isFresh(card("rep-fresh",  source: .reporter, abbr: "A", secondsAgo: 29 * day), now: now))
+        #expect(!FeedViewModel.isFresh(card("rep-stale",  source: .reporter, abbr: "A", secondsAgo: 31 * day), now: now))
+        #expect(!FeedViewModel.isFresh(card("news-stale", source: .news,     abbr: "A", secondsAgo: 31 * day), now: now))
+        #expect(!FeedViewModel.isFresh(card("lg-stale",   source: .league,   abbr: nil, secondsAgo: 40 * day), now: now))
+        // The user's OWN followed content (club / player): age-agnostic.
+        #expect( FeedViewModel.isFresh(card("club-old",   source: .club,     abbr: "A", secondsAgo: 365 * day), now: now))
+        #expect( FeedViewModel.isFresh(card("player-old", source: .player,   abbr: "A", secondsAgo: 200 * day), now: now))
     }
 }

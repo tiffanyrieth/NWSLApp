@@ -78,7 +78,7 @@ NWSLApp/
 │   └── TriviaStore.swift              — Daily-Trivia streak/bestStreak/accuracy + one-play/day gate
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
 │   ├── BracketViewModel.swift         — Bracket session: round phase, progress, results, leaderboard, settled-round scoring (+ Game Center submit)
-│   ├── FeedViewModel.swift            — Social-tab source-class chips (All·Headlines·Reporters·Players·Clubs by `resolvedSourceType`; Headlines = news + league outlets) + `arranged` = per-club `ContentRoundRobin.balanced` over all team-tagged cards (volume-blind); `itemsError` on fetch failure
+│   ├── FeedViewModel.swift            — Social-tab source-class chips (All·Reporters·Players·Clubs by `resolvedSourceType`; Reporters = reporter Bluesky + news articles; `league` has no chip → All only) + 30-day recency cut on reporter/league/news (`isFresh`; club/player age-agnostic) + `arranged` = per-club `ContentRoundRobin.balanced` over all team-tagged cards (volume-blind); `itemsError` on fetch failure
 │   ├── HomeViewModel.swift            — @MainActor; derives Home modules from MatchStore+ClubStore+Following; M1/M2 read from shared HomeContentStore (passthrough errors/loading + `retryContent`/`refresh`). M1 "All" capped at 7 (overflow → "See more"); per-team chip = full single-club lens; `hasRefreshed` gates first-load `ArticlePriority` (off after pull-to-refresh)
 │   ├── MatchDetailViewModel.swift     — one match: temporalState (past/live/future) + /summary + live refresh + preview
 │   ├── PredictXIViewModel.swift       — Predict slate (open fixtures per followed team) + scoring via /summary + per-team leaderboards (+ GC submit)
@@ -115,14 +115,14 @@ NWSLApp/
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
 │   ├── PlayerSpotlightView.swift      — editorial spotlight: ghosted jersey # + hero, This Season grid, Story (Haiku blurb), Fast Facts + Watch
 │   ├── StandingsView.swift            — color-block table (# · TEAM · PTS · GP · W · D · L · GD · LAST 5); signed GD; crest + color-coded abbr; cyan PLAYOFF LINE; team-color spine/tint/accent rank = FOLLOW indicator; Last-5 via RecentForm
-│   ├── FeedView.swift                 — **Social** tab ("The world talking about your teams"): header + 5 one-row source-class chips + per-club-balanced ContentCardViews; opens to `defaultFeedFilter`; full-screen error+retry on fetch failure
+│   ├── FeedView.swift                 — **Social** tab ("The world talking about your teams"): header + 4 one-row source-class chips + per-club-balanced ContentCardViews; opens to `defaultFeedFilter`; full-screen error+retry on fetch failure
 │   ├── FeedSourcesView.swift          — Feed content preferences: Default-view picker + content-type toggles + mute sources
 │   ├── _ColorAuditView.swift          — 🔧 DEBUG-only 16-club color audit (`-colorAudit`); remove once verified
 │   └── _AssetAuditView.swift          — 🔧 DEBUG-only bundled-crest/flag fidelity audit (`-assetAudit`); remove once verified
 ├── Components/
 │   ├── BroadcastInfo.swift / BroadcastLink.swift — "How to Watch" DB + broadcast→watch-URL
-│   ├── Chip.swift                     — pill filter chip (Schedule + Social chip bars); optional `compact` (13pt) + `horizontalPadding` override (Social packs 5 on one no-scroll row)
-│   ├── CategoryPill.swift             — the card's "what kind of voice" pill (NEWS·LEAGUE·REPORTER·PLAYER·CLUB by `resolvedSourceType`); one pill, 1:1 with the Social chips
+│   ├── Chip.swift                     — pill filter chip (Schedule + Social chip bars); optional `compact` (13pt) + `horizontalPadding` override (Social packs 4 on one no-scroll row)
+│   ├── CategoryPill.swift             — the card's "what kind of voice" pill (NEWS·LEAGUE·REPORTER·PLAYER·CLUB by `resolvedSourceType`); NEWS + REPORTER both ride the Reporters chip (article vs social format), LEAGUE has no chip
 │   ├── BroadcastChip.swift            — color-coded broadcast pill (handoff palette, substring-matched); schedule cards + match detail (separate from BroadcastInfo's color DB)
 │   ├── ContentCardView.swift          — single entry point; routes a ContentCard by layout → the 3 card views; 3px team-color left-edge bar (color-block motif) on all layouts
 │   ├── ThumbnailContentCard.swift / AvatarContentCard.swift / ArticleContentCard.swift — ContentCard layouts, PER-TAB via `unified` (ContentCardView). NO source/club NAME line on any card — it's redundant with the badge + color bar + abbr chip + CTA link. Article header = NEWS badge + timestamp only (Home NEWS pill / Social CategoryPill), headline first below it. Social cards (Avatar/Thumbnail) drop the source line ONLY for `.club` (reporter/player/creator handles kept — they have no color bar/team pill to fall back on). Team abbr chip ALWAYS bottom-left (Shared `MediaTeamBadge` on media, else on the CTA footer row), gated 2+ clubs. Avatar cards Social-only

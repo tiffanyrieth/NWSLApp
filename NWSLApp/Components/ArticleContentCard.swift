@@ -4,12 +4,13 @@
 //
 //  The news-article content card (Content Card Spec variant 5): club news on Home,
 //  Headlines on Social. The header differs per tab (`unified`): Social uses the unified
-//  meta row (NEWS category pill + muted outlet, no avatar); Home keeps its ORIGINAL
-//  identity row (author-initials avatar + name + green NEWS pill). Both then show a bold
+//  meta row (NEWS category pill + muted outlet); Home shows a name + green NEWS pill row.
+//  Neither shows a source avatar — the source is carried by the NEWS pill + the "Read on
+//  {outlet} →" link, so a source-initials circle would be redundant. Both then show a bold
 //  headline, a 2-line summary blurb, and — only when an image is on file — a FULL-WIDTH
-//  16:9 image closed by a "Read on {outlet} →" link. The ONE team label is the
-//  abbreviation-only chip bottom-left ON the image (or inline when there's no image),
-//  gated on 2+ clubs. Per the Feed's legal note we only ever show headline + blurb +
+//  16:9 image, closed by the "Read on {outlet} →" link. The ONE team label is the
+//  abbreviation-only chip pinned BOTTOM-LEFT — on the image when present, else on the CTA
+//  row — gated on 2+ clubs. Per the Feed's legal note we only ever show headline + blurb +
 //  link, never the article body.
 //
 
@@ -59,7 +60,7 @@ struct ArticleContentCard: View {
             // Full-width 16:9 ONLY when an image is on file — no placeholder block
             // when absent (the card reads fine without it).
             if card.thumbnailURL != nil { articleImage }
-            readOnOutlet
+            footerRow
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -103,12 +104,12 @@ struct ArticleContentCard: View {
         }
     }
 
-    /// Home: the ORIGINAL identity row — avatar + name + green NEWS pill + time. The team
-    /// code moved OUT of the right column to the bottom-left on-media chip (or stays inline
-    /// on the right only when there's no image to host it). Gated on 2+ clubs.
+    /// Home: a name + green NEWS pill + time row — NO source avatar (the source is carried
+    /// by the NEWS pill + the "Read on …" link, so a source-initials circle is redundant).
+    /// The team code rides bottom-left: on the on-media chip when there's an image, else on
+    /// the CTA footer row (see `footerRow`). Gated on 2+ clubs.
     private var legacyHeader: some View {
         HStack(alignment: .top, spacing: 11) {
-            avatar
             VStack(alignment: .leading, spacing: 2) {
                 Text(primaryName)
                     .dsFont(14.5, weight: .semibold)
@@ -125,31 +126,10 @@ struct ArticleContentCard: View {
                 }
             }
             Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 4) {
-                if !hideTeamIdentity, !hasImage, let abbr = card.teamAbbreviation {
-                    teamPill(abbr)
-                }
-                Text(card.timestamp.relativeAgo)
-                    .dsFont(11)
-                    .foregroundStyle(Color.dsFgSecondary)
-            }
+            Text(card.timestamp.relativeAgo)
+                .dsFont(11)
+                .foregroundStyle(Color.dsFgSecondary)
         }
-    }
-
-    private var avatar: some View {
-        ZStack {
-            Circle().fill(teamColor.opacity(0.15))
-            Text(initials)
-                .dsFont(14, weight: .bold)
-                .foregroundStyle(teamColor)
-        }
-        .frame(width: DS.contentAvatar, height: DS.contentAvatar)
-    }
-
-    private var initials: String {
-        let parts = primaryName.split(separator: " ").prefix(2)
-        let letters = parts.compactMap { $0.first }.map(String.init)
-        return letters.isEmpty ? "•" : letters.joined().uppercased()
     }
 
     private var newsPill: some View {
@@ -194,7 +174,20 @@ struct ArticleContentCard: View {
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
     }
 
-    // MARK: - CTA
+    // MARK: - Footer (CTA + bottom-left team chip when there's no image to host it)
+
+    /// The "Read on …" CTA, with the team abbreviation chip pinned BOTTOM-LEFT when the card
+    /// has no image to carry it (image cards keep the chip on the media — see `articleImage`).
+    /// Home only: Social's `unifiedHeader` keeps its inline chip, so we'd double up otherwise.
+    private var footerRow: some View {
+        HStack(spacing: 10) {
+            if !unified, !hideTeamIdentity, !hasImage, let abbr = card.teamAbbreviation {
+                teamPill(abbr)
+            }
+            readOnOutlet
+            Spacer(minLength: 0)
+        }
+    }
 
     private var readOnOutlet: some View {
         HStack(spacing: 4) {

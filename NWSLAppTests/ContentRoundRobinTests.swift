@@ -206,4 +206,114 @@ struct ContentRoundRobinTests {
         // Strict date-descending: the old video/clip sit at the BOTTOM, never above fresh news.
         #expect(result.cards.map(\.id) == ["news-3d", "news-4d", "news-6d", "vid-30d", "ig-90d"])
     }
+
+    // MARK: - First-load article priority (selection + reorder, staleness-gated 4×/14d)
+
+    /// Fixed "now" = the card builder's epoch, so a card's age == its `secondsAgo`.
+    private var epoch: Date { Date(timeIntervalSince1970: 1_000_000) }
+    private func priority(quota: Int = 3, maxLead: Int = 3) -> ContentRoundRobin.ArticlePriority {
+        ContentRoundRobin.ArticlePriority(now: epoch, quota: quota, maxLead: maxLead)
+    }
+    private func teamCounts(_ r: ContentRoundRobin.Result) -> [String: Int] {
+        Dictionary(grouping: r.cards.compactMap(\.teamAbbreviation), by: { $0 }).mapValues(\.count)
+    }
+
+    @Test func selectionBringsArticlesIntoTheSlots() {
+        // Fresher IG/videos would crowd a club's (lead-eligible) article out of a small
+        // allowance. Priority pulls it in + leads — WITHOUT changing the slot count.
+        let day = 86_400.0
+        let cards = [
+            card("vid-1d",  "A", secondsAgo: 1 * day, layout: .youtube),
+            card("vid-2d",  "A", secondsAgo: 2 * day, layout: .youtube),
+            card("news-5d", "A", secondsAgo: 5 * day, layout: .newsArticle),   // older than the videos
+        ]
+        let plain = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A"], slotsPerClub: 2)
+        #expect(plain.cards.map(\.id) == ["vid-1d", "vid-2d"])                 // article crowded out
+        let boosted = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A"],
+                                                 slotsPerClub: 2, articlePriority: priority())
+        #expect(boosted.cards.map(\.id) == ["news-5d", "vid-1d"])              // selected + leads
+        #expect(boosted.cards.count == plain.cards.count)                      // SAME slot count
+    }
+
+    @Test func perClubSlotCountUnchangedByPriority() {
+        // Each club still gets exactly its allowance — equal representation preserved.
+        let day = 86_400.0
+        let cards = [
+            card("a-vid1", "A", secondsAgo: 1 * day, layout: .youtube),
+            card("a-vid2", "A", secondsAgo: 2 * day, layout: .youtube),
+            card("a-news", "A", secondsAgo: 5 * day, layout: .newsArticle),
+            card("b-ig1",  "B", secondsAgo: 1 * day, layout: .socialVideo),
+            card("b-news", "B", secondsAgo: 4 * day, layout: .newsArticle),
+        ]
+        let plain = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A", "B"], slotsPerClub: 2)
+        let boosted = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A", "B"],
+                                                 slotsPerClub: 2, articlePriority: priority())
+        #expect(teamCounts(boosted) == teamCounts(plain))
+        #expect(teamCounts(boosted) == ["A": 2, "B": 2])
+    }
+
+    @Test func twoClubsLeadArticlesRoundRobin() {
+        // Each club's lead-eligible article leads, interleaved across clubs (not all of one's).
+        let day = 86_400.0
+        let cards = [
+            card("a-news", "A", secondsAgo: 5 * day, layout: .newsArticle),
+            card("a-vid",  "A", secondsAgo: 1 * day, layout: .youtube),
+            card("b-news", "B", secondsAgo: 6 * day, layout: .newsArticle),
+            card("b-vid",  "B", secondsAgo: 1 * day, layout: .youtube),
+        ]
+        let r = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A", "B"],
+                                           slotsPerClub: 2, articlePriority: priority())
+        #expect(Array(r.cards.prefix(2)).map(\.id) == ["a-news", "b-news"])    // round-robin lead
+        #expect(Set(r.cards.map(\.id)) == ["a-news", "a-vid", "b-news", "b-vid"])  // same multiset
+    }
+
+    @Test func staleness4xKeepsRecentArticle() {
+        // 3-week article vs ~1-week-fresh other → eligible (4×/14d) → preferred + leads.
+        let day = 86_400.0
+        let cards = [
+            card("news-21d", "A", secondsAgo: 21 * day, layout: .newsArticle),
+            card("ig-7d",    "A", secondsAgo: 7 * day,  layout: .socialVideo),
+        ]
+        let r = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A"],
+                                           slotsPerClub: 2, articlePriority: priority())
+        #expect(r.cards.first?.id == "news-21d")
+    }
+
+    @Test func staleness4xDropsAbandonedArticle() {
+        // 3-month article vs 2-hour-fresh other → NOT eligible → plain recency (fresh leads).
+        let day = 86_400.0
+        let cards = [
+            card("news-90d", "A", secondsAgo: 90 * day, layout: .newsArticle),
+            card("ig-2h",    "A", secondsAgo: 2 * 3600, layout: .socialVideo),
+        ]
+        let r = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A"],
+                                           slotsPerClub: 2, articlePriority: priority())
+        #expect(r.cards.first?.id == "ig-2h")
+    }
+
+    @Test func staleArticleDoesNotBlockAnotherClubsFreshArticle() {
+        // A's article is abandoned-stale; B's is fresh → B's leads, A's isn't boosted.
+        let day = 86_400.0
+        let cards = [
+            card("a-news-90d", "A", secondsAgo: 90 * day, layout: .newsArticle),
+            card("a-ig-2h",    "A", secondsAgo: 2 * 3600, layout: .socialVideo),
+            card("b-news-3d",  "B", secondsAgo: 3 * day,  layout: .newsArticle),
+            card("b-ig-1d",    "B", secondsAgo: 1 * day,  layout: .youtube),
+        ]
+        let r = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A", "B"],
+                                           slotsPerClub: 2, articlePriority: priority())
+        #expect(r.cards.first?.id == "b-news-3d")
+        #expect(r.cards.first?.id != "a-news-90d")
+    }
+
+    @Test func nilPriorityIsUnchanged() {
+        // The default path (no articlePriority) is exactly the legacy strict-recency behavior.
+        let day = 86_400.0
+        let cards = [
+            card("vid-1d",  "A", secondsAgo: 1 * day, layout: .youtube),
+            card("news-5d", "A", secondsAgo: 5 * day, layout: .newsArticle),
+        ]
+        let plain = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A"], slotsPerClub: 12)
+        #expect(plain.cards.map(\.id) == ["vid-1d", "news-5d"])
+    }
 }

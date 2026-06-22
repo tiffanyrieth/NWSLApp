@@ -211,7 +211,7 @@ struct RootTabView: View {
             // on `.idle` (HomeView/ScheduleView guard the same way), so no double fetch; the NWSL
             // spine loads regardless of follows, and a later NT/competition follow reloads via
             // `onCompetitionFollowsChanged` above.
-            Task { if case .idle = matches.state { await matches.load() } }
+            Task(priority: .utility) { if case .idle = matches.state { await matches.load() } }
             // Restore any saved Supabase session, then start follow sync. Guard so
             // re-running .task (it can fire again on scene changes) doesn't build a
             // second coordinator.
@@ -242,7 +242,7 @@ struct RootTabView: View {
             // (Tier-2 prefetch order): headshots aren't on the first screen (monogram fallback
             // everywhere), so this must NOT compete with the foreground critical path (scoreboard
             // + clubs + Home content, loaded on Home's appearance). Self-guards on re-fire.
-            Task(priority: .utility) { await HeadshotStore.shared.load() }
+            Task(priority: .background) { await HeadshotStore.shared.load() }
             if syncCoordinator == nil {
                 let coordinator = FollowSyncCoordinator(following: following, auth: auth)
                 coordinator.start()
@@ -299,7 +299,7 @@ struct RootTabView: View {
             // tagging) at LOW priority after the foreground critical path, so the first switch
             // to the Feed tab is instant. Needs the directory loaded for follow-scoping; the
             // load self-guards, so the tab's own first-appearance load is then a no-op.
-            Task(priority: .utility) {
+            Task(priority: .background) {
                 await clubs.loadIfNeeded()
                 await feedStore.loadIfNeeded(following: following, clubStore: clubs)
             }

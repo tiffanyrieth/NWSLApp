@@ -180,7 +180,11 @@ dev/TestFlight via a diagnostics surface (the `-assetAudit` screen seeds it). Fa
 engineer always; fail HONESTLY to the user proportionally (degraded → subtle truthful indicator,
 never a fake-perfect fallback; blocked → clear message + retry). Banned: blank screens pretending
 no content, infinite spinners, silent fallbacks indistinguishable from success. A failure must
-never look like a success.
+never look like a success. **Spans the proxy too:** any Worker pipeline that can serve partial
+results emits a `diag` telemetry event (`emitDiag` → KV, surfaced in `GET /telemetry/recent`,
+same shape as `POST /telemetry`) AND is covered by a deploy-time health check that exits non-zero
+on any gap (e.g. `scripts/health_check_club_news.mjs`). A 1-of-16 pipeline must fail loud, not sit
+silently half-working.
 
 **Before starting a session:** `git status` (resolve uncommitted changes first); never
 work on `main` — branch `feature/<desc>` first; state what you'll touch.
@@ -464,7 +468,12 @@ NWSLApp.storekit                       — local StoreKit 2 config (4 tip consum
 ## What's Next
 
 Pending work only (ALIVE > core > hardening); shipped work lives in git history + the File Map.
-- **⚠️ Proxy content gaps (circle back — owner-requested)** — diagnosed live, both proxy-side (`~/Projects/nwslapp-proxy`), app side is correct: (1) `/team-videos` returns ZERO club-news (newsArticle) cards — only IG + YouTube — so Home's "Club News" is missing club website posts (Part B Bug 3b); (2) `/feed` returns content (~46 cards) but the reporter bucket is thin (~3) during the transfer window — likely Haiku `isNWSL strict` over-gating transfer posts that mention non-NWSL entities (Part B Bug 4). Fix the club-OG-news fetch + loosen reporter gating.
+- **Proxy content gaps (Bug 3b + 4) — SHIPPED** (proxy PR #13, deployed): per-club club-news
+  discovery now serves **16/16** clubs on Home (official RSS/index-scrape where available, curated
+  NWSL outlet RSS as the fallback — Google News is unreachable from Workers); the reporter gate is
+  split so reporters keep transfer/analysis chatter (league outlets stay hard-news-only). Backed by
+  `emitDiag` telemetry + `npm run healthcheck` (see the NO SILENT FAILURES note). To extend club
+  news to a new club, add a `CLUB_NEWS` entry (the file's maintenance header has the runbook).
 - **First-launch perf** — Tier 1+2 shipped; onboarding quick-tips screen DEFERRED (design task, build only if wanted).
 - **YouTube Shorts thumbnail pillarbox** — DEFERRED; fix is proxy-side.
 - **Pull-to-refresh polish** — keep the list visible during refresh (spinner only on first load).

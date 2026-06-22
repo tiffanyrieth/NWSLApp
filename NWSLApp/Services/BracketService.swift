@@ -53,6 +53,8 @@ struct BracketEditionStat: Identifiable, Equatable {
     let bestRoundRaw: Int?   // BracketRound rawValue of the user's best round (or nil)
     let bestRoundCorrect: Int
     let bestRoundTotal: Int
+    let currentStreak: Int   // consecutive correct picks, carried across rounds (0 on a miss)
+    let longestStreak: Int   // the per-edition best run
     let isComplete: Bool
     var id: String { editionID }
     var accuracy: Double? { total > 0 ? Double(correct) / Double(total) : nil }
@@ -196,7 +198,7 @@ struct BracketService {
     func myEditionStats(userID: UUID) async -> [BracketEditionStat] {
         do {
             let stats: [MyStatRow] = try await client.from("bracket_user_edition_stats")
-                .select("edition_id, correct_picks, total_picks, best_round, best_round_correct, best_round_total")
+                .select("edition_id, correct_picks, total_picks, best_round, best_round_correct, best_round_total, current_streak, longest_streak")
                 .eq("user_id", value: userID).execute().value
             let scores: [MyScoreRow] = try await client.from("bracket_scores")
                 .select("edition_id, points").eq("user_id", value: userID).execute().value
@@ -218,7 +220,9 @@ struct BracketService {
                     points: pointsByEd[id] ?? 0, maxPoints: maxPts,
                     correct: st?.correct_picks ?? 0, total: st?.total_picks ?? 0,
                     bestRoundRaw: st?.best_round, bestRoundCorrect: st?.best_round_correct ?? 0,
-                    bestRoundTotal: st?.best_round_total ?? 0, isComplete: !ed.is_active)
+                    bestRoundTotal: st?.best_round_total ?? 0,
+                    currentStreak: st?.current_streak ?? 0, longestStreak: st?.longest_streak ?? 0,
+                    isComplete: !ed.is_active)
             }.sorted { $0.points > $1.points }
         } catch {
             await MainActor.run { Diagnostics.shared.record(.apiFailure, "bracket my-stats: \(error.localizedDescription)") }
@@ -295,6 +299,8 @@ private struct MyStatRow: Decodable {
     let best_round: Int?
     let best_round_correct: Int
     let best_round_total: Int
+    let current_streak: Int
+    let longest_streak: Int
 }
 private struct MyScoreRow: Decodable { let edition_id: String; let points: Int }
 private struct EdMetaRow: Decodable {

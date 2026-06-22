@@ -184,6 +184,10 @@ struct BracketLeaderboardView: View {
             let avgAcc: Double? = totalPicks > 0 ? Double(totalCorrect) / Double(totalPicks) : nil
             let bestEdition = history.map(\.points).max() ?? 0
             let best = history.compactMap { e in e.bestRoundAccuracy.map { (e, $0) } }.max { $0.1 < $1.1 }
+            // Streak (consecutive correct picks within an edition): longest = lifetime best
+            // across editions; current = the live (incomplete) edition's run, else 0.
+            let longestStreak = history.map(\.longestStreak).max() ?? 0
+            let currentStreak = history.first(where: { !$0.isComplete })?.currentStreak ?? 0
 
             VStack(spacing: 4) {
                 Text("\(totalPts)").dsFont(42, weight: .heavy, monospacedDigit: true).foregroundStyle(.white)
@@ -192,15 +196,14 @@ struct BracketLeaderboardView: View {
             }
             .frame(maxWidth: .infinity).padding(.vertical, 12)
 
-            // 2×2 grid — only metrics the tally genuinely backs (accuracy/correct/best
-            // round). Streak tiles are intentionally omitted until a streak metric is
-            // defined + stored (no fabricated stats — RULES.md #3).
+            // 2×2 grid — all tally-backed (accuracy + consecutive-correct streaks). "Best
+            // round" + edition count surface below / in the header.
             let cols = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
             LazyVGrid(columns: cols, spacing: 10) {
                 statTile("Avg accuracy", avgAcc.map(pct) ?? "—")
-                statTile("Editions played", "\(history.count)")
+                statTile("Current streak", "\(currentStreak)")
                 statTile("Best edition", "\(bestEdition) pts")
-                statTile("Best round", best.map { pct($0.1) } ?? "—")
+                statTile("Longest streak", "\(longestStreak)")
             }
 
             if let best, let label = roundLabel(best.0.bestRoundRaw) {

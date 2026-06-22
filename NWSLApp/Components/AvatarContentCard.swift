@@ -74,11 +74,17 @@ struct AvatarContentCard: View {
                 teamPill(abbr)
             }
             CategoryPill(sourceType: card.resolvedSourceType)
-            Text(sourceLine)
-                .dsFont(12)
-                .foregroundStyle(Color.dsFgSecondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
+            // The source line is the post AUTHOR. For a club's own post it's just the club
+            // name again — redundant with the CLUB pill + color bar + team chip, so drop it.
+            // For reporters/players/creators the handle IS the content identity (and those
+            // cards have no color bar/team pill to fall back on), so it stays.
+            if card.resolvedSourceType != .club {
+                Text(sourceLine)
+                    .dsFont(12)
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
             Spacer(minLength: 6)
             Text(card.timestamp.relativeAgo)
                 .dsFont(11)

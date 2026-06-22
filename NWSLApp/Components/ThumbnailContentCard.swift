@@ -130,24 +130,36 @@ struct ThumbnailContentCard: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 if unified { CategoryPill(sourceType: card.resolvedSourceType) }   // PLAYER (Social only)
-                Text(card.authorName ?? "")
-                    .dsFont(14, weight: .bold)
-                    .foregroundStyle(Color.dsFgPrimary)
-                    .lineLimit(1)
-                if let sub = card.subreddit {
-                    Text("via")
+                // The author + "via r/sub" attribution is the creator's identity — kept.
+                // A club's own clip would just repeat the club name (redundant with the
+                // pill + color bar + team chip), so for `.club` we show only the timestamp.
+                if card.resolvedSourceType != .club {
+                    if let author = card.authorName, !author.isEmpty {
+                        Text(author)
+                            .dsFont(14, weight: .bold)
+                            .foregroundStyle(Color.dsFgPrimary)
+                            .lineLimit(1)
+                    }
+                    if let sub = card.subreddit {
+                        Text("via")
+                            .dsFont(12)
+                            .foregroundStyle(Color.dsFgSecondary)
+                        PlatformBadge(platform: .reddit, size: 13)
+                        Text("r/\(sub)")
+                            .dsFont(12, weight: .semibold)
+                            .foregroundStyle(Color(hex: "#FF4500"))
+                            .lineLimit(1)
+                    }
+                    Text("· \(card.timestamp.relativeAgo)")
                         .dsFont(12)
                         .foregroundStyle(Color.dsFgSecondary)
-                    PlatformBadge(platform: .reddit, size: 13)
-                    Text("r/\(sub)")
-                        .dsFont(12, weight: .semibold)
-                        .foregroundStyle(Color(hex: "#FF4500"))
+                        .lineLimit(1)
+                } else {
+                    Text(card.timestamp.relativeAgo)
+                        .dsFont(12)
+                        .foregroundStyle(Color.dsFgSecondary)
                         .lineLimit(1)
                 }
-                Text("· \(card.timestamp.relativeAgo)")
-                    .dsFont(12)
-                    .foregroundStyle(Color.dsFgSecondary)
-                    .lineLimit(1)
                 Spacer(minLength: 0)
             }
             if let caption = card.bodyText ?? card.title {

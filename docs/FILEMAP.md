@@ -32,7 +32,7 @@ NWSLApp/
 │   └── XIPrediction.swift             — Predict the XI: PositionGroup · Formation · PredictionFixture · XIPrediction (draft→submitted) · ActualResult · PredictionScore
 ├── Services/
 │   ├── BracketScoring.swift           — pure Bracket scorer (tiered per-round points). Unit-tested
-│   ├── ContentRoundRobin.swift        — pure COUNT-BASED fair-share (Home M1 + Social): `balanced` = EQUAL per-club slots, volume-blind + age-agnostic, strict recency within a club (round-robin across CLUBS, no type-interleave) + `home/feedSlotsPerClub` + `advancedOffsets` (pull-refresh rotation). Unit-tested
+│   ├── ContentRoundRobin.swift        — pure COUNT-BASED fair-share (Home M1 + Social): `balanced` = EQUAL per-club slots, volume-blind + age-agnostic, strict recency within a club (round-robin across CLUBS, no type-interleave) + `home/feedSlotsPerClub` + `advancedOffsets` (pull-refresh rotation) + optional `ArticlePriority` (Home FIRST-LOAD only: prefer club-site articles within each club's own slots + float to top, staleness-gated 4×/14d relative — no time window). Unit-tested
 │   ├── BracketService.swift           — Bracket Supabase client: currentEdition/results/leaderboard/submit + standings/myEditionStats (Leaderboard screen); throw or honest-empty (online-only)
 │   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats
 │   ├── ContentService.swift           — ALIVE content client: homeCards→/team-videos · feedCards→/feed · spotlightCards→/spotlight; all `throws` (online-only; no seed)
@@ -79,7 +79,7 @@ NWSLApp/
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
 │   ├── BracketViewModel.swift         — Bracket session: round phase, progress, results, leaderboard, settled-round scoring (+ Game Center submit)
 │   ├── FeedViewModel.swift            — Social-tab source-class chips (All·Headlines·Reporters·Players·Clubs by `resolvedSourceType`; Headlines = news + league outlets) + `arranged` = per-club `ContentRoundRobin.balanced` over all team-tagged cards (volume-blind); `itemsError` on fetch failure
-│   ├── HomeViewModel.swift            — @MainActor; derives Home modules from MatchStore+ClubStore+Following; M1/M2 read from shared HomeContentStore (passthrough errors/loading + `retryContent`/`refresh`). M1 "All" capped at 7 (overflow → "See more"); per-team chip = full single-club lens
+│   ├── HomeViewModel.swift            — @MainActor; derives Home modules from MatchStore+ClubStore+Following; M1/M2 read from shared HomeContentStore (passthrough errors/loading + `retryContent`/`refresh`). M1 "All" capped at 7 (overflow → "See more"); per-team chip = full single-club lens; `hasRefreshed` gates first-load `ArticlePriority` (off after pull-to-refresh)
 │   ├── MatchDetailViewModel.swift     — one match: temporalState (past/live/future) + /summary + live refresh + preview
 │   ├── PredictXIViewModel.swift       — Predict slate (open fixtures per followed team) + scoring via /summary + per-team leaderboards (+ GC submit)
 │   ├── XIPickerViewModel.swift        — in-flight XI picker: formation + slot→athlete + scoreline; read-only once submitted

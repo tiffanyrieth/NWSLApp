@@ -325,6 +325,7 @@ struct BracketBattleView: View {
                     sectionLabel("How the league voted").frame(maxWidth: .infinity, alignment: .leading)
                     ForEach(result.matchups) { m in resultCard(m, yourPick: picks[m.id]) }
                     leaderboardCard
+                    fullLeaderboardLink
 
                     // The bracket journey lives right below the results (CONCEPT-v2).
                     Divider().overlay(Color.dsFgQuaternary).padding(.vertical, 4)
@@ -504,6 +505,28 @@ struct BracketBattleView: View {
         .padding(16).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
+    /// Entry point to the standalone Leaderboard (Rankings + Your Stats), pushed onto
+    /// Home's NavigationStack from the results + overview.
+    private var fullLeaderboardLink: some View {
+        NavigationLink {
+            BracketLeaderboardView(editionID: viewModel.edition?.id, myUserID: auth.userID,
+                                   myName: auth.displayName ?? "You", myPoints: store.points)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "list.number").dsFont(13, weight: .semibold)
+                Text("Full leaderboard & your stats").dsFont(14, weight: .semibold)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").dsFont(12, weight: .semibold)
+            }
+            .foregroundStyle(accent)
+            .padding(.vertical, 12).padding(.horizontal, 16)
+            .frame(maxWidth: .infinity)
+            .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Screen 5: Bracket Overview (the tournament story)
 
     /// Standalone scrollable overview — the post-submit landing, with a banner.
@@ -560,6 +583,8 @@ struct BracketBattleView: View {
                     }
                 }
                 ForEach(edition.rounds, id: \.self) { round in overviewRound(edition, round) }
+
+                fullLeaderboardLink
 
                 if viewModel.flavor == .nextEdition {
                     calloutCard(icon: "calendar", title: "What's next",

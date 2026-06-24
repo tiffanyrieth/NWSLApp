@@ -29,6 +29,7 @@ struct BracketBattleView: View {
     /// Result matchups the user has expanded to reveal the vote stats (collapsed by default).
     @State private var expandedMatchups: Set<String> = []
     @State private var expandedRounds: Set<BracketRound> = []
+    @State private var expandedRules: Set<String> = []   // collapsible intro rule sections
     @State private var showFullBracket = false
 
     private enum Stage { case intro, voting }
@@ -106,9 +107,11 @@ struct BracketBattleView: View {
                         rankedBanner(fanCount: edition.fanCount)
                         bracketFunnel(rounds: edition.rounds)
                         howItWorks
-                        rulesCard("Qualifying rounds & byes", Self.qualifyingRules)
-                        rulesCard("How each round works", Self.roundRules)
                         pointsTable(rounds: edition.rounds)
+                        // Detailed rules = collapsible disclosures (collapsed by default) AFTER
+                        // points, so the page stays short and detail is opt-in (updated mockup).
+                        rulesDisclosure("qualifying", "Qualifying rounds & byes", Self.qualifyingRules)
+                        rulesDisclosure("rounds", "How each round works", Self.roundRules)
                         Button { showFullBracket = true } label: {
                             Text("See the full bracket")
                                 .dsFont(15, weight: .semibold).foregroundStyle(accent)
@@ -183,18 +186,37 @@ struct BracketBattleView: View {
         "No same-team matchups early — this is about the whole league",
     ]
 
-    // A full-rules card: the points-table card style (dsMdCard, rounded 14) with a TEAL
-    // uppercase header (the section-label format, accent-colored) + wrapped paragraphs.
-    private func rulesCard(_ header: String, _ paragraphs: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionLabel(header)
-            ForEach(paragraphs, id: \.self) { p in
-                Text(p).dsFont(13).foregroundStyle(Color.dsFgSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+    // A collapsible rule section (collapsed by default): a teal uppercase header + chevron that
+    // expands to reveal the paragraphs. Keeps the intro short while the detail stays one tap away.
+    private func rulesDisclosure(_ id: String, _ header: String, _ paragraphs: [String]) -> some View {
+        let open = expandedRules.contains(id)
+        return VStack(alignment: .leading, spacing: 0) {
+            Button {
+                if open { expandedRules.remove(id) } else { expandedRules.insert(id) }
+            } label: {
+                HStack {
+                    sectionLabel(header)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .dsFont(12, weight: .semibold).foregroundStyle(accent)
+                        .rotationEffect(.degrees(open ? 180 : 0))
+                }
+                .padding(14)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if open {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(paragraphs, id: \.self) { p in
+                        Text(p).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(.horizontal, 14).padding(.bottom, 14)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14))
+        .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
     private static let qualifyingRules = [

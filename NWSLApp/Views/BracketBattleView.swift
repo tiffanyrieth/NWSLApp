@@ -174,9 +174,7 @@ struct BracketBattleView: View {
     // uppercase header (the section-label format, accent-colored) + wrapped paragraphs.
     private func rulesCard(_ header: String, _ paragraphs: [String]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(header)
-                .dsFont(11, weight: .bold).tracking(1.2).textCase(.uppercase)
-                .foregroundStyle(accent)
+            sectionLabel(header)
             ForEach(paragraphs, id: \.self) { p in
                 Text(p).dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -834,7 +832,9 @@ struct BracketBattleView: View {
     private func accentColor(_ abbr: String) -> Color { clubs.club(forAbbreviation: abbr)?.accentColor ?? .gray }
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text).dsFont(11, weight: .bold).tracking(1.2).textCase(.uppercase).foregroundStyle(Color.dsFgSecondary)
+        // Teal accent for a consistent Bracket section-header look (callers that need a
+        // status-specific color, e.g. the overview round headers, override foregroundStyle).
+        Text(text).dsFont(11, weight: .bold).tracking(1.2).textCase(.uppercase).foregroundStyle(accent)
     }
 
     private func statusColor(_ s: BracketEdition.RoundStatus) -> Color {

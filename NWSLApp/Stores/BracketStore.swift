@@ -150,6 +150,19 @@ final class BracketStore {
         defaults.set(editionID, forKey: Key.editionID)
     }
 
+    /// Wipe all local Bracket Battle progress on account deletion — resets the
+    /// in-memory @Observable state AND persistence. The server leaderboard/edition
+    /// rows are removed by the account-delete cascade; this clears the on-device cache
+    /// so "delete account" truly forgets you.
+    func resetForAccountDeletion() {
+        summary = nil
+        picksByRound = [:]
+        submittedRounds = []
+        roundScores = [:]
+        editionID = nil
+        persist()
+    }
+
     private static func encode<T: Encodable>(_ value: T) -> Data? { try? JSONEncoder().encode(value) }
     private static func decode<T: Decodable>(_ data: Data?) -> T? {
         guard let data else { return nil }

@@ -68,6 +68,7 @@ final class FeedStore {
                 .sorted { $0.timestamp > $1.timestamp }
             itemsError = nil
         } catch {
+            Diagnostics.shared.record(.apiFailure, "feed load (\(followed.count) team(s)): \(error.localizedDescription)")
             allItems = []
             itemsError = Self.loadFailureMessage
         }

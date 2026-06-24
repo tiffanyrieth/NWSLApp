@@ -52,7 +52,24 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
 **Per-user backend (Supabase):** boundary = Workers (stateless/global) vs Supabase (stateful/per-user).
 Sign in with Apple → a Supabase user; `profiles` + `follows` (RLS'd to the owner) persist per account.
 **Offline-first:** UserDefaults is the immediate cache; the app never blocks on the network to show
-follows; on sign-in local + server sets are **merged (union — never delete)**. Schema at
+follows. **Sync = device-authoritative mirror on sign-in** (replaced the old union-merge, which could
+only ADD, so unfollow/alert-off never propagated and stale rows accumulated forever — inflating the
+"N teams with match alerts" footer): the device's current set is the truth, pushed up with server rows
+not in it **deleted**; alerts are additionally intersected with follows (alerts ⊆ follows). **Empty-local
+guardrail:** an empty local set restores FROM the server, never wipes it — so sign-in can't erase an
+account; a fully-empty local state (no follows AND no alerts) bails without touching the server.
+Coordinators: `FollowSyncCoordinator` (+ competition follows), `TeamAlertSyncCoordinator`. Trade-off:
+two devices on one account diverging offline → last sign-in wins (acceptable at current scale; upgrade
+to per-item `updated_at` last-write-wins if heavy multi-device curation appears). Schema at
 `supabase/schema.sql`. **Gotcha:** RLS alone isn't enough — a new per-user table needs
 `grant … to authenticated` or signed-in queries silently fail with `42501`. Client built from gitignored
 `Secrets` (`Services/SupabaseManager.swift`).
+
+**Account deletion (right-to-be-forgotten / App Store requirement):** the client can't delete an
+`auth.users` row (needs the service-role key), so Profile → Delete Account calls the proxy
+`POST /account/delete`, which verifies the caller's JWT then service-role hard-deletes the auth user.
+All per-user FKs are `on delete cascade` (see `supabase/migration_account_deletion_cascade.sql` — five
+were missing it: profiles/follows/device_tokens/notification_preferences/bracket_votes), so one admin
+delete removes everything. `AuthStore.deleteAccount()` throws on any failure (never claims success
+silently); ProfileView then wipes all local state. Deploy-gated by
+`scripts/health_check_account_delete.mjs` (fails on a 404 route or 500 missing-secret).

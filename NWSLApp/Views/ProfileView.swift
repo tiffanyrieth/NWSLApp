@@ -32,6 +32,9 @@ struct ProfileView: View {
 
     @State private var signInError: String?
     @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
+    @State private var deleteError: String?
+    @State private var showDeletedConfirmation = false
     @State private var showNameEditor = false
     @State private var draftName = ""
 
@@ -77,10 +80,25 @@ struct ProfileView: View {
                 }
             }
             .alert("Delete account?", isPresented: $showDeleteConfirm) {
-                Button("Delete", role: .destructive) { Task { await auth.deleteAccount() } }
+                Button("Delete", role: .destructive) { Task { await runDeleteAccount() } }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This signs you out on this device. Your Fan Zone points and follows are kept locally.")
+                Text("This permanently deletes your account and all your data — follows, match alerts, and Fan Zone scores — from our servers and this device. This can't be undone.")
+            }
+            .alert("Couldn't delete account", isPresented: Binding(
+                get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })
+            ) {
+                Button("OK", role: .cancel) { deleteError = nil }
+            } message: {
+                Text(deleteError ?? "")
+            }
+            // Succeed CLEARLY — the honest counterpart to the error alert. A
+            // destructive, irreversible action gets an explicit acknowledgement, not a
+            // silently-dismissed sheet; tapping OK closes Profile.
+            .alert("Account deleted", isPresented: $showDeletedConfirmation) {
+                Button("OK") { dismiss() }
+            } message: {
+                Text("Your account and all your data have been permanently deleted.")
             }
         }
         // Show the sheet grabber, matching the Profile handoff's sheet treatment.
@@ -346,6 +364,28 @@ struct ProfileView: View {
 
     // MARK: - Account
 
+    /// Permanently delete the account. The server-side delete (auth user + all rows)
+    /// runs first via `auth.deleteAccount()`; ONLY on its success do we wipe the rest of
+    /// the on-device state, so a failed delete leaves everything intact and surfaces an
+    /// error instead of silently "succeeding." Each local store is reset through its
+    /// real setter so the @Observable UI updates immediately.
+    private func runDeleteAccount() async {
+        isDeleting = true
+        defer { isDeleting = false }
+        do {
+            try await auth.deleteAccount()
+            following.replace(ids: [])
+            following.replaceCompetitionFollowKeys([])
+            alerts.replaceEnabled([])
+            trivia.resetForAccountDeletion()
+            bracket.resetForAccountDeletion()
+            predict.resetForAccountDeletion()
+            showDeletedConfirmation = true   // explicit success ack; its OK dismisses
+        } catch {
+            deleteError = error.localizedDescription
+        }
+    }
+
     private var accountSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             sectionLabel("Account")
@@ -356,9 +396,13 @@ struct ProfileView: View {
                 .buttonStyle(.plain)
                 rowDivider
                 Button { showDeleteConfirm = true } label: {
-                    accountRow("Delete account")
+                    HStack {
+                        accountRow("Delete account")
+                        if isDeleting { ProgressView().controlSize(.small) }
+                    }
                 }
                 .buttonStyle(.plain)
+                .disabled(isDeleting)
             }
             .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))

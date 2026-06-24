@@ -31,6 +31,7 @@ enum AuthError: Error {
     case missingIdentityToken
     case missingNonce
     case unexpectedCredential
+    case missingSession
 }
 
 @MainActor
@@ -58,6 +59,7 @@ final class AuthStore {
     }
 
     private let client = SupabaseManager.client
+    private let deletionService = AccountDeletionService()
 
     /// Raw nonce stashed between request-config and completion (the request
     /// carries its SHA256; Supabase needs the raw value to verify).
@@ -124,15 +126,31 @@ final class AuthStore {
         currentUser = nil
     }
 
-    /// Delete the account from the Profile screen.
+    /// Permanently delete the account: the Supabase auth user AND every per-user row
+    /// (profile, follows, alerts, notification prefs, device tokens, Fan Zone scores),
+    /// via the privileged proxy route (`AccountDeletionService`). The client can't do
+    /// this directly — deleting an `auth.users` row needs the service-role key.
     ///
-    /// TEMP: truly removing the Supabase auth user (and its profile/follows rows)
-    /// requires a server-side admin call — a Supabase Edge Function — which is
-    /// 0.3 backend work (#12; the auth admin API can't run from the client). For
-    /// now this signs out and forgets the cached identity; wire the real deletion
-    /// when that function exists.
-    func deleteAccount() async {
-        await signOut()
+    /// Fails LOUD: throws (with telemetry) on any error, so the UI never reports a
+    /// successful delete while the server still holds the data. On success it drops the
+    /// local identity + session; the caller (ProfileView) then wipes the rest of the
+    /// on-device app state AFTER this returns, so a failure leaves everything intact.
+    func deleteAccount() async throws {
+        guard let accessToken = try? await client.auth.session.accessToken else {
+            // No live session → can't authenticate the privileged delete. Surface it
+            // rather than pretend we deleted anything.
+            Diagnostics.shared.record(.apiFailure, "account delete: no active session")
+            throw AuthError.missingSession
+        }
+        do {
+            try await deletionService.deleteAccount(accessToken: accessToken)
+        } catch {
+            Diagnostics.shared.record(.apiFailure, "account delete: \(error.localizedDescription)")
+            throw error
+        }
+        // Server-side data is gone — now drop the local identity + session.
+        try? await client.auth.signOut()
+        currentUser = nil
         displayName = nil
         UserDefaults.standard.removeObject(forKey: Self.nameKey)
     }

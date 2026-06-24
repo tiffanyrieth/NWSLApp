@@ -65,9 +65,13 @@ ESPN's unofficial NWSL endpoints (base in `Config/AppConfig.swift`) — **decode
 are `String` not `Int`, scoreboard needs `&limit=500` for a full season, standings sit on a different
 base, endpoints break/rate-limit without notice. Most traffic routes through the **`nwslapp-proxy`
 Cloudflare Worker** (sibling repo `~/Projects/nwslapp-proxy`); DEBUG `-useESPNDirect` bypasses it.
-Per-user state in **Supabase**, offline-first (UserDefaults cache; union-merge on sign-in, never
-delete). **Gotcha:** a new per-user table needs `grant … to authenticated` or signed-in queries fail
-silently with `42501` (RLS ≠ privilege).
+Per-user state in **Supabase**, offline-first (UserDefaults cache). **Sync = device-authoritative
+mirror on sign-in:** the signed-in device's set is the truth — push it up, prune server rows not in
+it (so unfollow/alert-off propagate and the DB stays clean). **Empty-local guardrail:** an empty local
+set restores FROM the server, never wipes it (sign-in can't erase an account). Trade-off: two devices
+on one account diverging offline → last sign-in wins (fine at current scale; upgrade to per-item
+`updated_at` timestamps if real multi-device curation ever demands it). **Gotcha:** a new per-user
+table needs `grant … to authenticated` or signed-in queries fail silently with `42501` (RLS ≠ privilege).
 
 ## Workflow & engineering practices (requirements — flag the trade-off before bypassing)
 

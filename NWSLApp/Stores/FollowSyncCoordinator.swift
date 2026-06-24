@@ -114,10 +114,21 @@ final class FollowSyncCoordinator {
             let local = following.followedIDs
             do {
                 let remote = try await service.fetchRemoteFollows(userID: userID)
-                let union = local.union(remote)
-                following.merge(ids: union)   // sync-down (also restores on a new device)
-                knownFollows = union
-                try await service.pushFollows(union, userID: userID)  // sync-up
+                // Device-authoritative mirror: the on-device set is the truth, so the
+                // server is reconciled to match it exactly. Empty-local guardrail: a
+                // blank device restores from the server instead of wiping it (a not-yet-
+                // onboarded new device / restore), so sign-in can never erase an account.
+                let authoritative = local.isEmpty ? remote : local
+                following.replace(ids: authoritative)   // sync-down / restore (no-op when device wins)
+                knownFollows = authoritative
+                for id in authoritative.subtracting(remote) {
+                    do { try await service.addFollow(id, userID: userID) }
+                    catch { Diagnostics.shared.record(.apiFailure, "follows reconcile add \(id): \(error.localizedDescription)") }
+                }
+                for id in remote.subtracting(authoritative) {   // PRUNE stale server rows
+                    do { try await service.removeFollow(id, userID: userID) }
+                    catch { Diagnostics.shared.record(.apiFailure, "follows reconcile prune \(id): \(error.localizedDescription)") }
+                }
             } catch {
                 // Offline / transient: local state is already correct; we'll reconcile again
                 // on the next launch. NOT silent — flag it so a persistent sync failure (e.g.
@@ -129,17 +140,24 @@ final class FollowSyncCoordinator {
         reconcileCompetitions(userID: userID)
     }
 
-    /// The competition twin of `reconcile` — same union-merge contract against the
-    /// `competition_follows` table (national teams + the Champions Cup toggle).
+    /// The competition twin of `reconcile` — same device-authoritative mirror against
+    /// the `competition_follows` table (national teams + the Champions Cup toggle).
     private func reconcileCompetitions(userID: UUID) {
         Task {
             let local = following.competitionFollowKeys
             do {
                 let remote = try await compService.fetchRemoteFollows(userID: userID)
-                let union = local.union(remote)
-                following.mergeCompetitionFollowKeys(union)   // sync-down / restore
-                knownCompetitionFollows = union
-                try await compService.pushFollows(union, userID: userID)  // sync-up
+                let authoritative = local.isEmpty ? remote : local
+                following.replaceCompetitionFollowKeys(authoritative)   // sync-down / restore
+                knownCompetitionFollows = authoritative
+                for key in authoritative.subtracting(remote) {
+                    do { try await compService.addFollow(key, userID: userID) }
+                    catch { Diagnostics.shared.record(.apiFailure, "competition reconcile add \(key): \(error.localizedDescription)") }
+                }
+                for key in remote.subtracting(authoritative) {   // PRUNE stale server rows
+                    do { try await compService.removeFollow(key, userID: userID) }
+                    catch { Diagnostics.shared.record(.apiFailure, "competition reconcile prune \(key): \(error.localizedDescription)") }
+                }
             } catch {
                 Diagnostics.shared.record(.apiFailure, "competition reconcile: \(error.localizedDescription)")
                 knownCompetitionFollows = following.competitionFollowKeys

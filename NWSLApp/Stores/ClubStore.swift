@@ -52,6 +52,7 @@ final class ClubStore {
         do {
             state = .loaded(try await service.fetchTeams())
         } catch {
+            Diagnostics.shared.record(.apiFailure, "clubs load: \(error.localizedDescription)")
             state = .error(message(for: error))
         }
     }

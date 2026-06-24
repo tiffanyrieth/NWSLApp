@@ -36,6 +36,32 @@ struct TeamAlertPrefsSyncService {
             .value
         return Set(rows.filter(\.alerts_enabled).map(\.team_id))
     }
+
+    /// EVERY team id with a row for this user, regardless of on/off. The mirror
+    /// reconcile needs this to prune rows the device no longer wants — both stale
+    /// `true` ghosts (a team un-followed via uninstall) and leftover `false` clutter
+    /// — so the table converges to exactly the device's ON set.
+    func fetchAllTeamIDs(userID: UUID) async throws -> Set<String> {
+        let rows: [TeamIDRow] = try await client
+            .from("team_alert_preferences")
+            .select("team_id")
+            .eq("user_id", value: userID.uuidString)
+            .execute()
+            .value
+        return Set(rows.map(\.team_id))
+    }
+
+    /// Hard-delete one team's row (mirror prune). We delete rather than set
+    /// `alerts_enabled = false` so the table stays clean — one row per team the
+    /// user actually wants alerts for, nothing else.
+    func delete(teamID: String, userID: UUID) async throws {
+        try await client
+            .from("team_alert_preferences")
+            .delete()
+            .eq("user_id", value: userID.uuidString)
+            .eq("team_id", value: teamID)
+            .execute()
+    }
 }
 
 // snake_case to match the Postgres column names exactly (PostgREST maps 1:1).
@@ -43,4 +69,10 @@ private struct TeamAlertRow: Codable {
     let user_id: UUID
     let team_id: String
     let alerts_enabled: Bool
+}
+
+// team_id-only projection for the prune fetch (selecting just one column means the
+// full TeamAlertRow can't decode — its other fields aren't in the response).
+private struct TeamIDRow: Decodable {
+    let team_id: String
 }

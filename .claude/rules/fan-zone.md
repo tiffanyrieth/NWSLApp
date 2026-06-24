@@ -52,8 +52,16 @@ live in `PredictXIViewModel`; the in-flight picker is `XIPickerViewModel` / `XIP
 
 ## Sign-in & honesty
 
-Games are **browsable signed-out**; the gate appears **at submit** (`SignInPromptView`). First-entry
-one-time invite via `.fanZoneIntro()` (`FanZoneIntroView`, skippable, gated `!introSeen && !isSignedIn`).
-ZERO fabricated data: honest empty/loading states, never fake rivals or padded counts; a read failure
-shows only the user's real local value. Game Center (`GameCenterManager`) is additive on top of the
-Supabase boards.
+Games are **browsable signed-out**, but **sign-in + a chosen display name are MANDATORY to PLAY** —
+gated at the first ranked ACTION, no skip. The gate is `FanZoneGate` (`Components/FanZoneGate.swift`):
+`.fanZoneGate(isRequested:gameName:onAuthorized:)` → a no-skip "Sign in to play" step (only escape is
+"Go back", which cancels the action) → a REQUIRED display-name step (`DisplayNameEntry`, prefilled with
+Apple's name) → then `onAuthorized` runs. Already signed-in + named → runs immediately, no sheet.
+Action points: **Bracket** "Make your picks" (intro→voting), **Predict** the open-fixture tap (→picker),
+**Trivia** the first "Submit Answer". Because entry is gated, downstream submits are always signed in.
+(Replaced the old skippable model — `FanZoneIntroView` + an at-submit `SignInPromptView` "Not now" — under
+which users could play + submit signed-out and their results went nowhere; both files deleted.) The
+display name is the leaderboard identity (Supabase `profiles`/`*_scores.display_name`, NOT GameCenter's
+auto alias); editable in Profile via the same `DisplayNameEntry`. ZERO fabricated data: honest
+empty/loading states, never fake rivals or padded counts; a read failure shows only the user's real local
+value. Game Center (`GameCenterManager`) is additive on top of the Supabase boards.

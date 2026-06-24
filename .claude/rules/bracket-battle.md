@@ -24,6 +24,9 @@ lifetime stats; ranked via Game Center + Supabase `bracket_scores`.
   32 seeds bye into the Round of 64; the other 32 are qualifiers. **Round codes**: main = entrant
   count (64→2); qualifying = **negative** (`q1=-4 … q4=-1`) — this is the cross-repo contract, identical
   to the app's `BracketRound`. Same-team protection through qualifying + Round of 64 + Round of 32.
+  **Round of 64 (main-bracket entry) is SEEDED** (`roundOf64Entrants` → `buildSeededRound`, NCAA
+  `seedOrder`): byes keep seeds 1–32, qualifier winners get effective seeds 33–64 by rank → seeds 1 &
+  2 in opposite halves (quadrant structure). Qualifying rounds pair sequentially (`buildMergedRound`).
 - **Seeding by real ESPN season stats** (budget-aware, `bracket_config.stat_fetch_budget` default 20):
   `goals_assists` (Best Forward) via the 1-call league-leaders endpoint; `save_pct` (compute
   `saves/shotsFaced` — ESPN's field is buggy) / `chances_tackles` / `tackles_interceptions` / `minutes`
@@ -58,7 +61,8 @@ honest-empty) · `BracketStore.swift` (durable picks/submit/scores, `bracket.v2.
 ZERO fabricated data (real vote splits / counts / leaderboard only — 2 players → board shows 2).
 Hide the game when no active/upcoming edition. Sign-in gate at **submit**, not entry. Submit is
 permanent (save-draft is the escape valve). **No emoji in game UI** — teal `dsGameBracket` accent +
-team colors + `PlayerDot` only. Edition intro is mandatory.
+team colors + `PlayerDot` (team-ringed player headshot, jersey-monogram fallback) only. Edition intro
+is mandatory; **play is gated** behind no-skip sign-in + display name (`.fanZoneGate`, at "Make your picks").
 
 ## Launch / operate
 

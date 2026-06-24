@@ -11,8 +11,9 @@
 //  Reference.html): Edition Intro · Voting · Save/Submit · Results · Bracket
 //  Overview — here as one phase-driven flow rather than five tabs.
 //
-//  Identity: the teal `dsGameBracket` accent; player chips are jersey-number
-//  monograms (PlayerDot), team-ringed — the permanent no-headshots reality.
+//  Identity: the teal `dsGameBracket` accent; player chips are team-ringed headshots
+//  (PlayerHeadshot via PlayerDot), with a jersey-number monogram fallback when a
+//  player's photo isn't on file.
 //
 
 import SwiftUI
@@ -24,9 +25,12 @@ struct BracketBattleView: View {
     @Environment(AuthStore.self) private var auth
 
     @State private var stage: Stage = .intro
-    @State private var showSignIn = false
+    @State private var gateRequested = false
     /// Result matchups the user has expanded to reveal the vote stats (collapsed by default).
     @State private var expandedMatchups: Set<String> = []
+    @State private var expandedRounds: Set<BracketRound> = []
+    @State private var expandedRules: Set<String> = []   // collapsible intro rule sections
+    @State private var showFullBracket = false
 
     private enum Stage { case intro, voting }
     private let accent = Color.dsGameBracket
@@ -44,6 +48,7 @@ struct BracketBattleView: View {
             }
         }
         .nativeBackButton(title: "Bracket Battle")
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { PlayingAsBadge(accent: accent) } }
         .background(Color.dsBgPrimary.ignoresSafeArea())
         .task {
             // Start Game Center auth here (a game screen) rather than at launch, so
@@ -53,7 +58,9 @@ struct BracketBattleView: View {
                 await viewModel.load(store: store, userID: auth.userID, displayName: auth.displayName)
             }
         }
-        .sheet(isPresented: $showSignIn) { SignInPromptView() }
+        // Mandatory sign-in + display name to PLAY — gated at "Make your picks" (entry to
+        // voting), so the submit downstream is always signed in. "Go back" cancels.
+        .fanZoneGate(isRequested: $gateRequested, gameName: "Bracket Battle") { stage = .voting }
     }
 
     // MARK: - Routing by round phase
@@ -79,33 +86,156 @@ struct BracketBattleView: View {
     @ViewBuilder
     private var introScreen: some View {
         if let edition = viewModel.edition {
-            ScrollView {
-                VStack(spacing: 24) {
-                    VStack(spacing: 8) {
-                        Image(systemName: "trophy.fill").dsFont(34).foregroundStyle(accent)
-                        Text(edition.themeLabel).dsFont(12, weight: .bold).tracking(2).foregroundStyle(accent)
-                        Text(edition.title).dsFont(22, weight: .bold).foregroundStyle(.white)
-                        Text("\(edition.entrants.count) players · \(viewModel.totalMatchups) brackets · \(edition.rounds.count) rounds")
-                            .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+            // Flex column: the rules SCROLL in a bounded region; the "Let's Go" CTA is PINNED
+            // below them (always reachable — a returning player never scrolls past the rules to
+            // play), with "Good to know" pinned beneath the CTA. Matches the gating-flow mockup.
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(spacing: 20) {
+                        VStack(spacing: 8) {
+                            Image(systemName: "trophy.fill").dsFont(34).foregroundStyle(accent)
+                            Text("Bracket Battle").dsFont(12, weight: .bold).tracking(2).textCase(.uppercase).foregroundStyle(accent)
+                            // The GENERAL tagline is the hero (tells first-timers what the game is) —
+                            // the live edition's theme + real player count is the secondary line below.
+                            // (No hardcoded count here: pool size varies 64–192 by edition.)
+                            Text("One bracket. You call the winner.")
+                                .dsFont(21, weight: .bold).foregroundStyle(.white)
+                                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                            Text("\(edition.themeLabel) · \(edition.entrants.count) players · \(edition.rounds.count) rounds")
+                                .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 28).padding(.horizontal, 20)
+                        .background(LinearGradient(colors: [accent.opacity(0.12), Color.dsMdCard], startPoint: .top, endPoint: .bottom))
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(accent.opacity(0.35)))
+
+                        rankedBanner(fanCount: edition.fanCount)
+                        bracketFunnel(rounds: edition.rounds)
+                        howItWorks
+                        pointsTable(rounds: edition.rounds)
+                        // Detailed rules = collapsible disclosures (collapsed by default) AFTER
+                        // points, so the page stays short and detail is opt-in (updated mockup).
+                        rulesDisclosure("qualifying", "Qualifying rounds & byes", Self.qualifyingRules)
+                        rulesDisclosure("rounds", "How each round works", Self.roundRules)
+                        Button { showFullBracket = true } label: {
+                            Text("See the full bracket")
+                                .dsFont(15, weight: .semibold).foregroundStyle(accent)
+                                .frame(maxWidth: .infinity).padding(.vertical, 13)
+                                .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(accent.opacity(0.35), lineWidth: 1.5))
+                        }
+                        goodToKnow   // in the scroll (after "See the full bracket"), not pinned
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 28).padding(.horizontal, 20)
-                    .background(LinearGradient(colors: [accent.opacity(0.12), Color.dsMdCard], startPoint: .top, endPoint: .bottom))
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(accent.opacity(0.35)))
-
-                    bracketFunnel(rounds: edition.rounds)
-                    howItWorks
-                    pointsTable(rounds: edition.rounds)
-
-                    Button { stage = .voting } label: { Text("Make your picks").primaryButtonLabel(accent) }
-                    Text("\(edition.fanCount.formatted()) fans are already in")
-                        .dsFont(12).foregroundStyle(Color.dsFgSecondary).frame(maxWidth: .infinity)
+                    .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 16)
                 }
-                .padding(.horizontal, 20).padding(.bottom, 32)
+
+                // The ONLY pinned element — gate trigger + subtext (current round · countdown,
+                // "Voting open" in manual mode). Nothing below it, so there's no second scroll edge.
+                VStack(spacing: 8) {
+                    Button { gateRequested = true } label: { Text("Let's Go").primaryButtonLabel(accent) }
+                    Text("\(edition.currentRound.title) · \(viewModel.closesInText ?? "Voting open")")
+                        .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                }
+                .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 14)
+            }
+            .sheet(isPresented: $showFullBracket) {
+                NavigationStack {
+                    overviewBody(banner: nil)
+                        .navigationTitle("The bracket so far")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) { Button("Done") { showFullBracket = false } }
+                        }
+                }
             }
         }
     }
+
+    // Ranked callout near the top of the intro — establishes the stakes (a scored,
+    // leaderboard game) before the rules. Uses the SF-Symbol trophy (no emoji in game UI).
+    private func rankedBanner(fanCount: Int) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "trophy.fill").dsFont(20).foregroundStyle(accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(fanCount > 0 ? "Ranked — compete with \(fanCount.formatted()) fans" : "Ranked game")
+                    .dsFont(14, weight: .bold).foregroundStyle(.white)
+                Text("Climb the leaderboard. Track your accuracy in Your Stats.")
+                    .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(accent.opacity(0.3)))
+    }
+
+    // FAQ-style notes below the CTA — curious players find them, casual players aren't blocked.
+    private var goodToKnow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel("Good to know")
+            ForEach(Self.goodToKnowItems, id: \.self) { item in
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "circle.fill").dsFont(5).foregroundStyle(accent).padding(.top, 6)
+                    Text(item).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private static let goodToKnowItems = [
+        "New edition every month with a fresh theme",
+        "Top-seeded players get byes — they enter later in the bracket",
+        "Miss a round? You can still play the rest (you just won't earn points for the ones you missed)",
+        "No same-team matchups early — this is about the whole league",
+    ]
+
+    // A collapsible rule section (collapsed by default): a teal uppercase header + chevron that
+    // expands to reveal the paragraphs. Keeps the intro short while the detail stays one tap away.
+    private func rulesDisclosure(_ id: String, _ header: String, _ paragraphs: [String]) -> some View {
+        let open = expandedRules.contains(id)
+        return VStack(alignment: .leading, spacing: 0) {
+            Button {
+                if open { expandedRules.remove(id) } else { expandedRules.insert(id) }
+            } label: {
+                HStack {
+                    sectionLabel(header)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .dsFont(12, weight: .semibold).foregroundStyle(accent)
+                        .rotationEffect(.degrees(open ? 180 : 0))
+                }
+                .padding(14)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if open {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(paragraphs, id: \.self) { p in
+                        Text(p).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(.horizontal, 14).padding(.bottom, 14)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private static let qualifyingRules = [
+        "128 players is too many to start all at once, so qualifying rounds trim the field to 64 before the main bracket begins.",
+        "Some players get a bye — they sit out qualifying and enter later, once the field's already smaller. Byes are earned by seeding (minutes played, games started): the league's most-used players skip the early rounds, while lower-seeded players battle in from round 1. Same idea as the US Open Cup, where the top sides join in later rounds.",
+        "So the draw isn't always fair-feeling — a big name can land a brutal bracket while a lesser-known player gets a clear runway. Seeding rewards the workload; it doesn't promise an easy path.",
+    ]
+
+    private static let roundRules = [
+        "When a round opens, you'll see every matchup. Vote on all of them — you can't submit until each one has a pick.",
+        "Once you submit, that round's picks are locked: no edits, no undo. Rounds stay open 1–2 days; when voting closes, the votes are tallied, winners revealed, points awarded, and the next round opens. Start to finish, an edition runs about 2–3 weeks.",
+    ]
 
     private func bracketFunnel(rounds: [BracketRound]) -> some View {
         VStack(spacing: 6) {
@@ -135,37 +265,43 @@ struct BracketBattleView: View {
     }
 
     private var howItWorks: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             sectionLabel("How it works")
-            ForEach(Array(Self.howItWorksSteps.enumerated()), id: \.offset) { i, text in
+            ForEach(Array(Self.howItWorksSteps.enumerated()), id: \.offset) { i, step in
                 HStack(alignment: .top, spacing: 12) {
                     Text("\(i + 1)").dsFont(12, weight: .bold).foregroundStyle(accent)
                         .frame(width: 22, height: 22).background(accent.opacity(0.12)).clipShape(Circle())
-                    Text(text).dsFont(14).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(step.title).dsFont(14, weight: .bold).foregroundStyle(.white)
+                        Text(step.body).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private static let howItWorksSteps = [
-        "Everyone's in — stars, bench, the depth keeper you've never heard of. The whole league, drawn into one bracket.",
-        "Pick who YOU think the league sends through each matchup. Don't know a name? Go dig — that's half the fun.",
-        "The crowd decides who advances. Each round's open a couple of days, then we see who called it.",
-        "It's not about your team. It's about reading the room — and the deeper it goes, the wilder it gets.",
+    private static let howItWorksSteps: [(title: String, body: String)] = [
+        ("See the matchups",
+         "Each round shows you every head-to-head. Two players, one question. Read the theme and decide: who wins this one?"),
+        ("Vote the question, not the jersey",
+         "This isn't \"who's your favorite.\" If the theme is Best Goal Celebration, vote the better celebration — even if the other player is on your team. The question is the question."),
+        ("Predict the crowd",
+         "The community decides who advances. You score points when your pick matches the majority. Think a lesser-known player actually wins the matchup? Trust that read — the crowd might agree with you."),
+        ("Lock it in",
+         "Submit your picks for the round. Once submitted, they're locked — no edits, no undo. Results drop when voting closes, with vote percentages and your score."),
     ]
 
     private func pointsTable(rounds: [BracketRound]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             sectionLabel("Points")
             VStack(spacing: 10) {
-                ForEach(rounds, id: \.self) { round in
-                    HStack {
-                        Text("Correct pick (\(round.title))").dsFont(13).foregroundStyle(Color.dsFgSecondary)
-                        Spacer()
-                        Text("+\(round.points)").dsFont(13, weight: .bold).foregroundStyle(accent)
-                    }
-                }
+                // Simplified to three tiers for onboarding — the full per-round breakdown
+                // lives in the bracket overview / Your Stats.
+                pointsTier("Early rounds", "+1")
+                pointsTier("Round of 16 & Quarterfinals", "+2")
+                pointsTier("Semifinals & Final", "+3")
                 Divider().overlay(Color.dsFgQuaternary)
                 HStack {
                     Text("Max possible (perfect bracket)").dsFont(13, weight: .semibold).foregroundStyle(.white)
@@ -176,6 +312,18 @@ struct BracketBattleView: View {
             .padding(14).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14))
             Text("Points increase each round — later picks are worth more because they're harder to predict")
                 .dsFont(11).foregroundStyle(Color.dsFgSecondary).frame(maxWidth: .infinity)
+            Text("This isn't a popularity contest — you're predicting who the crowd will pick, not who you like best. Your favorite might be the nicest person in the league, but if they're up against someone with serious stare-down energy, voting with your heart will cost you points.")
+                .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 2)
+        }
+    }
+
+    private func pointsTier(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+            Spacer()
+            Text(value).dsFont(13, weight: .bold).foregroundStyle(accent)
         }
     }
 
@@ -192,9 +340,9 @@ struct BracketBattleView: View {
                     HStack(alignment: .firstTextBaseline) {
                         sectionLabel("\(round.title) · \(viewModel.edition?.themeLabel.capitalized ?? "")").foregroundStyle(accent)
                         Spacer()
-                        if let closes = viewModel.closesInText {
-                            Text(closes).dsFont(11).foregroundStyle(Color.dsFgSecondary)
-                        }
+                        // A null close time = manual mode (round stays open until advanced) → "Voting open".
+                        Text(viewModel.closesInText ?? "Voting open")
+                            .dsFont(11).foregroundStyle(Color.dsFgSecondary)
                     }
                     VStack(spacing: 6) {
                         HStack {
@@ -272,7 +420,8 @@ struct BracketBattleView: View {
                     .frame(maxWidth: .infinity)
             }
             Button {
-                if auth.isSignedIn { Task { await viewModel.submit(store: store, userID: auth.userID) } } else { showSignIn = true }
+                // Entry was gated (Make your picks → voting), so we're always signed in here.
+                Task { await viewModel.submit(store: store, userID: auth.userID) }
             } label: {
                 Text(submitting ? "Submitting…" : (allMade ? "Lock in my picks" : "Pick all \(total) first (\(made)/\(total))"))
                     .primaryButtonLabel(allMade ? accent : Color.dsBgTertiary, fg: allMade ? .white : Color.dsFgTertiary)
@@ -638,8 +787,18 @@ struct BracketBattleView: View {
                     ForEach(0..<min(cap, round.matchupCount), id: \.self) { _ in tbdSlot }
                     if round.matchupCount > cap { overflowNote(round.matchupCount - cap) }
                 } else {
-                    ForEach(ms.prefix(cap)) { m in overviewMatchup(m) }
-                    if ms.count > cap { overflowNote(ms.count - cap) }
+                    let expanded = expandedRounds.contains(round)
+                    ForEach(expanded ? Array(ms) : Array(ms.prefix(cap))) { m in overviewMatchup(m) }
+                    if ms.count > cap {
+                        Button {
+                            if expanded { expandedRounds.remove(round) } else { expandedRounds.insert(round) }
+                        } label: {
+                            Text(expanded ? "Show less" : "+\(ms.count - cap) more")
+                                .dsFont(11, weight: .semibold).foregroundStyle(accent)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
             .padding(.leading, 16)
@@ -725,7 +884,9 @@ struct BracketBattleView: View {
     private func accentColor(_ abbr: String) -> Color { clubs.club(forAbbreviation: abbr)?.accentColor ?? .gray }
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text).dsFont(11, weight: .bold).tracking(1.2).textCase(.uppercase).foregroundStyle(Color.dsFgSecondary)
+        // Teal accent for a consistent Bracket section-header look (callers that need a
+        // status-specific color, e.g. the overview round headers, override foregroundStyle).
+        Text(text).dsFont(11, weight: .bold).tracking(1.2).textCase(.uppercase).foregroundStyle(accent)
     }
 
     private func statusColor(_ s: BracketEdition.RoundStatus) -> Color {

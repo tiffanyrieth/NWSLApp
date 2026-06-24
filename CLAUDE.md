@@ -65,6 +65,13 @@ ESPN's unofficial NWSL endpoints (base in `Config/AppConfig.swift`) — **decode
 are `String` not `Int`, scoreboard needs `&limit=500` for a full season, standings sit on a different
 base, endpoints break/rate-limit without notice. Most traffic routes through the **`nwslapp-proxy`
 Cloudflare Worker** (sibling repo `~/Projects/nwslapp-proxy`); DEBUG `-useESPNDirect` bypasses it.
+**Tier-2 server push** (live match alerts) is a SECOND sibling Worker, **`nwslapp-match-watcher`**
+(`~/Projects/nwslapp-match-watcher`): a `* * * * *` cron that diffs the proxy scoreboard for
+kickoff/goal/halftime/full-time, looks up `device_tokens` of users with that alert on, and sends APNs
+(ES256 `.p8` JWT). Deployed; `POST /test-push` (`x-trigger-secret`) sends a synthetic push for
+on-device E2E. Go-live for TestFlight = flip `APNS_HOST`→`api.push.apple.com` + app
+`aps-environment`→production. The app side: `registerForRemoteNotifications` → AppDelegate →
+`PushBridge` → `DeviceTokenService` upserts `device_tokens` (per-team toggles in `team_alert_preferences`).
 Per-user state in **Supabase**, offline-first (UserDefaults cache). **Sync = device-authoritative
 mirror on sign-in:** the signed-in device's set is the truth — push it up, prune server rows not in
 it (so unfollow/alert-off propagate and the DB stays clean). **Empty-local guardrail:** an empty local

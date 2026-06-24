@@ -134,10 +134,10 @@ struct ProfileView: View {
     private var displayNameRow: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.dsAccent)
+                RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.dsBgTertiary)
                 Image(systemName: "pencil")
                     .dsFont(15)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
             .frame(width: 29, height: 29)
             VStack(alignment: .leading, spacing: 1) {

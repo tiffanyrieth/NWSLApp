@@ -86,6 +86,7 @@ struct DailyTriviaView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         progressHeader
+                        PlayingAsBadge(accent: Color.dsGameTrivia)   // Screen C — gated-in identity
                         categoryChip(for: question)
                         Text(question.question)
                             .font(.title2.weight(.bold))

@@ -84,38 +84,52 @@ struct BracketBattleView: View {
     @ViewBuilder
     private var introScreen: some View {
         if let edition = viewModel.edition {
-            ScrollView {
-                VStack(spacing: 24) {
-                    VStack(spacing: 8) {
-                        Image(systemName: "trophy.fill").dsFont(34).foregroundStyle(accent)
-                        Text(edition.themeLabel).dsFont(12, weight: .bold).tracking(2).foregroundStyle(accent)
-                        Text(edition.title).dsFont(22, weight: .bold).foregroundStyle(.white)
-                        Text("\(edition.entrants.count) players · \(viewModel.totalMatchups) brackets · \(edition.rounds.count) rounds")
-                            .dsFont(13).foregroundStyle(Color.dsFgSecondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 28).padding(.horizontal, 20)
-                    .background(LinearGradient(colors: [accent.opacity(0.12), Color.dsMdCard], startPoint: .top, endPoint: .bottom))
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(accent.opacity(0.35)))
+            // Flex column: the rules SCROLL in a bounded region; the "Let's Go" CTA is PINNED
+            // below them (always reachable — a returning player never scrolls past the rules to
+            // play), with "Good to know" pinned beneath the CTA. Matches the gating-flow mockup.
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(spacing: 20) {
+                        VStack(spacing: 8) {
+                            Image(systemName: "trophy.fill").dsFont(34).foregroundStyle(accent)
+                            Text(edition.themeLabel).dsFont(12, weight: .bold).tracking(2).foregroundStyle(accent)
+                            Text(edition.title).dsFont(22, weight: .bold).foregroundStyle(.white)
+                            Text("\(edition.entrants.count) players · \(viewModel.totalMatchups) brackets · \(edition.rounds.count) rounds")
+                                .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 28).padding(.horizontal, 20)
+                        .background(LinearGradient(colors: [accent.opacity(0.12), Color.dsMdCard], startPoint: .top, endPoint: .bottom))
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(accent.opacity(0.35)))
 
-                    rankedBanner(fanCount: edition.fanCount)
-                    bracketFunnel(rounds: edition.rounds)
-                    howItWorks
-                    rulesCard("Qualifying rounds & byes", Self.qualifyingRules)
-                    rulesCard("How each round works", Self.roundRules)
-                    pointsTable(rounds: edition.rounds)
-                    Button { showFullBracket = true } label: {
-                        Text("See the full bracket")
-                            .dsFont(15, weight: .semibold).foregroundStyle(accent)
-                            .frame(maxWidth: .infinity).padding(.vertical, 13)
-                            .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(accent.opacity(0.35), lineWidth: 1.5))
+                        rankedBanner(fanCount: edition.fanCount)
+                        bracketFunnel(rounds: edition.rounds)
+                        howItWorks
+                        rulesCard("Qualifying rounds & byes", Self.qualifyingRules)
+                        rulesCard("How each round works", Self.roundRules)
+                        pointsTable(rounds: edition.rounds)
+                        Button { showFullBracket = true } label: {
+                            Text("See the full bracket")
+                                .dsFont(15, weight: .semibold).foregroundStyle(accent)
+                                .frame(maxWidth: .infinity).padding(.vertical, 13)
+                                .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(accent.opacity(0.35), lineWidth: 1.5))
+                        }
                     }
-
-                    Button { gateRequested = true } label: { Text("Make your picks").primaryButtonLabel(accent) }
-                    goodToKnow
+                    .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 16)
                 }
-                .padding(.horizontal, 20).padding(.bottom, 32)
+
+                // Pinned CTA — gate trigger. Subtext = current round · countdown ("Voting open" in manual mode).
+                VStack(spacing: 8) {
+                    Button { gateRequested = true } label: { Text("Let's Go").primaryButtonLabel(accent) }
+                    Text("\(edition.currentRound.title) · \(viewModel.closesInText ?? "Voting open")")
+                        .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                }
+                .padding(.horizontal, 20).padding(.top, 10)
+
+                // Good to know — pinned below the CTA (not blocking), per the mockup.
+                goodToKnow
+                    .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 18)
             }
             .sheet(isPresented: $showFullBracket) {
                 NavigationStack {
@@ -303,6 +317,7 @@ struct BracketBattleView: View {
                         Text(viewModel.closesInText ?? "Voting open")
                             .dsFont(11).foregroundStyle(Color.dsFgSecondary)
                     }
+                    PlayingAsBadge(accent: accent)   // Screen C — gated-in identity
                     VStack(spacing: 6) {
                         HStack {
                             Text("\(made) of \(total) picks made").dsFont(12).foregroundStyle(Color.dsFgSecondary)

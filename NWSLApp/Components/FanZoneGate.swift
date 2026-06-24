@@ -38,32 +38,57 @@ struct DisplayNameEntry: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            TextField("Name", text: $draft)
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Display name")
+                .dsFont(12, weight: .medium)
+                .foregroundStyle(Color.dsFgSecondary)
+                .padding(.leading, 2)
+
+            TextField("Enter a name…", text: $draft)
                 .textInputAutocapitalization(.words)
                 .submitLabel(.done)
                 .onSubmit { if isValid { onSubmit() } }
-                .multilineTextAlignment(.center)
-                .dsFont(17, weight: .semibold)
-                .padding(.vertical, 13)
-                .frame(maxWidth: .infinity)
-                .background(Color.dsBgCard, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .dsFont(17)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.dsBgTertiary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.white.opacity(0.08)))
 
             Text("Max 20 characters · visible to other players · change anytime in Profile")
-                .dsFont(11)
+                .dsFont(12)
                 .foregroundStyle(Color.dsFgTertiary)
-                .multilineTextAlignment(.center)
+                .padding(.leading, 2)
 
             Button(action: onSubmit) {
                 Text(cta)
                     .dsFont(17, weight: .semibold)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
+                    .padding(.vertical, 15)
                     .background(isValid ? accent : Color.dsBgTertiary,
                                 in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .disabled(!isValid)
+            .padding(.top, 4)
+        }
+    }
+}
+
+// MARK: - "Playing as {name}" badge (Screen C)
+
+/// A subtle accent line shown in a game once the player is gated in (signed in + named),
+/// per the handoff's "Playing as {displayName}" Screen C. Renders nothing when signed out.
+struct PlayingAsBadge: View {
+    @Environment(AuthStore.self) private var auth
+    let accent: Color
+
+    var body: some View {
+        if auth.isSignedIn, auth.hasDisplayName, let name = auth.displayName {
+            Text("Playing as \(name)")
+                .dsFont(12, weight: .semibold)
+                .foregroundStyle(accent)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 }
@@ -121,13 +146,23 @@ struct FanZoneGateSheet: View {
                     .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
             }
-            Text("Your score. Your rank. Real competition.")
-                .dsFont(13, weight: .semibold)
-                .foregroundStyle(Color.dsGameBracket)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(Color.dsGameBracket.opacity(0.12),
-                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            HStack(spacing: 12) {
+                Image(systemName: "chart.bar.fill")
+                    .dsFont(20)
+                    .foregroundStyle(Color.dsGameBracket)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Your score. Your rank. Real competition.")
+                        .dsFont(13, weight: .semibold).foregroundStyle(.white)
+                    Text("See how you stack up against every fan in the league.")
+                        .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .background(Color.dsGameBracket.opacity(0.12),
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.dsGameBracket.opacity(0.25)))
 
             if let errorMessage {
                 Text(errorMessage)
@@ -145,7 +180,7 @@ struct FanZoneGateSheet: View {
             .frame(height: 50)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-            Button("Go back") { dismiss() }   // cancels the action — NOT a skip-and-play
+            Button("Go back to rules") { dismiss() }   // cancels the action — NOT a skip-and-play
                 .dsFont(15, weight: .semibold)
                 .foregroundStyle(Color.dsFgSecondary)
         }
@@ -155,8 +190,8 @@ struct FanZoneGateSheet: View {
     private var nameStep: some View {
         VStack(spacing: 18) {
             Image(systemName: "checkmark.circle.fill")
-                .dsFont(44)
-                .foregroundStyle(Color.dsGameBracket)
+                .dsFont(48)
+                .foregroundStyle(Color.dsSuccess)
             VStack(spacing: 8) {
                 Text("You're in! Choose your name.")
                     .dsFont(22, weight: .bold)

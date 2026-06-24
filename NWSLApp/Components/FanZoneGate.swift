@@ -77,18 +77,18 @@ struct DisplayNameEntry: View {
 
 // MARK: - "Playing as {name}" badge (Screen C)
 
-/// A subtle accent line shown in a game once the player is gated in (signed in + named),
-/// per the handoff's "Playing as {displayName}" Screen C. Renders nothing when signed out.
+/// The "Playing as {name}" identity shown TOP-RIGHT in a game's nav bar once the player is
+/// gated in (signed in + named), per the handoff's Screen C — "Playing as" in secondary, the
+/// name in the game accent. Renders nothing when signed out, so a browsing player sees a clean nav.
 struct PlayingAsBadge: View {
     @Environment(AuthStore.self) private var auth
     let accent: Color
 
     var body: some View {
         if auth.isSignedIn, auth.hasDisplayName, let name = auth.displayName {
-            Text("Playing as \(name)")
-                .dsFont(12, weight: .semibold)
-                .foregroundStyle(accent)
-                .frame(maxWidth: .infinity, alignment: .center)
+            (Text("Playing as ").foregroundStyle(Color.dsFgSecondary)
+             + Text(name).foregroundStyle(accent).fontWeight(.semibold))
+                .dsFont(12)
         }
     }
 }

@@ -47,6 +47,7 @@ struct DailyTriviaView: View {
             }
         }
         .nativeBackButton(title: "Daily Trivia")
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { PlayingAsBadge(accent: Color.dsGameTrivia) } }
         .background(Color(.systemGroupedBackground))
         // Mandatory sign-in + display name to play — gated at the first "Submit Answer", so
         // a finished game's streak always reaches the leaderboard. "Go back" cancels.
@@ -86,7 +87,6 @@ struct DailyTriviaView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         progressHeader
-                        PlayingAsBadge(accent: Color.dsGameTrivia)   // Screen C — gated-in identity
                         categoryChip(for: question)
                         Text(question.question)
                             .font(.title2.weight(.bold))

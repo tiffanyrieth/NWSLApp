@@ -48,6 +48,7 @@ struct BracketBattleView: View {
             }
         }
         .nativeBackButton(title: "Bracket Battle")
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { PlayingAsBadge(accent: accent) } }
         .background(Color.dsBgPrimary.ignoresSafeArea())
         .task {
             // Start Game Center auth here (a game screen) rather than at launch, so
@@ -93,10 +94,15 @@ struct BracketBattleView: View {
                     VStack(spacing: 20) {
                         VStack(spacing: 8) {
                             Image(systemName: "trophy.fill").dsFont(34).foregroundStyle(accent)
-                            Text(edition.themeLabel).dsFont(12, weight: .bold).tracking(2).foregroundStyle(accent)
-                            Text(edition.title).dsFont(22, weight: .bold).foregroundStyle(.white)
-                            Text("\(edition.entrants.count) players · \(viewModel.totalMatchups) brackets · \(edition.rounds.count) rounds")
+                            Text("Bracket Battle").dsFont(12, weight: .bold).tracking(2).textCase(.uppercase).foregroundStyle(accent)
+                            // The GENERAL tagline is the hero (tells first-timers what the game is) —
+                            // the live edition's theme + size is the smaller secondary line below.
+                            Text("128 players. One bracket. You call the winner.")
+                                .dsFont(21, weight: .bold).foregroundStyle(.white)
+                                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                            Text("\(edition.themeLabel) · \(edition.entrants.count) players · \(edition.rounds.count) rounds")
                                 .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                                .multilineTextAlignment(.center)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 28).padding(.horizontal, 20)
@@ -337,7 +343,6 @@ struct BracketBattleView: View {
                         Text(viewModel.closesInText ?? "Voting open")
                             .dsFont(11).foregroundStyle(Color.dsFgSecondary)
                     }
-                    PlayingAsBadge(accent: accent)   // Screen C — gated-in identity
                     VStack(spacing: 6) {
                         HStack {
                             Text("\(made) of \(total) picks made").dsFont(12).foregroundStyle(Color.dsFgSecondary)

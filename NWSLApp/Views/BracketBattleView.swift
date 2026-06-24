@@ -101,6 +101,8 @@ struct BracketBattleView: View {
                     rankedBanner(fanCount: edition.fanCount)
                     bracketFunnel(rounds: edition.rounds)
                     howItWorks
+                    rulesCard("Qualifying rounds & byes", Self.qualifyingRules)
+                    rulesCard("How each round works", Self.roundRules)
                     pointsTable(rounds: edition.rounds)
                     Button { showFullBracket = true } label: {
                         Text("See the full bracket")
@@ -166,6 +168,33 @@ struct BracketBattleView: View {
         "Top-seeded players get byes — they enter later in the bracket",
         "Miss a round? You can still play the rest (you just won't earn points for the ones you missed)",
         "No same-team matchups early — this is about the whole league",
+    ]
+
+    // A full-rules card: the points-table card style (dsMdCard, rounded 14) with a TEAL
+    // uppercase header (the section-label format, accent-colored) + wrapped paragraphs.
+    private func rulesCard(_ header: String, _ paragraphs: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(header)
+                .dsFont(11, weight: .bold).tracking(1.2).textCase(.uppercase)
+                .foregroundStyle(accent)
+            ForEach(paragraphs, id: \.self) { p in
+                Text(p).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private static let qualifyingRules = [
+        "128 players is too many to start all at once, so qualifying rounds trim the field to 64 before the main bracket begins.",
+        "Some players get a bye — they sit out qualifying and enter later, once the field's already smaller. Byes are earned by seeding (minutes played, games started): the league's most-used players skip the early rounds, while lower-seeded players battle in from round 1. Same idea as the US Open Cup, where the top sides join in later rounds.",
+        "So the draw isn't always fair-feeling — a big name can land a brutal bracket while a lesser-known player gets a clear runway. Seeding rewards the workload; it doesn't promise an easy path.",
+    ]
+
+    private static let roundRules = [
+        "When a round opens, you'll see every matchup. Vote on all of them — you can't submit until each one has a pick.",
+        "Once you submit, that round's picks are locked: no edits, no undo. Rounds stay open 1–2 days; when voting closes, the votes are tallied, winners revealed, points awarded, and the next round opens. Start to finish, an edition runs about 2–3 weeks.",
     ]
 
     private func bracketFunnel(rounds: [BracketRound]) -> some View {
@@ -243,6 +272,10 @@ struct BracketBattleView: View {
             .padding(14).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14))
             Text("Points increase each round — later picks are worth more because they're harder to predict")
                 .dsFont(11).foregroundStyle(Color.dsFgSecondary).frame(maxWidth: .infinity)
+            Text("This isn't a popularity contest — you're predicting who the crowd will pick, not who you like best. Your favorite might be the nicest person in the league, but if they're up against someone with serious stare-down energy, voting with your heart will cost you points.")
+                .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 2)
         }
     }
 

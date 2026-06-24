@@ -115,21 +115,19 @@ struct BracketBattleView: View {
                                 .frame(maxWidth: .infinity).padding(.vertical, 13)
                                 .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(accent.opacity(0.35), lineWidth: 1.5))
                         }
+                        goodToKnow   // in the scroll (after "See the full bracket"), not pinned
                     }
                     .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 16)
                 }
 
-                // Pinned CTA — gate trigger. Subtext = current round · countdown ("Voting open" in manual mode).
+                // The ONLY pinned element — gate trigger + subtext (current round · countdown,
+                // "Voting open" in manual mode). Nothing below it, so there's no second scroll edge.
                 VStack(spacing: 8) {
                     Button { gateRequested = true } label: { Text("Let's Go").primaryButtonLabel(accent) }
                     Text("\(edition.currentRound.title) · \(viewModel.closesInText ?? "Voting open")")
                         .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                 }
-                .padding(.horizontal, 20).padding(.top, 10)
-
-                // Good to know — pinned below the CTA (not blocking), per the mockup.
-                goodToKnow
-                    .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 18)
+                .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 14)
             }
             .sheet(isPresented: $showFullBracket) {
                 NavigationStack {

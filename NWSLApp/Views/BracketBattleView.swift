@@ -96,8 +96,9 @@ struct BracketBattleView: View {
                             Image(systemName: "trophy.fill").dsFont(34).foregroundStyle(accent)
                             Text("Bracket Battle").dsFont(12, weight: .bold).tracking(2).textCase(.uppercase).foregroundStyle(accent)
                             // The GENERAL tagline is the hero (tells first-timers what the game is) —
-                            // the live edition's theme + size is the smaller secondary line below.
-                            Text("128 players. One bracket. You call the winner.")
+                            // the live edition's theme + real player count is the secondary line below.
+                            // (No hardcoded count here: pool size varies 64–192 by edition.)
+                            Text("One bracket. You call the winner.")
                                 .dsFont(21, weight: .bold).foregroundStyle(.white)
                                 .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                             Text("\(edition.themeLabel) · \(edition.entrants.count) players · \(edition.rounds.count) rounds")

@@ -98,6 +98,7 @@ final class TriviaViewModel {
             resetSession()
             state = .loaded
         } catch {
+            Diagnostics.shared.record(.apiFailure, "trivia load: \(error.localizedDescription)")
             state = .error("Couldn't load today's trivia — tap to retry.")
         }
     }

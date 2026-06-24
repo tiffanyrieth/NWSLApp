@@ -133,6 +133,17 @@ final class PredictionStore {
         defaults.set(seasonPoints, forKey: Key.seasonPoints)
     }
 
+    /// Wipe all local Predict-the-XI progress on account deletion — resets the
+    /// in-memory @Observable state AND persistence. The server per-team leaderboard
+    /// rows are removed by the account-delete cascade; this clears the on-device cache
+    /// so "delete account" truly forgets you.
+    func resetForAccountDeletion() {
+        predictions = [:]
+        scores = [:]
+        seasonPoints = 0
+        persist()
+    }
+
     private static func decode<T: Decodable>(_ type: T.Type, _ data: Data?) -> T? {
         guard let data else { return nil }
         return try? JSONDecoder().decode(T.self, from: data)

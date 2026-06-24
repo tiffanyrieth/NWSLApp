@@ -54,6 +54,7 @@ final class BracketViewModel {
         do {
             fetched = try await service.currentEdition()
         } catch {
+            Diagnostics.shared.record(.apiFailure, "bracket edition load: \(error.localizedDescription)")
             state = .error("Couldn't load the bracket — tap to retry.")
             return
         }
@@ -160,6 +161,7 @@ final class BracketViewModel {
             store.submit(round: round)   // local lock — ONLY after the server ack
             submitState = .idle
         } catch {
+            Diagnostics.shared.record(.apiFailure, "bracket submit: \(error.localizedDescription)")
             submitState = .failed
         }
     }

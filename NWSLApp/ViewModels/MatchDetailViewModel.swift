@@ -97,6 +97,7 @@ final class MatchDetailViewModel {
         do {
             summaryState = .loaded(try await service.fetchSummary(eventID: event.id))
         } catch {
+            Diagnostics.shared.record(.apiFailure, "match summary \(event.id): \(error.localizedDescription)")
             summaryState = .error(message(for: error))
         }
     }

@@ -36,6 +36,7 @@ final class StandingsViewModel {
             let rows = try await service.fetchStandings()
             state = .loaded(rows)
         } catch {
+            Diagnostics.shared.record(.apiFailure, "standings load: \(error.localizedDescription)")
             state = .error(message(for: error))
         }
     }

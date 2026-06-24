@@ -143,7 +143,9 @@ final class PredictXIViewModel {
                 }
             } catch {
                 // Leave it unscored; the next load tries again (proxy caches the
-                // finished summary, so the retry is cheap).
+                // finished summary, so the retry is cheap). NOT silent — flag it so a
+                // persistent scoring outage (a team's points never landing) surfaces.
+                Diagnostics.shared.record(.apiFailure, "predict scoring \(fixtureID): \(error.localizedDescription)")
             }
         }
     }
@@ -197,6 +199,7 @@ final class PredictXIViewModel {
             rostersByTeam[abbreviation] = squad.athletes
             return squad.athletes
         } catch {
+            Diagnostics.shared.record(.apiFailure, "predict roster \(abbreviation): \(error.localizedDescription)")
             return []
         }
     }

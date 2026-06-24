@@ -79,15 +79,17 @@ struct CompetitionFollowMigrationTests {
         #expect(store.competitionFollowKeys == ["nt:USA", "concacaf"])
     }
 
-    @Test func mergeCompetitionFollowKeysIsUnionOnly() {
-        let defaults = isolatedDefaults("test.compmig.merge")
+    @Test func replaceCompetitionFollowKeysIsAuthoritative() {
+        let defaults = isolatedDefaults("test.compmig.replace")
         let store = FollowingStore(defaults: defaults)
         store.toggle(nationalTeam: NationalTeam.team(code: "USA")!)
+        store.setConcacafFollowed(true)
 
-        store.mergeCompetitionFollowKeys(["nt:BRA", "concacaf"])
+        // Device-authoritative mirror: the set becomes EXACTLY the new keys — USA is
+        // dropped (not in the new set), BRA added, and the Cup turned off (no "concacaf").
+        store.replaceCompetitionFollowKeys(["nt:BRA"])
 
-        // USA kept (union, never removes), BRA added, Cup turned on.
-        #expect(store.followedNationalTeams == ["USA", "BRA"])
-        #expect(store.isConcacafFollowed)
+        #expect(store.followedNationalTeams == ["BRA"])
+        #expect(!store.isConcacafFollowed)
     }
 }

@@ -162,10 +162,15 @@ final class NotificationScheduler {
                   alertingAbbreviations.contains(home) || alertingAbbreviations.contains(away)
             else { return nil }
 
+            // Name the FOLLOWED club as the subject → full club name (the app-wide
+            // rule: one team as subject gets its full name). The opponent rides the
+            // body. If both sides are followed, the home side leads.
+            let followed = alertingAbbreviations.contains(home) ? home : away
+            let opponent = alertingAbbreviations.contains(home) ? away : home
+
             let content = UNMutableNotificationContent()
-            // Two teams together → abbreviations (the app-wide naming rule).
-            content.title = "Tomorrow: \(home) vs \(away)"
-            content.body = dayBeforeBody(for: event)
+            content.title = "\(clubName(for: followed)) play tomorrow"
+            content.body = dayBeforeBody(opponentAbbr: opponent, event: event)
             content.sound = .default
 
             let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
@@ -177,16 +182,22 @@ final class NotificationScheduler {
         }
     }
 
-    /// "Kickoff at 7:30 PM · Audi Field" — kickoff time in the user's LOCAL zone.
-    private func dayBeforeBody(for event: Event) -> String {
-        var parts: [String] = []
+    /// Full club name for an abbreviation via the directory, falling back to the
+    /// abbreviation itself (national teams aren't in the club directory).
+    private func clubName(for abbreviation: String) -> String {
+        clubs.clubs.first { $0.abbreviation == abbreviation }?.displayName ?? abbreviation
+    }
+
+    /// "vs Orlando Pride · Sat 3:00 PM · Audi Field" — opponent + kickoff in the
+    /// user's LOCAL zone (broadcast isn't in the model, so we don't invent it).
+    private func dayBeforeBody(opponentAbbr: String, event: Event) -> String {
+        var parts: [String] = ["vs \(clubName(for: opponentAbbr))"]
         if let kickoff = event.kickoff {
             let formatter = DateFormatter()
             formatter.locale = .current
             formatter.timeZone = .current
-            formatter.timeStyle = .short
-            formatter.dateStyle = .none
-            parts.append("Kickoff at \(formatter.string(from: kickoff))")
+            formatter.setLocalizedDateFormatFromTemplate("EEE h:mm a")
+            parts.append(formatter.string(from: kickoff))
         }
         if let venue = event.venueName { parts.append(venue) }
         return parts.joined(separator: " · ")

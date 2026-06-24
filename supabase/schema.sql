@@ -18,7 +18,7 @@
 
 -- User profiles (extends Supabase auth.users)
 create table public.profiles (
-  id uuid references auth.users(id) primary key,
+  id uuid references auth.users(id) on delete cascade primary key,
   display_name text,
   created_at timestamptz default now()
 );
@@ -26,7 +26,7 @@ create table public.profiles (
 -- Followed teams (one row per user per club)
 create table public.follows (
   id uuid default gen_random_uuid() primary key,
-  user_id uuid references auth.users(id) not null,
+  user_id uuid references auth.users(id) on delete cascade not null,
   team_id text not null,            -- ESPN team id (string)
   created_at timestamptz default now(),
   unique(user_id, team_id)          -- backs the app's upsert onConflict
@@ -79,7 +79,7 @@ grant select, insert, update          on public.profiles to authenticated;
 -- APNs device tokens (one row per user per device)
 create table public.device_tokens (
   id uuid default gen_random_uuid() primary key,
-  user_id uuid references auth.users(id) not null,
+  user_id uuid references auth.users(id) on delete cascade not null,
   token text not null,                 -- APNs device token (hex string)
   platform text not null default 'ios',
   updated_at timestamptz default now(),
@@ -88,7 +88,7 @@ create table public.device_tokens (
 
 -- Notification preferences (1:1 with the user; the 9 Profile toggles)
 create table public.notification_preferences (
-  user_id uuid references auth.users(id) primary key,
+  user_id uuid references auth.users(id) on delete cascade primary key,
   day_before       boolean not null default true,
   lineup_posted    boolean not null default true,
   kickoff          boolean not null default true,
@@ -233,7 +233,7 @@ create table public.bracket_matchups (
 
 -- One vote per user per matchup (the chosen entrant). Owner-scoped.
 create table public.bracket_votes (
-  user_id uuid references auth.users(id) not null default auth.uid(),
+  user_id uuid references auth.users(id) on delete cascade not null default auth.uid(),
   matchup_id text references public.bracket_matchups(id) on delete cascade,
   edition_id text not null,
   round int not null,

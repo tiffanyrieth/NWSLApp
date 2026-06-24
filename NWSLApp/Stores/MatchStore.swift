@@ -91,6 +91,7 @@ final class MatchStore {
             partialErrors = errors
             state = .loaded(dedupedByEventID(matches))
         } catch {
+            Diagnostics.shared.record(.apiFailure, "schedule load: \(error.localizedDescription)")
             partialErrors = [:]
             state = .error(message(for: error))
         }
@@ -124,7 +125,11 @@ final class MatchStore {
             for await item in group {
                 switch item.result {
                 case .success(let m): all += m
-                case .failure:        errors[item.label] = "Couldn't load \(item.label) — pull to retry."
+                case .failure(let error):
+                    errors[item.label] = "Couldn't load \(item.label) — pull to retry."
+                    // One feed dropping while others load is degraded-but-looks-fine —
+                    // exactly the silent partial-failure class. Flag each dropped feed.
+                    Diagnostics.shared.record(.apiFailure, "schedule feed \(item.label): \(error.localizedDescription)")
                 }
             }
             return (all, errors)
@@ -143,6 +148,7 @@ final class MatchStore {
             }.map { ScheduledMatch(event: $0, competition: .concacafChampionsCup) }
             return (kept, nil)
         } catch {
+            Diagnostics.shared.record(.apiFailure, "schedule \(ChampionsCupFeed.label): \(error.localizedDescription)")
             return ([], "Couldn't load \(ChampionsCupFeed.label) — pull to retry.")
         }
     }

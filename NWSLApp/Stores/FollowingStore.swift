@@ -117,16 +117,14 @@ final class FollowingStore {
         onFollowsChanged?(followedIDs)
     }
 
-    /// Union `ids` into the followed set and persist once. Union-only — never
-    /// removes a follow, matching the sign-in merge policy. Used by
-    /// FollowSyncCoordinator for both the sign-in merge and new-device restore.
-    /// Deliberately does NOT fire `onFollowsChanged`: the coordinator is the
-    /// caller and already knows, so this avoids a sync-down echoing back as a
-    /// sync-up.
-    func merge(ids: Set<String>) {
-        let merged = followedIDs.union(ids)
-        guard merged != followedIDs else { return }
-        followedIDs = merged
+    /// Replace the followed set wholesale (device-authoritative mirror reconcile on
+    /// sign-in / new-device restore). Persists if changed; deliberately does NOT fire
+    /// `onFollowsChanged` — FollowSyncCoordinator is the caller and reconciles the
+    /// server itself. Replaces the old union `merge(ids:)`, which could only ADD, so
+    /// an unfollow could never propagate and stale server rows accumulated forever.
+    func replace(ids: Set<String>) {
+        guard ids != followedIDs else { return }
+        followedIDs = ids
         defaults.set(Array(followedIDs), forKey: Self.storageKey)
     }
 
@@ -168,26 +166,20 @@ final class FollowingStore {
         return keys
     }
 
-    /// Union `keys` into the competition follows and persist once. Union-only (never
-    /// removes), matching the club `merge(ids:)` sign-in policy. Fires the Schedule
-    /// signal if anything changed (a new-device restore needs the feeds refetched) but
-    /// NOT the sync closure — the coordinator is the caller, so this avoids a sync-down
-    /// echoing back up.
-    func mergeCompetitionFollowKeys(_ keys: Set<String>) {
-        var changed = false
-        let codes = keys.filter { $0.hasPrefix("nt:") }.map { String($0.dropFirst(3)) }
-        let mergedTeams = followedNationalTeams.union(codes)
-        if mergedTeams != followedNationalTeams {
-            followedNationalTeams = mergedTeams
-            defaults.set(Array(followedNationalTeams), forKey: Self.nationalTeamsKey)
-            changed = true
-        }
-        if keys.contains("concacaf") && !isConcacafFollowed {
-            isConcacafFollowed = true
-            defaults.set(true, forKey: Self.concacafKey)
-            changed = true
-        }
-        if changed { onCompetitionFollowsChanged?() }
+    /// Replace the competition follows wholesale from a key set (device-authoritative
+    /// mirror reconcile). The twin of `replace(ids:)` for `competition_follows`:
+    /// decodes the flat "nt:<CODE>" / "concacaf" keys back into the two stored fields,
+    /// persists, and signals the Schedule if anything changed. Does NOT fire the sync
+    /// closure — the coordinator is the caller and reconciles the server itself.
+    func replaceCompetitionFollowKeys(_ keys: Set<String>) {
+        let codes = Set(keys.filter { $0.hasPrefix("nt:") }.map { String($0.dropFirst(3)) })
+        let concacaf = keys.contains("concacaf")
+        guard codes != followedNationalTeams || concacaf != isConcacafFollowed else { return }
+        followedNationalTeams = codes
+        isConcacafFollowed = concacaf
+        defaults.set(Array(followedNationalTeams), forKey: Self.nationalTeamsKey)
+        defaults.set(isConcacafFollowed, forKey: Self.concacafKey)
+        onCompetitionFollowsChanged?()
     }
 
     /// Mark onboarding finished (the "Follow N teams" button). One-way: once

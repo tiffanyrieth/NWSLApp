@@ -106,21 +106,54 @@ final class TeamAlertSyncCoordinator {
 
     // MARK: - Sign-in reconcile
 
-    /// Pull the server's enabled set, union it locally, then push every locally
-    /// enabled team up so the seeded/edited state lands server-side. Best-effort.
+    /// Device-authoritative mirror reconcile. The on-device ON set is the truth; the
+    /// server is reconciled to match it EXACTLY — kept teams pushed `true`, every other
+    /// row deleted (stale `true` ghosts from an uninstall + leftover `false` clutter).
+    /// Two safety rules:
+    ///   • Empty-local guardrail: if the device has no local ON set, restore from the
+    ///     server instead of wiping it (new-device / reinstall-without-onboarding).
+    ///   • Alerts require following: the authoritative set is intersected with the
+    ///     followed set, so an alert for an un-followed team (a ghost) is dropped here
+    ///     and deleted server-side. Onboarding populates follows before any sign-in is
+    ///     possible, so `followed` is reliably set on every real reconcile.
+    /// A fully-empty local state (no alerts AND no follows — a not-yet-populated restore)
+    /// bails without touching the server, so sign-in can never wipe an account.
+    /// Pure set-logic for the reconcile (extracted so it's unit-testable without the
+    /// network). `restoreSource` is the server's enabled set, used ONLY when the device
+    /// has no local ON set (empty-local guardrail → restore). Otherwise the device wins.
+    /// Always intersected with `followed` so alerts ⊆ follows (drops ghost alerts).
+    nonisolated static func authoritativeOnSet(
+        localOn: Set<String>, followed: Set<String>, restoreSource: Set<String>
+    ) -> Set<String> {
+        let base = localOn.isEmpty ? restoreSource : localOn
+        return base.intersection(followed)
+    }
+
     private func reconcileIfSignedIn() {
         guard let userID = auth.userID else { return }
         Task {
+            let followed = following.followedIDs
+            let localOn = alerts.teamsWithAlerts()
+            guard !(localOn.isEmpty && followed.isEmpty) else { return }
             do {
-                let remote = try await service.fetchAll(userID: userID)
-                alerts.mergeFromRemote(remote)
+                // Device wins when there's a local ON set; otherwise restore from server.
+                let restoreSource = localOn.isEmpty ? try await service.fetchAll(userID: userID) : []
+                let authoritative = Self.authoritativeOnSet(
+                    localOn: localOn, followed: followed, restoreSource: restoreSource)
+                alerts.replaceEnabled(authoritative)
+
+                // Converge the server: push the kept teams, delete everything else.
+                let allRemote = try await service.fetchAllTeamIDs(userID: userID)
+                for teamID in authoritative {
+                    do { try await service.push(teamID: teamID, enabled: true, userID: userID) }
+                    catch { Diagnostics.shared.record(.apiFailure, "team-alert reconcile push \(teamID): \(error.localizedDescription)") }
+                }
+                for teamID in allRemote.subtracting(authoritative) {
+                    do { try await service.delete(teamID: teamID, userID: userID) }
+                    catch { Diagnostics.shared.record(.apiFailure, "team-alert reconcile prune \(teamID): \(error.localizedDescription)") }
+                }
             } catch {
-                Diagnostics.shared.record(.apiFailure, "team-alert fetchAll: \(error.localizedDescription)")
-            }
-            // Push every locally enabled team up (idempotent upserts on the composite key).
-            for teamID in alerts.teamsWithAlerts() {
-                do { try await service.push(teamID: teamID, enabled: true, userID: userID) }
-                catch { Diagnostics.shared.record(.apiFailure, "team-alert reconcile push \(teamID): \(error.localizedDescription)") }
+                Diagnostics.shared.record(.apiFailure, "team-alert reconcile: \(error.localizedDescription)")
             }
         }
     }

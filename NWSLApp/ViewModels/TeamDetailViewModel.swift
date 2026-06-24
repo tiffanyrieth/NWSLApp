@@ -56,6 +56,7 @@ final class TeamDetailViewModel {
             let stats = await service.seasonStats(for: squad.athletes, year: seasonYear)
             seasonStats = Dictionary(uniqueKeysWithValues: stats.map { ($0.athleteID, $0) })
         } catch {
+            Diagnostics.shared.record(.apiFailure, "team roster \(clubID): \(error.localizedDescription)")
             state = .error(message(for: error))
         }
     }

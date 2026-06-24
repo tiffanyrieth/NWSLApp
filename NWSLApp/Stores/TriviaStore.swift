@@ -124,6 +124,20 @@ final class TriviaStore {
         defaults.set(lastCompletedDay, forKey: Key.lastCompletedDay)
     }
 
+    /// Wipe all local Trivia progress on account deletion — resets the in-memory
+    /// @Observable state AND persistence (so the UI reflects the wipe immediately).
+    /// The server leaderboard rows are removed by the account-delete cascade; this
+    /// clears the on-device cache so "delete account" truly forgets you.
+    func resetForAccountDeletion() {
+        streak = 0
+        bestStreak = 0
+        totalCorrect = 0
+        totalAnswered = 0
+        lastScore = 0
+        lastCompletedDay = nil
+        persist()
+    }
+
     /// Start of "the day before now," for the streak's yesterday check.
     private func yesterday() -> Date {
         calendar.date(byAdding: .day, value: -1, to: now()) ?? now()

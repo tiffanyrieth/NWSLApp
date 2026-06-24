@@ -76,13 +76,14 @@ final class TeamAlertStore {
         setAlertsEnabled(false, for: teamID)
     }
 
-    /// Adopt the server's enabled set on sign-in (union — a pure set has no conflict).
-    /// Persists if changed; deliberately does NOT fire `onAlertChanged` (the sync
-    /// coordinator is the caller and pushes the merged set itself).
-    func mergeFromRemote(_ remote: Set<String>) {
-        let merged = enabledTeamIDs.union(remote)
-        guard merged != enabledTeamIDs else { return }
-        enabledTeamIDs = merged
+    /// Replace the local ON set wholesale (device-authoritative mirror reconcile on
+    /// sign-in). Persists if changed; deliberately does NOT fire `onAlertChanged` —
+    /// TeamAlertSyncCoordinator is the caller and reconciles the server itself
+    /// (pushing the kept teams, deleting the rest). Replaces the old union-merge,
+    /// which could only ever ADD, so stale server rows accumulated forever.
+    func replaceEnabled(_ newSet: Set<String>) {
+        guard newSet != enabledTeamIDs else { return }
+        enabledTeamIDs = newSet
         persist()
     }
 

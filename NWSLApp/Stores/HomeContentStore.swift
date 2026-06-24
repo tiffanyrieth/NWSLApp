@@ -148,6 +148,7 @@ final class HomeContentStore {
             contentError = nil
             anySuccess = true
         } catch {
+            Diagnostics.shared.record(.apiFailure, "home content (\(scope.count) team(s)): \(error.localizedDescription)")
             teamContentItems = []
             contentError = Self.loadFailureMessage
         }
@@ -157,6 +158,7 @@ final class HomeContentStore {
             spotlightError = nil
             anySuccess = true
         } catch {
+            Diagnostics.shared.record(.apiFailure, "home spotlight (\(scope.count) team(s)): \(error.localizedDescription)")
             allSpotlights = []
             spotlightError = Self.loadFailureMessage
         }

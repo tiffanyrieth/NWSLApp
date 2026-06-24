@@ -59,14 +59,7 @@ struct ProfileView: View {
             // so start GC auth here (not at launch) — by the time the user taps it,
             // auth has typically resolved. Idempotent with the game screens.
             .task { GameCenterManager.shared.authenticate() }
-            .alert("Display name", isPresented: $showNameEditor) {
-                TextField("Name", text: $draftName)
-                    .textInputAutocapitalization(.words)
-                Button("Save") { Task { await auth.updateDisplayName(draftName) } }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("How your name appears on the Fan Zone leaderboards.")
-            }
+            .sheet(isPresented: $showNameEditor) { displayNameEditor }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // "Profile" as a PRINCIPAL item (not `.navigationTitle`) so it doesn't
@@ -114,6 +107,16 @@ struct ProfileView: View {
         VStack(alignment: .leading, spacing: 8) {
             sectionLabel("Settings")
             VStack(spacing: 0) {
+                // Discoverable display-name editor (replaces the easy-to-miss pencil) — only
+                // when signed in, since the name is a leaderboard identity.
+                if auth.isSignedIn {
+                    Button {
+                        draftName = auth.displayName ?? ""
+                        showNameEditor = true
+                    } label: { displayNameRow }
+                        .buttonStyle(.plain)
+                    rowDivider
+                }
                 NavigationLink { NotificationsView() } label: { notificationsRow }
                     .buttonStyle(.plain)
             }
@@ -123,6 +126,68 @@ struct ProfileView: View {
                 .dsFont(11)
                 .foregroundStyle(Color.dsFgQuaternary)
                 .padding(.horizontal, 4)
+        }
+    }
+
+    // The leaderboard display-name row: pencil tile + label + "Shown on leaderboards"
+    // subtitle + current value + chevron. Opens the shared DisplayNameEntry sheet.
+    private var displayNameRow: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.dsAccent)
+                Image(systemName: "pencil")
+                    .dsFont(15)
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 29, height: 29)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Display name")
+                    .dsFont(15)
+                    .foregroundStyle(Color.dsFgPrimary)
+                Text("Shown on leaderboards")
+                    .dsFont(11)
+                    .foregroundStyle(Color.dsFgTertiary)
+            }
+            Spacer(minLength: 8)
+            Text(auth.displayName ?? "Set name")
+                .dsFont(15)
+                .foregroundStyle(Color.dsFgSecondary)
+                .lineLimit(1)
+            Image(systemName: "chevron.right")
+                .dsFont(13, weight: .semibold)
+                .foregroundStyle(Color.dsFgTertiary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
+        .contentShape(Rectangle())
+    }
+
+    // The display-name editor sheet — shared DisplayNameEntry (same field/validation as the
+    // Fan Zone gate's first-time setup), with edit chrome (title + Cancel).
+    private var displayNameEditor: some View {
+        NavigationStack {
+            VStack(spacing: 18) {
+                Text("This is how you appear on the Fan Zone leaderboards.")
+                    .dsFont(13)
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .multilineTextAlignment(.center)
+                DisplayNameEntry(draft: $draftName, cta: "Save", accent: Color.dsAccent) {
+                    Task { await auth.updateDisplayName(draftName); showNameEditor = false }
+                }
+                Spacer()
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.dsBgGrouped)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Display name").font(.headline).foregroundStyle(Color.dsFgPrimary)
+                }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showNameEditor = false }
+                }
+            }
+            .presentationDetents([.medium])
         }
     }
 

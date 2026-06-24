@@ -427,12 +427,12 @@ struct HomeView: View {
 
     @ViewBuilder
     private func destination(for game: FanGame) -> some View {
-        // `.fanZoneIntro()` wraps each game (outside its own body, so it doesn't collide with the
-        // game's existing sheets) to show the one-time, skippable sign-in invite on first entry.
+        // Each game gates sign-in + display name at its first ranked action (FanZoneGate) —
+        // no up-front invite needed (the old one-time, skippable .fanZoneIntro() was removed).
         switch game {
-        case .predict: PredictXIView().fanZoneIntro()
-        case .bracket: BracketBattleView().fanZoneIntro()
-        case .trivia:  DailyTriviaView().fanZoneIntro()
+        case .predict: PredictXIView()
+        case .bracket: BracketBattleView()
+        case .trivia:  DailyTriviaView()
         }
     }
 

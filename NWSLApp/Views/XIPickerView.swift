@@ -79,6 +79,7 @@ struct XIPickerView: View {
     private var content: some View {
         ScrollView {
             VStack(spacing: 20) {
+                PlayingAsBadge(accent: accent)   // Screen C — gated-in identity
                 if picker.readOnly { submittedBanner }
                 formationSection
                 pitchGrid

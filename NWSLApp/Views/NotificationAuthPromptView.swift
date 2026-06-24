@@ -12,7 +12,8 @@
 //  on a live alert, with an honest "why" before the Apple sheet (the "Swift Alert"
 //  pattern, not the "ESPN wall").
 //
-//  Reuses SignInPromptView's half-sheet shape (Apple button + "Not now"). v2 gate
+//  A half-sheet sign-in shape (Apple button + "Not now") — this is the Tier-2 push
+//  prompt, SEPARATE from the Fan Zone gate (FanZoneGate, which is no-skip). v2 gate
 //  contract: the toggle has NOT flipped yet — it stays off until sign-in succeeds.
 //  On success we call `onSignedIn` (the caller flips the toggle on + requests iOS
 //  permission), then dismiss. "Not now" leaves the toggle off — honest: a live alert

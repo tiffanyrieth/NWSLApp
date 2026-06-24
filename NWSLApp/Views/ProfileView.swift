@@ -36,7 +36,6 @@ struct ProfileView: View {
     @State private var deleteError: String?
     @State private var showDeletedConfirmation = false
     @State private var showNameEditor = false
-    @State private var draftName = ""
 
     var body: some View {
         NavigationStack {
@@ -59,14 +58,7 @@ struct ProfileView: View {
             // so start GC auth here (not at launch) — by the time the user taps it,
             // auth has typically resolved. Idempotent with the game screens.
             .task { GameCenterManager.shared.authenticate() }
-            .alert("Display name", isPresented: $showNameEditor) {
-                TextField("Name", text: $draftName)
-                    .textInputAutocapitalization(.words)
-                Button("Save") { Task { await auth.updateDisplayName(draftName) } }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("How your name appears on the Fan Zone leaderboards.")
-            }
+            .sheet(isPresented: $showNameEditor) { DisplayNameEditorSheet(currentName: auth.displayName ?? "") }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // "Profile" as a PRINCIPAL item (not `.navigationTitle`) so it doesn't
@@ -114,6 +106,15 @@ struct ProfileView: View {
         VStack(alignment: .leading, spacing: 8) {
             sectionLabel("Settings")
             VStack(spacing: 0) {
+                // Discoverable display-name editor (replaces the easy-to-miss pencil) — only
+                // when signed in, since the name is a leaderboard identity.
+                if auth.isSignedIn {
+                    Button {
+                        showNameEditor = true
+                    } label: { displayNameRow }
+                        .buttonStyle(.plain)
+                    rowDivider
+                }
                 NavigationLink { NotificationsView() } label: { notificationsRow }
                     .buttonStyle(.plain)
             }
@@ -125,6 +126,40 @@ struct ProfileView: View {
                 .padding(.horizontal, 4)
         }
     }
+
+    // The leaderboard display-name row: pencil tile + label + "Shown on leaderboards"
+    // subtitle + current value + chevron. Opens the shared DisplayNameEntry sheet.
+    private var displayNameRow: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.dsBgTertiary)
+                Image(systemName: "pencil")
+                    .dsFont(15)
+                    .foregroundStyle(Color.dsFgSecondary)
+            }
+            .frame(width: 29, height: 29)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Display name")
+                    .dsFont(15)
+                    .foregroundStyle(Color.dsFgPrimary)
+                Text("Shown on leaderboards")
+                    .dsFont(11)
+                    .foregroundStyle(Color.dsFgTertiary)
+            }
+            Spacer(minLength: 8)
+            Text(auth.displayName ?? "Set name")
+                .dsFont(15)
+                .foregroundStyle(Color.dsFgSecondary)
+                .lineLimit(1)
+            Image(systemName: "chevron.right")
+                .dsFont(13, weight: .semibold)
+                .foregroundStyle(Color.dsFgTertiary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
+        .contentShape(Rectangle())
+    }
+
 
     // Support is its OWN standalone card below the Settings card (not a row inside
     // it — that would mismatch the Notifications row height). ~2× a settings row
@@ -214,7 +249,6 @@ struct ProfileView: View {
                         // Edit how the name appears on the leaderboards (it's otherwise
                         // locked to whatever Apple returned at first sign-in / "Fan").
                         Button {
-                            draftName = auth.displayName ?? ""
                             showNameEditor = true
                         } label: {
                             Image(systemName: "pencil")

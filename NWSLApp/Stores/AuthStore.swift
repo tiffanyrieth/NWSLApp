@@ -54,6 +54,12 @@ final class AuthStore {
     private(set) var displayName: String?
     private static let nameKey = "auth.displayName"
 
+    /// True when a non-empty display name is set — the Fan Zone gate requires this (a
+    /// chosen name to appear on the leaderboards) before a ranked action can proceed.
+    var hasDisplayName: Bool {
+        !(displayName ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     init() {
         displayName = UserDefaults.standard.string(forKey: Self.nameKey)
     }

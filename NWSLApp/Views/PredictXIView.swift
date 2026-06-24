@@ -29,6 +29,10 @@ struct PredictXIView: View {
 
     /// The fixture whose picker is open (nil = no sheet).
     @State private var activeFixture: PredictionFixture?
+    // Fan Zone gate: tapping an open fixture requests sign-in + display name first; the
+    // tapped fixture is stashed and opened only once authorized.
+    @State private var gateRequested = false
+    @State private var pendingFixture: PredictionFixture?
 
     private let accent = Color.dsGamePredict
 
@@ -62,6 +66,11 @@ struct PredictXIView: View {
                 loadRoster: { await viewModel.roster(forTeam: fixture.teamAbbreviation) },
                 club: { viewModel.club(forAbbreviation: $0) }
             )
+        }
+        // Mandatory sign-in + display name to play — gated at the open-fixture tap, so the
+        // picker's submit is always signed in. "Go back" cancels (returns to the slate).
+        .fanZoneGate(isRequested: $gateRequested, gameName: "Predict the XI") {
+            activeFixture = pendingFixture
         }
     }
 
@@ -178,7 +187,8 @@ struct PredictXIView: View {
     private func openItemCard(_ item: PredictXIViewModel.PredictionItem) -> some View {
         let fixture = item.fixture
         return Button {
-            activeFixture = fixture
+            pendingFixture = fixture
+            gateRequested = true
         } label: {
             VStack(alignment: .leading, spacing: 14) {
                 matchHeader(fixture, finalScore: nil)

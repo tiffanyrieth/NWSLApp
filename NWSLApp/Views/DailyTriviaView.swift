@@ -32,7 +32,7 @@ struct DailyTriviaView: View {
 
     /// Presents the sign-in invite when a signed-out user finishes a game (their result
     /// needs an account to reach the Supabase leaderboard). Skippable; local stats persist.
-    @State private var showSignIn = false
+    @State private var gateRequested = false
 
     var body: some View {
         Group {
@@ -47,13 +47,12 @@ struct DailyTriviaView: View {
             }
         }
         .nativeBackButton(title: "Daily Trivia")
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { PlayingAsBadge(accent: Color.dsGameTrivia) } }
         .background(Color(.systemGroupedBackground))
-        .sheet(isPresented: $showSignIn) {
-            // On sign-in, push the just-earned streak to the leaderboard; "Not now" leaves
-            // the local streak intact and honestly off the board (no fake submission).
-            SignInPromptView(onSignedIn: {
-                Task { await viewModel.refreshLeaderboard(store: store, auth: auth) }
-            })
+        // Mandatory sign-in + display name to play — gated at the first "Submit Answer", so
+        // a finished game's streak always reaches the leaderboard. "Go back" cancels.
+        .fanZoneGate(isRequested: $gateRequested, gameName: "Daily Trivia") {
+            viewModel.submit()
         }
         .task {
             // Start Game Center auth here (a game screen) rather than at launch, so
@@ -192,7 +191,9 @@ struct DailyTriviaView: View {
             Divider()
             Group {
                 if !viewModel.isRevealed {
-                    Button("Submit Answer") { viewModel.submit() }
+                    // Gate the FIRST submit on sign-in + display name; the gate runs
+                    // viewModel.submit() once authorized (instantly after the first time).
+                    Button("Submit Answer") { gateRequested = true }
                         .disabled(viewModel.selectedIndex == nil)
                 } else if viewModel.isLastQuestion {
                     Button("See Results") {
@@ -208,16 +209,9 @@ struct DailyTriviaView: View {
                         }
                         if store.bestStreak >= 7 { GameCenterManager.shared.report(GameCenterID.Achievement.triviaStreak7) }
                         if store.bestStreak >= 30 { GameCenterManager.shared.report(GameCenterID.Achievement.triviaStreak30) }
-                        // The Supabase leaderboard needs an account: signed in → push the streak
-                        // now; signed out → invite sign-in (skippable) rather than silently NOT
-                        // submitting. The local streak/stats are saved either way.
-                        if auth.isSignedIn {
-                            Task { await viewModel.refreshLeaderboard(store: store, auth: auth) }
-                        } else if !FanZoneIntro.shared.declinedThisSession {
-                            // Skip the second modal if they just declined the up-front invite this
-                            // session; the local streak is saved either way (honest, not silent).
-                            showSignIn = true
-                        }
+                        // Playing was gated on sign-in (first Submit Answer), so we're signed
+                        // in here — push the just-earned streak to the leaderboard.
+                        Task { await viewModel.refreshLeaderboard(store: store, auth: auth) }
                     }
                 } else {
                     Button("Next Question") { viewModel.advance() }

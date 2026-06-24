@@ -28,6 +28,7 @@ struct BracketBattleView: View {
     @State private var gateRequested = false
     /// Result matchups the user has expanded to reveal the vote stats (collapsed by default).
     @State private var expandedMatchups: Set<String> = []
+    @State private var expandedRounds: Set<BracketRound> = []
     @State private var showFullBracket = false
 
     private enum Stage { case intro, voting }
@@ -298,9 +299,9 @@ struct BracketBattleView: View {
                     HStack(alignment: .firstTextBaseline) {
                         sectionLabel("\(round.title) · \(viewModel.edition?.themeLabel.capitalized ?? "")").foregroundStyle(accent)
                         Spacer()
-                        if let closes = viewModel.closesInText {
-                            Text(closes).dsFont(11).foregroundStyle(Color.dsFgSecondary)
-                        }
+                        // A null close time = manual mode (round stays open until advanced) → "Voting open".
+                        Text(viewModel.closesInText ?? "Voting open")
+                            .dsFont(11).foregroundStyle(Color.dsFgSecondary)
                     }
                     VStack(spacing: 6) {
                         HStack {
@@ -745,8 +746,18 @@ struct BracketBattleView: View {
                     ForEach(0..<min(cap, round.matchupCount), id: \.self) { _ in tbdSlot }
                     if round.matchupCount > cap { overflowNote(round.matchupCount - cap) }
                 } else {
-                    ForEach(ms.prefix(cap)) { m in overviewMatchup(m) }
-                    if ms.count > cap { overflowNote(ms.count - cap) }
+                    let expanded = expandedRounds.contains(round)
+                    ForEach(expanded ? Array(ms) : Array(ms.prefix(cap))) { m in overviewMatchup(m) }
+                    if ms.count > cap {
+                        Button {
+                            if expanded { expandedRounds.remove(round) } else { expandedRounds.insert(round) }
+                        } label: {
+                            Text(expanded ? "Show less" : "+\(ms.count - cap) more")
+                                .dsFont(11, weight: .semibold).foregroundStyle(accent)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
             .padding(.leading, 16)

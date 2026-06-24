@@ -36,7 +36,6 @@ struct ProfileView: View {
     @State private var deleteError: String?
     @State private var showDeletedConfirmation = false
     @State private var showNameEditor = false
-    @State private var draftName = ""
 
     var body: some View {
         NavigationStack {
@@ -59,7 +58,7 @@ struct ProfileView: View {
             // so start GC auth here (not at launch) — by the time the user taps it,
             // auth has typically resolved. Idempotent with the game screens.
             .task { GameCenterManager.shared.authenticate() }
-            .sheet(isPresented: $showNameEditor) { displayNameEditor }
+            .sheet(isPresented: $showNameEditor) { DisplayNameEditorSheet(currentName: auth.displayName ?? "") }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // "Profile" as a PRINCIPAL item (not `.navigationTitle`) so it doesn't
@@ -111,7 +110,6 @@ struct ProfileView: View {
                 // when signed in, since the name is a leaderboard identity.
                 if auth.isSignedIn {
                     Button {
-                        draftName = auth.displayName ?? ""
                         showNameEditor = true
                     } label: { displayNameRow }
                         .buttonStyle(.plain)
@@ -162,34 +160,6 @@ struct ProfileView: View {
         .contentShape(Rectangle())
     }
 
-    // The display-name editor sheet — shared DisplayNameEntry (same field/validation as the
-    // Fan Zone gate's first-time setup), with edit chrome (title + Cancel).
-    private var displayNameEditor: some View {
-        NavigationStack {
-            VStack(spacing: 18) {
-                Text("This is how you appear on the Fan Zone leaderboards.")
-                    .dsFont(13)
-                    .foregroundStyle(Color.dsFgSecondary)
-                    .multilineTextAlignment(.center)
-                DisplayNameEntry(draft: $draftName, cta: "Save", accent: Color.dsAccent) {
-                    Task { await auth.updateDisplayName(draftName); showNameEditor = false }
-                }
-                Spacer()
-            }
-            .padding(24)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.dsBgGrouped)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("Display name").font(.headline).foregroundStyle(Color.dsFgPrimary)
-                }
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showNameEditor = false }
-                }
-            }
-            .presentationDetents([.medium])
-        }
-    }
 
     // Support is its OWN standalone card below the Settings card (not a row inside
     // it — that would mismatch the Notifications row height). ~2× a settings row
@@ -279,7 +249,6 @@ struct ProfileView: View {
                         // Edit how the name appears on the leaderboards (it's otherwise
                         // locked to whatever Apple returned at first sign-in / "Fan").
                         Button {
-                            draftName = auth.displayName ?? ""
                             showNameEditor = true
                         } label: {
                             Image(systemName: "pencil")

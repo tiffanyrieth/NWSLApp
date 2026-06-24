@@ -75,6 +75,46 @@ struct DisplayNameEntry: View {
     }
 }
 
+// MARK: - Display-name editor sheet (Profile + in-game "Playing as" tap)
+
+/// The "edit your leaderboard name" sheet — the ONE editor used by Profile and by tapping
+/// "Playing as {name}" in a game's nav. Wraps DisplayNameEntry with edit chrome; saves via
+/// `AuthStore.updateDisplayName`. Seeded with the current name (no empty flash).
+struct DisplayNameEditorSheet: View {
+    @Environment(AuthStore.self) private var auth
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: String
+
+    init(currentName: String) { _draft = State(initialValue: currentName) }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 18) {
+                Text("This is how you appear on the Fan Zone leaderboards.")
+                    .dsFont(13)
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .multilineTextAlignment(.center)
+                DisplayNameEntry(draft: $draft, cta: "Save", accent: Color.dsAccent) {
+                    Task { await auth.updateDisplayName(draft); dismiss() }
+                }
+                Spacer()
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.dsBgGrouped)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Display name").font(.headline).foregroundStyle(Color.dsFgPrimary)
+                }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+            .presentationDetents([.medium])
+        }
+    }
+}
+
 // MARK: - "Playing as {name}" badge (Screen C)
 
 /// The "Playing as {name}" identity shown TOP-RIGHT in a game's nav bar once the player is
@@ -83,12 +123,18 @@ struct DisplayNameEntry: View {
 struct PlayingAsBadge: View {
     @Environment(AuthStore.self) private var auth
     let accent: Color
+    @State private var showEditor = false
 
     var body: some View {
         if auth.isSignedIn, auth.hasDisplayName, let name = auth.displayName {
-            (Text("Playing as ").foregroundStyle(Color.dsFgSecondary)
-             + Text(name).foregroundStyle(accent).fontWeight(.semibold))
-                .dsFont(12)
+            Button { showEditor = true } label: {
+                (Text("Playing as ").foregroundStyle(Color.dsFgSecondary)
+                 + Text(name).foregroundStyle(accent).fontWeight(.semibold))
+                    .dsFont(12)
+            }
+            .buttonStyle(.plain)
+            // Tap to change your leaderboard name right here — the same editor as Profile.
+            .sheet(isPresented: $showEditor) { DisplayNameEditorSheet(currentName: name) }
         }
     }
 }

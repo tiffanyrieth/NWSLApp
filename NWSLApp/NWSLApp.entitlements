@@ -26,5 +26,14 @@
 	-->
 	<key>aps-environment</key>
 	<string>development</string>
+	<!--
+	  Time-Sensitive notifications (0.4.x rich match alerts). Lets live-match server
+	  pushes (kickoff/goal/HT/FT) set `interruption-level: time-sensitive` so they
+	  break through Focus/scheduled summary while a match is live — a stale match
+	  alert is useless. Without this entitlement iOS silently downgrades the level.
+	  Requires the capability enabled on the App ID in the Developer portal.
+	-->
+	<key>com.apple.developer.usernotifications.time-sensitive</key>
+	<true/>
 </dict>
 </plist>

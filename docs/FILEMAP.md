@@ -5,7 +5,7 @@ _Update after every feature. 🔧 = intentional "coming soon" placeholder. Onlin
 ```
 NWSLApp/
 ├── NWSLAppApp.swift                   — app entry; launches RootTabView; forces dark; DEBUG `-resetOnboarding`; AppDelegate (APNs token + foreground/tap → PushBridge)
-├── NWSLApp.entitlements               — Sign in with Apple + aps-environment (push) + game-center (Game Center)
+├── NWSLApp.entitlements               — Sign in with Apple + aps-environment (push) + usernotifications.time-sensitive (live-match rich alerts) + game-center (Game Center)
 ├── Config/
 │   ├── AppConfig.swift                — base URLs; scoreboard/summary → proxy; DEBUG `-useESPNDirect`; content route URLs (teamVideos/feed/spotlight/trivia)
 │   ├── Secrets.swift                  — 🔒 GITIGNORED Supabase URL + anon key
@@ -148,6 +148,11 @@ NWSLApp/
 │   ├── DesignTeamColors.swift         — curated 16-team NWSL palette by abbreviation (authoritative; `hex(for:)` = NWSL-membership test). `displayHex(for:)` = COLOR-only resolver adding NT + foreign CC clubs (separate, never affects membership)
 │   └── TeamBrandColors.swift          — per-team-id brand-color overrides for clubs ESPN gets wrong
 └── Assets.xcassets/                   — app icons, accent; `Crests/` (16 NWSL: 11 vector SVG + 5 raster PNG), `Flags/` (8 FEATURED NT flags, vector SVG; browse-all = download+cache) — bundled for zero-network first launch
+
+NotificationServiceExtension/          — rich-notification target (the .appex embedded in the app). Wakes on `mutable-content:1`, downloads the payload's `imageUrl` (server-rendered match card), attaches it; always delivers text-only on failure/timeout (os_log spine — separate process can't reach Diagnostics)
+├── NotificationService.swift          — UNNotificationServiceExtension: didReceive (download → UNNotificationAttachment) + serviceExtensionTimeWillExpire fallback
+├── Info.plist                         — NSExtension (usernotifications.service) + CFBundle keys via build vars (GENERATE_INFOPLIST_FILE=NO)
+└── NotificationServiceExtension.entitlements — aps-environment (mirrors app; auto-prod on archive)
 
 supabase/schema.sql                    — Postgres: profiles, follows, competition_follows, device_tokens, notification_preferences, team_alert_preferences, bracket_* (editions/entrants/matchups/votes/scores + v2: config/stats_editions/creative_editions/user_edition_stats), prediction_scores, trivia_scores (+ RLS + GRANTs; all per-user FKs `on delete cascade` so account deletion cascades). v2 deltas in `migration_bracket_*.sql`; `migration_account_deletion_cascade.sql` adds cascade to the 5 FKs that lacked it; `seed_bracket_*.sql` (run in the SQL editor)
 docs/silent-failure-audit.md           — 2026-06 NO-SILENT-FAILURES sweep: method + the 15 read-path catches that now emit Diagnostics + the reviewed-OK `try?` sites

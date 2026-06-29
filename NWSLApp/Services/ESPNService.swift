@@ -89,16 +89,19 @@ struct ESPNService {
         return try await fetch(StandingsResponse.self, from: url).rows
     }
 
-    // Fetches one club's squad from `teams/{id}/roster` and returns a ClubSquad:
-    // the flattened athletes plus the team profile (color, standing summary,
-    // record) that rides along in the same payload (see Roster.swift). `clubID`
-    // is ESPN's team id — the stable `Club.id`, not the abbreviation. Components
-    // are appended one at a time so the id is a single path segment.
+    // Fetches one club's squad and returns a ClubSquad: the flattened athletes plus
+    // the team profile (color, standing summary, record) that rides along in the same
+    // payload (see Roster.swift). `clubID` is ESPN's team id — the stable `Club.id`,
+    // not the abbreviation.
+    //
+    // Routes through the proxy's `GET /roster?team={id}` (AppConfig.rosterURL), which
+    // adds last-known-good resilience for ESPN's recurring implausibly-small rosters
+    // (and a `proxyCachedAsOf` marker when it serves the cache). DEBUG `-useESPNDirect`
+    // bypasses the proxy and hits ESPN's `teams/{id}/roster` directly.
     func fetchRoster(clubID: String) async throws -> ClubSquad {
-        let url = base
-            .appendingPathComponent("teams")
-            .appendingPathComponent(clubID)
-            .appendingPathComponent("roster")
+        guard let url = AppConfig.rosterURL(clubID: clubID) else {
+            throw ESPNServiceError.badURL
+        }
         return try await fetch(RosterResponse.self, from: url).squad
     }
 

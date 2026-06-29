@@ -48,6 +48,15 @@ final class TeamDetailViewModel {
         state = .loading
         do {
             let squad = try await service.fetchRoster(clubID: clubID)
+            // No silent failures: an implausibly small squad is a degraded data source
+            // (ESPN occasionally returns ~1 player for a team), not a real roster — flag
+            // it loudly to the engineer even though the page still renders what we got.
+            // The proxy independently falls back to a cached roster when it can (then
+            // cachedAsOf is set + the page shows an honest "Roster as of …" indicator).
+            if squad.athletes.count < 5 {
+                Diagnostics.shared.record(.unexpectedEmpty,
+                    "roster implausibly small for \(clubID): \(squad.athletes.count) player(s)")
+            }
             state = .loaded(squad)
             // Stats ride a best-effort second pass once the squad is known (they're
             // keyed by athlete id, so the roster must load first). The fetch is
@@ -90,6 +99,11 @@ final class TeamDetailViewModel {
     /// The club's real W-D-L record string from the roster payload (e.g. "6-3-2"),
     /// used by the Stats tab's season summary. nil until loaded / when absent.
     var record: String? { squad?.record }
+
+    /// When non-nil, the squad was served from the proxy's last-known-good cache
+    /// (ESPN returned an implausibly small roster) — the timestamp of that good fetch.
+    /// Drives the honest "Roster as of …" indicator; nil for a live roster.
+    var rosterCachedAsOf: Date? { squad?.cachedAsOf }
 
     /// Stats for one player, or nil before the roster (and thus stats) have loaded.
     func stats(for athlete: Athlete) -> PlayerSeasonStats? {

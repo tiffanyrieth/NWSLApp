@@ -20,6 +20,13 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
 (GitHub `tiffanyrieth/nwslapp-proxy`), live at `https://nwslapp-proxy.tiffany-rieth.workers.dev`.
 - **Pass-through caching:** `GET /scoreboard`, `GET /summary?event={id}` forward to ESPN
   and return bytes **unchanged** (app decoders untouched); match-state-aware TTL.
+- **Roster resilience:** `GET /roster?team={espnTeamId}` passes ESPN's roster through when it's a
+  plausible squad (≥`ROSTER_GOOD_MIN`=16) and caches it as **last-known-good** in KV (`roster:{id}`,
+  90d); when ESPN comes back implausibly small (the recurring "one player" gap, e.g. ACFC) or fails,
+  it serves the cached roster with an injected top-level **`proxyCachedAsOf`** marker → app shows an
+  honest "Roster as of …" label (`ClubSquad.cachedAsOf`). Never silent (emits `rosterStaleServe` /
+  `rosterImplausibleNoCache` / `rosterUnavailable` diag); deploy gate `health_check_roster.mjs`. ACFC
+  was seeded once from the official club site (`scripts/seed_acfc_roster.mjs`).
 - **Content routes** (build + normalize to `[ContentCard]`/models): `/team-videos` (Home: YouTube +
   club OG news + club IG), `/feed` (Feed: Bluesky reporters/clubs + news RSS + player IG), `/spotlight`,
   `/trivia` (KV pool), `/national-teams` (data-driven NT Browse-all, deduped by FIFA, 24h), `/telemetry`
@@ -46,8 +53,9 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   + per-athlete, budget-aware via `stat_fetch_budget`); per-edition **streak**; **theme-only**
   creative editions (pool from ESPN, like stats); `bracketStatSeed*`/diag + `npm run healthcheck`
   (`health_check_bracket.mjs`). Runbook: `Reference/Bracket Battle/first-launch-checklist.md`.
-- Teams/roster/standings still hit ESPN directly. Base URLs in `Config/AppConfig.swift`;
-  DEBUG `-useESPNDirect` bypasses the proxy.
+- Teams/standings still hit ESPN directly; **roster now routes through the proxy** (`/roster`, see
+  above). Base URLs in `Config/AppConfig.swift`; DEBUG `-useESPNDirect` bypasses the proxy (roster
+  included → ESPN's `teams/{id}/roster` direct, no cache/marker).
 
 **Per-user backend (Supabase):** boundary = Workers (stateless/global) vs Supabase (stateful/per-user).
 Sign in with Apple → a Supabase user; `profiles` + `follows` (RLS'd to the owner) persist per account.

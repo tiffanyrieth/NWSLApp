@@ -20,5 +20,6 @@ Pending work only (ALIVE > core > hardening); shipped work lives in git history 
 
 **Longer-term:**
 - **Push — Tier 2 (SERVER push)** — code-complete through Stage C (`~/Projects/nwslapp-match-watcher`: cron + KV diff + APNs JWT; per-team targeting live). Remaining: flip `APNS_HOST` sandbox→production at TestFlight; on-device E2E; Stage D (subs + lineup-posted).
-- **Competitions follow-ups:** WWC/Olympics whole-tournament UI DEFERRED (followed-team matches already fold into Schedule); foreign-club color DB grows as Champions Cup opponents appear (`DesignTeamColors.international`); broaden NT coverage via `NationalTeamFeed.all` + proxy `WOMENS_NT_FEEDS`.
+- **Push: match-watcher is NOT competition-aware** — it polls only the `usa.nwsl` scoreboard and hard-codes the "NWSL" card footer (`card.ts`), so NON-LEAGUE competitions get no push at all: Concacaf W Champions Cup today, NWSL Challenge Cup (`usa.nwsl.cup`) tomorrow. Fix = poll the additional competition slugs + make the card footer/title competition-aware (carry the comp label through the watcher's event pipeline).
+- **Competitions follow-ups:** Challenge Cup (`usa.nwsl.cup`, single annual match) + Champions Cup + followed NTs all fold into Schedule "My teams". WWC/Olympics whole-tournament UI DEFERRED; foreign-club color DB grows as Champions Cup opponents appear (`DesignTeamColors.international`); broaden NT coverage via `NationalTeamFeed.all` + proxy `WOMENS_NT_FEEDS`.
 - **Feed** — user-added sources; richer filtering. **Weather** — kickoff-temp header slot.

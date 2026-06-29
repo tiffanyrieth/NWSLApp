@@ -88,6 +88,16 @@ final class MatchStore {
                 if let ccError { errors[ChampionsCupFeed.label] = ccError }
             }
 
+            // NWSL Challenge Cup (a single annual NWSL-club match, ESPN slug `usa.nwsl.cup`).
+            // UNLIKE the Champions Cup, there is NO opt-in toggle — it's AUTO: fetch it whenever
+            // the user follows any club, and the My-teams filter narrows it to fans of the two
+            // participating clubs. Same soft-fail policy (never breaks the NWSL spine).
+            if !(following?.followedIDs.isEmpty ?? true) {
+                let (chMatches, chError) = await fetchChallengeCupMatches(year: year)
+                matches += chMatches
+                if let chError { errors[ChallengeCupFeed.label] = chError }
+            }
+
             partialErrors = errors
             state = .loaded(dedupedByEventID(matches))
         } catch {
@@ -150,6 +160,24 @@ final class MatchStore {
         } catch {
             Diagnostics.shared.record(.apiFailure, "schedule \(ChampionsCupFeed.label): \(error.localizedDescription)")
             return ([], "Couldn't load \(ChampionsCupFeed.label) — pull to retry.")
+        }
+    }
+
+    /// Fetch the NWSL Challenge Cup feed (a single annual NWSL-club-vs-NWSL-club match). The
+    /// feed is already just that one match, but we keep the same NWSL-club guard as the Champions
+    /// Cup so a stray non-NWSL entry can never slip in. Tagged `.challengeCup` (`isNWSL == false`,
+    /// so it stays out of league records/standings/Predict). Soft-fail — never breaks the spine.
+    private func fetchChallengeCupMatches(year: Int) async -> (matches: [ScheduledMatch], error: String?) {
+        do {
+            let board = try await service.fetchScoreboard(year: year, league: ChallengeCupFeed.slug)
+            let kept = board.events.filter { event in
+                DesignTeamColors.hex(for: event.homeCompetitor?.team?.abbreviation) != nil
+                    || DesignTeamColors.hex(for: event.awayCompetitor?.team?.abbreviation) != nil
+            }.map { ScheduledMatch(event: $0, competition: .challengeCup) }
+            return (kept, nil)
+        } catch {
+            Diagnostics.shared.record(.apiFailure, "schedule \(ChallengeCupFeed.label): \(error.localizedDescription)")
+            return ([], "Couldn't load \(ChallengeCupFeed.label) — pull to retry.")
         }
     }
 

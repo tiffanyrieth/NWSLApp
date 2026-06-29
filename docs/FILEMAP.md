@@ -43,6 +43,7 @@ NWSLApp/
 │   ├── NotificationPrefsSyncService.swift — Supabase `notification_preferences` upsert
 │   ├── NotificationScheduler.swift    — @MainActor; LOCAL (Tier 1) scheduling: day-before reminder (global type ∩ teams with alerts on) + weekly spotlight (global)
 │   ├── PushBridge.swift               — @MainActor @Observable `.shared`; UIKit AppDelegate (APNs/tap) → observable world
+│   ├── LiveActivityManager.swift      — @MainActor @Observable `.shared`; V2 Live Activity app side: registers this device's push-to-start token (`live_activity_start_tokens`) + each running Activity's update token (`live_activities`, keyed by matchId), prunes on end; mirrors to Supabase (RLS-scoped, telemetry on failure). DEBUG `-driveLiveActivity` drives a local pre→live→goal→HT→FT lifecycle
 │   ├── SupabaseManager.swift          — the one shared SupabaseClient (built from Secrets)
 │   ├── HeadshotStore.swift            — @MainActor @Observable `.shared`; fetches the `/headshots` map (espnAthleteId→NWSL GUID) once per launch; `guid(forAthleteID:)`; best-effort (failure → monograms)
 │   ├── AssetRefreshService.swift      — @MainActor; cadenced (>30d/March) best-effort refresh of bundled crests/flags: diff `/crest/manifest` vs BundledAssetManifest, download only a rebranded asset to Caches; NEVER downgrades vector→raster; never gates cold start
@@ -154,7 +155,15 @@ NotificationServiceExtension/          — rich-notification target (the .appex 
 ├── Info.plist                         — NSExtension (usernotifications.service) + CFBundle keys via build vars (GENERATE_INFOPLIST_FILE=NO)
 └── NotificationServiceExtension.entitlements — aps-environment (mirrors app; auto-prod on archive)
 
-supabase/schema.sql                    — Postgres: profiles, follows, competition_follows, device_tokens, notification_preferences, team_alert_preferences, bracket_* (editions/entrants/matchups/votes/scores + v2: config/stats_editions/creative_editions/user_edition_stats), prediction_scores, trivia_scores (+ RLS + GRANTs; all per-user FKs `on delete cascade` so account deletion cascades). v2 deltas in `migration_bracket_*.sql`; `migration_account_deletion_cascade.sql` adds cascade to the 5 FKs that lacked it; `migration_profile_name_is_custom.sql` adds `profiles.name_is_custom` (no backfill); `seed_bracket_*.sql` (run in the SQL editor)
+NWSLLiveActivity/                      — V2 Live Activity target (WidgetKit extension .appex; min iOS 17.2 for push-to-start). The silent "glance" layer (lock screen + Dynamic Island) complementing V1 rich push; never buzzes
+├── NWSLLiveActivityBundle.swift       — `@main` WidgetBundle → MatchLiveActivity()
+├── MatchLiveActivity.swift            — ActivityConfiguration for MatchActivityAttributes: lock-screen banner + Dynamic Island compact/expanded/minimal; temporal pill colors (Live/HT/FT/pre); bundled crests (no ring); local advancing minute via `Text(timerInterval:)` from clockStartEpoch
+├── Info.plist                         — NSExtension (widgetkit-extension) + CFBundle keys via build vars (GENERATE_INFOPLIST_FILE=NO; full key set incl. CFBundleExecutable/version — appex install fails without them)
+└── Assets.xcassets/Crests/            — copy of the 16 NWSL crests (separate bundle; widget can't read the app's catalog)
+
+Shared/MatchActivityAttributes.swift   — the ActivityAttributes type compiled into BOTH app + widget (explicit build-file membership, not a synced group). ContentState uses `clockStartEpoch: Double?` (Unix seconds) so the remote (watcher) decode is unambiguous; Phase enum pre/live/halftime/extraTime/penalties/fulltime
+
+supabase/schema.sql                    — Postgres: profiles, follows, competition_follows, device_tokens, notification_preferences, team_alert_preferences, bracket_* (editions/entrants/matchups/votes/scores + v2: config/stats_editions/creative_editions/user_edition_stats), prediction_scores, trivia_scores, live_activity_start_tokens + live_activities (V2 Live Activity tokens) (+ RLS + GRANTs; all per-user FKs `on delete cascade` so account deletion cascades). v2 deltas in `migration_bracket_*.sql`; `migration_account_deletion_cascade.sql` adds cascade to the 5 FKs that lacked it; `migration_profile_name_is_custom.sql` adds `profiles.name_is_custom` (no backfill); `migration_live_activity_tokens.sql` adds the two V2 token tables; `seed_bracket_*.sql` (run in the SQL editor)
 docs/silent-failure-audit.md           — 2026-06 NO-SILENT-FAILURES sweep: method + the 15 read-path catches that now emit Diagnostics + the reviewed-OK `try?` sites
 NWSLApp.storekit                       — local StoreKit 2 config (4 tip consumables + monthly subs) for in-sim Support testing; referenced by the shared scheme. ASC products owner-gated
 ```

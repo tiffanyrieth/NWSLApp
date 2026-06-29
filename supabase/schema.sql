@@ -397,3 +397,42 @@ create policy "Users update own trivia score"
 -- Grants (42501 gotcha). Read: anon + authed; write: authenticated-only.
 grant select on public.trivia_scores to anon, authenticated;
 grant select, insert, update on public.trivia_scores to authenticated;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- Live Activity — V2 (lock screen + Dynamic Island live score, 0.4.x)
+-- ═════════════════════════════════════════════════════════════════════════════
+-- See supabase/migration_live_activity_tokens.sql for the rationale. Two per-user tables the
+-- watcher reads (service-role) to drive ActivityKit pushes: a per-device push-to-start token
+-- (remote-start the Activity ~5 min pre-kickoff) and a per-match update token (goal/HT/FT updates).
+
+create table public.live_activity_start_tokens (
+  user_id uuid references auth.users(id) on delete cascade not null,
+  token text not null,
+  updated_at timestamptz default now(),
+  primary key (user_id, token)
+);
+
+create table public.live_activities (
+  user_id uuid references auth.users(id) on delete cascade not null,
+  match_id text not null,
+  push_token text not null,
+  updated_at timestamptz default now(),
+  primary key (user_id, match_id)
+);
+
+alter table public.live_activity_start_tokens enable row level security;
+alter table public.live_activities          enable row level security;
+
+create policy "Users read own start tokens"  on public.live_activity_start_tokens for select using (auth.uid() = user_id);
+create policy "Users insert own start tokens" on public.live_activity_start_tokens for insert with check (auth.uid() = user_id);
+create policy "Users update own start tokens" on public.live_activity_start_tokens for update using (auth.uid() = user_id);
+create policy "Users delete own start tokens" on public.live_activity_start_tokens for delete using (auth.uid() = user_id);
+
+create policy "Users read own live activities"  on public.live_activities for select using (auth.uid() = user_id);
+create policy "Users insert own live activities" on public.live_activities for insert with check (auth.uid() = user_id);
+create policy "Users update own live activities" on public.live_activities for update using (auth.uid() = user_id);
+create policy "Users delete own live activities" on public.live_activities for delete using (auth.uid() = user_id);
+
+grant select, insert, update, delete on public.live_activity_start_tokens to authenticated;
+grant select, insert, update, delete on public.live_activities          to authenticated;

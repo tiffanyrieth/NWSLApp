@@ -307,6 +307,18 @@ struct RootTabView: View {
                 coordinator.start()
                 teamAlertSyncCoordinator = coordinator
             }
+            // V2 Live Activity: register this device's ActivityKit push-to-start token + track any
+            // running Activities' update tokens, mirrored to Supabase so the watcher can drive the
+            // lock-screen / Dynamic Island widget. Idempotent; no-op until signed in.
+            if let uid = auth.userID {
+                LiveActivityManager.shared.start(userID: uid)
+            }
+            #if DEBUG
+            // Sim verification only: drive a full sample Live Activity lifecycle (pre→live→goal→HT→FT→end).
+            if ProcessInfo.processInfo.arguments.contains("-driveLiveActivity") {
+                Task { await LiveActivityManager.shared.debugDriveSampleLifecycle() }
+            }
+            #endif
             // If the user already granted notification permission in a prior launch,
             // re-register for remote notifications so APNs hands us a fresh device
             // token (tokens can rotate). No-op in the Simulator. New grants register

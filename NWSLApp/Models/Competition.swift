@@ -29,6 +29,11 @@ enum CompetitionType: Hashable {
     /// Not a renamed CONCACAF *national-team* tournament — a separate club competition
     /// with no ESPN feed (served from a curated source).
     case concacafChampionsCup
+    /// The NWSL Challenge Cup — a single annual match between two NWSL clubs (the prior
+    /// season's Shield winner vs Championship winner). ESPN carries it under its own slug
+    /// (`usa.nwsl.cup`); NOT the regular season, so it's tagged separately to stay out of
+    /// league records/standings/Predict (`isNWSL == false`).
+    case challengeCup
     /// A women's national-team match. Payload is the house-style competition label
     /// (e.g. "SheBelieves Cup", "International Friendly", "Concacaf W Gold Cup").
     case international(String)
@@ -39,6 +44,7 @@ enum CompetitionType: Hashable {
         switch self {
         case .nwsl:                 return nil
         case .concacafChampionsCup: return "Concacaf W Champions Cup"
+        case .challengeCup:         return "NWSL Challenge Cup"
         case .international(let l):  return l
         }
     }
@@ -58,8 +64,8 @@ enum CompetitionType: Hashable {
     /// trust ESPN's `broadcastName`. Revisit if CBS's exclusivity changes.
     var primaryBroadcastOverride: String? {
         switch self {
-        case .concacafChampionsCup: return "Paramount+"
-        case .nwsl, .international:  return nil
+        case .concacafChampionsCup:              return "Paramount+"
+        case .nwsl, .challengeCup, .international: return nil   // ESPN carries the Challenge Cup — trust its broadcastName
         }
     }
 
@@ -99,6 +105,15 @@ struct ScheduledMatch: Identifiable {
 enum ChampionsCupFeed {
     static let slug = "concacaf.w.champions_cup"
     static let label = "Concacaf W Champions Cup"
+}
+
+/// The NWSL Challenge Cup ESPN feed — slug `usa.nwsl.cup` ("NWSL Challenge Cup"). A single
+/// annual NWSL-club-vs-NWSL-club match. UNLIKE the Champions Cup (a global opt-in toggle), this
+/// is fetched automatically (no toggle): MatchStore keeps the match and the My-teams filter
+/// narrows it to fans of the two participating clubs. Joins by NWSL abbreviation (GFC, KC).
+enum ChallengeCupFeed {
+    static let slug = "usa.nwsl.cup"
+    static let label = "NWSL Challenge Cup"
 }
 
 struct NationalTeamFeed {

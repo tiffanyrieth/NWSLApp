@@ -29,7 +29,7 @@ in previews + tests). Treat it as a real product; never suggest a demo/placehold
 
 ## Stack
 
-Swift 5.9+ / SwiftUI (not UIKit), min iOS 17 (`@Observable`), Xcode 26.5. `URLSession` + async/await,
+Swift 5.9+ / SwiftUI (not UIKit), min iOS 17.2 (`@Observable`; 17.2 = Live Activity push-to-start), Xcode 26.5. `URLSession` + async/await,
 no third-party HTTP. UserDefaults (small local state) + **Supabase** (Postgres, durable per-user once
 signed in); SwiftData nowhere. Sign in with Apple → Supabase (Apple auth + RLS). The **only**
 third-party dep is `supabase-swift` (SPM). Testing = **Swift Testing** (`@Test`/`#expect`), not XCTest.
@@ -69,8 +69,10 @@ Cloudflare Worker** (sibling repo `~/Projects/nwslapp-proxy`); DEBUG `-useESPNDi
 (`~/Projects/nwslapp-match-watcher`): a `* * * * *` cron that diffs the proxy scoreboard for
 kickoff/goal/halftime/full-time, looks up `device_tokens` of users with that alert on, and sends APNs
 (ES256 `.p8` JWT). Deployed; `POST /test-push` (`x-trigger-secret`) sends a synthetic push for
-on-device E2E. Go-live for TestFlight = flip `APNS_HOST`→`api.push.apple.com` + app
-`aps-environment`→production. The app side: `registerForRemoteNotifications` → AppDelegate →
+on-device E2E (`APNS_HOST` is production). A **V2 Live Activity** layer (lock-screen + Dynamic Island live
+score) rides the SAME watcher + `.p8`, strictly ADDITIVE to V1 (both fire per event; V1 send path untouched);
+`POST /test-activity`, app `LiveActivityManager` mirrors push-to-start/per-Activity tokens — detail in
+`docs/backend.md`. The app side: `registerForRemoteNotifications` → AppDelegate →
 `PushBridge` → `DeviceTokenService` upserts `device_tokens` (per-team toggles in `team_alert_preferences`).
 Per-user state in **Supabase**, offline-first (UserDefaults cache). **Follows sync = RESTORE-ONLY launch
 reconcile:** launch `reconcile` NEVER deletes a server row — a wiped/un-onboarded device restores the full

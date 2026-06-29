@@ -65,8 +65,13 @@ ESPN's unofficial NWSL endpoints (base in `Config/AppConfig.swift`) — **decode
 are `String` not `Int`, scoreboard needs `&limit=500` for a full season, standings sit on a different
 base, endpoints break/rate-limit without notice. Most traffic routes through the **`nwslapp-proxy`
 Cloudflare Worker** (sibling repo `~/Projects/nwslapp-proxy`); DEBUG `-useESPNDirect` bypasses it.
+**Roster** routes through the proxy's `/roster` too (last-known-good KV: ESPN intermittently serves an
+implausibly small squad — e.g. 1 player — so the proxy caches a plausible roster and serves it with a
+`proxyCachedAsOf` marker → app shows a "Roster as of …" note; teams/standings still hit ESPN directly).
 **Tier-2 server push** (live match alerts) is a SECOND sibling Worker, **`nwslapp-match-watcher`**
-(`~/Projects/nwslapp-match-watcher`): a `* * * * *` cron that diffs the proxy scoreboard for
+(`~/Projects/nwslapp-match-watcher`): a `* * * * *` cron that diffs the proxy scoreboard (reached via a
+**service binding** — same-account Worker→Worker over `*.workers.dev` 404s with CF **error 1042**, so a
+public fetch silently fails; the rich-card crest fetch uses the same binding) for
 kickoff/goal/halftime/full-time, looks up `device_tokens` of users with that alert on, and sends APNs
 (ES256 `.p8` JWT). Deployed; `POST /test-push` (`x-trigger-secret`) sends a synthetic push for
 on-device E2E (`APNS_HOST` is production). A **V2 Live Activity** layer (lock-screen + Dynamic Island live

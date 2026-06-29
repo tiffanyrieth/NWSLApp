@@ -7,7 +7,7 @@ NWSLApp/
 ├── NWSLAppApp.swift                   — app entry; launches RootTabView; forces dark; DEBUG `-resetOnboarding`; AppDelegate (APNs token + foreground/tap → PushBridge)
 ├── NWSLApp.entitlements               — Sign in with Apple + aps-environment (push) + usernotifications.time-sensitive (live-match rich alerts) + game-center (Game Center)
 ├── Config/
-│   ├── AppConfig.swift                — base URLs; scoreboard/summary → proxy; DEBUG `-useESPNDirect`; content route URLs (teamVideos/feed/spotlight/trivia)
+│   ├── AppConfig.swift                — base URLs; scoreboard/summary/roster → proxy; DEBUG `-useESPNDirect`; content route URLs (teamVideos/feed/spotlight/trivia)
 │   ├── Secrets.swift                  — 🔒 GITIGNORED Supabase URL + anon key
 │   └── Secrets.example                — checked-in template (non-.swift so it never compiles)
 ├── DesignSystem/
@@ -24,7 +24,7 @@ NWSLApp/
 │   ├── MatchSummary.swift             — ESPN /summary: lineups+formation, boxscore, key-events timeline
 │   ├── PlayerSpotlight.swift          — Home Module-2 player-of-week; `espnAthleteId`+`seasonStatLine` carry live data; `statStrip` nil when no stats → view hides "This Season" (never fabricated)
 │   ├── PlayerStats.swift              — per-player season stats + team-leaders (real ESPN data)
-│   ├── Roster.swift                   — squad + team profile from one roster fetch
+│   ├── Roster.swift                   — squad + team profile from one roster fetch; `ClubSquad.cachedAsOf` from the proxy's `proxyCachedAsOf` marker (last-known-good fallback)
 │   ├── Scoreboard.swift               — ESPN scoreboard structs + Event helpers
 │   ├── Standings.swift                — table rows (rank + Club + GP/W/D/L/PTS + GF/GA/GD from ESPN pointsfor/against/differential)
 │   ├── TeamSocialLinks.swift          — per-team social links for TeamDetail (reference data, no live API)
@@ -36,7 +36,7 @@ NWSLApp/
 │   ├── BracketService.swift           — Bracket Supabase client: currentEdition/results/leaderboard/submit + standings/myEditionStats (Leaderboard screen); throw or honest-empty (online-only)
 │   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats
 │   ├── ContentService.swift           — ALIVE content client: homeCards→/team-videos · feedCards→/feed · spotlightCards→/spotlight; all `throws` (online-only; no seed)
-│   ├── ESPNService.swift              — async fetch: scoreboard + summary (proxy)/teams/roster/standings + seasonStats (Core API)
+│   ├── ESPNService.swift              — async fetch: scoreboard + summary + roster (proxy)/teams/standings + seasonStats (Core API)
 │   ├── FollowSyncService.swift        — Supabase `follows` client (fetch/push/add/remove); RLS-scoped
 │   ├── CompetitionFollowSyncService.swift — Supabase `competition_follows` client (NT + Champions Cup keys: "nt:USA"/"concacaf"); competition twin of FollowSyncService; RLS-scoped
 │   ├── DeviceTokenService.swift       — Supabase `device_tokens` client (APNs token); RLS-scoped

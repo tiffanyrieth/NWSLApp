@@ -52,6 +52,11 @@ struct ClubSquad {
     let colorHex: String?          // ESPN team color, e.g. "C8102E"
     let standingSummary: String?   // e.g. "4th in NWSL"
     let record: String?            // W-D-L, e.g. "6-3-2"
+    /// When non-nil, this squad was served from the proxy's last-known-good cache
+    /// (ESPN returned an implausibly small roster) — the timestamp of that good
+    /// fetch. Drives the honest "Roster as of …" indicator on the team page. nil for
+    /// a live roster (the normal case).
+    var cachedAsOf: Date? = nil
 
     /// League points derived from the W-D-L record (3 per win, 1 per draw).
     /// nil when the record is missing or unparseable, so the header can degrade.
@@ -139,6 +144,10 @@ enum Roster {
 struct RosterResponse: Decodable {
     let team: RawTeam?
     let athletes: [RawAthlete]?
+    /// Injected by the proxy ONLY when it serves the last-known-good cache (ESPN came
+    /// back implausibly small) — an ISO8601 timestamp of the cached fetch. Absent on a
+    /// live roster. See AppConfig.rosterURL / the proxy's /roster route.
+    let proxyCachedAsOf: String?
 
     /// The squad plus the team profile that rides along in the same payload.
     var squad: ClubSquad {
@@ -146,8 +155,17 @@ struct RosterResponse: Decodable {
             athletes: players,
             colorHex: team?.color,
             standingSummary: team?.standingSummary,
-            record: team?.recordSummary
+            record: team?.recordSummary,
+            cachedAsOf: proxyCachedAsOf.flatMap(Self.parseISO8601)
         )
+    }
+
+    /// Parse the proxy's `proxyCachedAsOf` ISO8601 string (with fractional seconds, as
+    /// emitted by the Worker's `Date.toISOString()`) to a Date; nil if unparseable.
+    private static func parseISO8601(_ s: String) -> Date? {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f.date(from: s) ?? ISO8601DateFormatter().date(from: s)
     }
 
     /// Flatten to view-friendly athletes, dropping any entry without an id.

@@ -72,13 +72,17 @@ kickoff/goal/halftime/full-time, looks up `device_tokens` of users with that ale
 on-device E2E. Go-live for TestFlight = flip `APNS_HOST`→`api.push.apple.com` + app
 `aps-environment`→production. The app side: `registerForRemoteNotifications` → AppDelegate →
 `PushBridge` → `DeviceTokenService` upserts `device_tokens` (per-team toggles in `team_alert_preferences`).
-Per-user state in **Supabase**, offline-first (UserDefaults cache). **Sync = device-authoritative
-mirror on sign-in:** the signed-in device's set is the truth — push it up, prune server rows not in
-it (so unfollow/alert-off propagate and the DB stays clean). **Empty-local guardrail:** an empty local
-set restores FROM the server, never wipes it (sign-in can't erase an account). Trade-off: two devices
-on one account diverging offline → last sign-in wins (fine at current scale; upgrade to per-item
-`updated_at` timestamps if real multi-device curation ever demands it). **Gotcha:** a new per-user
-table needs `grant … to authenticated` or signed-in queries fail silently with `42501` (RLS ≠ privilege).
+Per-user state in **Supabase**, offline-first (UserDefaults cache). **Follows sync = RESTORE-ONLY launch
+reconcile:** launch `reconcile` NEVER deletes a server row — a wiped/un-onboarded device restores the full
+server set, and only local-only follows upload. **Unfollows propagate solely via the explicit per-toggle
+`removeFollow`** (a signed-in unfollow), so no launch-time race can prune. (This replaced an earlier
+device-authoritative mirror whose launch prune deleted rows under the reinstall onboarding race — the
+"only the oldest follow survives" data-loss bug. A returning signed-in user is restored + skips onboarding;
+`RootTabView` shows a brief "Restoring…" until reconcile resolves, never the picker.) **Trade-off:** a
+signed-out/offline unfollow won't reach the server and reappears on reinstall — recoverable, and harmless
+to alerts (alerts are a separate table + coordinator; follows ≠ alerts). Two devices diverging offline →
+last writer wins (fine at current scale). **Gotcha:** a new per-user table needs `grant … to
+authenticated` or signed-in queries fail silently with `42501` (RLS ≠ privilege).
 
 ## Workflow & engineering practices (requirements — flag the trade-off before bypassing)
 

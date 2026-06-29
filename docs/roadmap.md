@@ -1,5 +1,20 @@
 # Roadmap / What's Next
 
+> ### ⚠️ OPEN — follows restore fix: committed but NOT device-verified
+> **Status:** committed on `feature/display-name-hydration-auth`, headless-verified (clean build, green
+> tests, destructive launch-prune removed structurally); **device-verification pending.**
+> **Why pending:** the new build has never run on the owner's device — every prior reinstall test ran the
+> OLD build (TestFlight not re-cut to avoid spamming testers for one fix; USB-from-Xcode blocked by an
+> iOS 27 / Xcode 26.5 mismatch). So the reinstall-restore path is unverified on real hardware.
+> **Test fixture already in place — DO NOT DELETE:** the owner's account has 3 server follows
+> (Bay `22187`, `131562`, `131563`); these ARE the reinstall test fixture.
+> **Pass criteria (run on the next TestFlight build, for any reason):** clean reinstall → the TEMP trace
+> reads `local=0[] remote=3[…] onboarded=false → authoritative=remote`, all 3 follows restore, **zero
+> prune lines**, and `select count(*) from follows` stays at 3.
+> **TEMP instrumentation stays on purpose:** the `Diagnostics.debugTrace` case + the reconcile trace in
+> `FollowSyncCoordinator` remain in the code until this test passes — then remove them (Step C) and mark
+> this done.
+
 Pending work only (ALIVE > core > hardening); shipped work lives in git history + the File Map.
 - **Bracket Battle v2 — built, awaiting owner deploy:** run the 4 SQL files (`migration_bracket_v2`
   → `migration_bracket_qualifying` → `seed_bracket_stats_editions` → `seed_bracket_creative_editions`)

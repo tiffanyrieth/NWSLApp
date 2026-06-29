@@ -33,9 +33,8 @@ struct DisplayNameEntry: View {
     let accent: Color
     let onSubmit: () -> Void
 
-    private var isValid: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
+    /// 2–20 characters after trimming — see `DisplayNameRules` (shared with the store).
+    private var isValid: Bool { DisplayNameRules.isValid(draft) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -55,7 +54,7 @@ struct DisplayNameEntry: View {
                 .background(Color.dsBgTertiary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.white.opacity(0.08)))
 
-            Text("Max 20 characters · visible to other players · change anytime in Profile")
+            Text("2–20 characters · visible to other players · change anytime in Profile")
                 .dsFont(12)
                 .foregroundStyle(Color.dsFgTertiary)
                 .padding(.leading, 2)
@@ -126,7 +125,7 @@ struct PlayingAsBadge: View {
     @State private var showEditor = false
 
     var body: some View {
-        if auth.isSignedIn, auth.hasDisplayName, let name = auth.displayName {
+        if auth.isSignedIn, auth.hasChosenName, let name = auth.displayName {
             Button { showEditor = true } label: {
                 (Text("Playing as ").foregroundStyle(Color.dsFgSecondary)
                  + Text(name).foregroundStyle(accent).fontWeight(.semibold))
@@ -306,11 +305,17 @@ private struct FanZoneGateModifier: ViewModifier {
         content
             .onChange(of: isRequested) { _, requested in
                 guard requested else { return }
-                if auth.isSignedIn && auth.hasDisplayName {
+                switch FanZoneGateDecision.resolve(isSignedIn: auth.isSignedIn,
+                                                   hasChosenName: auth.hasChosenName) {
+                case .runNow:
                     isRequested = false
                     onAuthorized()                       // already ready — run now, no sheet
-                } else {
-                    step = auth.isSignedIn ? .name : .signIn
+                case .nameStep:
+                    // Signed in but name not yet CONFIRMED (e.g. an unconfirmed Apple name) → the
+                    // name step still runs so it's confirmed before it reaches a leaderboard.
+                    step = .name
+                case .signInStep:
+                    step = .signIn
                 }
             }
             .sheet(item: $step, onDismiss: {

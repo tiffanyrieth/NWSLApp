@@ -117,6 +117,20 @@ struct RootTabView: View {
     // TabBarRelayoutBridge at the bottom of this file).
     @State private var didRelayoutBar = false
 
+    /// Brief launch state for a signed-in user whose follows are being restored from the server,
+    /// shown instead of the onboarding picker (see the root gate). Honest + quiet, dark-theme.
+    private var restoringView: some View {
+        ZStack {
+            Color.dsBgGrouped.ignoresSafeArea()
+            VStack(spacing: 16) {
+                ProgressView().tint(Color.dsAccent)
+                Text("Restoring your teams…")
+                    .dsFont(15)
+                    .foregroundStyle(Color.dsFgSecondary)
+            }
+        }
+    }
+
     var body: some View {
         @Bindable var router = router
         // A custom selection binding so we can detect a re-tap of the ALREADY-active
@@ -165,6 +179,15 @@ struct RootTabView: View {
                         .tabItem { Label("Social", systemImage: "dot.radiowaves.left.and.right") }
                         .tag(AppTab.feed)
                 }
+            } else if !auth.sessionRestoreAttempted
+                        || (auth.isSignedIn && !(syncCoordinator?.restoreResolved ?? false)) {
+                // A signed-in user's follows are being restored from the server (or the session
+                // is still being restored at launch). Show a brief "Restoring…" rather than
+                // flashing the onboarding picker — a returning signed-in user must NOT be sent
+                // back through onboarding, and showing the picker is exactly what let onboarding
+                // taps race the restore. `reconcile` flips `restoreResolved` once the server set
+                // is known and calls `completeOnboarding()` when it restored follows (→ the hub).
+                restoringView
             } else {
                 // First open: full-screen team picker with NO tab bar. Two reasons:
                 // (1) onboarding can't be skipped by tapping another tab (the TabView
@@ -173,6 +196,8 @@ struct RootTabView: View {
                 // which avoids the iOS 26 floating-bar first-render label truncation a
                 // fresh install hit. OnboardingView needs a NavigationStack (it sets a
                 // navigationTitle) and reads FollowingStore + ClubStore from the env below.
+                // Reached only once we KNOW there's no signed-in account with follows to
+                // restore (signed out, or signed in with an empty server set).
                 NavigationStack { OnboardingView() }
             }
         }

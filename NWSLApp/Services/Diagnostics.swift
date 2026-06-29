@@ -34,6 +34,10 @@ final class Diagnostics {
         case parseError                 // a decode/parse failed
         case unexpectedEmpty            // a load succeeded but returned nothing where content was due
         case staleServe                 // served older-than-expected data
+        // TEMP (reinstall-restore verification — remove after the follows-restore fix is verified):
+        // a non-error diagnostic trace, used to confirm reconcile restores the full server set and
+        // never prunes on launch. Distinct kind so it reads as a trace, not a failure.
+        case debugTrace                 // TEMP verification trace (not a failure)
     }
 
     struct Event: Identifiable {

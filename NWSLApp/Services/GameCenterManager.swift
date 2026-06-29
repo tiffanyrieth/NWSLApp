@@ -43,6 +43,15 @@ final class GameCenterManager {
     /// "this user has no Game Center" case, so we only emit telemetry for the former.
     private var authResolved = false
 
+    /// Set when the user tapped Profile's 🏆 Leaderboards but auth wasn't resolved yet —
+    /// open the dashboard as soon as auth lands (see `resolvePendingDashboard`).
+    private var pendingDashboard = false
+
+    /// True when the user tapped Leaderboards but Game Center isn't available (declined or
+    /// no account). Drives an honest message in Profile instead of a silent dead tap; the
+    /// view clears it on dismiss. (NO SILENT FAILURES — a tap must produce a visible result.)
+    var leaderboardsUnavailable = false
+
     // MARK: - Authentication
 
     /// Install GKLocalPlayer's auth handler. Triggered lazily the first time the user
@@ -66,10 +75,40 @@ final class GameCenterManager {
                 #endif
                 self.isAuthenticated = false
                 self.authResolved = true       // definitive: declined / unavailable
+                self.resolvePendingDashboard()
                 return
             }
             self.isAuthenticated = GKLocalPlayer.local.isAuthenticated
             self.authResolved = true           // definitive outcome reached
+            self.resolvePendingDashboard()
+        }
+    }
+
+    /// Open the native Game Center dashboard from Profile's 🏆 Leaderboards cell. Triggers
+    /// auth ON TAP (not on Profile appear), so the GC sign-in banner only shows when the user
+    /// actually asks for leaderboards. If auth is still resolving, the dashboard opens once it
+    /// lands (`resolvePendingDashboard`); if it's already resolved-unavailable, we surface an
+    /// honest message rather than a dead tap.
+    func openLeaderboards() {
+        if isAuthenticated { showDashboard(); return }
+        if authResolved {                       // already tried, not signed in → be honest now
+            leaderboardsUnavailable = true
+            return
+        }
+        pendingDashboard = true
+        authenticate()                          // installs the handler (idempotent) → banner on tap
+    }
+
+    /// Act on a queued Leaderboards tap once auth reaches a definitive outcome: open the
+    /// dashboard if signed in, otherwise show the honest "unavailable" message.
+    private func resolvePendingDashboard() {
+        guard pendingDashboard else { return }
+        pendingDashboard = false
+        if isAuthenticated {
+            showDashboard()
+        } else {
+            leaderboardsUnavailable = true
+            Diagnostics.shared.record(.apiFailure, "GC leaderboards tapped: not authenticated")
         }
     }
 

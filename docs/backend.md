@@ -86,3 +86,21 @@ were missing it: profiles/follows/device_tokens/notification_preferences/bracket
 delete removes everything. `AuthStore.deleteAccount()` throws on any failure (never claims success
 silently); ProfileView then wipes all local state. Deploy-gated by
 `scripts/health_check_account_delete.mjs` (fails on a 404 route or 500 missing-secret).
+
+**V2 Live Activity (lock screen + Dynamic Island) — additive to V1 push.** Same `nwslapp-match-watcher`
+Worker, same ES256 `.p8` JWT signer, SECOND APNs channel: `apns-topic: <bundle>.push-type.liveactivity`,
+`apns-push-type: liveactivity`, payload `aps:{event:start|update|end, content-state, attributes-type,
+attributes, stale-date, dismissal-date}` (`src/activitykit.ts`). **Two token types** mirrored to Supabase
+by the app (`Services/LiveActivityManager.swift`, RLS-scoped + `grant…to authenticated`): a per-device
+**push-to-start** token (`live_activity_start_tokens`) lets the watcher remote-create the Activity ~5 min
+pre-kickoff, and each running Activity's **per-Activity update token** (`live_activities`, keyed by
+`match_id`, pruned on end) lets it push goal/HT/FT updates. **Cron flow (additive — V1 untouched):** on each
+detected event the watcher fires the existing V1 `sendApns` AND, separately, `syncLiveActivity` (update/end
+the match's Activities, with a low-frequency clock resync); a SEPARATE `startUpcomingActivities` branch
+(NOT folded into `detectEvents`) KV-dedups and sends `event:start` for matches ≤5 min from kickoff whose
+teams have alerts ON. **Clock:** the widget self-advances the minute locally from `clockStartEpoch`
+(virtual kickoff = now − elapsed) — no per-minute push; events + resync correct drift. Activation gate =
+notifications ON for a team (`team_alert_preferences`, one opt-in drives both layers), NOT follow. Gated on
+iOS 17.2 (push-to-start). `POST /test-activity` (secret-gated, mirrors `/test-push`) drives a synthetic
+start/update/end for on-device E2E. **Sim caveat:** the Dynamic Island doesn't composite into `simctl io
+screenshot` — surface render is device-verified.

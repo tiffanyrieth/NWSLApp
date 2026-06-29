@@ -134,18 +134,18 @@ final class LiveActivityManager {
             return
         }
         let steps: [(MatchActivityAttributes.ContentState, UInt64)] = [
-            (state(.live, 0, 0, minute: 1), 3),
-            (state(.live, 1, 0, minute: 23, scorer: "B. Banda 23'"), 3),
-            (state(.halftime, 1, 0, label: "HT"), 3),
-            (state(.live, 1, 0, minute: 46), 3),
-            (state(.live, 2, 1, minute: 78, scorer: "Marta 78'"), 3),
-            (state(.fulltime, 2, 1, label: "FT"), 3),
+            (state(.live, 0, 0, minute: 1), 5),
+            (state(.live, 1, 0, minute: 23, scorer: "B. Banda 23'"), 5),
+            (state(.halftime, 1, 0, label: "HT"), 5),
+            (state(.live, 1, 0, minute: 46), 5),
+            (state(.live, 2, 1, minute: 78, scorer: "Marta 78'"), 5),
+            (state(.fulltime, 2, 1, label: "FT"), 5),
         ]
         for (s, delay) in steps {
             try? await Task.sleep(nanoseconds: delay * 1_000_000_000)
             await activity.update(.init(state: s, staleDate: nil))
         }
-        try? await Task.sleep(nanoseconds: 4 * 1_000_000_000)
+        try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
         await activity.end(.init(state: steps.last!.0, staleDate: nil), dismissalPolicy: .immediate)
     }
     #endif

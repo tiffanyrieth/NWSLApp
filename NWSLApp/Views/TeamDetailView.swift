@@ -305,6 +305,14 @@ struct TeamDetailView: View {
 
     private var squadContent: some View {
         LazyVStack(alignment: .leading, spacing: 18) {
+            // Honest staleness indicator: shown ONLY when the roster was served from the
+            // proxy's last-known-good cache (ESPN returned an implausibly small squad).
+            // Subtle + secondary — the squad is real, just not freshly from ESPN.
+            if let cachedAsOf = viewModel.rosterCachedAsOf {
+                Text("Roster as of \(cachedAsOf.formatted(.dateTime.month(.abbreviated).day().year()))")
+                    .dsFont(12)
+                    .foregroundStyle(.secondary)
+            }
             ForEach(viewModel.positionGroups) { group in
                 VStack(alignment: .leading, spacing: 10) {
                     Text(group.label)

@@ -16,8 +16,9 @@
 import Foundation
 
 enum AppConfig {
-    /// ESPN's unofficial NWSL API root. Still backs teams, roster, and
-    /// (via an explicit `apis/v2` URL in ESPNService) standings.
+    /// ESPN's unofficial NWSL API root. Still backs teams and (via an explicit
+    /// `apis/v2` URL in ESPNService) standings; roster now routes through the proxy
+    /// (`rosterURL`), with DEBUG `-useESPNDirect` falling back to this base.
     /// Force-unwrap is safe: a compile-time constant, valid URL.
     static let espnBase = URL(string: "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.nwsl/")!
 
@@ -69,6 +70,29 @@ enum AppConfig {
         }
         #endif
         return scoreboardProxyBase
+    }
+
+    /// The proxy route serving a club's squad: `GET /roster?team=<espnTeamId>`. The Worker
+    /// passes ESPN's roster through when it's a plausible squad (caching it as last-known-good),
+    /// and falls back to that cache — adding a top-level `proxyCachedAsOf` marker — when ESPN
+    /// returns an implausibly small roster (the recurring "one player" gap on some teams). The
+    /// bytes are otherwise ESPN's, so `RosterResponse` decodes them unchanged. `clubID` is
+    /// ESPN's team id. In DEBUG, `-useESPNDirect` bypasses the proxy and hits ESPN's
+    /// `teams/{id}/roster` directly (no cache/marker), mirroring `scoreboardBaseURL`.
+    /// Returns nil on a malformed URL (the caller then throws → honest error).
+    static func rosterURL(clubID: String) -> URL? {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-useESPNDirect") {
+            return espnBase
+                .appendingPathComponent("teams")
+                .appendingPathComponent(clubID)
+                .appendingPathComponent("roster")
+        }
+        #endif
+        guard var components = URLComponents(url: scoreboardProxyBase.appendingPathComponent("roster"),
+                                             resolvingAgainstBaseURL: false) else { return nil }
+        components.queryItems = [URLQueryItem(name: "team", value: clubID)]
+        return components.url
     }
 
     // MARK: - Live content (ALIVE pipeline)

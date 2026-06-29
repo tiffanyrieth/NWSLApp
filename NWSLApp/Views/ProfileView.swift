@@ -54,10 +54,9 @@ struct ProfileView: View {
                 .padding(.bottom, 24)
             }
             .background(Color.dsBgGrouped)
-            // The Fan Zone strip's 🏆 Leaderboards opens the Game Center dashboard,
-            // so start GC auth here (not at launch) — by the time the user taps it,
-            // auth has typically resolved. Idempotent with the game screens.
-            .task { GameCenterManager.shared.authenticate() }
+            // GC auth is triggered ON TAP of the 🏆 Leaderboards cell (see openLeaderboards),
+            // NOT on Profile appear — so the Game Center sign-in banner only shows when the
+            // user actually asks for leaderboards, never overlaying the Profile screen.
             .sheet(isPresented: $showNameEditor) { DisplayNameEditorSheet(currentName: auth.displayName ?? "") }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -91,6 +90,16 @@ struct ProfileView: View {
                 Button("OK") { dismiss() }
             } message: {
                 Text("Your account and all your data have been permanently deleted.")
+            }
+            // Honest result for a Leaderboards tap when Game Center isn't signed in — never a
+            // silent dead tap (NO SILENT FAILURES). Bound to the GC singleton's @Observable flag.
+            .alert("Game Center unavailable", isPresented: Binding(
+                get: { GameCenterManager.shared.leaderboardsUnavailable },
+                set: { if !$0 { GameCenterManager.shared.leaderboardsUnavailable = false } })
+            ) {
+                Button("OK", role: .cancel) { GameCenterManager.shared.leaderboardsUnavailable = false }
+            } message: {
+                Text("Sign in to Game Center in iOS Settings to view the leaderboards.")
             }
         }
         // Show the sheet grabber, matching the Profile handoff's sheet treatment.
@@ -243,11 +252,22 @@ struct ProfileView: View {
                 avatarCircle(initials)
                 VStack(spacing: 2) {
                     HStack(spacing: 6) {
-                        Text(auth.displayName ?? "Member")
-                            .dsFont(20, weight: .bold)
-                            .foregroundStyle(Color.dsFgPrimary)
-                        // Edit how the name appears on the leaderboards (it's otherwise
-                        // locked to whatever Apple returned at first sign-in / "Fan").
+                        // Three distinct states, NEVER "Member": show the name when we have one
+                        // (cached or fetched); "Setting up…" while a returning user's name is
+                        // still loading from the server (avoids a "Fan" → real-name flicker on
+                        // the reinstall path); "Fan" only once hydrated with genuinely no name
+                        // yet (brand-new user — the pencil + the Fan Zone gate lead them to set one).
+                        Group {
+                            if let name = auth.displayName {
+                                Text(name).foregroundStyle(Color.dsFgPrimary)
+                            } else if !auth.profileHydrated {
+                                Text("Setting up…").foregroundStyle(Color.dsFgSecondary)
+                            } else {
+                                Text("Fan").foregroundStyle(Color.dsFgPrimary)
+                            }
+                        }
+                        .dsFont(20, weight: .bold)
+                        // Edit how the name appears on the leaderboards.
                         Button {
                             showNameEditor = true
                         } label: {
@@ -321,9 +341,10 @@ struct ProfileView: View {
         HStack(spacing: 0) {
             statCell("\(totalPoints)", "Points")
             statDivider
-            // The middle cell now opens the native Game Center dashboard (real
-            // cross-player ranks live there) instead of the old "—" rank placeholder.
-            Button { GameCenterManager.shared.showDashboard() } label: {
+            // The middle cell opens the native Game Center dashboard (real cross-player ranks
+            // live there). `openLeaderboards` triggers GC auth on this tap if needed, then
+            // shows the dashboard once resolved — or an honest message if GC isn't available.
+            Button { GameCenterManager.shared.openLeaderboards() } label: {
                 statCell("🏆", "Leaderboards")
             }
             .buttonStyle(.plain)

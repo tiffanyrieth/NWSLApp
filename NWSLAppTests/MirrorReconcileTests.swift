@@ -2,11 +2,13 @@
 //  MirrorReconcileTests.swift
 //  NWSLAppTests
 //
-//  The device-authoritative mirror sync model (replaces the old union-merge that
-//  could only ever ADD, so stale server rows accumulated forever and the "N teams
-//  with match alerts" footer inflated on sign-in). Two layers under test:
-//   1. The stores' wholesale `replace…` setters (the local side of the mirror).
-//   2. `TeamAlertSyncCoordinator.authoritativeOnSet` — the pure set-logic that
+//  Sync set-logic + the stores' wholesale `replace…` setters. NOTE: ALERTS still use the
+//  device-authoritative mirror (`TeamAlertSyncCoordinator`, device-wins + prune); FOLLOWS
+//  moved to a RESTORE-ONLY launch reconcile (no launch prune — see FollowSyncCoordinator),
+//  so the `replace…` setters below are exercised as the local side of a restore, not a prune.
+//  Two layers under test:
+//   1. The stores' wholesale `replace…` setters (the local side of the reconcile).
+//   2. `TeamAlertSyncCoordinator.authoritativeOnSet` — the pure ALERTS set-logic that
 //      decides the reconciled ON set (device-wins vs empty-local restore, and the
 //      alerts ⊆ follows rule).
 //

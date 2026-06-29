@@ -17,9 +17,17 @@
 -- ── Tables ───────────────────────────────────────────────────────────────────
 
 -- User profiles (extends Supabase auth.users)
+--  * `display_name` is the leaderboard identity. The app reads it back on launch
+--    (`AuthStore.hydrateProfile`) so it survives a reinstall (UserDefaults is wiped, the
+--    server row is not).
+--  * `name_is_custom` = the user has explicitly CONFIRMED their name. An Apple-supplied
+--    name is stored but NOT custom — the Fan Zone gate (`hasChosenName`) makes the user
+--    confirm it before it appears on a public leaderboard. Defaults false; no backfill, so
+--    existing testers confirm once at their next ranked action.
 create table public.profiles (
   id uuid references auth.users(id) on delete cascade primary key,
   display_name text,
+  name_is_custom boolean not null default false,
   created_at timestamptz default now()
 );
 

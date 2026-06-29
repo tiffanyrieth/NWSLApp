@@ -51,16 +51,29 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
 
 **Per-user backend (Supabase):** boundary = Workers (stateless/global) vs Supabase (stateful/per-user).
 Sign in with Apple → a Supabase user; `profiles` + `follows` (RLS'd to the owner) persist per account.
+**Display name** lives on `profiles` (`display_name` + `name_is_custom`) and is the leaderboard identity —
+`AuthStore.hydrateProfile()` reads it back on BOTH auth paths (session restore AND fresh sign-in) so it
+survives reinstall (UserDefaults is wiped, the server row is not; this is the fix for the old "reverts to
+Member" bug). `name_is_custom` marks a CONFIRMED name vs. a merely-present (Apple-supplied) one; the Fan
+Zone gate (`hasChosenName`) makes the user confirm before it hits a public board. Added via
+`migration_profile_name_is_custom.sql` (defaults false, **no backfill** — existing testers confirm once).
 **Offline-first:** UserDefaults is the immediate cache; the app never blocks on the network to show
-follows. **Sync = device-authoritative mirror on sign-in** (replaced the old union-merge, which could
-only ADD, so unfollow/alert-off never propagated and stale rows accumulated forever — inflating the
-"N teams with match alerts" footer): the device's current set is the truth, pushed up with server rows
-not in it **deleted**; alerts are additionally intersected with follows (alerts ⊆ follows). **Empty-local
-guardrail:** an empty local set restores FROM the server, never wipes it — so sign-in can't erase an
-account; a fully-empty local state (no follows AND no alerts) bails without touching the server.
-Coordinators: `FollowSyncCoordinator` (+ competition follows), `TeamAlertSyncCoordinator`. Trade-off:
-two devices on one account diverging offline → last sign-in wins (acceptable at current scale; upgrade
-to per-item `updated_at` last-write-wins if heavy multi-device curation appears). Schema at
+follows. **Follows sync = RESTORE-ONLY launch reconcile + explicit per-toggle propagation.** Launch
+`reconcile` (`FollowSyncCoordinator`) NEVER deletes a server row: it restores the full server set to a
+wiped/un-onboarded device (`authoritative = (hasOnboarded && !local.isEmpty) ? local : remote`) and only
+UPLOADS local-only follows. **Unfollows propagate solely through `handleLocalChange.removeFollow`** — an
+explicit signed-in unfollow — so no launch-time race can prune. (This replaced the earlier
+"device-authoritative mirror" whose launch prune could delete server rows under the reinstall onboarding
+race: on reinstall the picker showed concurrently and its immediate `toggle` writes made `local` partial,
+so the launch prune wiped the rest. Removing the launch prune makes a destructive launch delete
+*impossible*, the hard invariant.) **Trade-off:** an unfollow made while signed-out/offline won't reach
+the server (the only thing the launch prune used to catch) and will reappear on the next reinstall —
+recoverable, and harmless to alerts (alerts live in `team_alert_preferences` with their OWN coordinator/
+prune; follows ≠ alerts). A returning signed-in user is restored + skips onboarding (`RootTabView` shows a
+brief "Restoring…" until `restoreResolved`, never the picker). Coordinators: `FollowSyncCoordinator`
+(+ competition follows), `TeamAlertSyncCoordinator` (alerts keep their own mirror; alerts ⊆ follows).
+Trade-off: two devices on one account diverging offline → last writer wins (acceptable at current scale;
+upgrade to per-item `updated_at` last-write-wins if heavy multi-device curation appears). Schema at
 `supabase/schema.sql`. **Gotcha:** RLS alone isn't enough — a new per-user table needs
 `grant … to authenticated` or signed-in queries silently fail with `42501`. Client built from gitignored
 `Secrets` (`Services/SupabaseManager.swift`).

@@ -48,20 +48,44 @@ final class AuthStore {
     /// Supabase `User` type — keeps the follow path SDK-free.
     var userID: UUID? { currentUser?.id }
 
-    /// The user's display name, captured at sign-in (Apple returns it only on the
-    /// FIRST authorization, ever) and cached locally so the Profile screen can show
-    /// it without a round-trip to the `profiles` table. Nil if never captured.
+    /// The user's display name. Sourced from the server `profiles` table (the durable
+    /// truth, fetched by `hydrateProfile()`) and cached in UserDefaults so the Profile
+    /// screen can show it instantly on a normal launch without a round-trip. Nil only
+    /// for a brand-new user with no name yet, or in the brief reinstall window before
+    /// the first hydrate returns.
     private(set) var displayName: String?
     private static let nameKey = "auth.displayName"
 
-    /// True when a non-empty display name is set — the Fan Zone gate requires this (a
-    /// chosen name to appear on the leaderboards) before a ranked action can proceed.
+    /// Whether the user has explicitly CHOSEN/confirmed their name (vs. it merely being
+    /// present). An Apple-supplied name is present but NOT chosen — the user must confirm
+    /// it at the gate before it reaches a public leaderboard. Mirrors `profiles.name_is_custom`
+    /// server-side (so it survives reinstall); cached locally for an instant gate decision.
+    private(set) var displayNameIsCustom: Bool
+    private static let nameChosenKey = "auth.displayNameIsCustom"
+
+    /// True once `hydrateProfile()` has finished (success OR failure) for this session.
+    /// Lets the Profile header tell "name still loading" (show a placeholder) apart from
+    /// "loaded, genuinely no name yet" (brand-new user) — avoiding a cold-launch flicker.
+    private(set) var profileHydrated = false
+
+    /// True once `restoreSession()` has run at launch (whether or not a session was found).
+    /// The root gate uses it so we don't flash the onboarding picker before we even know
+    /// if there's a signed-in user to restore follows for.
+    private(set) var sessionRestoreAttempted = false
+
+    /// True when a non-empty display name is set. NOTE: not sufficient for the gate on its
+    /// own — an unconfirmed Apple name satisfies this. The gate uses `hasChosenName`.
     var hasDisplayName: Bool {
         !(displayName ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// The Fan Zone gate's condition: signed in with a name the user has actually CONFIRMED.
+    /// Keeps an unconfirmed Apple name from auto-passing onto a public leaderboard.
+    var hasChosenName: Bool { displayNameIsCustom && hasDisplayName }
+
     init() {
         displayName = UserDefaults.standard.string(forKey: Self.nameKey)
+        displayNameIsCustom = UserDefaults.standard.bool(forKey: Self.nameChosenKey)
     }
 
     private let client = SupabaseManager.client
@@ -75,7 +99,11 @@ final class AuthStore {
     /// the keychain itself, so this just asks for the stored one — no custom token
     /// storage. `try?`: no stored session simply means signed-out (currentUser nil).
     func restoreSession() async {
+        defer { sessionRestoreAttempted = true }
         currentUser = try? await client.auth.session.user
+        // Pull the display name + chosen flag from the server. UserDefaults was wiped on a
+        // reinstall, so the local cache can't be trusted as the source — the server is.
+        await hydrateProfile()
     }
 
     /// Configure the Apple ID request — called from SignInWithAppleButton's
@@ -116,12 +144,17 @@ final class AuthStore {
 
             // Apple returns the user's name only on the FIRST authorization, ever —
             // capture it now or never. Upsert keyed on the user id (= auth.uid()).
+            // We do NOT mark it `name_is_custom`: an Apple name is present but unconfirmed,
+            // so the gate still asks the user to confirm it before it hits a leaderboard.
             let name = Self.displayName(from: credential.fullName)
             if let name {
                 displayName = name
                 UserDefaults.standard.set(name, forKey: Self.nameKey)
             }
             await upsertProfile(userID: session.user.id, displayName: name)
+            // Then pull the authoritative profile (covers the "Keychain wiped → re-sign-in"
+            // case: Apple returns no name, but the server still has it + the chosen flag).
+            await hydrateProfile()
         }
     }
 
@@ -158,15 +191,65 @@ final class AuthStore {
         try? await client.auth.signOut()
         currentUser = nil
         displayName = nil
+        displayNameIsCustom = false
         UserDefaults.standard.removeObject(forKey: Self.nameKey)
+        UserDefaults.standard.removeObject(forKey: Self.nameChosenKey)
     }
 
     // MARK: - Profile
 
+    /// One row of the `profiles` table — the durable home of the display name + chosen flag.
+    private struct ProfileRow: Decodable {
+        let display_name: String?
+        let name_is_custom: Bool?
+    }
+
+    /// The shape of an explicit "user chose their name" write. All fields present, so the
+    /// upsert sets `name_is_custom = true` alongside the name in one round-trip.
+    private struct ProfileNameChoice: Encodable {
+        let id: String
+        let display_name: String
+        let name_is_custom: Bool
+    }
+
+    /// Fetch the authoritative display name + chosen flag from the server and refresh the
+    /// local cache. This is the fix for "name reverts to Member after reinstall": UserDefaults
+    /// is wiped on reinstall, so the server (written at sign-in) is the only durable source.
+    /// Called on BOTH auth paths — `restoreSession()` (Keychain survived) and `handleSignIn()`
+    /// (Keychain wiped → re-sign-in). `profileHydrated` flips in a `defer` so the header's
+    /// loading state resolves even when the fetch fails (offline) — never a stuck placeholder.
+    func hydrateProfile() async {
+        defer { profileHydrated = true }
+        guard let userID = currentUser?.id else { return }
+        do {
+            let rows: [ProfileRow] = try await client
+                .from("profiles")
+                .select("display_name, name_is_custom")
+                .eq("id", value: userID.uuidString)
+                .limit(1)
+                .execute()
+                .value
+            guard let row = rows.first else { return }
+            if let name = row.display_name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+                displayName = name
+                UserDefaults.standard.set(name, forKey: Self.nameKey)
+            }
+            let custom = row.name_is_custom ?? false
+            displayNameIsCustom = custom
+            UserDefaults.standard.set(custom, forKey: Self.nameChosenKey)
+        } catch {
+            // Non-fatal (we fall back to the cached value) but NOT silent — a persistent
+            // failure (e.g. a missing RLS GRANT) would otherwise silently lose the name.
+            Diagnostics.shared.record(.apiFailure, "profile hydrate: \(error.localizedDescription)")
+        }
+    }
+
     /// Create-or-update the user's `profiles` row. Only writes `display_name` when
     /// we actually have one (Apple gives it once), so a later sign-in with no name
-    /// can't clobber a name captured on the first. Non-fatal on failure: the auth
-    /// user exists regardless; the profile row is a convenience.
+    /// can't clobber a name captured on the first. Never touches `name_is_custom` here
+    /// (it stays the column default `false` for a new row, and is preserved on conflict),
+    /// so an Apple-supplied name is recorded but NOT marked confirmed. Non-fatal on
+    /// failure: the auth user exists regardless; the profile row is a convenience.
     private func upsertProfile(userID: UUID, displayName: String?) async {
         do {
             if let displayName {
@@ -185,18 +268,28 @@ final class AuthStore {
         }
     }
 
-    /// Change how the user's name appears on the leaderboards. Trims + caps length, updates the
-    /// local cache immediately (so Profile + future leaderboard pushes use it), and upserts the
-    /// Supabase `profiles` row (telemetry-flagged on failure via `upsertProfile`). The user's own
-    /// row reflects it on the next board load; other players see it after the user's next submit.
-    /// (Length cap + trim only — no profanity filter yet; revisit before public launch.)
+    /// Change how the user's name appears on the leaderboards. Trims + caps length, marks the
+    /// name CONFIRMED (`name_is_custom = true`, locally + server-side), and upserts the Supabase
+    /// `profiles` row. The user's own row reflects it on the next board load; other players see it
+    /// after the user's next submit. (Length cap + trim only — no profanity filter yet; revisit
+    /// before public launch.)
+    ///
+    /// Note: we mark it confirmed even when the text is UNCHANGED — the user reaching this from the
+    /// gate with a prefilled Apple name is explicitly confirming it, so the gate must not re-fire.
+    /// (Only the empty case early-returns; `DisplayNameEntry` already blocks that in the UI.)
     func updateDisplayName(_ newName: String) async {
-        let capped = String(newName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(20))
-        guard !capped.isEmpty, capped != displayName else { return }
+        guard let capped = DisplayNameRules.normalized(newName) else { return }
         displayName = capped
+        displayNameIsCustom = true
         UserDefaults.standard.set(capped, forKey: Self.nameKey)
-        if let userID = currentUser?.id {
-            await upsertProfile(userID: userID, displayName: capped)
+        UserDefaults.standard.set(true, forKey: Self.nameChosenKey)
+        guard let userID = currentUser?.id else { return }
+        do {
+            try await client.from("profiles")
+                .upsert(ProfileNameChoice(id: userID.uuidString, display_name: capped, name_is_custom: true))
+                .execute()
+        } catch {
+            Diagnostics.shared.record(.apiFailure, "display name update: \(error.localizedDescription)")
         }
     }
 

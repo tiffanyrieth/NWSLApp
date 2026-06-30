@@ -72,7 +72,9 @@ implausibly small squad — e.g. 1 player — so the proxy caches a plausible ro
 (`~/Projects/nwslapp-match-watcher`): a `* * * * *` cron that diffs the proxy scoreboard (reached via a
 **service binding** — same-account Worker→Worker over `*.workers.dev` 404s with CF **error 1042**, so a
 public fetch silently fails; the rich-card crest fetch uses the same binding) for
-kickoff/goal/halftime/full-time, looks up `device_tokens` of users with that alert on, and sends APNs
+kickoff/goal/halftime/full-time + **VAR goal-correction** (a debounced score *decrease* — re-poll a
+cache-busted scoreboard before firing, so an ESPN glitch never sends a false "Goal Disallowed"), looks
+up `device_tokens` of users with that alert on, and sends APNs
 (ES256 `.p8` JWT). Deployed; `POST /test-push` (`x-trigger-secret`) sends a synthetic push for
 on-device E2E (`APNS_HOST` is production). A **V2 Live Activity** layer (lock-screen + Dynamic Island live
 score) rides the SAME watcher + `.p8`, strictly ADDITIVE to V1 (both fire per event; V1 send path untouched);
@@ -88,8 +90,11 @@ device-authoritative mirror whose launch prune deleted rows under the reinstall 
 `RootTabView` shows a brief "Restoring…" until reconcile resolves, never the picker.) **Trade-off:** a
 signed-out/offline unfollow won't reach the server and reappears on reinstall — recoverable, and harmless
 to alerts (alerts are a separate table + coordinator; follows ≠ alerts). Two devices diverging offline →
-last writer wins (fine at current scale). **Gotcha:** a new per-user table needs `grant … to
-authenticated` or signed-in queries fail silently with `42501` (RLS ≠ privilege).
+last writer wins (fine at current scale). **Gotcha (grants):** a new per-user table needs `grant … to
+authenticated` or signed-in queries fail silently with `42501` (RLS ≠ privilege); **AND** any table the
+**watcher reads as `service_role`** (`device_tokens`, `*_preferences`, `team_alert_preferences`,
+`live_activity_*`) needs an explicit `grant … to service_role` too — default privileges don't cover it,
+and bypassing RLS is NOT table privilege (this latent gap 42501'd the first real service_role read).
 
 ## Workflow & engineering practices (requirements — flag the trade-off before bypassing)
 

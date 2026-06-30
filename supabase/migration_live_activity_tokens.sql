@@ -9,7 +9,10 @@
 --     One active Activity per (user, match); pruned by the app when the Activity ends.
 --
 -- RLS owner-scoped + `grant ... to authenticated` (the 42501 gotcha — RLS ≠ privilege). The watcher
--- uses the service-role key (bypasses RLS) for the cross-user fan-out. Idempotent-ish on a fresh project.
+-- uses the service-role key for the cross-user fan-out: that BYPASSES RLS but still needs TABLE
+-- privilege, and this project's default privileges don't cover `service_role` for these tables — so
+-- it's granted explicitly too (without it the watcher's reads fail; POST /test-activity returns a 500).
+-- Idempotent-ish on a fresh project.
 
 create table public.live_activity_start_tokens (
   user_id uuid references auth.users(id) on delete cascade not null,
@@ -41,3 +44,7 @@ create policy "Users delete own live activities"  on public.live_activities for 
 
 grant select, insert, update, delete on public.live_activity_start_tokens to authenticated;
 grant select, insert, update, delete on public.live_activities          to authenticated;
+
+-- The watcher reads/writes these as `service_role` (bypasses RLS, but NOT a substitute for the grant).
+grant select, insert, update, delete on public.live_activity_start_tokens to service_role;
+grant select, insert, update, delete on public.live_activities          to service_role;

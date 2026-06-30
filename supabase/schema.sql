@@ -24,10 +24,16 @@
 --    name is stored but NOT custom — the Fan Zone gate (`hasChosenName`) makes the user
 --    confirm it before it appears on a public leaderboard. Defaults false; no backfill, so
 --    existing testers confirm once at their next ranked action.
+--  * `apple_refresh_token` is the user's Sign in with Apple refresh token, stored by the
+--    proxy at sign-in (exchanged from Apple's authorizationCode) and read back at account
+--    deletion to REVOKE the Apple credential (guideline 5.1.1(v)). Written + read by the
+--    Worker as service_role — see the grant below. No backfill: existing users get a token
+--    on their next sign-in.
 create table public.profiles (
   id uuid references auth.users(id) on delete cascade primary key,
   display_name text,
   name_is_custom boolean not null default false,
+  apple_refresh_token text,
   created_at timestamptz default now()
 );
 
@@ -65,6 +71,11 @@ create policy "Users can delete own follows"
 
 grant select, insert, update, delete on public.follows  to authenticated;
 grant select, insert, update          on public.profiles to authenticated;
+
+-- The proxy reads/writes profiles.apple_refresh_token as service_role (SIWA revocation —
+-- see migration_apple_refresh_token.sql). service_role bypasses RLS but still needs the
+-- explicit table privilege (this project's default privileges don't cover it).
+grant select, insert, update          on public.profiles to service_role;
 
 
 -- ═════════════════════════════════════════════════════════════════════════════

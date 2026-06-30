@@ -95,6 +95,22 @@ delete removes everything. `AuthStore.deleteAccount()` throws on any failure (ne
 silently); ProfileView then wipes all local state. Deploy-gated by
 `scripts/health_check_account_delete.mjs` (fails on a 404 route or 500 missing-secret).
 
+**SIWA credential revocation (App Store guideline 5.1.1(v)) — deleting our data isn't enough; we must
+also tell Apple the relationship is over, else a re-signup returns "existing user".** At sign-in the app
+captures Apple's short-lived `authorizationCode` (~5-min TTL) and fire-and-forgets it to the proxy
+(`POST /auth/apple-token-exchange`, via `AppleTokenExchangeService`) — never blocking sign-in; a miss
+just means "no token until next sign-in". The proxy (`src/apple-auth.ts`) builds an **ES256 `client_secret`
+JWT** signed with the SIWA `.p8` (same Web Crypto pattern as the watcher's APNs JWT — header carries
+`kid`, payload `iss`=Team ID / `sub`=bundle / `aud`=appleid / 180-day `exp`), exchanges the code at
+Apple's `/auth/token` for a `refresh_token`, and **upserts** it onto `profiles.apple_refresh_token`. On
+account deletion, `handleAccountDelete` reads that token and calls Apple's `/auth/revoke` **before** the
+Supabase cascade — best-effort and fully non-fatal (Apple down / no token / unconfigured secrets all just
+emit a diag and proceed; a delete must never be stranded). **New Worker secrets** (set via `wrangler
+secret put`, distinct from the APNs key): `SIWA_PRIVATE_KEY` / `SIWA_KEY_ID` / `APPLE_TEAM_ID`. The proxy
+reads/writes `profiles` as service_role for the first time, so `migration_apple_refresh_token.sql` adds
+both the column **and** `grant … to service_role` (the 42501 gotcha). Deploy-gated by
+`scripts/health_check_apple_auth.mjs`. No backfill: existing users get a token on their next sign-in.
+
 **V2 Live Activity (lock screen + Dynamic Island) — additive to V1 push.** Same `nwslapp-match-watcher`
 Worker, same ES256 `.p8` JWT signer, SECOND APNs channel: `apns-topic: <bundle>.push-type.liveactivity`,
 `apns-push-type: liveactivity`, payload `aps:{event:start|update|end, content-state, attributes-type,

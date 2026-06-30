@@ -155,6 +155,28 @@ final class AuthStore {
             currentNonce = nil
             currentUser = session.user
 
+            // SIWA revocation (App Store guideline 5.1.1(v)): trade Apple's short-lived
+            // authorizationCode (~5-min TTL) for a refresh_token, stored server-side via the
+            // proxy, so account deletion can later revoke the Apple credential. Fire-and-forget
+            // — the code expires fast and there's no point retrying a dead code; a miss just
+            // means "no revocation token until next sign-in" (the account works regardless), so
+            // we NEVER block or fail sign-in over it. Log every failure to Diagnostics.
+            if let codeData = credential.authorizationCode,
+               let authCode = String(data: codeData, encoding: .utf8) {
+                let accessToken = session.accessToken
+                let userID = session.user.id
+                Task {
+                    do {
+                        try await AppleTokenExchangeService().exchange(
+                            authorizationCode: authCode, userID: userID, accessToken: accessToken)
+                    } catch {
+                        Diagnostics.shared.record(.apiFailure, "apple token exchange: \(error.localizedDescription)")
+                    }
+                }
+            } else {
+                Diagnostics.shared.record(.apiFailure, "apple token exchange: missing authorizationCode")
+            }
+
             // Flush a push-to-start token captured before this session existed. The Live Activity
             // observers run from app launch (before sign-in), so a brand-new user's token was seen but
             // skipped (no session yet); register it now rather than waiting for the next launch.

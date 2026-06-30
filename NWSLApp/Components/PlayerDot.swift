@@ -41,6 +41,7 @@ struct PlayerDot: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Text(teamAbbreviation)
                     .font(.system(size: 10, weight: .semibold))
                     .tracking(0.5)

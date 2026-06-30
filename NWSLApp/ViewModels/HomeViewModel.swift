@@ -295,13 +295,20 @@ final class HomeViewModel {
             }
             return nil
         }
-        return fixtures.sorted { a, b in
-            if a.isResult != b.isResult { return !a.isResult }   // upcoming before results
-            let ka = a.event.kickoff ?? .distantFuture
-            let kb = b.event.kickoff ?? .distantFuture
-            // Upcoming: soonest first. Results: most recent first.
-            return a.isResult ? ka > kb : ka < kb
-        }
+        // Two followed teams playing each other surface the SAME match once per club
+        // (one FollowedFixture each, distinct `club.id` identities), so dedupe by event
+        // id — the Schedule does the same via MatchStore.dedupedByEventID. Dedupe AFTER
+        // the sort so the kept row is the higher-priority one (upcoming/soonest first).
+        var seenEventIDs = Set<String>()
+        return fixtures
+            .sorted { a, b in
+                if a.isResult != b.isResult { return !a.isResult }   // upcoming before results
+                let ka = a.event.kickoff ?? .distantFuture
+                let kb = b.event.kickoff ?? .distantFuture
+                // Upcoming: soonest first. Results: most recent first.
+                return a.isResult ? ka > kb : ka < kb
+            }
+            .filter { seenEventIDs.insert($0.event.id).inserted }
     }
 
     // MARK: - Helpers

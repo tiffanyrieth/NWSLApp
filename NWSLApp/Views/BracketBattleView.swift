@@ -396,7 +396,7 @@ struct BracketBattleView: View {
             VStack(spacing: 6) {
                 PlayerDot(name: e.playerName, jersey: e.jerseyNumber, teamAbbreviation: e.teamAbbreviation,
                           accent: accentColor(e.teamAbbreviation), athleteID: e.id, size: 44, showLabels: false)
-                Text(e.playerName).dsFont(13, weight: .semibold).foregroundStyle(.white).lineLimit(1)
+                Text(e.playerName).dsFont(13, weight: .semibold).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.8)
                 Text(e.teamAbbreviation).dsFont(10, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
                 if picked { Text("YOUR PICK ✓").dsFont(10, weight: .bold).foregroundStyle(accent) }
             }
@@ -574,7 +574,7 @@ struct BracketBattleView: View {
             PlayerDot(name: e.playerName, jersey: e.jerseyNumber, teamAbbreviation: e.teamAbbreviation,
                       accent: accentColor(e.teamAbbreviation), athleteID: e.id, size: 40, showLabels: false)
             Text(e.playerName).dsFont(13, weight: won ? .bold : .medium)
-                .foregroundStyle(won ? .white : Color.dsFgTertiary).strikethrough(!won).lineLimit(1)
+                .foregroundStyle(won ? .white : Color.dsFgTertiary).strikethrough(!won).lineLimit(1).minimumScaleFactor(0.8)
             Text(e.teamAbbreviation + (isYour ? " · your pick" : ""))
                 .dsFont(10, weight: .semibold).foregroundStyle(isYour ? accent : Color.dsFgTertiary)
             if won { Text("ADVANCES").dsFont(10, weight: .bold).foregroundStyle(Color.dsSuccess) }

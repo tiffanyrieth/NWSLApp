@@ -130,6 +130,10 @@ struct PlayingAsBadge: View {
                 (Text("Playing as ").foregroundStyle(Color.dsFgSecondary)
                  + Text(name).foregroundStyle(accent).fontWeight(.semibold))
                     .dsFont(12)
+                    // Take the width the full 2–20 char name needs — keep the nav bar
+                    // from compressing/truncating it to one squeezed line.
+                    .lineLimit(1)
+                    .fixedSize()
             }
             .buttonStyle(.plain)
             // Tap to change your leaderboard name right here — the same editor as Profile.

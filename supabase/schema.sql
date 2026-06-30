@@ -131,6 +131,10 @@ create policy "Users can update own notification prefs"
 -- Grants (the 42501 gotcha again — RLS does not imply privilege).
 grant select, insert, update, delete on public.device_tokens            to authenticated;
 grant select, insert, update          on public.notification_preferences to authenticated;
+-- The match-watcher reads these as service_role (Tier-2 push fan-out). Bypassing RLS is NOT a
+-- substitute for the table grant — without it the watcher's reads fail with 42501 on the first live match.
+grant select on public.device_tokens            to service_role;
+grant select on public.notification_preferences to service_role;
 
 
 -- ═════════════════════════════════════════════════════════════════════════════
@@ -177,6 +181,8 @@ create policy "Users delete own team alert prefs"
 -- Grants (the 42501 gotcha — RLS does not imply privilege). Private per-user table;
 -- authenticated only, never anon.
 grant select, insert, update, delete on public.team_alert_preferences to authenticated;
+-- The watcher reads this (per-team opt-in) as service_role for the push fan-out — explicit grant required.
+grant select on public.team_alert_preferences to service_role;
 
 
 -- ═════════════════════════════════════════════════════════════════════════════
@@ -436,3 +442,6 @@ create policy "Users delete own live activities" on public.live_activities for d
 
 grant select, insert, update, delete on public.live_activity_start_tokens to authenticated;
 grant select, insert, update, delete on public.live_activities          to authenticated;
+-- The watcher reads both as service_role (Live Activity fan-out) — bypasses RLS but still needs the grant.
+grant select, insert, update, delete on public.live_activity_start_tokens to service_role;
+grant select, insert, update, delete on public.live_activities          to service_role;

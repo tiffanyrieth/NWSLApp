@@ -155,6 +155,11 @@ final class AuthStore {
             currentNonce = nil
             currentUser = session.user
 
+            // Flush a push-to-start token captured before this session existed. The Live Activity
+            // observers run from app launch (before sign-in), so a brand-new user's token was seen but
+            // skipped (no session yet); register it now rather than waiting for the next launch.
+            LiveActivityManager.shared.userDidSignIn()
+
             // Apple returns the user's name only on the FIRST authorization, ever —
             // capture it now or never. Upsert keyed on the user id (= auth.uid()).
             // We do NOT mark it `name_is_custom`: an Apple name is present but unconfirmed,

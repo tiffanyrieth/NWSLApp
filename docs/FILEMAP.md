@@ -66,7 +66,7 @@ NWSLApp/
 │   ├── BracketStore.swift             — Bracket per-edition/round draft + one-way submit (only after server ack) + banked points + edition-summary gate (`bracket.v2.*`)
 │   ├── ClubStore.swift                — shared club directory; one fetch, many readers
 │   ├── FeedPreferencesStore.swift     — Feed content-type toggles + muted sources + `defaultFeedFilter` (the chip the Feed opens to, raw string)
-│   ├── FeedStore.swift                — @Observable shared Feed cards + load state (one fetch, many readers); PREWARMED low-pri from RootTabView (first switch instant); honest loading (never a fake-empty)
+│   ├── FeedStore.swift                — @Observable shared Feed cards + load state (one fetch, many readers); PREWARMED low-pri from RootTabView (first switch instant); SCOPE-AWARE loadIfNeeded (refetch when follows arrive after the prewarm, not just on empty) like HomeContentStore; honest loading (never a fake-empty)
 │   ├── HomeContentStore.swift         — @MainActor @Observable shared Home M1+M2 content (HomeViewModel derives off it). SCOPE-AWARE loadIfNeeded (no-op when scope matches, refetch when changed) + debounced `warm()` from onboarding + launch prewarm (Home populated on arrival, no flash); honest loading flags
 │   ├── FollowSyncCoordinator.swift    — @MainActor; the ONLY follows↔Supabase bridge — clubs (`follows`) AND competition follows (`competition_follows`). RESTORE-ONLY launch reconcile (un-onboarded device restores full server set; never prunes on launch); unfollows propagate only via the per-toggle `removeFollow`; `restoreResolved` gates the root "Restoring…" state
 │   ├── NotificationSyncCoordinator.swift — @MainActor; device-token + notif-prefs↔Supabase bridge

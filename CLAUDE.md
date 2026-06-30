@@ -23,7 +23,7 @@ table stakes that must work but are **not** the differentiator.
 
 ## State
 
-Production-quality **v0.4.1**, used daily. **Online-only: NO demo/seed/fake data in the running app**
+Production-quality **v0.4.2**, used daily. **Online-only: NO demo/seed/fake data in the running app**
 — every surface shows live data or an honest "Couldn't load — tap to retry" (seed/fixtures live only
 in previews + tests). Treat it as a real product; never suggest a demo/placeholder mode.
 

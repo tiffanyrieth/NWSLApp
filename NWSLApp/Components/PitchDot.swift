@@ -32,10 +32,14 @@ struct PitchDot: View {
             Text(Self.lastName(player))
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.white)
+                // A single last name can't wrap, so shrink-to-fit rather than truncate
+                // long ones (e.g. "Weatherholt"); the slightly wider frame holds them
+                // without overlapping adjacent dots.
                 .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .shadow(radius: 1)
         }
-        .frame(width: 60)
+        .frame(width: 66)
     }
 
     /// A short, never-blank pitch label: a real last name (last word of whatever

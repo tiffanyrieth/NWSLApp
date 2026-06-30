@@ -118,8 +118,10 @@ final class ScheduleViewModel {
         let all = store?.matches ?? []
         switch filter {
         case .nwsl:
-            // The home-league chip is NWSL only — competition matches never appear here.
-            return all.filter { $0.competition.isNWSL }
+            // The home-league chip shows NWSL competitions — the regular season/playoffs
+            // AND the NWSL Challenge Cup (an NWSL competition, even though it's excluded
+            // from the league table). The Champions Cup / national-team matches stay out.
+            return all.filter { $0.competition.inNWSLScheduleView }
         case .myTeams:
             // "Everything you care about", woven into one timeline:
             //  • National-team matches — already filtered to FOLLOWED teams upstream

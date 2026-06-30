@@ -361,6 +361,7 @@ struct PredictXIView: View {
                         .font(.subheadline.weight(row.isYou ? .bold : .regular))
                         .foregroundStyle(row.isYou ? accent : .primary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                     Spacer()
                     Text("\(row.points) pts").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
                 }

@@ -49,11 +49,25 @@ enum CompetitionType: Hashable {
         }
     }
 
-    /// NWSL matches keep full team styling; everything else renders the opponent
-    /// neutrally and carries a competition badge.
+    /// Whether this competition counts toward the LEAGUE TABLE — standings, club
+    /// W-D-L records, Predict eligibility — AND keeps full team styling. NWSL regular
+    /// season + playoffs only; the Challenge Cup is a one-off that stays out of league
+    /// records (see `inNWSLScheduleView` for the separate "shows in the schedule" question).
     var isNWSL: Bool {
         if case .nwsl = self { return true }
         return false
+    }
+
+    /// Whether this competition belongs in the Schedule's "NWSL" view. BROADER than
+    /// `isNWSL`: the Challenge Cup IS an NWSL competition for SCHEDULE purposes (two NWSL
+    /// clubs, NWSL trophy) even though it's excluded from the league table. "Counts in
+    /// standings" and "shows in the NWSL schedule" are two different questions — this one
+    /// answers the schedule chip; `isNWSL` answers standings/records.
+    var inNWSLScheduleView: Bool {
+        switch self {
+        case .nwsl, .challengeCup:                 return true
+        case .concacafChampionsCup, .international: return false
+        }
     }
 
     /// Curated US English-language primary broadcast for competitions ESPN only

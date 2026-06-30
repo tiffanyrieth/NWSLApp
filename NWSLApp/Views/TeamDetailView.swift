@@ -347,7 +347,11 @@ struct TeamDetailView: View {
                 Text(athlete.shortName ?? athlete.name)
                     .dsFont(14.5, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
-                    .lineLimit(1)
+                    // Player names must never truncate on the roster — wrap to a 2nd line
+                    // (the grid row grows to the tallest card) with a scale backstop.
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let jersey = athlete.jersey, !jersey.isEmpty {
                     Text("#\(jersey)")
                         .dsFont(11.5).monospaced()

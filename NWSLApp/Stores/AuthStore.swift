@@ -95,6 +95,14 @@ final class AuthStore {
     /// carries its SHA256; Supabase needs the raw value to verify).
     private var currentNonce: String?
 
+    /// Guards against a second `handleSignIn` running while one is in flight. The
+    /// `SignInWithAppleButton` flow normally serializes request→completion, so this is
+    /// belt-and-suspenders — it closes the only theoretical double-invocation path (a
+    /// concurrent completion clearing `currentNonce` mid-exchange → a spurious
+    /// `.missingNonce` that reads as "sign in failed, try again"). Harmless if the
+    /// observed sim double-sign-in is purely the simulator's first-run Apple-ID behavior.
+    private var isSigningIn = false
+
     /// Rehydrate the session on launch. The Supabase SDK persists the session to
     /// the keychain itself, so this just asks for the stored one — no custom token
     /// storage. `try?`: no stored session simply means signed-out (currentUser nil).
@@ -125,6 +133,11 @@ final class AuthStore {
         case .failure(let error):
             throw error
         case .success(let authorization):
+            // Ignore a duplicate completion while an exchange is already running, so a second
+            // call can't clear `currentNonce` out from under the first (→ spurious .missingNonce).
+            guard !isSigningIn else { return }
+            isSigningIn = true
+            defer { isSigningIn = false }
             guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
                 throw AuthError.unexpectedCredential
             }

@@ -45,7 +45,9 @@ struct PlayerCard: View {
                 Text(athlete.shortName ?? athlete.name)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.dsFgPrimary)
-                    .lineLimit(1)
+                    // Names never truncate — allow a 2nd line (matches the roster card),
+                    // keeping the scale backstop for the longest names.
+                    .lineLimit(2)
                     .minimumScaleFactor(0.8)
 
                 if let position = athlete.positionName {

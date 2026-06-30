@@ -17,10 +17,10 @@
 
 import Foundation
 
-/// A platform shown in the team social row, in display order. Each maps to an SF
-/// Symbol glyph — SF Symbols ships no third-party brand logos, so these are
-/// approximations, the same convention `TeamContentItem.Platform` uses for the
-/// content cards (the four shared cases use the same symbols on purpose).
+/// A platform shown in the team social row, in display order. Each maps to a
+/// bundled brand glyph in the asset catalog's `Social/` namespace (template
+/// images, tinted at the call site). The content cards (`TeamContentItem.Platform`)
+/// still use SF Symbols — the social row is the surface that earns real logos.
 enum SocialPlatform: String, CaseIterable {
     case reddit = "Reddit"
     case bluesky = "Bluesky"
@@ -32,17 +32,17 @@ enum SocialPlatform: String, CaseIterable {
     /// — cleaner at small sizes, per the spec).
     var label: String { rawValue }
 
-    /// SF Symbol glyph for the icon. The four platforms shared with
-    /// `TeamContentItem.Platform` reuse its symbols for a consistent look; Reddit
-    /// (community discussion) gets the double-bubble to read distinctly from
-    /// Bluesky's single bubble.
-    var symbol: String {
+    /// Asset-catalog name of the platform's brand glyph — a template image under
+    /// the `Social/` namespace (`Social/bluesky`, etc.), tinted at the call site
+    /// via `.foregroundStyle`. Bundled vector (SVG), so it renders on the first
+    /// frame with no network.
+    var iconAssetName: String {
         switch self {
-        case .reddit:    return "bubble.left.and.bubble.right.fill"
-        case .bluesky:   return "bubble.left.fill"
-        case .instagram: return "camera.fill"
-        case .youtube:   return "play.rectangle.fill"
-        case .tiktok:    return "music.note"
+        case .reddit:    return "Social/reddit"
+        case .bluesky:   return "Social/bluesky"
+        case .instagram: return "Social/instagram"
+        case .youtube:   return "Social/youtube"
+        case .tiktok:    return "Social/tiktok"
         }
     }
 }

@@ -91,10 +91,11 @@ device-authoritative mirror whose launch prune deleted rows under the reinstall 
 signed-out/offline unfollow won't reach the server and reappears on reinstall — recoverable, and harmless
 to alerts (alerts are a separate table + coordinator; follows ≠ alerts). Two devices diverging offline →
 last writer wins (fine at current scale). **Gotcha (grants):** a new per-user table needs `grant … to
-authenticated` or signed-in queries fail silently with `42501` (RLS ≠ privilege); **AND** any table the
-**watcher reads as `service_role`** (`device_tokens`, `*_preferences`, `team_alert_preferences`,
-`live_activity_*`) needs an explicit `grant … to service_role` too — default privileges don't cover it,
-and bypassing RLS is NOT table privilege (this latent gap 42501'd the first real service_role read).
+authenticated` or signed-in queries fail silently with `42501` (RLS ≠ privilege); **AND** any table a
+**Worker reads/writes as `service_role`** — the watcher (`device_tokens`, `*_preferences`,
+`team_alert_preferences`, `live_activity_*`) OR the proxy (`profiles`, for the SIWA `apple_refresh_token`)
+— needs an explicit `grant … to service_role` too: default privileges don't cover it, and bypassing RLS
+is NOT table privilege (this latent gap 42501'd the first real service_role read).
 
 ## Workflow & engineering practices (requirements — flag the trade-off before bypassing)
 

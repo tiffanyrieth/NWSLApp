@@ -137,6 +137,9 @@ struct MatchDetailView: View {
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity)
+                // Whole tab column tappable — .plain hit-tests only the centered label text otherwise,
+                // leaving the rest of the equal-width column dead. (Tap-target audit.)
+                .contentShape(Rectangle())
             }
         }
         .animation(.easeInOut(duration: 0.2), value: tab)

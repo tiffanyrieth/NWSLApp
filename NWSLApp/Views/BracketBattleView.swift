@@ -124,6 +124,9 @@ struct BracketBattleView: View {
                                 .dsFont(15, weight: .semibold).foregroundStyle(accent)
                                 .frame(maxWidth: .infinity).padding(.vertical, 13)
                                 .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(accent.opacity(0.35), lineWidth: 1.5))
+                                // Full-width outlined CTA with no fill — make the whole bordered area
+                                // tappable, not just the centered text. (Tap-target audit.)
+                                .contentShape(Rectangle())
                         }
                         goodToKnow   // in the scroll (after "See the full bracket"), not pinned
                     }
@@ -404,6 +407,9 @@ struct BracketBattleView: View {
             .background(picked ? accent.opacity(0.12) : .clear)
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(picked ? accent : .clear, lineWidth: 1.5))
             .clipShape(RoundedRectangle(cornerRadius: 12))
+            // Whole choice tappable: when unpicked the background is .clear and the content is centered,
+            // so the side-margins were dead exactly when you tap to pick. (Tap-target audit.)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -796,6 +802,8 @@ struct BracketBattleView: View {
                             Text(expanded ? "Show less" : "+\(ms.count - cap) more")
                                 .dsFont(11, weight: .semibold).foregroundStyle(accent)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                // Full-width row — tappable across its width, not just the leading text.
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }

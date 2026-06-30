@@ -342,6 +342,10 @@ struct XIPickerView: View {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(accent)
             }
         }
+        // Full-row hit target. The row is a `.buttonStyle(.plain)` Button label, which hit-tests only
+        // the OPAQUE content (the name/jersey/checkmark) — the Spacer and empty area were dead, so only
+        // the player's name was tappable. The List cell's background isn't the label's. (Tap-target audit.)
+        .contentShape(Rectangle())
     }
 
     private var emptyRoster: some View {

@@ -14,6 +14,14 @@
 //  honest loading state and the genuinely-empty copy ONLY after a load actually completes empty
 //  — a loading state must never look identical to success (no silent failures).
 //
+//  SCOPE-AWARE (same fix as HomeContentStore): the load reflects a followed-abbreviation set
+//  (`loadedScope`). The launch prewarm can run BEFORE FollowSyncCoordinator restores the user's
+//  server follows, so it would fetch an empty (reporters + league only) scope and latch it; a
+//  plain `allItems.isEmpty` guard then no-op'd the tab's own load and the team sources never
+//  appeared until a manual refresh. Tracking the scope lets the tab's `loadIfNeeded` notice the
+//  follows arrived (scope changed) and refetch, while still sharing one fetch with the prewarm
+//  when the scope didn't change.
+//
 
 import Foundation
 
@@ -28,18 +36,28 @@ final class FeedStore {
     /// The one simple, honest message a failed Feed load shows.
     static let loadFailureMessage = "Couldn't load — tap to retry"
 
+    /// The followed-abbreviation set `allItems` currently reflects. nil = never loaded. Set
+    /// ONLY on a successful fetch, so a failed/empty load doesn't latch as "loaded for this
+    /// scope" (the next explicit retry refetches instead of no-op'ing).
+    private var loadedScope: Set<String>? = nil
+
     private let contentService: ContentService
 
     init(contentService: ContentService = ContentService()) {
         self.contentService = contentService
     }
 
-    /// Load once if not already loaded (and not currently loading or in an error state). The
-    /// prewarm and the view's first-appearance both call this; whichever runs first wins, the
-    /// other is a cheap no-op. Callers ensure `clubStore` is loaded first (for the scoping).
+    /// Load if the followed-team scope hasn't been loaded yet (and there's no error to retry
+    /// and no fetch in flight). The prewarm and the view's first-appearance both call this;
+    /// whichever runs first wins, the other is a cheap no-op — UNLESS the follows changed since
+    /// (e.g. the prewarm ran before the sign-in restore), in which case the scope no longer
+    /// matches and this refetches. A prior error waits for the explicit "tap to retry" (`load`),
+    /// not an auto-retry on every reappearance.
     func loadIfNeeded(following: FollowingStore, clubStore: ClubStore) async {
-        guard allItems.isEmpty, itemsError == nil, !isLoadingItems else { return }
-        await fetch(following: following, clubStore: clubStore)
+        let scope = await resolveScope(following: following, clubStore: clubStore)
+        guard itemsError == nil else { return }
+        guard loadedScope != scope, !isLoadingItems else { return }
+        await fetch(scope: scope)
     }
 
     /// Force a (re)load — pull-to-refresh + retry. Clears a prior error so the view shows the
@@ -47,28 +65,34 @@ final class FeedStore {
     func load(following: FollowingStore, clubStore: ClubStore) async {
         guard !isLoadingItems else { return }
         itemsError = nil
-        await fetch(following: following, clubStore: clubStore)
+        let scope = await resolveScope(following: following, clubStore: clubStore)
+        await fetch(scope: scope)
     }
 
-    private func fetch(following: FollowingStore, clubStore: ClubStore) async {
-        isLoadingItems = true
-        defer { isLoadingItems = false; hasCompletedItemsLoad = true }
-        // Scope the live `/feed` query to the followed clubs' team posts (the proxy returns
-        // reporters + league regardless). Empty → reporters + league only. MUST wait for the club
-        // directory first — scoping before it's loaded yields an empty team set (same race the
-        // Home feed hit). Dedupe-aware, so a no-op once loaded.
+    /// The followed-club abbreviations to scope the live `/feed` query to (the proxy returns
+    /// reporters + league regardless; empty → reporters + league only). MUST wait for the club
+    /// directory first — scoping before it's loaded yields an empty team set (the documented
+    /// race). Dedupe-aware, so a no-op once loaded.
+    private func resolveScope(following: FollowingStore, clubStore: ClubStore) async -> Set<String> {
         await clubStore.loadIfNeeded()
-        let followed = Set(
+        return Set(
             clubStore.clubs
                 .filter { following.followedIDs.contains($0.id) }
                 .map(\.abbreviation)
         )
+    }
+
+    private func fetch(scope: Set<String>) async {
+        isLoadingItems = true
+        defer { isLoadingItems = false; hasCompletedItemsLoad = true }
         do {
-            allItems = try await contentService.feedCards(followedAbbreviations: followed)
+            allItems = try await contentService.feedCards(followedAbbreviations: scope)
                 .sorted { $0.timestamp > $1.timestamp }
             itemsError = nil
+            // Latch only on success, so an errored load doesn't read as "loaded for this scope".
+            loadedScope = scope
         } catch {
-            Diagnostics.shared.record(.apiFailure, "feed load (\(followed.count) team(s)): \(error.localizedDescription)")
+            Diagnostics.shared.record(.apiFailure, "feed load (\(scope.count) team(s)): \(error.localizedDescription)")
             allItems = []
             itemsError = Self.loadFailureMessage
         }

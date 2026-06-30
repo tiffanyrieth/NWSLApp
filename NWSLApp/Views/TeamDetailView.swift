@@ -39,6 +39,14 @@ struct TeamDetailView: View {
         GridItem(.flexible(), spacing: 10),
     ]
 
+    // Social link-pill glyph size at the default text setting, scaled with Dynamic
+    // Type on the `.body` axis so the brand glyph moves in lockstep with its `.dsFont`
+    // label (capped at AX1 at the root — see RootTabView). Custom template images
+    // render at their intrinsic SVG size and ignore `.font`, so unlike the old SF
+    // Symbols these need an explicit scaled frame. ~15pt ≈ the prior 13pt symbol's
+    // optical footprint (SF Symbols sit smaller than their point size).
+    @ScaledMetric(relativeTo: .body) private var socialGlyphSize: CGFloat = 15
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -220,8 +228,10 @@ struct TeamDetailView: View {
         // scoped to these outbound-link glyphs — all in-app chrome stays club-accent.)
         Button { openURL(link.url) } label: {
             HStack(spacing: 7) {
-                Image(systemName: link.platform.symbol)
-                    .dsFont(13, weight: .semibold)
+                Image(link.platform.iconAssetName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: socialGlyphSize, height: socialGlyphSize)
                     .foregroundStyle(platformColor(link.platform))
                 Text(link.platform.label)
                     .dsFont(13, weight: .semibold)

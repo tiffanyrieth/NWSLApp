@@ -11,9 +11,12 @@
 //  platform brand colors, so the row stays cohesive with the rest of the
 //  team-colored page (player cards, jersey badges) and "breathes" instead of
 //  reading as a loud rainbow. The label under each icon carries the platform
-//  identity, so a monochrome glyph is enough — SF Symbols has no brand logos
-//  anyway (these approximate, matching the app's existing platform-glyph
-//  convention in TeamContentItem.Platform).
+//  identity, so a monochrome glyph is enough — and it's now the real brand glyph
+//  (bundled template image in the `Social/` namespace), tinted in the club accent.
+//
+//  NOTE: currently unused (TeamDetailView renders its own capsule link pills). Kept
+//  as the alternative circular-icon variant; updated alongside the glyph swap so it
+//  stays compiling and consistent.
 //
 
 import SwiftUI
@@ -32,8 +35,10 @@ struct SocialLinkButton: View {
             openURL(link.url)
         } label: {
             VStack(spacing: 6) {
-                Image(systemName: link.platform.symbol)
-                    .dsFont(16, weight: .semibold)
+                Image(link.platform.iconAssetName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 18, height: 18)
                     .foregroundStyle(accent.on)
                     .frame(width: 36, height: 36)
                     .background(accent.fill, in: Circle())

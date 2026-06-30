@@ -307,12 +307,9 @@ struct RootTabView: View {
                 coordinator.start()
                 teamAlertSyncCoordinator = coordinator
             }
-            // V2 Live Activity: register this device's ActivityKit push-to-start token + track any
-            // running Activities' update tokens, mirrored to Supabase so the watcher can drive the
-            // lock-screen / Dynamic Island widget. Idempotent; no-op until signed in.
-            if let uid = auth.userID {
-                LiveActivityManager.shared.start(userID: uid)
-            }
+            // V2 Live Activity observers are primed at app LAUNCH (AppDelegate → startObserving) so a
+            // push-to-start *background* launch can register the per-Activity token; the sign-in token
+            // flush lives in AuthStore.handleSignIn. Nothing to wire from the view here.
             #if DEBUG
             // Sim verification only: drive a full sample Live Activity lifecycle (pre→live→goal→HT→FT→end).
             if ProcessInfo.processInfo.arguments.contains("-driveLiveActivity") {

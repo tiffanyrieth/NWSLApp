@@ -92,6 +92,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // Become the notification delegate so we can present pushes in the
         // foreground and handle taps. Set early, before any push can arrive.
         UNUserNotificationCenter.current().delegate = self
+
+        // Prime the V2 Live Activity observers HERE — at launch, not from a view — so they're listening
+        // on a cold *background* launch (a push-to-start creates the Activity with the app not running;
+        // iOS background-launches us, and only a launch-primed `activityUpdates` observer can capture
+        // that Activity's per-update push token to register with the watcher). Independent of sign-in.
+        Task { @MainActor in LiveActivityManager.shared.startObserving() }
+
         return true
     }
 

@@ -26,27 +26,45 @@ final class LiveActivityManager {
 
     private let client = SupabaseManager.client
     private static let log = Logger(subsystem: "com.tiffanyrieth.nwslapp", category: "LiveActivity")
-    private var userID: UUID?
-    private var started = false
+    private var observing = false
+    /// Latest push-to-start token seen this launch — cached so a token captured before the Supabase
+    /// session is restored (the first sign-in during onboarding) can be flushed by `userDidSignIn()`.
+    private var latestStartToken: String?
 
-    /// Wire up once a user is signed in (called from the same place as the other sync coordinators).
-    /// Idempotent. Registers the push-to-start token and tracks any already-running Activities.
-    func start(userID: UUID) {
-        self.userID = userID
-        guard !started else { return }
-        started = true
+    /// Prime the ActivityKit observers. MUST run at app launch (AppDelegate.didFinishLaunching) and NOT
+    /// from a view — so it also runs on a cold *background* launch: when a push-to-start arrives with the
+    /// app not running, iOS launches us in the background and creates the Activity, and only a
+    /// launch-primed `activityUpdates` observer can capture that Activity's per-update push token. Wiring
+    /// this behind a SwiftUI view (which never renders on a background launch) is the bug that left the
+    /// per-Activity token unregistered. Independent of sign-in — uploads resolve the user from the
+    /// restored session at write time. Idempotent.
+    ///
+    /// Apple caveat: if the user *force-quits* the app (swipes it from the App Switcher and never
+    /// reopens), push-to-start still creates and renders the Activity but `pushTokenUpdates` never fires,
+    /// so the watcher can't update/end it. That single case is a platform limitation, not coverable here.
+    func startObserving() {
+        guard !observing else { return }
+        observing = true
         observePushToStartTokens()
         observeNewActivities()
         for activity in Activity<MatchActivityAttributes>.activities { track(activity) }
     }
 
-    func signOut() { userID = nil }
+    /// Call when a user signs in — flush a push-to-start token captured before the session existed (the
+    /// observer skipped its upload). Returning users upload directly from the restored session, so this
+    /// covers only the brand-new-sign-in path.
+    func userDidSignIn() {
+        guard let token = latestStartToken else { return }
+        Task { await upsertStartToken(token) }
+    }
 
     // MARK: - Push-to-start token (per device → lets the watcher remote-start the Activity)
     private func observePushToStartTokens() {
         Task {
             for await tokenData in Activity<MatchActivityAttributes>.pushToStartTokenUpdates {
-                await upsertStartToken(Self.hex(tokenData))
+                let token = Self.hex(tokenData)
+                latestStartToken = token
+                await upsertStartToken(token)
             }
         }
     }
@@ -73,8 +91,17 @@ final class LiveActivityManager {
     }
 
     // MARK: - Supabase mirror (non-fatal, telemetry-flagged — NO silent failures)
+
+    /// The signed-in user's id, resolved from the RESTORED Supabase session — this *awaits* the keychain
+    /// restore, so on a cold/background launch the token isn't dropped before auth is ready. (The old
+    /// code read a property set only at sign-in, which is nil on a background launch → silent drop.)
+    /// Signed-out → nil → the caller skips (a signed-out device has no business holding live tokens).
+    private func currentUserID() async -> UUID? {
+        try? await client.auth.session.user.id
+    }
+
     private func upsertStartToken(_ token: String) async {
-        guard let userID else { return }
+        guard let userID = await currentUserID() else { return }
         do {
             try await client.from("live_activity_start_tokens")
                 .upsert(["user_id": userID.uuidString, "token": token], onConflict: "user_id,token")
@@ -83,7 +110,7 @@ final class LiveActivityManager {
     }
 
     private func upsertActivityToken(matchId: String, token: String) async {
-        guard let userID else { return }
+        guard let userID = await currentUserID() else { return }
         do {
             try await client.from("live_activities")
                 .upsert(["user_id": userID.uuidString, "match_id": matchId, "push_token": token],
@@ -93,7 +120,7 @@ final class LiveActivityManager {
     }
 
     private func deleteActivity(matchId: String) async {
-        guard let userID else { return }
+        guard let userID = await currentUserID() else { return }
         do {
             try await client.from("live_activities")
                 .delete()

@@ -22,8 +22,10 @@ struct MDInfoCard: View {
                 .dsFont(13, weight: .semibold)
                 .foregroundStyle(Color.dsFgPrimary)
                 // Reserve two lines so a long Venue and a one-word Broadcast keep the
-                // SAME card height — the grid stays even (bug #8).
+                // SAME card height — the grid stays even (bug #8). Shrink-to-fit the
+                // longest values (e.g. "Audi Field, Washington, D.C.") rather than truncate.
                 .lineLimit(2, reservesSpace: true)
+                .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)

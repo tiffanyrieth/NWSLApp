@@ -140,7 +140,7 @@ struct BracketLeaderboardView: View {
         let frac = CGFloat(s.points) / CGFloat(maxPts)
         return VStack(spacing: 6) {
             Text(s.name).dsFont(11, weight: .semibold).foregroundStyle(s.isYou ? accent : .white)
-                .lineLimit(1).minimumScaleFactor(0.7).frame(maxWidth: 84)
+                .lineLimit(2).minimumScaleFactor(0.7).frame(maxWidth: 84)
             Text("\(s.points)").dsFont(13, weight: .heavy, monospacedDigit: true).foregroundStyle(s.isYou ? accent : Color.dsFgSecondary)
             RoundedRectangle(cornerRadius: 6)
                 .fill(s.isYou ? accent : accent.opacity(0.45))
@@ -156,7 +156,7 @@ struct BracketLeaderboardView: View {
             Text("\(s.rank)").dsFont(13, weight: .bold, monospacedDigit: true)
                 .foregroundStyle(s.isYou ? accent : Color.dsFgTertiary).frame(width: 30, alignment: .trailing)
             Text(s.name).dsFont(14, weight: s.isYou ? .bold : .medium)
-                .foregroundStyle(s.isYou ? accent : .white).lineLimit(1)
+                .foregroundStyle(s.isYou ? accent : .white).lineLimit(1).minimumScaleFactor(0.8)
             Spacer(minLength: 8)
             Text(s.accuracy.map(pct) ?? "—").dsFont(12, monospacedDigit: true)
                 .foregroundStyle(Color.dsFgSecondary).frame(width: 48, alignment: .trailing)
@@ -247,7 +247,7 @@ struct BracketLeaderboardView: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(e.themeLabel).trackedCaps(size: 10, color: accent)
-                    Text(e.title).dsFont(14, weight: .semibold).foregroundStyle(.white).lineLimit(1)
+                    Text(e.title).dsFont(14, weight: .semibold).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.85)
                 }
                 Spacer(minLength: 8)
                 Text(e.isComplete ? "Final" : "In progress")

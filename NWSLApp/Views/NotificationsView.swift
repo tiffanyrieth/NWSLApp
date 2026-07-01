@@ -139,6 +139,12 @@ struct NotificationsView: View {
             SettingsRowDivider()
             SettingsToggleRow(title: "Full time", subtitle: "Final score when the match ends",
                               isOn: tier2Binding(\.fullTime))
+            SettingsRowDivider()
+            // Live Activities (V2) — the silent live-score card, distinct from the buzzing alerts above.
+            // An OPT-OUT (default on): no sign-in gate — opting out is free, and delivery is separately
+            // gated by having match alerts on for a team. Server-read only (the watcher honors it).
+            SettingsToggleRow(title: "Live Activities", subtitle: "Live score on your Lock Screen & Dynamic Island",
+                              isOn: deferredBinding(\.liveActivitiesEnabled))
         }
         // Inert + greyed until at least one team has alerts on (these types have
         // nothing to apply to otherwise). Un-dims reactively when §1 turns one on.

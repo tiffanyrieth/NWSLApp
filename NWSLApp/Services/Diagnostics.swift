@@ -34,6 +34,10 @@ final class Diagnostics {
         case parseError                 // a decode/parse failed
         case unexpectedEmpty            // a load succeeded but returned nothing where content was due
         case staleServe                 // served older-than-expected data
+        // V2 Live Activity background-launch trail: non-failure breadcrumbs (observer primed, activity
+        // seen, token received, session resolved/dropped, upsert ok/fail) so a push-to-start background
+        // launch — un-observable in the sim — leaves a full trace in the remote sink. See LiveActivityManager.
+        case liveActivityTrace
         // TEMP (reinstall-restore verification — remove after the follows-restore fix is verified):
         // a non-error diagnostic trace, used to confirm reconcile restores the full server set and
         // never prunes on launch. Distinct kind so it reads as a trace, not a failure.
@@ -113,8 +117,15 @@ final class Diagnostics {
         }
     }
 
-    private static let appVersion: String =
-        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "?"
+    // Short version AND build number ("0.4.2 (21)") — the build distinguishes TestFlight uploads
+    // (which share a marketing version), so the remote sink can tell which build a device runs. Fits
+    // the proxy's 20-char `app` cap.
+    private static let appVersion: String = {
+        let info = Bundle.main.infoDictionary
+        let short = (info?["CFBundleShortVersionString"] as? String) ?? "?"
+        let build = (info?["CFBundleVersion"] as? String) ?? "?"
+        return "\(short) (\(build))"
+    }()
     private static let osVersion: String = {
         let v = ProcessInfo.processInfo.operatingSystemVersion
         return "\(v.majorVersion).\(v.minorVersion)"

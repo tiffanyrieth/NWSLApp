@@ -65,10 +65,12 @@ struct NWSLAppApp: App {
                 } else if ProcessInfo.processInfo.arguments.contains("-assetAudit") {
                     AssetAuditView()
                 } else {
-                    RootTabView()
+                    // Forced-update gate wraps the app: the /config check runs before the tab bar or
+                    // any data/follows load, and walls off a build below the server's minBuild.
+                    AppGateView { RootTabView() }
                 }
                 #else
-                RootTabView()
+                AppGateView { RootTabView() }
                 #endif
             }
             // Force a dark appearance app-wide (a single dark identity, like

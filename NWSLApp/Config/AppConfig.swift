@@ -184,6 +184,22 @@ enum AppConfig {
         scoreboardProxyBase.appendingPathComponent("telemetry")
     }
 
+    // MARK: - Forced-update version gate
+
+    /// The proxy route the app checks at launch: `GET /config` → `{ minVersion, minBuild }`. If this
+    /// build's `CFBundleVersion` is below `minBuild`, the app shows a non-dismissible update wall. The
+    /// check FAILS OPEN — an unreachable proxy never blocks the app (see `ForceUpdateService`).
+    static func configURL() -> URL? {
+        scoreboardProxyBase.appendingPathComponent("config")
+    }
+
+    /// Where the update wall's "Update" button sends the user. TestFlight for now (beta distribution);
+    /// swap to the App Store product URL at public launch. `itms-beta://` opens the TestFlight app so the
+    /// tester can install the newer build; replace with the app's public TestFlight join link
+    /// (`https://testflight.apple.com/join/<code>`) for a direct deep-link.
+    /// Force-unwrap is safe: a compile-time constant, valid URL.
+    static let updateURL = URL(string: "itms-beta://")!
+
     // MARK: - Player headshots
 
     /// The proxy route returning the `{ espnAthleteId: nwslGuid }` headshot map as JSON:

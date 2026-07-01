@@ -17,6 +17,7 @@ import ActivityKit
 import Foundation
 import os
 import Supabase
+import UIKit
 
 @MainActor
 @Observable
@@ -45,9 +46,15 @@ final class LiveActivityManager {
     func startObserving() {
         guard !observing else { return }
         observing = true
+        // Breadcrumb: proves the observer was primed AND whether this is a background launch (the
+        // whole point of #104). `activities` is the snapshot of Activities that already exist — on a
+        // push-to-start background launch the just-created Activity is usually here.
+        let snapshot = Activity<MatchActivityAttributes>.activities
+        Diagnostics.shared.record(.liveActivityTrace,
+            "startObserving state=\(Self.appStateLabel) snapshot=\(snapshot.count)")
         observePushToStartTokens()
         observeNewActivities()
-        for activity in Activity<MatchActivityAttributes>.activities { track(activity) }
+        for activity in snapshot { track(activity) }
     }
 
     /// Call when a user signs in — flush a push-to-start token captured before the session existed (the
@@ -64,6 +71,7 @@ final class LiveActivityManager {
             for await tokenData in Activity<MatchActivityAttributes>.pushToStartTokenUpdates {
                 let token = Self.hex(tokenData)
                 latestStartToken = token
+                Diagnostics.shared.record(.liveActivityTrace, "start-token rx state=\(Self.appStateLabel)")
                 await upsertStartToken(token)
             }
         }
@@ -72,7 +80,11 @@ final class LiveActivityManager {
     // MARK: - Per-Activity update token + end-of-life pruning
     private func observeNewActivities() {
         Task {
-            for await activity in Activity<MatchActivityAttributes>.activityUpdates { track(activity) }
+            for await activity in Activity<MatchActivityAttributes>.activityUpdates {
+                Diagnostics.shared.record(.liveActivityTrace,
+                    "activityUpdate match=\(activity.attributes.matchId) state=\(Self.appStateLabel)")
+                track(activity)
+            }
         }
     }
 
@@ -80,6 +92,7 @@ final class LiveActivityManager {
         let matchId = activity.attributes.matchId
         Task {
             for await tokenData in activity.pushTokenUpdates {
+                Diagnostics.shared.record(.liveActivityTrace, "activity-token rx match=\(matchId)")
                 await upsertActivityToken(matchId: matchId, token: Self.hex(tokenData))
             }
         }
@@ -92,42 +105,92 @@ final class LiveActivityManager {
 
     // MARK: - Supabase mirror (non-fatal, telemetry-flagged — NO silent failures)
 
-    /// The signed-in user's id, resolved from the RESTORED Supabase session — this *awaits* the keychain
-    /// restore, so on a cold/background launch the token isn't dropped before auth is ready. (The old
-    /// code read a property set only at sign-in, which is nil on a background launch → silent drop.)
-    /// Signed-out → nil → the caller skips (a signed-out device has no business holding live tokens).
-    private func currentUserID() async -> UUID? {
-        try? await client.auth.session.user.id
+    /// The signed-in user's id from the Supabase session, with ONE short retry. `auth.session` loads the
+    /// persisted session from the Keychain (independent of any view/`restoreSession()`), and *refreshes*
+    /// it over the network if the access token expired (Supabase tokens last ~1h — a backgrounded phone
+    /// idle >1h will refresh). On a background launch that refresh can be mid-flight; the retry gives it a
+    /// beat to settle before we give up. Callers run this INSIDE `withBackgroundTime`, so the refresh has
+    /// protected runtime. Signed-out → nil → the caller skips (loudly).
+    private func resolveUserID() async -> UUID? {
+        if let id = try? await client.auth.session.user.id { return id }
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        return try? await client.auth.session.user.id
     }
 
     private func upsertStartToken(_ token: String) async {
-        guard let userID = await currentUserID() else { return }
-        do {
-            try await client.from("live_activity_start_tokens")
-                .upsert(["user_id": userID.uuidString, "token": token], onConflict: "user_id,token")
-                .execute()
-        } catch { Diagnostics.shared.record(.apiFailure, "LA start-token upsert: \(error.localizedDescription)") }
+        await withBackgroundTime("LA start-token upsert") {
+            guard let userID = await self.resolveUserID() else {
+                Diagnostics.shared.record(.liveActivityTrace, "start-token drop: no session state=\(Self.appStateLabel)")
+                return
+            }
+            do {
+                try await self.client.from("live_activity_start_tokens")
+                    .upsert(["user_id": userID.uuidString, "token": token], onConflict: "user_id,token")
+                    .execute()
+                Diagnostics.shared.record(.liveActivityTrace, "start-token upsert ok")
+            } catch { Diagnostics.shared.record(.apiFailure, "LA start-token upsert: \(error.localizedDescription)") }
+        }
     }
 
     private func upsertActivityToken(matchId: String, token: String) async {
-        guard let userID = await currentUserID() else { return }
-        do {
-            try await client.from("live_activities")
-                .upsert(["user_id": userID.uuidString, "match_id": matchId, "push_token": token],
-                        onConflict: "user_id,match_id")
-                .execute()
-        } catch { Diagnostics.shared.record(.apiFailure, "LA activity-token upsert: \(error.localizedDescription)") }
+        await withBackgroundTime("LA activity-token upsert") {
+            guard let userID = await self.resolveUserID() else {
+                // The exact failure the whole background-launch design hinges on — NEVER silent.
+                Diagnostics.shared.record(.liveActivityTrace,
+                    "activity-token DROP: no session state=\(Self.appStateLabel) match=\(matchId)")
+                return
+            }
+            do {
+                try await self.client.from("live_activities")
+                    .upsert(["user_id": userID.uuidString, "match_id": matchId, "push_token": token],
+                            onConflict: "user_id,match_id")
+                    .execute()
+                Diagnostics.shared.record(.liveActivityTrace, "activity-token upsert ok match=\(matchId)")
+            } catch { Diagnostics.shared.record(.apiFailure, "LA activity-token upsert: \(error.localizedDescription)") }
+        }
     }
 
     private func deleteActivity(matchId: String) async {
-        guard let userID = await currentUserID() else { return }
-        do {
-            try await client.from("live_activities")
-                .delete()
-                .eq("user_id", value: userID.uuidString)
-                .eq("match_id", value: matchId)
-                .execute()
-        } catch { Diagnostics.shared.record(.apiFailure, "LA activity delete: \(error.localizedDescription)") }
+        await withBackgroundTime("LA activity delete") {
+            guard let userID = await self.resolveUserID() else {
+                Diagnostics.shared.record(.liveActivityTrace, "activity delete skip: no session match=\(matchId)")
+                return
+            }
+            do {
+                try await self.client.from("live_activities")
+                    .delete()
+                    .eq("user_id", value: userID.uuidString)
+                    .eq("match_id", value: matchId)
+                    .execute()
+            } catch { Diagnostics.shared.record(.apiFailure, "LA activity delete: \(error.localizedDescription)") }
+        }
+    }
+
+    // MARK: - Background runtime + helpers
+
+    /// Run `work` under a UIKit background-task assertion so a push-to-start BACKGROUND launch grants
+    /// enough runtime to finish the async session-refresh + Supabase (RLS) write instead of suspending
+    /// us mid-flight — the leak that left `live_activities` empty. Balanced end in both the normal and
+    /// expiration paths.
+    private func withBackgroundTime(_ reason: String, _ work: () async -> Void) async {
+        let app = UIApplication.shared
+        var taskID: UIBackgroundTaskIdentifier = .invalid
+        taskID = app.beginBackgroundTask(withName: reason) {
+            if taskID != .invalid { app.endBackgroundTask(taskID); taskID = .invalid }
+        }
+        await work()
+        if taskID != .invalid { app.endBackgroundTask(taskID); taskID = .invalid }
+    }
+
+    /// Coarse app state for telemetry — `background` in a breadcrumb proves the observer fired on a
+    /// background launch (vs a foreground open), which is what we're verifying.
+    private static var appStateLabel: String {
+        switch UIApplication.shared.applicationState {
+        case .active: return "active"
+        case .inactive: return "inactive"
+        case .background: return "background"
+        @unknown default: return "unknown"
+        }
     }
 
     private static func hex(_ data: Data) -> String { data.map { String(format: "%02x", $0) }.joined() }

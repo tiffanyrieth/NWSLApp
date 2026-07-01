@@ -106,18 +106,20 @@ create table public.device_tokens (
 );
 
 -- Notification preferences (1:1 with the user; the 9 Profile toggles)
+-- PURE OPT-IN: every toggle defaults false, nothing is auto-enabled (the app upserts whole rows + the
+-- watcher gates Tier-2 on `<col>=eq.true`). See migration_notif_opt_in.sql.
 create table public.notification_preferences (
   user_id uuid references auth.users(id) on delete cascade primary key,
-  day_before       boolean not null default true,
-  lineup_posted    boolean not null default true,
-  kickoff          boolean not null default true,
-  goals            boolean not null default true,
+  day_before       boolean not null default false,
+  lineup_posted    boolean not null default false,
+  kickoff          boolean not null default false,
+  goals            boolean not null default false,
   halftime         boolean not null default false,
-  full_time        boolean not null default true,
+  full_time        boolean not null default false,
   substitutions    boolean not null default false,
-  fan_zone_rounds  boolean not null default true,
-  player_spotlight boolean not null default true,
-  live_activities_enabled boolean not null default true,  -- V2 Live Activity opt-out (watcher-read)
+  fan_zone_rounds  boolean not null default false,
+  player_spotlight boolean not null default false,
+  live_activities_enabled boolean not null default false,  -- V2 Live Activity opt-in (watcher-read)
   updated_at timestamptz default now()
 );
 

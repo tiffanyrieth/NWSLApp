@@ -23,15 +23,17 @@ struct NotificationPreferencesTests {
         let store = NotificationPreferencesStore(defaults: isolated("test.notif.reset"))
         // Everything on to start.
         store.kickoff = true; store.goals = true; store.halftime = true; store.fullTime = true
+        store.liveActivitiesEnabled = true
         store.dayBefore = true; store.playerSpotlight = true; store.fanZoneRounds = true
 
         store.resetServerPushTypes()
 
-        // Tier 2 → off.
+        // Tier 2 (incl. the V2 Live Activity) → off.
         #expect(!store.kickoff)
         #expect(!store.goals)
         #expect(!store.halftime)
         #expect(!store.fullTime)
+        #expect(!store.liveActivitiesEnabled)
         // Tier 1 + activity → untouched (work without an account).
         #expect(store.dayBefore)
         #expect(store.playerSpotlight)
@@ -49,74 +51,19 @@ struct NotificationPreferencesTests {
         #expect(!NotificationPreferencesStore(defaults: defaults).kickoff)
     }
 
-    /// Fresh-install defaults: only Tier-1 LOCAL types may start ON (they deliver
-    /// signed-out). Every Tier-2 SERVER-PUSH type defaults OFF — they can't be
-    /// delivered without an account, so defaulting them on for a first-run (likely
-    /// signed-out) user would be a lie.
-    @Test func freshDefaultsTier2OffTier1On() {
+    /// Fresh-install defaults: PURE OPT-IN — every toggle starts OFF, nothing is auto-enabled. The user
+    /// turns on exactly what they want (no dark-pattern default-ons).
+    @Test func freshDefaultsAllOff() {
         let store = NotificationPreferencesStore(defaults: isolated("test.notif.defaults"))
-        // Tier 2 (server push) → OFF.
+        // Tier 2 (server push, incl. the V2 Live Activity) → OFF.
         #expect(!store.kickoff)
         #expect(!store.goals)
         #expect(!store.halftime)
         #expect(!store.fullTime)
-        // Tier 1 (local) + activity → ON.
-        #expect(store.dayBefore)
-        #expect(store.playerSpotlight)
-        #expect(store.fanZoneRounds)
-    }
-
-    /// The hub-visited flag (gates the Teams row bell's first-tap "doorway"): false
-    /// fresh, one-way to true via `markHubVisited`, idempotent, persists across reload.
-    @Test func hubVisitedFlagPersistsAndIsIdempotent() {
-        let suite = "test.notif.hubvisited"
-        let defaults = isolated(suite)
-        let store = NotificationPreferencesStore(defaults: defaults)
-        #expect(!store.hubVisited)
-
-        store.markHubVisited(isSignedIn: false)
-        #expect(store.hubVisited)
-        store.markHubVisited(isSignedIn: false)  // idempotent
-        #expect(store.hubVisited)
-
-        // Survives a store reload on the same suite.
-        #expect(NotificationPreferencesStore(defaults: defaults).hubVisited)
-    }
-
-    /// Signed-OUT first hub visit upholds `Tier 2 ON ⟹ signed in`: the visit is
-    /// recorded but every Tier-2 type stays OFF (only the gate can enable them).
-    @Test func hubVisitSignedOutKeepsTier2Off() {
-        let store = NotificationPreferencesStore(defaults: isolated("test.notif.visit.out"))
-        store.markHubVisited(isSignedIn: false)
-        #expect(store.hubVisited)
-        #expect(!store.kickoff)
-        #expect(!store.goals)
-        #expect(!store.halftime)
-        #expect(!store.fullTime)
-        // Tier 1 untouched (still on by default).
-        #expect(store.dayBefore)
-        #expect(store.playerSpotlight)
-    }
-
-    /// Signed-IN first hub visit establishes the Tier-2 defaults ON (the live-match
-    /// types), matching the spec's "signed in: default Tier 1 + Tier 2 all ON".
-    @Test func hubVisitSignedInDefaultsTier2On() {
-        let store = NotificationPreferencesStore(defaults: isolated("test.notif.visit.in"))
-        store.markHubVisited(isSignedIn: true)
-        #expect(store.hubVisited)
-        #expect(store.kickoff)
-        #expect(store.goals)
-        #expect(store.halftime)
-        #expect(store.fullTime)
-    }
-
-    /// `markHubVisited` only establishes Tier-2 defaults on the FIRST visit — a later
-    /// signed-in visit must NOT silently re-enable types the user turned off.
-    @Test func hubVisitDefaultsOnlyOnFirstVisit() {
-        let store = NotificationPreferencesStore(defaults: isolated("test.notif.visit.once"))
-        store.markHubVisited(isSignedIn: false)   // first visit, signed out → Tier 2 off
-        store.markHubVisited(isSignedIn: true)    // later visit must not re-default
-        #expect(!store.kickoff)
-        #expect(!store.goals)
+        #expect(!store.liveActivitiesEnabled)
+        // Tier 1 (local) + activity → also OFF now (opt-in).
+        #expect(!store.dayBefore)
+        #expect(!store.playerSpotlight)
+        #expect(!store.fanZoneRounds)
     }
 }

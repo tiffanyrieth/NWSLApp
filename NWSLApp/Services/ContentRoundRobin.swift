@@ -43,9 +43,11 @@ enum ContentRoundRobin {
     /// `now` is injected so the whole thing stays pure + deterministic to unit-test.
     struct ArticlePriority {
         var now: Date
-        var quota: Int = 3          // GLOBAL cap: ≤ N lead-eligible articles preferred + floated in
-                                    // TOTAL (round-robined across clubs), NOT per club — so the rest
-                                    // of the 7 stay a normal recency mix of IG/YouTube/articles.
+        var quota: Int = 2          // The QQL "2-of-3" opener: at most 2 lead-eligible articles are
+                                    // floated to the front (round-robined across clubs), then slot 3
+                                    // is reserved for a non-article — so the first three are 2
+                                    // articles + 1 video/social, and the rest stay a normal recency
+                                    // mix. (Was 3 = an all-news-first wall; not the intended rule.)
         var staleRatio: Double = 4
         var floorDays: Double = 14
     }
@@ -188,12 +190,21 @@ enum ContentRoundRobin {
             round += 1
         }
 
-        // 4. First-load reorder: float the globally-picked articles to the very front in their
-        //    round-robin pick order (≤ `quota` total). Everything else keeps its order — the SAME
-        //    multiset, just reordered (per-club counts untouched); articles beyond the global cap
-        //    stay wherever recency placed them.
+        // 4. First-load QQL reorder — the first THREE cards are 2 club-news articles + 1
+        //    non-article (video/social), then a free recency mix. Lead with the ≤2 globally-picked
+        //    articles (round-robin across clubs), then reserve slot 3 for the freshest non-article
+        //    so the opener reads news-first WITHOUT becoming an all-news wall. Degrade honestly:
+        //    <2 articles, or no non-article at all → just the leads + the rest. Same multiset, same
+        //    per-club counts — only a reorder. (Pull-to-refresh passes no priority, so this shapes
+        //    ONLY the very first load.)
         if articlePriority != nil, !leadArticles.isEmpty {
-            shown = leadArticles + shown.filter { !leadIDs.contains($0.id) }
+            let leads = Array(leadArticles.prefix(2))
+            var rest = shown.filter { !leadIDs.contains($0.id) }
+            var front = leads
+            if leads.count == 2, let i = rest.firstIndex(where: { !isArticle($0) }) {
+                front.append(rest.remove(at: i))
+            }
+            shown = front + rest
         }
 
         let totalEligible = byTeam.values.reduce(0) { $0 + $1.count }

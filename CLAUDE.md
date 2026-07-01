@@ -47,9 +47,12 @@ xcrun simctl install <SIM_ID> <NWSLApp.app>
 xcrun simctl launch  <SIM_ID> com.tiffanyrieth.nwslapp.NWSLApp
 ```
 DEBUG args: `-resetOnboarding`, `-useESPNDirect`, `-startTab <home|schedule|standings|teams|feed>`.
-Decode-only tests read `NWSLAppTests/Fixtures/*.json` via `#filePath`. Driving the sim: cliclick hits
-the UIKit tab bar but not SwiftUI buttons reliably — use DEBUG deep-link/launch-arg scaffolds (`idb ui
-tap` if installed).
+Decode-only tests read `NWSLAppTests/Fixtures/*.json` via `#filePath`. **Driving the sim:** `idb` is
+installed — start `idb_companion --udid <SIM>`, then `idb ui tap <x> <y>` (DEVICE points) + `idb ui
+describe-all` (element frames + a11y labels — exact for locating/measuring UI) are the reliable way to
+tap SwiftUI and verify layout. cliclick is fine for SCROLL drags + UIKit hit targets, but its synthetic
+clicks get SWALLOWED by SwiftUI buttons inside a nested horizontal-scroll (e.g. a chip in the pinned
+Club News header) — don't trust it there. DEBUG deep-link/launch-arg scaffolds remain a fallback.
 
 ## Architecture (MVVM, strict separation)
 

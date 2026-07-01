@@ -47,9 +47,6 @@ struct NotificationsView: View {
             .padding(.bottom, 24)
         }
         .background(Color.dsBgGrouped)
-        // On the first visit, establishes the auth-aware Tier-2 defaults (ON only if
-        // signed in — upholds `Tier 2 ON ⟹ signed in`).
-        .onAppear { notifications.markHubVisited(isSignedIn: auth.isSignedIn) }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAuthPrompt) {
@@ -140,11 +137,10 @@ struct NotificationsView: View {
             SettingsToggleRow(title: "Full time", subtitle: "Final score when the match ends",
                               isOn: tier2Binding(\.fullTime))
             SettingsRowDivider()
-            // Live Activities (V2) — the silent live-score card, distinct from the buzzing alerts above.
-            // An OPT-OUT (default on): no sign-in gate — opting out is free, and delivery is separately
-            // gated by having match alerts on for a team. Server-read only (the watcher honors it).
+            // Live Activities (V2) — the silent live-score card. Tier-2 (the watcher push-to-starts it →
+            // needs an account), so it's a sign-in-gated opt-in like the alerts above; it just doesn't buzz.
             SettingsToggleRow(title: "Live Activities", subtitle: "Live score on your Lock Screen & Dynamic Island",
-                              isOn: deferredBinding(\.liveActivitiesEnabled))
+                              isOn: tier2Binding(\.liveActivitiesEnabled))
         }
         // Inert + greyed until at least one team has alerts on (these types have
         // nothing to apply to otherwise). Un-dims reactively when §1 turns one on.

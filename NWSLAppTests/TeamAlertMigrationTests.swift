@@ -31,7 +31,8 @@ struct TeamAlertMigrationTests {
         NotificationPreferencesSnapshot(
             dayBefore: dayBefore, lineupPosted: false, kickoff: kickoff,
             goals: goals, halftime: halftime, fullTime: fullTime,
-            substitutions: false, fanZoneRounds: true, playerSpotlight: true
+            substitutions: false, fanZoneRounds: false, playerSpotlight: false,
+            liveActivitiesEnabled: false
         )
     }
 

@@ -77,10 +77,19 @@ cache-busted scoreboard before firing, so an ESPN glitch never sends a false "Go
 up `device_tokens` of users with that alert on, and sends APNs
 (ES256 `.p8` JWT). Deployed; `POST /test-push` (`x-trigger-secret`) sends a synthetic push for
 on-device E2E (`APNS_HOST` is production). A **V2 Live Activity** layer (lock-screen + Dynamic Island live
-score) rides the SAME watcher + `.p8`, strictly ADDITIVE to V1 (both fire per event; V1 send path untouched);
-`POST /test-activity`, app `LiveActivityManager` mirrors push-to-start/per-Activity tokens — detail in
-`docs/backend.md`. The app side: `registerForRemoteNotifications` → AppDelegate →
+score) rides the SAME watcher + `.p8`, ADDITIVE to V1 — but the roles split: **V1 is the interrupt (buzzes
+kickoff/goal/HT/FT per the user's toggles); V2 is a SILENT glance.** Gotcha: the push-to-start `alert` is
+OPTIONAL — OMIT it so the card renders with NO buzz/banner (adding one double-notifies against V1). Push-to-
+start fires **≤20 min pre-kickoff** (a device can take minutes to register its per-Activity token) + a
+catch-up push for late tokens. `POST /test-activity` + `scripts/replay.mjs` drive it; app `LiveActivityManager`
+mirrors push-to-start/per-Activity tokens under a UIKit background-task assertion (background-launch upload);
+detail in `docs/backend.md`. The app side: `registerForRemoteNotifications` → AppDelegate →
 `PushBridge` → `DeviceTokenService` upserts `device_tokens` (per-team toggles in `team_alert_preferences`).
+**Notifications = PURE OPT-IN (owner rule — no dark patterns):** every toggle defaults OFF, nothing
+auto-enables; the user turns on exactly what they want (discovery = Teams coach-mark → gear icon). **Tier 1**
+= deliverable without an account (local: day-before, Player Spotlight); **Tier 2** = watcher-triggered ⇒ needs
+an account ⇒ sign-in-gated (`tier2Binding`) + reset on sign-out (`resetServerPushTypes`: kickoff/goals/HT/FT
++ the V2 Live Activity). NEVER add a default-on notification.
 Per-user state in **Supabase**, offline-first (UserDefaults cache). **Follows sync = RESTORE-ONLY launch
 reconcile:** launch `reconcile` NEVER deletes a server row — a wiped/un-onboarded device restores the full
 server set, and only local-only follows upload. **Unfollows propagate solely via the explicit per-toggle

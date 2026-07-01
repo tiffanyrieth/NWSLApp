@@ -60,13 +60,17 @@ struct ThumbnailContentCard: View {
 
     @ViewBuilder
     private var thumbnail: some View {
+        // Home (ADDENDUM v2): shorter 152pt media, top-center crop, for density. Social
+        // (unified) keeps its taller media + center crop. Compact (dense lists) unchanged.
+        let homeGravity: Alignment = unified ? .center : .top
         switch card.layout {
         case .socialVideo:
             ThumbnailHeader(
-                thumbnailURL: card.thumbnailURL, height: 200, teamColor: teamColor, club: club,
+                thumbnailURL: card.thumbnailURL, height: unified ? 200 : 152,
+                teamColor: teamColor, club: club,
                 // No top stripe — the facelift's left-edge team bar (ContentCardView)
                 // now carries team color down the whole card.
-                playSize: 52,
+                playSize: 52, contentAlignment: homeGravity,
                 crestBadge: hideTeamIdentity ? nil : card.teamAbbreviation.map {
                     ThumbnailHeader.BadgeSlot(abbreviation: $0, alignment: .bottomLeading)
                 },
@@ -76,9 +80,11 @@ struct ThumbnailContentCard: View {
             )
         default:   // .youtube
             ThumbnailHeader(
-                thumbnailURL: card.thumbnailURL, height: compact ? 120 : 180,
+                thumbnailURL: card.thumbnailURL,
+                height: compact ? 120 : (unified ? 180 : 152),
                 teamColor: teamColor, club: club,
                 playSize: compact ? 40 : 52, duration: card.duration,
+                contentAlignment: compact ? .center : homeGravity,
                 crestBadge: hideTeamIdentity ? nil : card.teamAbbreviation.map {
                     ThumbnailHeader.BadgeSlot(abbreviation: $0, alignment: .bottomLeading)
                 }
@@ -121,13 +127,14 @@ struct ThumbnailContentCard: View {
             .foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 12)
+        // Home (ADDENDUM v2): tighter 10/12 footer padding for density; Social keeps 12/14.
+        .padding(.top, unified ? 12 : 10)
         .padding(.horizontal, 14)
-        .padding(.bottom, 14)
+        .padding(.bottom, unified ? 14 : 12)
     }
 
     private var socialFooter: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: unified ? 8 : 6) {
             HStack(spacing: 6) {
                 if unified { CategoryPill(sourceType: card.resolvedSourceType) }   // PLAYER (Social only)
                 // The author + "via r/sub" attribution is the creator's identity — kept.
@@ -174,9 +181,10 @@ struct ThumbnailContentCard: View {
             CTARow(label: card.ctaLabel)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 12)
+        // Home (ADDENDUM v2): tighter 10/12 footer padding for density; Social keeps 12/14.
+        .padding(.top, unified ? 12 : 10)
         .padding(.horizontal, 14)
-        .padding(.bottom, 14)
+        .padding(.bottom, unified ? 14 : 12)
     }
 }
 
@@ -195,6 +203,10 @@ struct ThumbnailHeader: View {
     var topStripe: Bool = false
     var playSize: CGFloat? = nil
     var duration: String? = nil
+    /// Vertical crop gravity for an aspect-fill image that overflows `height`. `.top`
+    /// crops from the bottom (Home's 152pt density crop); `.center` is the default. Only
+    /// affects an overflowing frame — the crest fallback stays centered (no overflow).
+    var contentAlignment: Alignment = .center
     var crestBadge: BadgeSlot? = nil
     var platformChip: ChipSlot? = nil
 
@@ -204,7 +216,7 @@ struct ThumbnailHeader: View {
     var body: some View {
         background
             .frame(maxWidth: .infinity)
-            .frame(height: height)
+            .frame(height: height, alignment: contentAlignment)
             .clipped()
             .overlay { overlays }
     }

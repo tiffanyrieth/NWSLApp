@@ -6,11 +6,12 @@
 //  Until the user has been through onboarding it renders the "Make it yours"
 //  team picker in place (tab bar stays visible); afterwards it shows the hub.
 //
-//  Modules, top to bottom (per Reference/Design/home-tab-design-spec.md —
-//  content leads, schedule demoted):
-//   1. From your teams          — team-channel content (the hook), real seeded.
-//   2. Get to know your players — one weekly player spotlight (seeded).
-//   3. Play                     — games (Trivia, Bracket Battle, Predict the XI).
+//  Modules, top to bottom (Fan Zone promoted to the top per the
+//  design_handoff_fanzone_home handoff):
+//   1. Fan Zone                 — the games as a single horizontal row of compact cards
+//                                 (Predict → Bracket → Trivia → trailing Superfan card).
+//   2. Club News                — team-channel content (the hook); PINNED section header.
+//   3. Weekly Player Spotlight  — one weekly player spotlight per followed team.
 //   4. Coming up                — a compact next-match strip per followed club.
 //  ("Around the league" was removed — it duplicated the Schedule tab.)
 //
@@ -138,7 +139,8 @@ struct HomeView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 4)
-        .padding(.bottom, 10)
+        // Tight (ADDENDUM v2): + the scroll's 8pt top inset ≈ an 8pt Home→Fan Zone gap.
+        .padding(.bottom, 0)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.dsBgGrouped)
     }
@@ -160,13 +162,24 @@ struct HomeView: View {
 
     private var hub: some View {
         ScrollView {
-            VStack(spacing: 28) {
-                fromYourTeams
-                getToKnowYourPlayers
+            // Fan Zone leads the feed as a compact horizontal row; Club News follows
+            // with a PINNED section header (the "you're in the feed" cue). LazyVStack +
+            // pinnedViews gives native iOS header pinning — only Club News is a Section,
+            // so only its header pins; Spotlight/Upcoming are plain modules below.
+            // spacing: 0 — every gap is set by explicit per-module padding, NOT stack
+            // spacing (ADDENDUM v2). A pinned Section's header→content gap would otherwise
+            // inherit the stack spacing — that was the ~28pt chips→first-card void. Gaps
+            // ABOVE a module are its own `.padding(.top)`, except the Club News section
+            // break, which is the preceding Fan Zone module's `.padding(.bottom)` so it
+            // scrolls away with the carousel (leaving the pinned header flush to the top).
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                 playSection
+                clubNewsSection
+                getToKnowYourPlayers
                 comingUp
             }
-            .padding(.vertical, 8)
+            .padding(.top, 8)
+            .padding(.bottom, 8)
         }
         .contentMargins(.horizontal, 16, for: .scrollContent)
         .background(Color.dsBgGrouped)
@@ -174,58 +187,95 @@ struct HomeView: View {
 
     // MARK: - Module 1: From your teams (the hook)
 
+    // Club News is a PINNED Section now (the header + chips stick to the top as you
+    // scroll past Fan Zone). The header (title + chips) and body (cards/states) are
+    // split so the Section API can pin the header, but the body's branch logic is
+    // otherwise untouched — same source scoping, caps, balancing, chip re-query, and
+    // pool-cycling refresh (DO-NOT-TOUCH contract). teams/result are computed once here
+    // and handed to both halves so `teamContent` isn't derived twice per render.
     @ViewBuilder
-    private var fromYourTeams: some View {
+    private var clubNewsSection: some View {
         let teams = viewModel.followedTeamAbbreviations(following: following)
         let result = viewModel.teamContent(following: following)
-        section("Club News") {
-            // Online-only: a failed live fetch shows an honest tap-to-retry card for
-            // THIS module only (the rest of Home stays usable) — never stale/seed.
-            if let error = viewModel.contentError {
-                moduleError(error) { await viewModel.retryContent(following: following) }
+        // Chips show under the SAME condition as before the split: only in the populated
+        // branch (not error/empty/loading) and only when following 2+ teams.
+        let showChips = viewModel.contentError == nil
+            && !(result.cards.isEmpty && viewModel.selectedTeam == nil)
+            && teams.count >= 2
+        Section {
+            // Club News always renders SOME body (cards/empty/loading), so its bottom
+            // padding is a safe place for the Club News → Player Spotlight section break.
+            clubNewsBody(teams: teams, result: result)
+                .padding(.bottom, 24)
+        } header: {
+            clubNewsHeader(teams: teams, showChips: showChips)
+        }
+    }
+
+    // The pinned header: "Club News" title + (when following 2+ teams) the per-team chip
+    // bar. Opaque page-color background so scrolled cards don't show through when pinned.
+    private func clubNewsHeader(teams: [String], showChips: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 11) {
+            Text("Club News").sectionTitle()
+            // Per-team chips only when following 2+ teams — a fresh scoped re-query per
+            // chip (NOT a client-side filter). HomeTeamChips owns that behavior unchanged.
+            if showChips {
+                HomeTeamChips(viewModel: viewModel, teams: teams)
             }
-            // Nothing to show on "All": distinguish genuinely-no-follows (invite to choose)
-            // from has-follows-but-empty-content (honest "no fresh posts" + retry). The old
-            // code showed "Follow your teams" for BOTH — misleading to someone who already
-            // follows a team (the bug reproduced in-sim on the brother's exact state).
-            else if result.cards.isEmpty && viewModel.selectedTeam == nil {
-                if following.followedIDs.isEmpty {
-                    followPrompt
-                } else if viewModel.hasCompletedContentLoad && !viewModel.isLoadingContent {
-                    // A load actually completed empty → honest "no fresh posts" + retry.
-                    emptyFollowedContent { await viewModel.retryContent(following: following) }
-                } else {
-                    // Still loading (the directory-load → content-load gap, after the
-                    // hub's full-screen spinner clears): an honest loading state, NEVER
-                    // the empty/Retry card (a loading state must not look identical to an
-                    // empty result, #5). Mirrors FeedView's gate.
-                    contentLoadingPlaceholder
-                }
+        }
+        .padding(.top, 6)
+        // 12pt bottom = the chips→first-card gap (ADDENDUM v2): with the LazyVStack at
+        // spacing 0, the header's bottom padding IS that gap — the fix for the 28pt void.
+        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgGrouped)
+    }
+
+    // The Club News body — the same branch logic as before, minus the chip row (now in
+    // the pinned header). Nothing about the feed's data/scoping/balancing changes here.
+    @ViewBuilder
+    private func clubNewsBody(teams: [String], result: ContentRoundRobin.Result) -> some View {
+        // Online-only: a failed live fetch shows an honest tap-to-retry card for
+        // THIS module only (the rest of Home stays usable) — never stale/seed.
+        if let error = viewModel.contentError {
+            moduleError(error) { await viewModel.retryContent(following: following) }
+        }
+        // Nothing to show on "All": distinguish genuinely-no-follows (invite to choose)
+        // from has-follows-but-empty-content (honest "no fresh posts" + retry). The old
+        // code showed "Follow your teams" for BOTH — misleading to someone who already
+        // follows a team (the bug reproduced in-sim on the brother's exact state).
+        else if result.cards.isEmpty && viewModel.selectedTeam == nil {
+            if following.followedIDs.isEmpty {
+                followPrompt
+            } else if viewModel.hasCompletedContentLoad && !viewModel.isLoadingContent {
+                // A load actually completed empty → honest "no fresh posts" + retry.
+                emptyFollowedContent { await viewModel.retryContent(following: following) }
             } else {
-                VStack(spacing: 14) {
-                    // Per-team chips only when following 2+ teams — with one team
-                    // there's nothing to filter (chip redesign).
-                    if teams.count >= 2 {
-                        HomeTeamChips(viewModel: viewModel, teams: teams)
+                // Still loading (the directory-load → content-load gap, after the
+                // hub's full-screen spinner clears): an honest loading state, NEVER
+                // the empty/Retry card (a loading state must not look identical to an
+                // empty result, #5). Mirrors FeedView's gate.
+                contentLoadingPlaceholder
+            }
+        } else {
+            VStack(spacing: 10) {
+                if result.cards.isEmpty {
+                    Text("No content from \(viewModel.selectedTeam ?? "") right now.")
+                        .dsFont(13)
+                        .foregroundStyle(Color.dsFgSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ForEach(result.cards) { card in
+                        ContentCardView(
+                            card: card,
+                            club: viewModel.club(forAbbreviation: card.teamAbbreviation ?? ""),
+                            // Following one team → drop the redundant team badge +
+                            // name on every card (chip redesign, adaptive labels).
+                            hideTeamIdentity: teams.count <= 1
+                        )
                     }
-                    if result.cards.isEmpty {
-                        Text("No content from \(viewModel.selectedTeam ?? "") right now.")
-                            .dsFont(13)
-                            .foregroundStyle(Color.dsFgSecondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        ForEach(result.cards) { card in
-                            ContentCardView(
-                                card: card,
-                                club: viewModel.club(forAbbreviation: card.teamAbbreviation ?? ""),
-                                // Following one team → drop the redundant team badge +
-                                // name on every card (chip redesign, adaptive labels).
-                                hideTeamIdentity: teams.count <= 1
-                            )
-                        }
-                    }
-                    if result.overflowCount > 0 { seeMoreLink }
                 }
+                if result.overflowCount > 0 { seeMoreLink }
             }
         }
     }
@@ -313,6 +363,7 @@ struct HomeView: View {
             ) {
                 moduleError(error) { await viewModel.retryContent(following: following) }
             }
+            .padding(.bottom, 24)   // Spotlight → Upcoming section break
         } else if !spotlights.isEmpty {
             section(
                 "Weekly Player Spotlight",
@@ -353,6 +404,7 @@ struct HomeView: View {
                     }
                 }
             }
+            .padding(.bottom, 24)   // Spotlight → Upcoming section break
         }
     }
 
@@ -384,33 +436,54 @@ struct HomeView: View {
     @ViewBuilder
     private var playSection: some View {
         let games = visibleGames
+        // The whole block hides when no game is active (offseason) → Club News rises to
+        // the top. The Superfan card rides the row and never keeps the block alive alone.
         if !games.isEmpty {
-            section(
-                "Fan Zone",
-                subtitle: "Test your NWSL knowledge and compete with other fans",
-                accessory: { activeGamesIndicator }
-            ) {
-                VStack(spacing: 10) {
-                    // The cross-game Superfan summary, shown once the user has real scores
-                    // in at least two games (never a meaningless "0" for a newcomer).
-                    if superfanBannerVisible {
-                        SuperfanBanner(
-                            predictPoints: predict.seasonPoints,
-                            bracketPoints: bracket.points,
-                            triviaCorrect: trivia.totalCorrect
-                        )
+            VStack(alignment: .leading, spacing: 8) {
+                // Bold white header — a peer of "Club News" (App Store shelf model, ADDENDUM
+                // v2), not a muted eyebrow. dsFont so it still scales with Dynamic Type.
+                Text("Fan Zone")
+                    .dsFont(20, weight: .heavy)
+                    .foregroundStyle(Color.dsFgPrimary)
+                fanZoneRow(games: games)
+            }
+            // The one real section break on the page: carousel → Club News (≈20pt, split
+            // with the Club News header's top pad). Bottom-padding the PRECEDING module keeps
+            // the pinned Club News header flush to the top when it sticks.
+            .padding(.bottom, 14)
+        }
+    }
+
+    // The single horizontal row: uniform compact cards in FIXED order (Predict → Bracket
+    // → Trivia → future), snapping, with the display-only Superfan summary as the trailing
+    // card. Two cards + a peek show at rest so it's obvious the row scrolls. Order comes
+    // from `visibleGames` (already fixed) — never sorted by deadline.
+    private func fanZoneRow(games: [FanGame]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(games, id: \.self) { game in
+                    NavigationLink { destination(for: game) } label: {
+                        FanZoneCarouselCard(model: cardModel(for: game))
                     }
-                    // Equal-weight, full-width stacked cards — every active game visible
-                    // without a swipe, differentiated by accent color, not size.
-                    ForEach(games, id: \.self) { game in
-                        NavigationLink { destination(for: game) } label: {
-                            FanZoneGameCard(model: cardModel(for: game))
-                        }
-                        .buttonStyle(.plain)
-                    }
+                    .buttonStyle(.plain)
+                    .frame(width: 152)
+                }
+                // Trailing Superfan card — display-only (computed locally / synced to Game
+                // Center as today), shown once the user has a cross-game score (≥2 games
+                // played, total > 0). Stays even when a game is hidden, since it gates on
+                // games PLAYED, not games currently visible.
+                if superfanBannerVisible {
+                    SuperfanCard(
+                        predictPoints: predict.seasonPoints,
+                        bracketPoints: bracket.points,
+                        triviaCorrect: trivia.totalCorrect
+                    )
+                    .frame(width: 152)
                 }
             }
+            .scrollTargetLayout()
         }
+        .scrollTargetBehavior(.viewAligned)
     }
 
     /// Show the Superfan banner only once the user has genuine scores in ≥2 games AND a
@@ -448,6 +521,31 @@ struct HomeView: View {
     }
 
     private var predictCardModel: FanZoneCardModel {
+        // Following 2+ predictable teams → the card is about the DEADLINE, not one team:
+        // a generic "N predictions open" context + a countdown to the soonest deadline
+        // across all your open predictions. (One predictable team → fall through to the
+        // specific-matchup card below.) Tapping through lists every team's fixture.
+        let fixtures = openPredictFixtures
+        if fixtures.count >= 2 {
+            var model = FanZoneCardModel(game: .predict, title: "Predict the XI",
+                                         contextLine: "Pick your teams")
+            let points = predict.seasonPoints
+            if points > 0 { model.badge = "\(points)" }
+            // "Open" = a prediction you haven't submitted yet; countdown to the soonest of those.
+            let open = fixtures.filter { predict.prediction(for: $0.id)?.state != .submitted }
+            guard let soonestDeadline = open.map(\.deadline).min() else {
+                // Every followed team's prediction is already in.
+                model.contextLine = "All predictions in"
+                model.doneLine = "Picks locked in"
+                return model
+            }
+            model.contextLine = open.count == 1 ? "1 prediction open" : "\(open.count) predictions open"
+            model.statusLine = "Make your predictions"
+            if let left = compactCountdown(to: soonestDeadline) { model.countdown = "\(left) left" }
+            return model
+        }
+
+        // One predictable team (or none) → name the specific matchup, exactly as before.
         let context: String
         if let fixture = nextPredictFixture {
             context = "\(fixture.teamAbbreviation) vs \(fixture.opponentAbbreviation) · \(Self.kickoffLabel(fixture.kickoff))"
@@ -560,11 +658,11 @@ struct HomeView: View {
     /// from `nextPredictFixture` so the gate and the card read the SAME fixture.
     private var predictXIActive: Bool { nextPredictFixture != nil }
 
-    /// The most imminent open Predict-the-XI fixture across followed teams — the same
-    /// derivation PredictXIViewModel.buildUpcoming uses (Event → PredictionFixture within
-    /// the 28-day horizon, soonest first), surfaced here so the Fan Zone card can show the
-    /// opponent + kickoff + deadline countdown. Nil → the game is dark (the gate).
-    private var nextPredictFixture: PredictionFixture? {
+    /// One open Predict-the-XI fixture per followed team — that team's soonest upcoming
+    /// game within the 28-day horizon — the SAME per-team set PredictXIView lists as open
+    /// predictions (mirrors PredictXIViewModel.buildUpcoming). Sorted soonest kickoff first,
+    /// so `.first` is the most imminent deadline. Empty → the game is dark (the gate).
+    private var openPredictFixtures: [PredictionFixture] {
         let now = Date()
         let horizon = now.addingTimeInterval(PredictionFixture.activeWindow)
         var fixtures: [PredictionFixture] = []
@@ -588,30 +686,12 @@ struct HomeView: View {
                 kickoff: kickoff
             ))
         }
-        return fixtures.min { $0.kickoff < $1.kickoff }
+        return fixtures.sorted { $0.kickoff < $1.kickoff }
     }
 
-    // "● 2 active" — a teal dot + count of games with something to do right now.
-    @ViewBuilder
-    private var activeGamesIndicator: some View {
-        let n = activeGameCount
-        if n > 0 {
-            HStack(spacing: 5) {
-                Circle().fill(Color.dsGameBracket).frame(width: 6, height: 6)
-                Text("\(n) active")
-                    .dsFont(11)
-                    .foregroundStyle(Color.dsFgSecondary)
-            }
-        }
-    }
-
-    private var activeGameCount: Int {
-        var n = 0
-        if predictXIActive { n += 1 }                  // a followed-team fixture is up
-        if bracket.hasActiveEdition { n += 1 }
-        if !trivia.hasPlayedToday { n += 1 }
-        return n
-    }
+    /// The most imminent open fixture (soonest deadline) — the one the single-team card
+    /// names, and the gate's "is there anything to predict?" signal.
+    private var nextPredictFixture: PredictionFixture? { openPredictFixtures.first }
 
     // MARK: - Module 4: Coming up (compact schedule strip)
 

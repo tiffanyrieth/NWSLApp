@@ -211,7 +211,7 @@ struct ContentRoundRobinTests {
 
     /// Fixed "now" = the card builder's epoch, so a card's age == its `secondsAgo`.
     private var epoch: Date { Date(timeIntervalSince1970: 1_000_000) }
-    private func priority(quota: Int = 3) -> ContentRoundRobin.ArticlePriority {
+    private func priority(quota: Int = 2) -> ContentRoundRobin.ArticlePriority {
         ContentRoundRobin.ArticlePriority(now: epoch, quota: quota)
     }
     private func teamCounts(_ r: ContentRoundRobin.Result) -> [String: Int] {
@@ -306,10 +306,10 @@ struct ContentRoundRobinTests {
         #expect(r.cards.first?.id != "a-news-90d")
     }
 
-    @Test func globalCapLimitsLeadArticlesToThree() {
-        // The bug: a per-club quota meant 2 clubs × 3 = 6 articles led, burying IG/YT to #7.
-        // The cap is GLOBAL (3 total), so ≤3 articles lead and the rest is the recency mix.
-        // Both clubs have 3 articles (older) + a fresher IG.
+    @Test func firstThreeAreTwoArticlesPlusOneNonArticle() {
+        // The QQL "2-of-3" opener: even when the feed is article-heavy, exactly 2 club-news
+        // articles lead (round-robined across clubs) and slot 3 is reserved for the freshest
+        // non-article — never an all-news wall. Both clubs have 3 articles (older) + a fresh clip.
         let day = 86_400.0
         let cards = [
             card("a-ig",    "A", secondsAgo: 1 * day, layout: .socialVideo),
@@ -323,9 +323,25 @@ struct ContentRoundRobinTests {
         ]
         let r = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A", "B"],
                                            slotsPerClub: 6, articlePriority: priority())
-        // Exactly 3 articles lead (global cap), then a non-article (the fresh IG) by position 4.
-        #expect(r.cards.prefix(3).allSatisfy { $0.layout == .newsArticle })
-        #expect(r.cards[3].layout != .newsArticle)
+        // Exactly 2 articles lead (one per club), then a non-article at slot 3 — not 3-of-3.
+        #expect(r.cards.prefix(2).allSatisfy { $0.layout == .newsArticle })
+        #expect(r.cards[2].layout != .newsArticle)
+        #expect(r.cards.count == 8)   // same multiset — only a reorder, no cards dropped
+    }
+
+    @Test func singleEligibleArticleLeadsWithoutForcedThirdSlot() {
+        // Honest degrade: with only ONE eligible article, it leads and the rest is plain recency —
+        // the "reserve slot 3 for a non-article" step only fires when a full 2-of-3 is possible.
+        let day = 86_400.0
+        let cards = [
+            card("vid-1d",  "A", secondsAgo: 1 * day, layout: .youtube),
+            card("vid-2d",  "A", secondsAgo: 2 * day, layout: .youtube),
+            card("news-5d", "A", secondsAgo: 5 * day, layout: .newsArticle),
+        ]
+        let r = ContentRoundRobin.balanced(cards: cards, followedAbbreviations: ["A"],
+                                           slotsPerClub: 3, articlePriority: priority())
+        #expect(r.cards.first?.id == "news-5d")                        // the one article leads
+        #expect(r.cards.dropFirst().allSatisfy { $0.layout != .newsArticle })  // then non-articles
     }
 
     @Test func nilPriorityIsUnchanged() {

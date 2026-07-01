@@ -43,7 +43,7 @@ NWSLApp/
 │   ├── NotificationPrefsSyncService.swift — Supabase `notification_preferences` upsert
 │   ├── NotificationScheduler.swift    — @MainActor; LOCAL (Tier 1) scheduling: day-before reminder (global type ∩ teams with alerts on) + weekly spotlight (global)
 │   ├── PushBridge.swift               — @MainActor @Observable `.shared`; UIKit AppDelegate (APNs/tap) → observable world
-│   ├── LiveActivityManager.swift      — @MainActor @Observable `.shared`; V2 Live Activity app side: registers this device's push-to-start token (`live_activity_start_tokens`) + each running Activity's update token (`live_activities`, keyed by matchId), prunes on end; mirrors to Supabase (RLS-scoped, telemetry on failure). DEBUG `-driveLiveActivity` drives a local pre→live→goal→HT→FT lifecycle
+│   ├── LiveActivityManager.swift      — @MainActor @Observable `.shared`; V2 Live Activity app side: registers this device's push-to-start token (`live_activity_start_tokens`) + each running Activity's update token (`live_activities`, keyed by matchId), prunes on end; mirrors to Supabase (RLS-scoped). Token uploads run under a background-task assertion (`withBackgroundTime`) so a push-to-start COLD BACKGROUND launch can finish the session-refresh + write; every step emits a `liveActivityTrace` breadcrumb (no silent drops). DEBUG `-driveLiveActivity` drives a local pre→live→goal→HT→FT lifecycle
 │   ├── SupabaseManager.swift          — the one shared SupabaseClient (built from Secrets)
 │   ├── HeadshotStore.swift            — @MainActor @Observable `.shared`; fetches the `/headshots` map (espnAthleteId→NWSL GUID) once per launch; `guid(forAthleteID:)`; best-effort (failure → monograms)
 │   ├── AssetRefreshService.swift      — @MainActor; cadenced (>30d/March) best-effort refresh of bundled crests/flags: diff `/crest/manifest` vs BundledAssetManifest, download only a rebranded asset to Caches; NEVER downgrades vector→raster; never gates cold start
@@ -54,6 +54,7 @@ NWSLApp/
 │   ├── TeamAlertPrefsSyncService.swift— Supabase `team_alert_preferences` client (per-team on/off upsert/fetchAll/fetchAllTeamIDs/delete, composite key); RLS-scoped; fetchAllTeamIDs+delete back the mirror prune
 │   ├── AccountDeletionService.swift   — calls the proxy `POST /account/delete` (sends the session JWT); throws on any non-2xx so deletion never silently "succeeds". The client can't delete an auth user (service-role only)
 │   ├── AppleTokenExchangeService.swift — fire-and-forget `POST /auth/apple-token-exchange` (Apple authorizationCode + session JWT) so the proxy stores a SIWA refresh_token for revoke-on-delete (guideline 5.1.1(v)); never blocks sign-in
+│   ├── ForceUpdateService.swift       — launch-time forced-update check: `GET /config` → compares `minBuild` (int) vs this build's CFBundleVersion; FAILS OPEN (timeout/error/unreachable → allow). See `AppGateView`
 │   ├── SupportStore.swift             — @MainActor @Observable StoreKit 2: 4 tip tiers (one-time + monthly), load/purchase/restore; `errorMessage` honest-failure (unverified/pending/failed → message + telemetry, never a fake success)
 │   ├── PredictLeaderboardService.swift— Supabase per-team Predict board: upsertScore + standings(team); a read failure shows only your real local score (no fabricated rivals)
 │   ├── TriviaLeaderboardService.swift — Supabase league-wide Trivia best-streak board: upsertScore + standings; read failure shows only your real local streak
@@ -92,6 +93,8 @@ NWSLApp/
 │   ├── TeamDetailViewModel.swift      — roster + social links + real season stats/leaders
 │   └── TriviaViewModel.swift          — one Daily-Trivia session; questions ← TriviaService (throws→error state); non-repeating daily-5 (unit-tested); best-streak leaderboard (+ GC submit)
 ├── Views/                             — one screen per file
+│   ├── AppGateView.swift              — launch gate wrapping RootTabView: runs the forced-update check BEFORE tab bar/data/follows; dark splash while checking, then content or the wall. DEBUG `-forceUpdateWall` previews the wall
+│   ├── ForceUpdateView.swift          — the non-dismissible "Update Required" wall (no tab bar, nothing behind, only an "Update" button → `AppConfig.updateURL`, TestFlight)
 │   ├── RootTabView.swift              — app root; gates the 5-tab TabView behind `hasOnboarded` (full-screen OnboardingView until done); injects stores; restores session + coordinators; PREWARMS matches + Feed + Home content (incl. during onboarding, so post-onboarding Home arrives populated); GC syncAll; routes live-push tap
 │   ├── HomeView.swift                 — your-teams hub (32pt header + avatar): 4 modules; M1 round-robin + per-team chips + "See more →" (per-module error+retry); M2 Spotlight carousel; M3 Fan Zone equal-weight stacked cards (per-game FanZoneCardModel built here) + Superfan banner (gated ≥2 games played); refetch on pull + follows-change
 │   ├── HomeContentListView.swift      — "Club News" ("See more →") firehose: ALL followed-team content, no cap, reverse-chron, respects the active team chip (+ `HomeTeamChips` bar: [All] + per-team)

@@ -120,6 +120,12 @@ is NOT table privilege (this latent gap 42501'd the first real service_role read
 - **Before "done":** builds AND runs in the sim with no errors, **manually verified in-sim**
   (compiling ≠ working); update `docs/FILEMAP.md`; commit message `<Area>: <what changed>` (specific,
   present-tense); confirm before pushing (don't auto-push).
+- **Build bump ⇒ consider the update gate (don't auto-couple).** On a TestFlight/App Store build bump,
+  the forced-update gate's `minBuild` (proxy `/config`, `MIN_APP_BUILD`) is a manual FLOOR decoupled from
+  the build number — it does NOT auto-track "latest". NEVER raise it on every bump (that force-updates
+  every user) and NEVER to a build that isn't live+installable yet (walls users with nowhere to go).
+  Raise it + redeploy ONLY to retire a broken/incompatible build, and ONLY after the newer build is
+  available. Detail: `docs/versioning.md`.
 - **Git:** **squash-merge** PRs (one commit on main; OK to combine related branches). Never commit
   secrets. Commits use the owner's GitHub no-reply email
   `286203575+tiffanyrieth@users.noreply.github.com`. CLAUDE.md / commits / PRs / comments stay

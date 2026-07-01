@@ -111,6 +111,12 @@ reads/writes `profiles` as service_role for the first time, so `migration_apple_
 both the column **and** `grant … to service_role` (the 42501 gotcha). Deploy-gated by
 `scripts/health_check_apple_auth.mjs`. No backfill: existing users get a token on their next sign-in.
 
+**Forced-update gate (`GET /config`).** Returns `{ minVersion, minBuild }` from two hardcoded constants
+(`MIN_APP_VERSION` / `MIN_APP_BUILD` in `src/index.ts` — no KV/DB). The app checks it at launch
+(`AppGateView` → `ForceUpdateService`) and walls itself off if `CFBundleVersion < minBuild`; the app fails
+OPEN (a down `/config` never blocks). `minBuild` is a deliberate FLOOR raised by hand to retire a broken
+build — see `docs/versioning.md` for the raise-only-after-the-build-is-live rule.
+
 **V2 Live Activity (lock screen + Dynamic Island) — additive to V1 push.** Same `nwslapp-match-watcher`
 Worker, same ES256 `.p8` JWT signer, SECOND APNs channel: `apns-topic: <bundle>.push-type.liveactivity`,
 `apns-push-type: liveactivity`, payload `aps:{event:start|update|end, content-state, attributes-type,

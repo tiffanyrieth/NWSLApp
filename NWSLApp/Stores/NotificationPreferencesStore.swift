@@ -28,6 +28,7 @@ struct NotificationPreferencesSnapshot: Equatable {
     var substitutions: Bool
     var fanZoneRounds: Bool
     var playerSpotlight: Bool
+    var liveActivitiesEnabled: Bool
 }
 
 @Observable
@@ -44,6 +45,14 @@ final class NotificationPreferencesStore {
     // MARK: Activity
     var fanZoneRounds: Bool  { didSet { persist(fanZoneRounds, "fanZoneRounds"); onPreferenceChanged?() } }
     var playerSpotlight: Bool { didSet { persist(playerSpotlight, "playerSpotlight"); onPreferenceChanged?() } }
+
+    // MARK: Live Activities (V2)
+    /// The V2 Live Activity glance layer (lock screen + Dynamic Island live score). An OPT-OUT: default
+    /// ON, so real users get it; turning it off lets someone keep V1 pushes while dropping the live card.
+    /// Server-read ONLY (the watcher gates push-to-start on this AND team_alert_preferences) — the app
+    /// keeps uploading the push-to-start token regardless (cheap/idempotent), so re-enabling is instant.
+    /// Not a Tier-2 opt-in: it persists across sign-out (an opt-out shouldn't silently re-enable itself).
+    var liveActivitiesEnabled: Bool { didSet { persist(liveActivitiesEnabled, "liveActivitiesEnabled"); onPreferenceChanged?() } }
 
     /// Whether the user has visited the Notifications hub at least once. The per-team
     /// bells no longer gate on this (the Teams-tab coach mark replaced the old
@@ -66,7 +75,8 @@ final class NotificationPreferencesStore {
             fullTime: fullTime,
             substitutions: substitutions,
             fanZoneRounds: fanZoneRounds,
-            playerSpotlight: playerSpotlight
+            playerSpotlight: playerSpotlight,
+            liveActivitiesEnabled: liveActivitiesEnabled
         )
     }
 
@@ -106,6 +116,7 @@ final class NotificationPreferencesStore {
         fullTime = load("fullTime", default: false)           // Tier 2 (server push)
         lineupPosted = load("lineupPosted", default: false)   // Tier 2 (server, Stage D)
         substitutions = load("substitutions", default: false) // Tier 2 (server, Stage D)
+        liveActivitiesEnabled = load("liveActivitiesEnabled", default: true) // V2 opt-out (default ON)
         hubVisited = defaults.bool(forKey: Self.hubVisitedKey)
     }
 
@@ -158,7 +169,7 @@ final class NotificationPreferencesStore {
         // (TeamsView @AppStorage) — clear so a reset re-shows it for a true new user.
         defaults.removeObject(forKey: "hasSeenTeamsAlertTooltip")
         for key in ["dayBefore", "playerSpotlight", "fanZoneRounds", "kickoff", "goals",
-                    "halftime", "fullTime", "lineupPosted", "substitutions"] {
+                    "halftime", "fullTime", "lineupPosted", "substitutions", "liveActivitiesEnabled"] {
             defaults.removeObject(forKey: prefix + key)
         }
     }

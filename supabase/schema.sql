@@ -117,6 +117,7 @@ create table public.notification_preferences (
   substitutions    boolean not null default false,
   fan_zone_rounds  boolean not null default true,
   player_spotlight boolean not null default true,
+  live_activities_enabled boolean not null default true,  -- V2 Live Activity opt-out (watcher-read)
   updated_at timestamptz default now()
 );
 

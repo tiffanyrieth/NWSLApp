@@ -40,6 +40,7 @@ private struct NotificationPreferencesRow: Encodable {
     let substitutions: Bool
     let fan_zone_rounds: Bool
     let player_spotlight: Bool
+    let live_activities_enabled: Bool
 
     init(_ snapshot: NotificationPreferencesSnapshot, userID: UUID) {
         user_id = userID
@@ -52,5 +53,6 @@ private struct NotificationPreferencesRow: Encodable {
         substitutions = snapshot.substitutions
         fan_zone_rounds = snapshot.fanZoneRounds
         player_spotlight = snapshot.playerSpotlight
+        live_activities_enabled = snapshot.liveActivitiesEnabled
     }
 }

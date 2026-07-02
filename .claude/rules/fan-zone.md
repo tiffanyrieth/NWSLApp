@@ -21,8 +21,8 @@ A **single horizontal row** of uniform, compact game cards (`FanZoneCarouselCard
 model; ADDENDUM v2 replaced the old muted `trackedCaps()` eyebrow), in a snapping
 `ScrollView(.horizontal)` — two cards + a peek show at rest (`design_handoff_fanzone_home`; replaced
 the old full-width stacked `FanZoneGameCard`s).
-**FIXED order, never sorted by deadline:** `Predict → Bracket → Trivia → (future games appended)` —
-Predict + Bracket are the app's stars and must lead (`visibleGames`). Each card is driven by a flat
+**FIXED order, never sorted by deadline:** `Predict → Bracket → Know Her → Trivia` (`visibleGames`) —
+Predict + Bracket are the app's stars and must lead; NWSL Trivia sits last (owner order). Each card is driven by a flat
 `FanZoneCardModel` built in HomeView: accent-tinted icon + game name + one context line + one accent
 `compactStatus` line (Predict shows the deadline countdown e.g. "2d left"; Bracket "Vote now"; Trivia
 "Play now"; submitted/played collapses to "Picks locked in" / "Done today"). The old progress bar +

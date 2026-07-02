@@ -26,6 +26,7 @@ struct ProfileView: View {
     @Environment(TriviaStore.self) private var trivia
     @Environment(BracketStore.self) private var bracket
     @Environment(PredictionStore.self) private var predict
+    @Environment(KnowHerGameStore.self) private var knowHer
     // Per-team alert state — drives the Notifications row's "{N} teams" detail.
     @Environment(TeamAlertStore.self) private var alerts
     @Environment(AppRouter.self) private var router
@@ -435,6 +436,7 @@ struct ProfileView: View {
             trivia.resetForAccountDeletion()
             bracket.resetForAccountDeletion()
             predict.resetForAccountDeletion()
+            knowHer.resetForAccountDeletion()
             showDeletedConfirmation = true   // explicit success ack; its OK dismisses
         } catch {
             deleteError = error.localizedDescription

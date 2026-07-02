@@ -62,6 +62,15 @@ struct RootTabView: View {
     // the same state (see PredictionStore). A persistent Store, like the others.
     @State private var predict = PredictionStore()
 
+    // Know Her Game state (per-edition scores + the weekly streak + the in-memory weekly
+    // pool), created once and shared so the Home Fan Zone card, the picker, and the game
+    // read the same played state (see KnowHerGameStore). A persistent Store, like the others.
+    @State private var knowHer = KnowHerGameStore()
+
+    // Fan Zone "seen" state — which game cycle the user last opened, for the new/unseen dot
+    // (docs §10). Shared so the dot state is consistent wherever a card renders.
+    @State private var seen = FanZoneSeenStore()
+
     // Feed content preferences (content-type toggles + muted sources), created once
     // and shared so the Feed list and its Sources sheet read the same settings.
     @State private var feedPreferences = FeedPreferencesStore()
@@ -214,6 +223,8 @@ struct RootTabView: View {
         .environment(trivia)
         .environment(bracket)
         .environment(predict)
+        .environment(knowHer)
+        .environment(seen)
         .environment(feedPreferences)
         .environment(feedStore)
         .environment(homeContent)
@@ -359,13 +370,13 @@ struct RootTabView: View {
         // + cross-game achievements live here, where all three stores are in reach).
         .onChange(of: GameCenterManager.shared.isAuthenticated) { _, signedIn in
             if signedIn {
-                GameCenterManager.shared.syncAll(trivia: trivia, predict: predict, bracket: bracket)
+                GameCenterManager.shared.syncAll(trivia: trivia, predict: predict, bracket: bracket, knowHer: knowHer)
             }
         }
         // Returning to the foreground re-syncs (covers scores earned while offline).
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                GameCenterManager.shared.syncAll(trivia: trivia, predict: predict, bracket: bracket)
+                GameCenterManager.shared.syncAll(trivia: trivia, predict: predict, bracket: bracket, knowHer: knowHer)
             }
             // Leaving the foreground flushes any pending no-silent-failure telemetry to the
             // remote sink (best-effort) so a field miss reaches the owner without a user report.

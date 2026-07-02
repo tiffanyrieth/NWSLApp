@@ -220,7 +220,7 @@ struct NotificationsView: View {
             SettingsToggleRow(title: "Fan Zone rounds", subtitle: "When a new bracket round or trivia opens",
                               isOn: deferredBinding(\.fanZoneRounds))
             SettingsRowDivider()
-            SettingsToggleRow(title: "Player Spotlight", subtitle: "When a new weekly spotlight is posted",
+            SettingsToggleRow(title: "Know Her Game", subtitle: "When a new weekly player quiz is ready",
                               isOn: tier1Binding(\.playerSpotlight))
         }
     }

@@ -498,3 +498,84 @@ grant select, insert, update, delete on public.live_activities          to authe
 -- The watcher reads both as service_role (Live Activity fan-out) — bypasses RLS but still needs the grant.
 grant select, insert, update, delete on public.live_activity_start_tokens to service_role;
 grant select, insert, update, delete on public.live_activities          to service_role;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- Quiz community results — shared by NWSL Trivia + Know Her Game (0.4.x)
+-- ═════════════════════════════════════════════════════════════════════════════
+-- The NYT-style "how everyone did" screen that REPLACES a competitive leaderboard for the
+-- quiz-style games (docs/know-her-game.md §11/§11b). Your personal score shows on completion;
+-- the COMMUNITY breakdown (average score, per-question "% who got it right", what everyone
+-- picked) is computed from these rows.
+--
+-- PRIVACY: unlike bracket_scores/prediction_scores (world-readable standings), raw answers are
+-- OWNER-ONLY (RLS: a user reads/writes just their own rows, no cross-user select). Only AGGREGATE
+-- distributions ever leave the server — computed by the SECURITY DEFINER functions below and
+-- served by the proxy via its edge cache (NOT per-view live DB aggregation, NOT KV writes — the
+-- Swifties-tour cost lesson: the free tier's scarce limit is 1,000 KV writes/day).
+--
+-- IDEMPOTENT: PK (user_id, game, edition_key, question_id) → one row per user per question per
+-- edition. The app upserts on completion; a replay/retry can't inflate the counts.
+--   * game        — 'trivia' | 'knowher'
+--   * edition_key — day-key "YYYY-MM-DD" (Trivia) or "{weekKey}-{team}-{athleteId}" (Know Her)
+
+create table public.quiz_answers (
+  user_id uuid references auth.users(id) on delete cascade not null default auth.uid(),
+  game text not null,
+  edition_key text not null,
+  question_id text not null,
+  selected_index int not null,
+  is_correct boolean not null,
+  season text not null default '2026',
+  created_at timestamptz default now(),
+  primary key (user_id, game, edition_key, question_id)  -- backs the app's idempotent upsert onConflict
+);
+
+alter table public.quiz_answers enable row level security;
+
+-- Owner-only: no public/cross-user select (aggregation goes through the SECURITY DEFINER
+-- functions, which bypass RLS to count but never return raw rows).
+create policy "Users read own quiz answers"
+  on public.quiz_answers for select using (auth.uid() = user_id);
+create policy "Users insert own quiz answers"
+  on public.quiz_answers for insert with check (auth.uid() = user_id);
+create policy "Users update own quiz answers"
+  on public.quiz_answers for update using (auth.uid() = user_id);
+
+-- Grants (the 42501 gotcha — RLS does not imply privilege). Private per-user table; authenticated
+-- writes its own rows; service_role (proxy aggregation) also needs the explicit grant.
+grant select, insert, update on public.quiz_answers to authenticated;
+grant select on public.quiz_answers to service_role;
+
+-- ── Aggregate functions (SECURITY DEFINER — return ONLY distributions, never raw rows) ────
+-- Per-question option distribution: for each question, how many picked each option index and
+-- how many were correct. The proxy shapes this into the community-results payload.
+create or replace function public.quiz_distribution(p_game text, p_edition_key text)
+returns table (question_id text, selected_index int, is_correct boolean, cnt bigint)
+language sql
+security definer
+set search_path = public
+as $$
+  select question_id, selected_index, is_correct, count(*)::bigint
+  from public.quiz_answers
+  where game = p_game and edition_key = p_edition_key
+  group by question_id, selected_index, is_correct;
+$$;
+
+-- Edition summary: how many distinct fans have completed it, and the average number correct
+-- (correct rows ÷ distinct responders — each completion answers every question exactly once).
+create or replace function public.quiz_summary(p_game text, p_edition_key text)
+returns table (responders bigint, avg_correct numeric)
+language sql
+security definer
+set search_path = public
+as $$
+  select count(distinct user_id)::bigint,
+         (count(*) filter (where is_correct))::numeric / nullif(count(distinct user_id), 0)
+  from public.quiz_answers
+  where game = p_game and edition_key = p_edition_key;
+$$;
+
+-- The proxy calls both as service_role; grant execute explicitly (matches the service_role discipline).
+grant execute on function public.quiz_distribution(text, text) to service_role;
+grant execute on function public.quiz_summary(text, text)      to service_role;

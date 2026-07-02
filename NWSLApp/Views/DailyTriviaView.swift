@@ -46,12 +46,12 @@ struct DailyTriviaView: View {
                 loadedContent
             }
         }
-        .nativeBackButton(title: "Daily Trivia")
+        .nativeBackButton(title: "NWSL Trivia")
         .toolbar { ToolbarItem(placement: .topBarTrailing) { PlayingAsBadge(accent: Color.dsGameTrivia) } }
         .background(Color(.systemGroupedBackground))
         // Mandatory sign-in + display name to play — gated at the first "Submit Answer", so
         // a finished game's streak always reaches the leaderboard. "Go back" cancels.
-        .fanZoneGate(isRequested: $gateRequested, gameName: "Daily Trivia") {
+        .fanZoneGate(isRequested: $gateRequested, gameName: "NWSL Trivia") {
             viewModel.submit()
         }
         .task {
@@ -59,10 +59,12 @@ struct DailyTriviaView: View {
             // the GC banner only shows when the user is about to play. Idempotent.
             GameCenterManager.shared.authenticate()
             if case .idle = viewModel.state { await viewModel.loadDaily() }
-            // Load the real standings (and self-heal the user's row) whenever the
-            // screen appears — the results screen reads `viewModel.leaderboard`.
-            await viewModel.refreshLeaderboard(store: store, auth: auth)
         }
+    }
+
+    /// The day's questions as game-agnostic descriptors for the community-results panel.
+    private var triviaCommunityQuestions: [CommunityResultsView.QuestionInfo] {
+        viewModel.questions.map { .init(id: $0.id, prompt: $0.question, options: $0.options, correctIndex: $0.correctIndex) }
     }
 
     // Decide which screen: a just-finished session shows the full recap; a user
@@ -107,7 +109,7 @@ struct DailyTriviaView: View {
     private var progressHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Label("DAILY TRIVIA", systemImage: "brain.head.profile")
+                Label("NWSL TRIVIA", systemImage: "brain.head.profile")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(accent)
                 Spacer()
@@ -202,16 +204,23 @@ struct DailyTriviaView: View {
                         guard !viewModel.isFinished else { return }
                         store.recordCompletion(correct: viewModel.score, outOf: viewModel.questionCount)
                         viewModel.finish()
-                        // Game Center (additive): streak board + achievements.
-                        GameCenterManager.shared.submit(store.bestStreak, to: GameCenterID.Leaderboard.triviaStreak)
+                        // Game Center (additive): achievements only. NWSL Trivia has NO competitive
+                        // leaderboard now (docs §11) — the community-results screen replaces it; the
+                        // superfan total still gets the lifetime-correct count via syncAll.
                         if viewModel.score == viewModel.questionCount {
                             GameCenterManager.shared.report(GameCenterID.Achievement.triviaPerfectDay)
                         }
                         if store.bestStreak >= 7 { GameCenterManager.shared.report(GameCenterID.Achievement.triviaStreak7) }
                         if store.bestStreak >= 30 { GameCenterManager.shared.report(GameCenterID.Achievement.triviaStreak30) }
-                        // Playing was gated on sign-in (first Submit Answer), so we're signed
-                        // in here — push the just-earned streak to the leaderboard.
-                        Task { await viewModel.refreshLeaderboard(store: store, auth: auth) }
+                        // Signed in (gated at the first Submit) → persist per-question answers to the
+                        // shared community aggregate. Edition key = today's day-key (store stamped it).
+                        if let userID = auth.userID, let edition = store.lastCompletedDay {
+                            let answers = viewModel.communityAnswers()
+                            Task {
+                                await QuizResultsService().upsert(game: "trivia", editionKey: edition,
+                                    answers: answers, userID: userID, season: "2026")
+                            }
+                        }
                     }
                 } else {
                     Button("Next Question") { viewModel.advance() }
@@ -245,7 +254,13 @@ struct DailyTriviaView: View {
 
                 scoreCard
 
-                leaderboardCard
+                // Community "how everyone did" replaces the old streak leaderboard (docs §11).
+                // Trivia reveals it AFTER the day closes (server-decided); today shows the
+                // "check back tomorrow" state alongside the personal score.
+                if let edition = store.lastCompletedDay {
+                    CommunityResultsView(game: "trivia", editionKey: edition,
+                                         questions: triviaCommunityQuestions, accent: accent)
+                }
 
                 if showRecap {
                     recapList

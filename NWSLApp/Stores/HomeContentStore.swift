@@ -31,15 +31,14 @@ import Foundation
 @MainActor
 @Observable
 final class HomeContentStore {
-    // Module 1 (content) + Module 2 (spotlight) raw items. Derivation (round-robin,
-    // staleness, chip filtering) lives in HomeViewModel, which reads these.
+    // Module 1 (content) raw items. Derivation (round-robin, staleness, chip filtering) lives
+    // in HomeViewModel, which reads these. (The Player Spotlight module was retired for Know
+    // Her Game — the app no longer fetches `/spotlight`, so the proxy's Haiku blurb generation
+    // is no longer triggered.)
     private(set) var teamContentItems: [ContentCard] = []
-    private(set) var allSpotlights: [PlayerSpotlight] = []
 
-    // Per-module load errors (each module fails independently — one going down doesn't
-    // blank the other). nil = no error.
+    // Load error (nil = no error).
     private(set) var contentError: String? = nil
-    private(set) var spotlightError: String? = nil
 
     // Load lifecycle, so the view can tell "still loading" from "loaded but genuinely
     // empty" — without it the empty/Retry card flashes for a frame during the initial
@@ -81,7 +80,6 @@ final class HomeContentStore {
     func reload(following: FollowingStore, clubStore: ClubStore) async {
         guard !isLoadingContent else { return }
         contentError = nil
-        spotlightError = nil
         let scope = await resolveScope(following: following, clubStore: clubStore)
         await fetch(scope: scope)
     }
@@ -106,7 +104,7 @@ final class HomeContentStore {
     /// there's no error to retry). Shared by loadIfNeeded and warm.
     private func loadIfScopeChanged(following: FollowingStore, clubStore: ClubStore) async {
         let scope = await resolveScope(following: following, clubStore: clubStore)
-        if loadedScope == scope, contentError == nil, spotlightError == nil { return }
+        if loadedScope == scope, contentError == nil { return }
         guard !isLoadingContent else { return }
         await fetch(scope: scope)
     }
@@ -123,8 +121,8 @@ final class HomeContentStore {
         )
     }
 
-    /// Fetch Module 1 + Module 2 for an already-resolved scope. They load + fail independently.
-    /// On success, latch `loadedScope` so a matching future load is an instant no-op.
+    /// Fetch Module 1 (content) for an already-resolved scope. On success, latch `loadedScope`
+    /// so a matching future load is an instant no-op.
     private func fetch(scope: Set<String>) async {
         isLoadingContent = true
         defer { isLoadingContent = false; hasCompletedContentLoad = true }
@@ -152,18 +150,8 @@ final class HomeContentStore {
             teamContentItems = []
             contentError = Self.loadFailureMessage
         }
-        // Module 2 (spotlight).
-        do {
-            allSpotlights = try await contentService.spotlightCards(followedAbbreviations: scope)
-            spotlightError = nil
-            anySuccess = true
-        } catch {
-            Diagnostics.shared.record(.apiFailure, "home spotlight (\(scope.count) team(s)): \(error.localizedDescription)")
-            allSpotlights = []
-            spotlightError = Self.loadFailureMessage
-        }
-        // Only latch the scope when at least one module actually loaded — so a fully-failed load
-        // doesn't mark this scope "done" and suppress the next retry.
+        // Only latch the scope when the content actually loaded — so a failed load doesn't mark
+        // this scope "done" and suppress the next retry.
         if anySuccess { loadedScope = scope }
     }
 }

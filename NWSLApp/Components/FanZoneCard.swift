@@ -24,7 +24,7 @@ import SwiftUI
 /// from the game stores. Keeping it a value type (not a pile of view params) lets the
 /// view stay declarative and the state logic live next to the stores.
 struct FanZoneCardModel {
-    enum Game { case predict, bracket, trivia }
+    enum Game { case predict, bracket, trivia, knowHer }
 
     /// Optional progress bar: `value` of `max` plus a caption ("4 of 11 players picked").
     /// (Not rendered by the compact carousel card — kept so the HomeView state builders
@@ -55,6 +55,7 @@ struct FanZoneCardModel {
         case .predict: return .dsGamePredict
         case .bracket: return .dsGameBracket
         case .trivia:  return .dsGameTrivia
+        case .knowHer: return .dsGameSpotlight
         }
     }
 
@@ -64,6 +65,7 @@ struct FanZoneCardModel {
         case .predict: return "soccerball"
         case .bracket: return "trophy.fill"
         case .trivia:  return "brain.head.profile"
+        case .knowHer: return "person.fill.questionmark"
         }
     }
 
@@ -82,6 +84,8 @@ struct FanZoneCardModel {
             return doneLine != nil ? "Picks locked in" : "Vote now"
         case .trivia:
             return doneLine != nil ? "Done today" : "Play now"
+        case .knowHer:
+            return doneLine != nil ? "Done this week" : "Play now"
         }
     }
 }
@@ -154,12 +158,14 @@ struct SuperfanCard: View {
     let predictPoints: Int
     let bracketPoints: Int
     let triviaCorrect: Int
+    var knowHerPoints: Int = 0
 
     private var total: Int {
         GameCenterScores.superfanTotal(
             triviaTotalCorrect: triviaCorrect,
             predictSeasonPoints: predictPoints,
-            bracketPoints: bracketPoints
+            bracketPoints: bracketPoints,
+            knowHerPoints: knowHerPoints
         )
     }
 
@@ -177,6 +183,7 @@ struct SuperfanCard: View {
                 breakdownDot(.dsGamePredict, predictPoints)
                 breakdownDot(.dsGameBracket, bracketPoints)
                 breakdownDot(.dsGameTrivia, triviaCorrect)
+                if knowHerPoints > 0 { breakdownDot(.dsGameSpotlight, knowHerPoints) }
             }
         }
         .padding(14)
@@ -259,11 +266,15 @@ func compactCountdown(to target: Date, from now: Date = Date()) -> String? {
                 contextLine: "Stare-Down · Round of 64"
             ))
             FanZoneCarouselCard(model: FanZoneCardModel(
-                game: .trivia, title: "Daily Trivia",
+                game: .trivia, title: "NWSL Trivia",
                 contextLine: "Done today · 4/5 correct",
                 doneLine: "Done today", dimmed: true
             ))
-            SuperfanCard(predictPoints: 68, bracketPoints: 22, triviaCorrect: 143)
+            FanZoneCarouselCard(model: FanZoneCardModel(
+                game: .knowHer, title: "Know Her Game",
+                contextLine: "Trinity Rodman · WAS"
+            ))
+            SuperfanCard(predictPoints: 68, bracketPoints: 22, triviaCorrect: 143, knowHerPoints: 8)
         }
         .frame(height: 128)
         .padding(16)

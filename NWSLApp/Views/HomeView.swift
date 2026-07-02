@@ -30,8 +30,6 @@ struct HomeView: View {
     // The profile avatar button's destination (a placeholder until the Profile
     // screen ships in its own phase).
     @State private var showProfile = false
-    // Tracks the Module-2 spotlight carousel's current card, for the scroll dots.
-    @State private var activeSpotlightID: String?
     @Environment(FollowingStore.self) private var following
     @Environment(MatchStore.self) private var matchStore
     @Environment(ClubStore.self) private var clubStore
@@ -41,6 +39,7 @@ struct HomeView: View {
     @Environment(TriviaStore.self) private var trivia
     @Environment(BracketStore.self) private var bracket
     @Environment(PredictionStore.self) private var predict
+    @Environment(KnowHerGameStore.self) private var knowHer
     // Cross-tab navigation (Module 4's "Full schedule →" jumps to Schedule).
     @Environment(AppRouter.self) private var router
 
@@ -67,6 +66,9 @@ struct HomeView: View {
             // already loaded this exact followed set; otherwise it fetches.
             await homeContent.loadIfNeeded(following: following, clubStore: clubStore)
             await loadBracketSummary()
+            // Warm the Know Her Game pool for the followed teams (drives the Fan Zone card +
+            // its visibility gate). Online-only — a failure just hides the game.
+            await knowHer.loadIfNeeded(teams: viewModel.followedTeamAbbreviations(following: following))
         }
         // A newly-followed (or unfollowed) team should change Module 1 without a
         // manual refresh — refetch the live content scoped to the new followed set
@@ -77,6 +79,7 @@ struct HomeView: View {
             // Scope-aware: a follow added/removed changes the abbr set → the store refetches;
             // unchanged set → no-op (e.g. onboarding already warmed the exact final scope).
             Task { await homeContent.loadIfNeeded(following: following, clubStore: clubStore) }
+            Task { await knowHer.loadIfNeeded(teams: viewModel.followedTeamAbbreviations(following: following), force: true) }
         }
         .sheet(isPresented: $showTeamPicker) {
             NavigationStack { OnboardingView() }
@@ -175,7 +178,6 @@ struct HomeView: View {
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                 playSection
                 clubNewsSection
-                getToKnowYourPlayers
                 comingUp
             }
             .padding(.top, 8)
@@ -350,64 +352,6 @@ struct HomeView: View {
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
     }
 
-    // MARK: - Module 2: Get to know your players (spotlight)
-
-    @ViewBuilder
-    private var getToKnowYourPlayers: some View {
-        let spotlights = viewModel.spotlights(following: following)
-        if let error = viewModel.spotlightError {
-            // Module 2 failed its live fetch — honest tap-to-retry, scoped to it.
-            section(
-                "Weekly Player Spotlight",
-                subtitle: "Meet your squad — a different player each week so you know who to watch on match day"
-            ) {
-                moduleError(error) { await viewModel.retryContent(following: following) }
-            }
-            .padding(.bottom, 24)   // Spotlight → Upcoming section break
-        } else if !spotlights.isEmpty {
-            section(
-                "Weekly Player Spotlight",
-                subtitle: "Meet your squad — a different player each week so you know who to watch on match day"
-            ) {
-                VStack(spacing: 10) {
-                    // Equal-weight cards in a snapping horizontal carousel (one per
-                    // followed team) — same visual weight, no full-size-vs-tap split.
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(spotlights) { spotlight in
-                                NavigationLink {
-                                    PlayerSpotlightView(
-                                        spotlight: spotlight,
-                                        club: viewModel.club(forAbbreviation: spotlight.teamAbbreviation)
-                                    )
-                                } label: {
-                                    PlayerSpotlightCard(
-                                        spotlight: spotlight,
-                                        club: viewModel.club(forAbbreviation: spotlight.teamAbbreviation)
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                                // 85% of the carousel width so the next card peeks.
-                                .containerRelativeFrame(.horizontal, count: 100, span: 85, spacing: 0)
-                                .id(spotlight.id)
-                            }
-                        }
-                        .scrollTargetLayout()
-                    }
-                    .scrollTargetBehavior(.viewAligned)
-                    .scrollPosition(id: $activeSpotlightID)
-                    .onAppear { if activeSpotlightID == nil { activeSpotlightID = spotlights.first?.id } }
-
-                    if spotlights.count > 1 {
-                        let active = spotlights.firstIndex { $0.id == activeSpotlightID } ?? 0
-                        scrollDots(count: spotlights.count, activeIndex: active)
-                    }
-                }
-            }
-            .padding(.bottom, 24)   // Spotlight → Upcoming section break
-        }
-    }
-
     // MARK: - Module 3: Fan Zone (the games)
 
     // Fan Zone visibility rule: each game has its own gate, and a game with nothing
@@ -424,12 +368,16 @@ struct HomeView: View {
     /// matchday-driven AND personal (you predict YOUR team's lineup), so it leads
     /// when a followed team has a fixture within 28 days; Bracket Battle and Daily
     /// Trivia follow. The first entry becomes the featured lead card.
-    private enum FanGame: Hashable { case predict, bracket, trivia }
+    private enum FanGame: Hashable { case predict, bracket, trivia, knowHer }
+    /// Know Her Game shows when the weekly pool has a featured player for a followed team
+    /// (hidden in the offseason / before content loads — online-only, docs §4).
+    private var knowHerVisible: Bool { knowHer.hasContent }
     private var visibleGames: [FanGame] {
         var games: [FanGame] = []
         if predictXIVisible { games.append(.predict) }
         if bracketVisible { games.append(.bracket) }
         if triviaVisible { games.append(.trivia) }
+        if knowHerVisible { games.append(.knowHer) }   // appended after Trivia (fixed order)
         return games
     }
 
@@ -476,7 +424,8 @@ struct HomeView: View {
                     SuperfanCard(
                         predictPoints: predict.seasonPoints,
                         bracketPoints: bracket.points,
-                        triviaCorrect: trivia.totalCorrect
+                        triviaCorrect: trivia.totalCorrect,
+                        knowHerPoints: knowHer.totalPoints
                     )
                     .frame(width: 152)
                 }
@@ -489,12 +438,13 @@ struct HomeView: View {
     /// Show the Superfan banner only once the user has genuine scores in ≥2 games AND a
     /// non-zero total — never a meaningless "0" for a new user (handoff visibility rule).
     private var superfanBannerVisible: Bool {
-        let played = [predict.hasPredicted, bracket.hasPlayed, trivia.totalAnswered > 0]
+        let played = [predict.hasPredicted, bracket.hasPlayed, trivia.totalAnswered > 0, knowHer.totalPoints > 0]
             .filter { $0 }.count
         let total = GameCenterScores.superfanTotal(
             triviaTotalCorrect: trivia.totalCorrect,
             predictSeasonPoints: predict.seasonPoints,
-            bracketPoints: bracket.points)
+            bracketPoints: bracket.points,
+            knowHerPoints: knowHer.totalPoints)
         return played >= 2 && total > 0
     }
 
@@ -506,6 +456,18 @@ struct HomeView: View {
         case .predict: PredictXIView()
         case .bracket: BracketBattleView()
         case .trivia:  DailyTriviaView()
+        case .knowHer: knowHerDestination
+        }
+    }
+
+    /// One followed team with a player → straight to the intro (docs §3); 2+ → the picker.
+    @ViewBuilder
+    private var knowHerDestination: some View {
+        let players = knowHer.players
+        if players.count == 1 {
+            KnowHerGameView(player: players[0], weekKey: knowHer.weekKey ?? "")
+        } else {
+            KnowHerPickerView(teams: viewModel.followedTeamAbbreviations(following: following))
         }
     }
 
@@ -517,7 +479,26 @@ struct HomeView: View {
         case .predict: return predictCardModel
         case .bracket: return bracketCardModel
         case .trivia:  return triviaCardModel
+        case .knowHer: return knowHerCardModel
         }
+    }
+
+    /// The Fan Zone "Know Her Game" card. One followed player → names her ("Trinity Rodman ·
+    /// WAS"); 2+ → the cluster line ("N of M played"). All played → "Done this week".
+    private var knowHerCardModel: FanZoneCardModel {
+        let players = knowHer.players
+        var model = FanZoneCardModel(game: .knowHer, title: "Know Her Game",
+                                     contextLine: "This week's player")
+        if players.count == 1, let p = players.first {
+            model.contextLine = "\(p.playerName) · \(p.teamAbbreviation.uppercased())"
+        } else if players.count > 1 {
+            model.contextLine = "\(knowHer.playedCount) of \(players.count) played"
+        }
+        if knowHer.allPlayed {
+            model.dimmed = true
+            model.doneLine = "Done this week"
+        }
+        return model
     }
 
     private var predictCardModel: FanZoneCardModel {
@@ -616,7 +597,7 @@ struct HomeView: View {
     }
 
     private var triviaCardModel: FanZoneCardModel {
-        var model = FanZoneCardModel(game: .trivia, title: "Daily Trivia",
+        var model = FanZoneCardModel(game: .trivia, title: "NWSL Trivia",
                                      contextLine: "5 questions · refreshes daily")
         if trivia.streak > 0 { model.badge = "\(trivia.streak)🔥" }
 
@@ -777,18 +758,6 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
-    /// Module-2 carousel scroll-position dots: one per spotlight, current filled.
-    private func scrollDots(count: Int, activeIndex: Int) -> some View {
-        HStack(spacing: 6) {
-            ForEach(0..<count, id: \.self) { i in
-                Circle()
-                    .fill(i == activeIndex ? Color.dsFgSecondary : Color.dsFgQuaternary)
-                    .frame(width: 6, height: 6)
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
-
     // MARK: - State plumbing
 
     private var errorMessage: String? {
@@ -833,6 +802,7 @@ struct HomeView: View {
         .environment(TriviaStore())
         .environment(BracketStore())
         .environment(PredictionStore())
+        .environment(KnowHerGameStore())
         .environment(AuthStore())
         .environment(NotificationPreferencesStore())
 }

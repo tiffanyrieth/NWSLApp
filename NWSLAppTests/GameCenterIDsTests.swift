@@ -15,11 +15,12 @@ struct GameCenterIDsTests {
     private let prefix = "com.tiffanyrieth.nwslapp.NWSLApp"
 
     @Test func leaderboardIDsAreExact() {
-        #expect(GameCenterID.Leaderboard.triviaStreak        == "\(prefix).leaderboard.trivia.streak")
+        // The `trivia.streak` board was retired (docs §11) — quiz games have no competitive
+        // board; their community-results screen replaces it.
         #expect(GameCenterID.Leaderboard.predictSeasonPoints == "\(prefix).leaderboard.predict.seasonpoints")
         #expect(GameCenterID.Leaderboard.bracketTotalPoints  == "\(prefix).leaderboard.bracket.totalpoints")
         #expect(GameCenterID.Leaderboard.superfanTotal       == "\(prefix).leaderboard.superfan.total")
-        #expect(GameCenterID.Leaderboard.all.count == 4)
+        #expect(GameCenterID.Leaderboard.all.count == 3)
     }
 
     @Test func achievementIDsAreExact() {
@@ -38,7 +39,10 @@ struct GameCenterIDsTests {
         #expect(ids.allSatisfy { $0.hasPrefix(prefix) })     // all namespaced
     }
 
-    @Test func superfanTotalSumsTheThreeGames() {
+    @Test func superfanTotalSumsTheGames() {
+        // Four terms now: trivia lifetime-correct + predict + bracket + Know Her banked points.
+        #expect(GameCenterScores.superfanTotal(triviaTotalCorrect: 40, predictSeasonPoints: 84, bracketPoints: 12, knowHerPoints: 9) == 145)
+        // knowHerPoints defaults to 0 → older three-arg call sites/behavior preserved.
         #expect(GameCenterScores.superfanTotal(triviaTotalCorrect: 40, predictSeasonPoints: 84, bracketPoints: 12) == 136)
         #expect(GameCenterScores.superfanTotal(triviaTotalCorrect: 0, predictSeasonPoints: 0, bracketPoints: 0) == 0)
     }

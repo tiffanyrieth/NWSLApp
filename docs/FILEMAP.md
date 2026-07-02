@@ -22,7 +22,8 @@ NWSLApp/
 │   ├── NationalTeam.swift             — followable women's NT: FIFA code + name + flag + brand color. Curated `featured(8)`/`all(16)` + a `discovered` init for data-driven Browse-all (ESPN flag by FIFA; color via DesignTeamColors.displayHex else neutral)
 │   ├── AthleteStatistics.swift        — ESPN Core API /statistics → PlayerSeasonStats
 │   ├── MatchSummary.swift             — ESPN /summary: lineups+formation, boxscore, key-events timeline
-│   ├── PlayerSpotlight.swift          — Home Module-2 player-of-week; `espnAthleteId`+`seasonStatLine` carry live data; `statStrip` nil when no stats → view hides "This Season" (never fabricated)
+│   ├── PlayerSpotlight.swift          — (legacy) player-of-week model; the Home Spotlight section was retired for Know Her Game; model retained for the `/spotlight` decode path
+│   ├── KnowHerGame.swift              — Know Her Game content: `KnowHerPool`/`KnowHerPlayer`/`KnowHerQuestion` (Codable, mirrors proxy `src/knowher.ts`); category labels; `editionKey(weekKey:)`
 │   ├── PlayerStats.swift              — per-player season stats + team-leaders (real ESPN data)
 │   ├── Roster.swift                   — squad + team profile from one roster fetch; `ClubSquad.cachedAsOf` from the proxy's `proxyCachedAsOf` marker (last-known-good fallback)
 │   ├── Scoreboard.swift               — ESPN scoreboard structs + Event helpers
@@ -61,7 +62,9 @@ NWSLApp/
 │   ├── PredictionScoring.swift        — pure Predict-the-XI scorer (Mastermind partial, max 88). Unit-tested
 │   ├── RecentForm.swift               — pure last-5 W/D/L per club from the season; feeds Standings "Last 5"; `result(scored:conceded:)` = the shared W/D/L rule (reused by MatchDetailViewModel.form). Unit-tested
 │   ├── TeamSocialLinksProvider.swift  — static per-team social-account URLs (reference data, no live API)
-│   └── TriviaService.swift            — Daily-Trivia client: triviaQuestions→/trivia; `throws` on failure OR empty pool (online-only; no seed)
+│   ├── TriviaService.swift            — Daily-Trivia client: triviaQuestions→/trivia; `throws` on failure OR empty pool (online-only; no seed)
+│   ├── KnowHerService.swift           — Know Her Game client: pool(teams:)→/knowher; `throws` on failure OR empty pool (online-only; no seed)
+│   └── QuizResultsService.swift       — SHARED community-results client (NWSL Trivia + Know Her): upserts per-question answers to Supabase `quiz_answers`; reads the aggregate distribution from the proxy `/quiz-results` edge cache (never a live DB aggregation)
 ├── Stores/                            — @Observable shared state → UserDefaults, injected
 │   ├── AppRouter.swift                — tab selection (AppTab); `openMatch(eventID:)` live-push tap; `reselectNonce` (re-tap-active-tab → Schedule snaps to boundary); DEBUG `-startTab`
 │   ├── AuthStore.swift                — @MainActor; Sign in with Apple → Supabase user; profile upsert + `hydrateProfile()` (reads display_name + name_is_custom on restore AND sign-in → survives reinstall); `displayName`/`displayNameIsCustom`/`profileHydrated`; `hasChosenName` (Fan Zone gate condition); deleteAccount
@@ -79,7 +82,8 @@ NWSLApp/
 │   ├── MatchStore.swift               — shared season store; one fetch, many readers
 │   ├── NotificationPreferencesStore.swift — Profile's notification toggles (PURE OPT-IN: all default OFF, no auto-enable); → NotificationScheduler / NotificationSyncCoordinator
 │   ├── PredictionStore.swift          — Predict-the-XI durable state: predictions+scores by fixtureID (`predict.v2.*`); `seasonPoints` + `points(forTeam:)` + `scoredTeams`
-│   └── TriviaStore.swift              — Daily-Trivia streak/bestStreak/accuracy + one-play/day gate
+│   ├── TriviaStore.swift              — Daily-Trivia streak/bestStreak/accuracy + one-play/day gate
+│   └── KnowHerGameStore.swift         — Know Her Game durable state (`knowher.v1.*`): per-edition scores keyed `{weekKey}-{team}-{athleteId}` + weekly streak; in-memory weekly pool (via KnowHerService); `hasContent`/`totalPoints`/`unplayedPlayers`
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
 │   ├── BracketViewModel.swift         — Bracket session: round phase, progress, results, leaderboard, settled-round scoring (+ Game Center submit)
 │   ├── FeedViewModel.swift            — Social-tab source-class chips (All·Reporters·Players·Clubs by `resolvedSourceType`; Reporters = reporter Bluesky + news articles; `league` has no chip → All only) + 30-day recency cut on reporter/league/news (`isFresh`; club/player age-agnostic) + `arranged` = per-club `ContentRoundRobin.balanced` over all team-tagged cards (volume-blind); `itemsError` on fetch failure
@@ -101,7 +105,9 @@ NWSLApp/
 │   ├── ProfileView.swift              — account & settings sheet: identity · Fan Zone stats (🏆 → Game Center) · Settings (discoverable Display-name row → shared `DisplayNameEntry` sheet, signed-in only + Notifications) · My Teams · Account (Sign out + REAL Delete account: server delete via AccountDeletionService → wipes all local stores; spinner + honest error on failure + explicit "Account deleted" confirmation on success, never a silent no-op)
 │   ├── NotificationsView.swift        — the ONE notifications hub: §Match alerts (per-team) · §Alert types (global, dimmed when no team on) · §Activity. INVARIANT: Tier-2 ON ⟹ signed in (default OFF, sign-out resets); unfollow clears alerts
 │   ├── SupportView.swift              — "Support NWSLApp" (StoreKit tips): hero · one-time/monthly toggle · 4 tip tiers · CTA · Restore · "Where it goes" · thank-you state
-│   ├── DailyTriviaView.swift          — Daily Trivia game (indigo); 5/day; results screen w/ best-streak leaderboard
+│   ├── DailyTriviaView.swift          — NWSL Trivia game (indigo); 5/day; results screen w/ `CommunityResultsView` (streak leaderboard retired, docs §11); writes per-question answers to the shared community aggregate
+│   ├── KnowHerGameView.swift          — Know Her Game (amber `dsGameSpotlight`): intro→question→result for one featured player; tap-to-answer + ~1.2s auto-advance; result = feel-good score + missed-fact + `CommunityResultsView`, no leaderboard CTA; `KnowHerPlayerAvatar` (team-ring headshot)
+│   ├── KnowHerPickerView.swift        — Know Her multi-team picker (2+ followed teams): one row per team's featured player, Play/done badge, sign-in gated; opens the game in a sheet with "Next player ›" swap
 │   ├── BracketBattleView.swift        — Bracket Battle (teal): 5 screens — Edition Intro (ranked banner · titled How-it-works steps · 3-tier points · "See the full bracket" sheet · Good-to-know) · Voting · Save/Submit · Results · Bracket Overview; matchup cards show player headshots (PlayerDot, monogram fallback); play gated via `.fanZoneGate`
 │   ├── BracketLeaderboardView.swift   — Bracket Leaderboard (pushed from Results/Overview): Rankings (your-position + podium + table) + Your Stats (totals/accuracy/streaks/edition history); real data only
 │   ├── PredictXIView.swift            — Predict the XI (pink): open fixtures + Results breakdown + per-team leaderboard cards
@@ -117,7 +123,6 @@ NWSLApp/
 │   ├── CombinedPitchView.swift        — BOTH teams' XIs on ONE pitch; Lineups default
 │   ├── FormationPitchView.swift       — single-team XI on a pitch; per-team list fallback
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
-│   ├── PlayerSpotlightView.swift      — editorial spotlight: ghosted jersey # + hero, This Season grid, Story (Haiku blurb), Fast Facts + Watch
 │   ├── StandingsView.swift            — color-block table (# · TEAM · PTS · GP · W · D · L · GD · LAST 5); signed GD; crest + color-coded abbr; cyan PLAYOFF LINE; team-color spine/tint/accent rank = FOLLOW indicator; Last-5 via RecentForm
 │   ├── FeedView.swift                 — **Social** tab ("The world talking about your teams"): header + 4 left-aligned source-class chips (h-scroll HStack, same as Home's `HomeTeamChips`) + per-club-balanced ContentCardViews; opens to `defaultFeedFilter`; full-screen error+retry on fetch failure
 │   ├── FeedSourcesView.swift          — Feed content preferences: Default-view picker + content-type toggles + mute sources
@@ -135,7 +140,8 @@ NWSLApp/
 │   ├── PlatformBadge.swift            — platform glyph (YT/Bluesky/TikTok/IG/article/reddit)
 │   ├── FormBadge.swift                — W/D/L form badge (optional `size`/`fontSize`, default 22; `MatchResult` convenience init)
 │   ├── FanZoneGate.swift              — MANDATORY-to-play Fan Zone gate: `.fanZoneGate(isRequested:gameName:onAuthorized:)` → no-skip "Sign in to play" + REQUIRED display-name steps (`FanZoneGateSheet`), runs the action once signed-in+named (instant if already). `DisplayNameEntry` = the shared name field (gate + Profile editor). Replaced FanZoneIntroView + SignInPromptView (both deleted)
-│   ├── FanZoneCard.swift              — Home Fan Zone horizontal-row cards: `FanZoneCarouselCard` (~152pt, accent-wash + GameIcon SF Symbol + name + context + one accent `compactStatus` line) driven by a flat `FanZoneCardModel`; `SuperfanCard` (trailing cross-game total, display-only, non-tappable); `GameIcon`; pure `compactCountdown(to:from:)` ("2d 14h"/"18h"/"<1m")
+│   ├── FanZoneCard.swift              — Home Fan Zone horizontal-row cards: `FanZoneCarouselCard` (~152pt, accent-wash + GameIcon SF Symbol + name + context + one accent `compactStatus` line) driven by a flat `FanZoneCardModel` (games: predict/bracket/trivia/knowHer); `SuperfanCard` (trailing cross-game total incl. Know Her, display-only); `GameIcon`; pure `compactCountdown(to:from:)`
+│   ├── CommunityResultsView.swift     — SHARED "how everyone did" panel (NWSL Trivia + Know Her): community avg + per-question "% got it right" (or honest counts at low N) + what-everyone-picked bars; reveal server-decided; fetches `/quiz-results` via QuizResultsService
 │   ├── HowToWatchCard.swift / MDInfoCard.swift / StatComparisonBar.swift — match-detail tiles (HowToWatch = FREE/SUB badge + BroadcastChip + per-device "Find it" steps; MDInfoCard = label/value)
 │   ├── PitchDot.swift / PlayerDot.swift / PlayerCard.swift — player markers/cards (team-color monogram, no headshots)
 │   ├── ComingUpRow.swift / EventTimelineRow.swift / FlowLayout.swift — Home/match rows + wrapping layout (ComingUpRow upcoming rows carry a `● Platform · FREE/SUB` broadcast line)

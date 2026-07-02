@@ -57,6 +57,7 @@ extension Color {
     static let dsGameTrivia = Color(hex: "#5856D6")   // indigo
     static let dsGameBracket = Color(hex: "#30B0C7")  // teal
     static let dsGamePredict = Color(hex: "#FF375F")  // pink
+    static let dsGameSpotlight = Color(hex: "#F5A623") // amber — Know Her Game (docs §12)
 
     // MARK: Dividers
     /// Hairline separator used inside cards/rows (`rgba(84,84,88,0.35)`).

@@ -30,6 +30,9 @@ struct TeamsView: View {
     @Environment(ClubStore.self) private var clubStore
     // Per-team match-alert on/off — drives the card bells + the alerts footer line.
     @Environment(TeamAlertStore.self) private var teamAlerts
+    // For the bell's intent-driven default cascade + Tier-2 sign-in intercept.
+    @Environment(NotificationPreferencesStore.self) private var notifications
+    @Environment(AuthStore.self) private var auth
 
     // The one extra route on this stack (besides Club → TeamDetailView): the
     // notifications hub, pushed from the header bell + the "Manage" line.
@@ -42,15 +45,9 @@ struct TeamsView: View {
     @AppStorage("hasSeenTeamsAlertTooltip") private var hasSeenAlertTooltip = false
     @State private var showAlertTooltip = false
 
-    // A brief confirmation toast shown when a team card's bell is toggled — tells the
-    // user what the bell did and breadcrumbs to the hub for tier control. Auto-dismisses
-    // after ~3s or on tap (the bell toggle itself is unchanged — this is purely additive).
-    @State private var alertToast: AlertToast?
-
-    private struct AlertToast: Identifiable, Equatable {
-        let id = UUID()
-        let on: Bool
-    }
+    // Owns the bell's confirmation toast + the Tier-2 sign-in intercept (shared logic across
+    // every bell — see MatchAlertPresenter / MatchAlertToast).
+    @State private var alertPresenter = MatchAlertPresenter()
 
     // Two equal columns with the same 12pt gutter as the row spacing (per the mock).
     private let columns = [GridItem(.flexible(), spacing: 12),
@@ -132,62 +129,14 @@ struct TeamsView: View {
                 }
             }
         }
-        // Bell-confirmation toast: floats above the tab bar, fixed (doesn't scroll).
-        .overlay(alignment: .bottom) { toastOverlay }
-    }
-
-    // MARK: - Bell-confirmation toast
-
-    @ViewBuilder
-    private var toastOverlay: some View {
-        if let toast = alertToast {
-            alertToastCard(toast)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 10)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .task(id: toast.id) {
-                    // Auto-dismiss after ~3s; the task cancels if a new toast replaces
-                    // this one or the view goes away.
-                    try? await Task.sleep(for: .seconds(3))
-                    guard !Task.isCancelled, alertToast?.id == toast.id else { return }
-                    withAnimation(.easeOut(duration: 0.2)) { alertToast = nil }
-                }
+        // Bell-confirmation toast (shared modifier): floats above the tab bar, fixed. Tapping the
+        // "on" toast pushes the hub on THIS stack.
+        .matchAlertToast(alertPresenter) { path.append(NotificationsRoute.hub) }
+        // Tier-2 sign-in intercept: a signed-out bell tap presents this first; success runs the
+        // deferred activation (enable + cascade + toast), cancel leaves the bell off.
+        .sheet(isPresented: $alertPresenter.showAuthPrompt, onDismiss: { alertPresenter.cancelPending() }) {
+            NotificationAuthPromptView(onSignedIn: { alertPresenter.onSignedIn() })
         }
-    }
-
-    // The whole toast is tappable: "on" routes to the hub (its CTA is "Customize
-    // alerts"), "off" just dismisses. Either way the toast clears.
-    private func alertToastCard(_ toast: AlertToast) -> some View {
-        Button {
-            withAnimation(.easeOut(duration: 0.2)) { alertToast = nil }
-            if toast.on { path.append(NotificationsRoute.hub) }
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: toast.on ? "bell.fill" : "bell.slash.fill")
-                    .dsFont(14, weight: .semibold)
-                    .foregroundStyle(toast.on ? Color.dsAccent : Color.dsFgSecondary)
-                Group {
-                    if toast.on {
-                        Text("Match alerts on — 24hr reminders. ")
-                            .foregroundStyle(Color.dsFgPrimary)
-                        + Text("Customize alerts ").foregroundStyle(Color.dsAccent).fontWeight(.semibold)
-                        + Text(Image(systemName: "gearshape.fill")).foregroundStyle(Color.dsAccent)
-                    } else {
-                        Text("Match alerts off.").foregroundStyle(Color.dsFgPrimary)
-                    }
-                }
-                .dsFont(13)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.dsBgCard, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.dsSeparator, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
     }
 
     // "Teams" title with the notifications bell inline on the SAME row, right-aligned
@@ -396,11 +345,12 @@ struct TeamsView: View {
         )
     }
 
-    // Toggle the bell (unchanged behavior) and surface the confirmation toast.
+    // Route the bell through the shared presenter: turning ON cascades the default bundle (first
+    // time) + intercepts sign-in when signed out; OFF is immediate. Always breadcrumbs via the toast.
     private func toggleAlerts(for club: Club) {
-        teamAlerts.toggle(for: club.id)
-        let nowOn = teamAlerts.alertsEnabled(for: club.id)
-        withAnimation(.easeOut(duration: 0.2)) { alertToast = AlertToast(on: nowOn) }
+        let turnOn = !teamAlerts.alertsEnabled(for: club.id)
+        alertPresenter.requestToggle(key: club.id, turnOn: turnOn, isSignedIn: auth.isSignedIn,
+                                     alerts: teamAlerts, prefs: notifications)
     }
 
     // MARK: - Competitions + alerts footer

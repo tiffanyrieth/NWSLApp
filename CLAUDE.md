@@ -88,11 +88,19 @@ catch-up push for late tokens. `POST /test-activity` + `scripts/replay.mjs` driv
 mirrors push-to-start/per-Activity tokens under a UIKit background-task assertion (background-launch upload);
 detail in `docs/backend.md`. The app side: `registerForRemoteNotifications` → AppDelegate →
 `PushBridge` → `DeviceTokenService` upserts `device_tokens` (per-team toggles in `team_alert_preferences`).
-**Notifications = PURE OPT-IN (owner rule — no dark patterns):** every toggle defaults OFF, nothing
-auto-enables; the user turns on exactly what they want (discovery = Teams coach-mark → gear icon). **Tier 1**
-= deliverable without an account (local: day-before, Player Spotlight); **Tier 2** = watcher-triggered ⇒ needs
-an account ⇒ sign-in-gated (`tier2Binding`) + reset on sign-out (`resetServerPushTypes`: kickoff/goals/HT/FT
-+ the V2 Live Activity). NEVER add a default-on notification.
+**Notifications = OPT-IN (owner rule — no dark patterns):** nothing auto-enables at onboarding/launch;
+the user turns on exactly what they want. **Nuance (owner, match-alerts):** an EXPLICIT match-alert
+bell tap IS the opt-in, so it CASCADES the full default bundle the first time (day-before + kickoff +
+goals + halftime + full-time + Live Activities via `applyMatchAlertDefaultsIfFirstTime`) — a complete
+feature makes the best first impression; a bell-on-nothing-fires state is the banned "silent failure
+that looks like success." First-time only (a sentinel respects later manual edits; reset on sign-out).
+Because the bundle is mostly Tier-2, a signed-out bell tap presents Sign in with Apple FIRST
+(intercept: success → enable+cascade+toast, cancel → bell stays off). **Tier 1** = deliverable without
+an account (local: day-before, Player Spotlight); **Tier 2** = watcher-triggered ⇒ needs an account ⇒
+sign-in-gated (`tier2Binding` / the bell intercept) + reset on sign-out (`resetServerPushTypes`:
+kickoff/goals/HT/FT + V2 Live Activity). NEVER auto-enable a notification WITHOUT an explicit user
+action. National-team alerts: bell keyed by FIFA code → `competition_alert_preferences` (separate from
+the club-id `team_alert_preferences`); the watcher polls the 7 NT feeds + fans out by code.
 Per-user state in **Supabase**, offline-first (UserDefaults cache). **Follows sync = RESTORE-ONLY launch
 reconcile:** launch `reconcile` NEVER deletes a server row — a wiped/un-onboarded device restores the full
 server set, and only local-only follows upload. **Unfollows propagate solely via the explicit per-toggle

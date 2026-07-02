@@ -80,6 +80,9 @@ final class NotificationPreferencesStore {
 
     private let defaults: UserDefaults
     private static let prefix = "notif."
+    /// One-time sentinel: has the first-bell default bundle been applied yet? (see
+    /// `applyMatchAlertDefaultsIfFirstTime`). Reset on sign-out so a returning user re-cascades.
+    private static let appliedDefaultsKey = "notif.appliedAlertDefaults"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -119,6 +122,31 @@ final class NotificationPreferencesStore {
         halftime = false
         fullTime = false
         liveActivitiesEnabled = false
+        // Also clear the first-bell sentinel: sign-out wiped the Tier-2 intent, so a returning
+        // signed-in user's next bell tap must re-cascade the bundle — otherwise they'd land back in
+        // the silent-failure paradox (bell on, nothing fires). A sign-out reset is NOT a manual
+        // per-type override, so this honors the "respect the user's edits" rule.
+        defaults.set(false, forKey: Self.appliedDefaultsKey)
+    }
+
+    /// INTENT-DRIVEN DEFAULTS (docs / plan §Phase 1). The FIRST time the user turns on match alerts
+    /// for any team (an explicit bell tap = an explicit opt-in), cascade the FULL alert bundle once so
+    /// the feature works out of the box and makes the best first impression — rather than turning a team
+    /// on with every alert-type off (the silent-failure paradox the owner hit). Guarded by a one-time
+    /// sentinel so a SECOND team's bell never re-enables types the user has since turned off: their
+    /// manual edits are respected. NOT a dark pattern — the bell tap is the opt-in (see the CLAUDE.md
+    /// notifications rule). Each setter persists + fires `onPreferenceChanged` (local reschedule +
+    /// Supabase mirror). Callers gate on sign-in first (the bundle is mostly Tier-2), so this runs
+    /// signed-in and the Tier-2 fields mirror up cleanly.
+    func applyMatchAlertDefaultsIfFirstTime() {
+        guard !defaults.bool(forKey: Self.appliedDefaultsKey) else { return }
+        dayBefore = true
+        kickoff = true
+        goals = true
+        halftime = true
+        fullTime = true
+        liveActivitiesEnabled = true
+        defaults.set(true, forKey: Self.appliedDefaultsKey)
     }
 
     #if DEBUG
@@ -130,6 +158,7 @@ final class NotificationPreferencesStore {
         // The one-time Teams-tab "Manage your match alerts here" coach mark
         // (TeamsView @AppStorage) — clear so a reset re-shows it for a true new user.
         defaults.removeObject(forKey: "hasSeenTeamsAlertTooltip")
+        defaults.removeObject(forKey: appliedDefaultsKey)   // re-arm the first-bell cascade
         for key in ["dayBefore", "playerSpotlight", "fanZoneRounds", "kickoff", "goals",
                     "halftime", "fullTime", "lineupPosted", "substitutions", "liveActivitiesEnabled"] {
             defaults.removeObject(forKey: prefix + key)

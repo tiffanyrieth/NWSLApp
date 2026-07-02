@@ -34,9 +34,16 @@ final class TeamAlertSyncCoordinator {
     private let alerts: TeamAlertStore
     private let following: FollowingStore
     private let service: TeamAlertPrefsSyncService
+    /// National-team alerts go to a SEPARATE table (`competition_alert_preferences`), keyed by
+    /// `follow_key` ("nt:USA"), because a FIFA code doesn't fit the club-id-keyed table and would
+    /// muddy the watcher's club joins. The unified TeamAlertStore holds both kinds; this coordinator
+    /// routes each edit/reconcile to the right table by realm.
+    private let competition: CompetitionAlertPrefsSyncService
 
-    /// Shadow of the followed set, to detect which teams *left* (→ clear alerts).
+    /// Shadow of the followed CLUB set, to detect which clubs *left* (→ clear alerts).
     private var knownFollows: Set<String>
+    /// Shadow of the followed NATIONAL-TEAM codes, same purpose.
+    private var knownNTFollows: Set<String>
     /// Last identity we reconciled for, so a sign-in / user switch re-pulls.
     private var lastUserID: UUID?
 
@@ -44,13 +51,25 @@ final class TeamAlertSyncCoordinator {
         auth: AuthStore,
         alerts: TeamAlertStore,
         following: FollowingStore,
-        service: TeamAlertPrefsSyncService = TeamAlertPrefsSyncService()
+        service: TeamAlertPrefsSyncService = TeamAlertPrefsSyncService(),
+        competition: CompetitionAlertPrefsSyncService = CompetitionAlertPrefsSyncService()
     ) {
         self.auth = auth
         self.alerts = alerts
         self.following = following
         self.service = service
+        self.competition = competition
         self.knownFollows = following.followedIDs
+        self.knownNTFollows = following.followedNationalTeams
+    }
+
+    // MARK: - Realm helpers (a key is a national team iff it's a followed FIFA code)
+
+    /// The Supabase `follow_key` for a FIFA code ("USA" → "nt:USA").
+    private static func ntKey(_ code: String) -> String { "nt:\(code)" }
+    /// A `follow_key` back to its FIFA code ("nt:USA" → "USA").
+    private static func code(fromKey key: String) -> String {
+        key.hasPrefix("nt:") ? String(key.dropFirst(3)) : key
     }
 
     /// Wire up sync. Call once, after `auth.restoreSession()` AND after the store's
@@ -58,12 +77,20 @@ final class TeamAlertSyncCoordinator {
     func start() {
         lastUserID = auth.userID
 
-        // Mirror each on/off edit up. No-op while signed out.
+        // Mirror each on/off edit up, routed to the right table by realm. No-op while signed out.
         alerts.onAlertChanged = { [weak self] teamID, enabled in
             guard let self, let userID = self.auth.userID else { return }
+            let isNationalTeam = self.following.followedNationalTeams.contains(teamID)
             Task {
-                do { try await self.service.push(teamID: teamID, enabled: enabled, userID: userID) }
-                catch { Diagnostics.shared.record(.apiFailure, "team-alert push \(teamID): \(error.localizedDescription)") }
+                do {
+                    if isNationalTeam {
+                        try await self.competition.push(followKey: Self.ntKey(teamID), enabled: enabled, userID: userID)
+                    } else {
+                        try await self.service.push(teamID: teamID, enabled: enabled, userID: userID)
+                    }
+                } catch {
+                    Diagnostics.shared.record(.apiFailure, "alert push \(teamID): \(error.localizedDescription)")
+                }
             }
         }
 
@@ -79,6 +106,7 @@ final class TeamAlertSyncCoordinator {
         withObservationTracking {
             _ = auth.userID
             _ = following.followedIDs
+            _ = following.followedNationalTeams
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -99,9 +127,14 @@ final class TeamAlertSyncCoordinator {
     /// `alerts_enabled = false` up, completing the rule end-to-end.
     private func handleFollowsChange() {
         let current = following.followedIDs
-        let removed = knownFollows.subtracting(current)
-        for id in removed { alerts.clearAlerts(for: id) }
+        for id in knownFollows.subtracting(current) { alerts.clearAlerts(for: id) }
         knownFollows = current
+
+        // Same rule for national teams: unfollowing one clears its alerts. `NationalTeamCard`
+        // already clears at the UI level; this is the coordinator-level safety net for any surface.
+        let currentNT = following.followedNationalTeams
+        for code in knownNTFollows.subtracting(currentNT) { alerts.clearAlerts(for: code) }
+        knownNTFollows = currentNT
     }
 
     // MARK: - Sign-in reconcile
@@ -132,25 +165,52 @@ final class TeamAlertSyncCoordinator {
     private func reconcileIfSignedIn() {
         guard let userID = auth.userID else { return }
         Task {
-            let followed = following.followedIDs
+            // "Followed" spans BOTH realms now — clubs (ESPN ids) AND national teams (FIFA codes) —
+            // so an NT code is no longer intersected away (the bug that deleted "USA" alert rows).
+            let clubFollows = following.followedIDs
+            let ntFollows = following.followedNationalTeams
+            let followed = clubFollows.union(ntFollows)
             let localOn = alerts.teamsWithAlerts()
             guard !(localOn.isEmpty && followed.isEmpty) else { return }
             do {
-                // Device wins when there's a local ON set; otherwise restore from server.
-                let restoreSource = localOn.isEmpty ? try await service.fetchAll(userID: userID) : []
+                // Empty-local restore pulls BOTH tables (club ids + NT codes from "nt:CODE" keys).
+                var restoreSource: Set<String> = []
+                if localOn.isEmpty {
+                    async let clubRestore = service.fetchAll(userID: userID)
+                    async let ntRestore = competition.fetchAll(userID: userID)
+                    restoreSource = try await clubRestore.union((try await ntRestore).map(Self.code(fromKey:)))
+                }
                 let authoritative = Self.authoritativeOnSet(
                     localOn: localOn, followed: followed, restoreSource: restoreSource)
                 alerts.replaceEnabled(authoritative)
 
-                // Converge the server: push the kept teams, delete everything else.
-                let allRemote = try await service.fetchAllTeamIDs(userID: userID)
-                for teamID in authoritative {
+                // Partition by realm and converge EACH table independently. A legacy "USA" row
+                // mis-written into team_alert_preferences falls out of `clubAuth` (USA ∉ clubFollows)
+                // and is pruned by the club loop below → auto-cleanup.
+                let clubAuth = authoritative.intersection(clubFollows)
+                let ntAuth = authoritative.intersection(ntFollows)
+
+                // Club table.
+                let allRemoteClub = try await service.fetchAllTeamIDs(userID: userID)
+                for teamID in clubAuth {
                     do { try await service.push(teamID: teamID, enabled: true, userID: userID) }
                     catch { Diagnostics.shared.record(.apiFailure, "team-alert reconcile push \(teamID): \(error.localizedDescription)") }
                 }
-                for teamID in allRemote.subtracting(authoritative) {
+                for teamID in allRemoteClub.subtracting(clubAuth) {
                     do { try await service.delete(teamID: teamID, userID: userID) }
                     catch { Diagnostics.shared.record(.apiFailure, "team-alert reconcile prune \(teamID): \(error.localizedDescription)") }
+                }
+
+                // National-team table (keyed by "nt:CODE").
+                let ntAuthKeys = Set(ntAuth.map(Self.ntKey))
+                let allRemoteNT = try await competition.fetchAllKeys(userID: userID)
+                for key in ntAuthKeys {
+                    do { try await competition.push(followKey: key, enabled: true, userID: userID) }
+                    catch { Diagnostics.shared.record(.apiFailure, "nt-alert reconcile push \(key): \(error.localizedDescription)") }
+                }
+                for key in allRemoteNT.subtracting(ntAuthKeys) {
+                    do { try await competition.delete(followKey: key, userID: userID) }
+                    catch { Diagnostics.shared.record(.apiFailure, "nt-alert reconcile prune \(key): \(error.localizedDescription)") }
                 }
             } catch {
                 Diagnostics.shared.record(.apiFailure, "team-alert reconcile: \(error.localizedDescription)")

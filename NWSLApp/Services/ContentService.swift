@@ -45,22 +45,10 @@ struct ContentService {
         try await fetchFeed(Array(followedAbbreviations))
     }
 
-    /// Home Module-2 spotlights for the followed clubs — the proxy `/spotlight` route
-    /// (one real player per team from the recent matchday squad, real season stats, a
-    /// Haiku "why watch" blurb). Throws on any failure (no seed fallback).
-    /// `HomeViewModel.spotlights(following:)` then picks one per followed team.
-    func spotlightCards(followedAbbreviations: Set<String>) async throws -> [PlayerSpotlight] {
-        try await fetchSpotlights(Array(followedAbbreviations))
-    }
+    // (The Player Spotlight module was retired for Know Her Game — the `/spotlight` fetch was
+    // removed, so the proxy's Haiku "why watch" blurb generation is no longer triggered.)
 
     // MARK: - Live fetch
-
-    private func fetchSpotlights(_ teams: [String]) async throws -> [PlayerSpotlight] {
-        guard let url = AppConfig.spotlightURL(teams: teams) else {
-            throw ContentServiceError.badURL
-        }
-        return try await fetch([PlayerSpotlight].self, from: url)
-    }
 
     private func fetchTeamVideos(_ teams: [String]) async throws -> [ContentCard] {
         guard let url = AppConfig.teamVideosURL(teams: teams) else {

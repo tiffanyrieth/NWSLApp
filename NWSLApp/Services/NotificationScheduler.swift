@@ -207,8 +207,8 @@ final class NotificationScheduler {
 
     private func weeklySpotlightRequest() -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
-        content.title = "New Player Spotlight"
-        content.body = "This week's featured player is ready"
+        content.title = "New Know Her Game"
+        content.body = "This week's players are ready — how well do you know them?"
         content.sound = .default
 
         // Monday 10:00 AM, local. UNCalendarNotificationTrigger uses the device's

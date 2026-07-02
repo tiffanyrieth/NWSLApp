@@ -31,14 +31,12 @@ final class HomeViewModel {
     // Passthroughs so the view's existing reads (error/loading state) are unchanged — the
     // store is the source of truth for the raw content + its load lifecycle.
     var contentError: String? { contentStore?.contentError }
-    var spotlightError: String? { contentStore?.spotlightError }
     var isLoadingContent: Bool { contentStore?.isLoadingContent ?? false }
     var hasCompletedContentLoad: Bool { contentStore?.hasCompletedContentLoad ?? false }
 
     // Raw content the derivation methods read, sourced from the store (so those methods
     // are unchanged). Empty until the store has loaded.
     private var teamContentItems: [ContentCard] { contentStore?.teamContentItems ?? [] }
-    private var allSpotlights: [PlayerSpotlight] { contentStore?.allSpotlights ?? [] }
 
     // The active PER-TEAM chip on Module 1 (chip redesign): nil = "All" (the mixed,
     // round-robin feed); else a followed team's abbreviation = just that club's
@@ -239,24 +237,8 @@ final class HomeViewModel {
 
     // MARK: - Module 2: Get to know your players
 
-    /// One spotlight PER followed team (spec §Multi-team rotation): follow 2
-    /// teams, see 2 cards. Each team rotates independently — a deterministic
-    /// week-of-year pick over that team's spotlight list, so it's stable within a
-    /// week and cycles through the roster as the seed grows (one player per team
-    /// today → the pick is simply that player). Ordered by the followed clubs'
-    /// directory order (alphabetical) for a stable layout.
-    func spotlights(following: FollowingStore) -> [PlayerSpotlight] {
-        let week = calendar.component(.weekOfYear, from: now())
-        return clubs
-            .filter { following.followedIDs.contains($0.id) }
-            .compactMap { club in
-                let forTeam = allSpotlights
-                    .filter { $0.teamAbbreviation == club.abbreviation }
-                    .sorted { $0.id < $1.id }   // stable order for the rotation
-                guard !forTeam.isEmpty else { return nil }
-                return forTeam[week % forTeam.count]
-            }
-    }
+    // (The Player Spotlight module was retired for Know Her Game — the app no longer fetches
+    // `/spotlight`, so `spotlights(following:)` and its derivation were removed.)
 
     // MARK: - Module 4: Coming up (compact next-match strip)
 

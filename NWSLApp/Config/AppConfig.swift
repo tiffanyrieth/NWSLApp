@@ -141,6 +141,31 @@ enum AppConfig {
         contentRouteURL("trivia", teams: [])
     }
 
+    /// The proxy route powering Fan Zone "Know Her Game": `GET /knowher?teams=WAS,POR,…`.
+    /// The Worker returns the owner-loaded weekly pool (KV) filtered to the followed teams —
+    /// one featured player per team, each with a guardrailed Q&A set (docs/know-her-game.md).
+    /// Team-scoped (unlike `/trivia`), so it takes the followed-club abbreviations. An empty or
+    /// unreachable route surfaces an honest error and the game hides (online-only, no seed).
+    /// Returns nil on a malformed URL (the caller then throws → honest error).
+    static func knowHerURL(teams: [String]) -> URL? {
+        contentRouteURL("knowher", teams: teams)
+    }
+
+    /// The proxy route serving the community-results distribution for a quiz edition:
+    /// `GET /quiz-results?game=trivia|knowher&edition=<key>`. Shared by NWSL Trivia + Know Her
+    /// Game (docs §11b) — the leaderboard REPLACEMENT. The Worker computes the aggregate from
+    /// Supabase (as service_role) and serves it from its edge cache; the app never aggregates.
+    /// Returns nil on a malformed URL.
+    static func quizResultsURL(game: String, edition: String) -> URL? {
+        let endpoint = scoreboardProxyBase.appendingPathComponent("quiz-results")
+        guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return nil }
+        components.queryItems = [
+            URLQueryItem(name: "game", value: game),
+            URLQueryItem(name: "edition", value: edition),
+        ]
+        return components.url
+    }
+
     // MARK: - Team crests
 
     /// The proxy route serving a team's NWSL crest as a transparent PNG: `GET /crest?team=WAS`.

@@ -189,6 +189,15 @@ final class TriviaViewModel {
         isFinished = true
     }
 
+    /// The per-question answers to persist to the shared community aggregate (`quiz_answers`,
+    /// game "trivia") — one row per answered question, built from `picks` vs the day's questions.
+    /// Powers the NYT-style "how everyone did" screen (docs §11b).
+    func communityAnswers() -> [QuizAnswer] {
+        zip(questions, picks).map { question, pick in
+            QuizAnswer(questionID: question.id, selectedIndex: pick, isCorrect: pick == question.correctIndex)
+        }
+    }
+
     // MARK: - Leaderboard (REAL, league-wide best-streak via Supabase)
 
     struct LeaderboardRow: Identifiable {

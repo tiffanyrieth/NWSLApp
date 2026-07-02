@@ -23,6 +23,11 @@ struct CompetitionsView: View {
 
     @State private var store = NationalTeamDirectoryStore()
     @State private var query = ""
+    // National-team bells share the same cascade + sign-in intercept + toast as club bells
+    // (MatchAlertPresenter, scoped into the cards below). `showHub` pushes the Notifications hub
+    // when the toast's "Customize alerts" is tapped.
+    @State private var alertPresenter = MatchAlertPresenter()
+    @State private var showHub = false
 
     private let columns = [GridItem(.flexible(), spacing: 12),
                            GridItem(.flexible(), spacing: 12)]
@@ -51,9 +56,17 @@ struct CompetitionsView: View {
             }
             .padding(16)
         }
+        // Scope the shared presenter to this screen's national-team cards so their bells drive it.
+        .environment(alertPresenter)
         .background(Color.dsBgGrouped)
         .nativeBackButton(title: "Competitions")
         .task { await store.load() }
+        // Same bell affordances as the Teams tab: the confirmation toast + the Tier-2 sign-in intercept.
+        .matchAlertToast(alertPresenter) { showHub = true }
+        .sheet(isPresented: $alertPresenter.showAuthPrompt, onDismiss: { alertPresenter.cancelPending() }) {
+            NotificationAuthPromptView(onSignedIn: { alertPresenter.onSignedIn() })
+        }
+        .navigationDestination(isPresented: $showHub) { NotificationsView() }
     }
 
     // MARK: - Club competitions
@@ -233,5 +246,7 @@ struct CompetitionsView: View {
         CompetitionsView()
             .environment(FollowingStore())
             .environment(TeamAlertStore())
+            .environment(NotificationPreferencesStore())
+            .environment(AuthStore())
     }
 }

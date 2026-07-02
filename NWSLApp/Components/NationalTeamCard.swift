@@ -23,6 +23,10 @@ struct NationalTeamCard: View {
     @Environment(FollowingStore.self) private var following
     // National-team alert bells share the club alert store (keyed by FIFA code).
     @Environment(TeamAlertStore.self) private var teamAlerts
+    // Bell → shared cascade + Tier-2 sign-in intercept + toast (scoped in by CompetitionsView).
+    @Environment(NotificationPreferencesStore.self) private var notifications
+    @Environment(AuthStore.self) private var auth
+    @Environment(MatchAlertPresenter.self) private var alertPresenter
 
     // Flag dimensions scale with Dynamic Type (capped at the root), like the club crest —
     // the flag is hero content paired with the FIFA code + name, so it grows with the text.
@@ -161,9 +165,12 @@ struct NationalTeamCard: View {
 
     private var bell: some View {
         let on = teamAlerts.alertsEnabled(for: team.code)
-        // Direct toggle — same as a club bell. Never requests iOS permission (that's the
-        // hub's job); the Teams-tab coach mark covers the education.
-        return Button { teamAlerts.toggle(for: team.code) } label: {
+        // Same shared flow as a club bell: ON cascades the default bundle (first time) + intercepts
+        // sign-in when signed out + shows the toast (CompetitionsView hosts the toast/sheet).
+        return Button {
+            alertPresenter.requestToggle(key: team.code, turnOn: !on, isSignedIn: auth.isSignedIn,
+                                         alerts: teamAlerts, prefs: notifications)
+        } label: {
             Image(systemName: on ? "bell.fill" : "bell")
                 .dsFont(13, weight: .medium)
                 .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)

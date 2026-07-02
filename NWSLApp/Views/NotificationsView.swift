@@ -34,6 +34,9 @@ struct NotificationsView: View {
     @State private var showAuthPrompt = false
     // The Tier-2 toggle awaiting sign-in — flipped on by the gate's onSignedIn.
     @State private var pendingTier2: ReferenceWritableKeyPath<NotificationPreferencesStore, Bool>?
+    // A team whose alerts are awaiting sign-in (the bundle cascade includes Tier-2, so turning a
+    // team on while signed-out is gated too) — enabled + cascaded by the gate's onSignedIn.
+    @State private var pendingTeamKey: String?
 
     var body: some View {
         ScrollView {
@@ -55,7 +58,13 @@ struct NotificationsView: View {
                     notifications[keyPath: kp] = true
                     Task { await requestNotificationPermission() }
                 }
+                if let key = pendingTeamKey {
+                    teamAlerts.setAlertsEnabled(true, for: key)
+                    notifications.applyMatchAlertDefaultsIfFirstTime()   // cascade the bundle (first time)
+                    Task { await requestNotificationPermission() }
+                }
                 pendingTier2 = nil
+                pendingTeamKey = nil
             })
         }
     }
@@ -97,10 +106,18 @@ struct NotificationsView: View {
             Toggle("", isOn: Binding(
                 get: { teamAlerts.alertsEnabled(for: club.id) },
                 set: { newValue in
-                    teamAlerts.setAlertsEnabled(newValue, for: club.id)
-                    // A team's day-before is delivered locally, so a bare on still
-                    // needs permission. Per-team is gate-free (no sign-in needed).
-                    if newValue { Task { await requestNotificationPermission() } }
+                    guard newValue else { teamAlerts.setAlertsEnabled(false, for: club.id); return }
+                    // Turning a team ON now cascades the full alert bundle the first time (intent-driven
+                    // defaults). The bundle includes Tier-2, so a signed-out turn-on is gated: present the
+                    // sign-in sheet and defer enable+cascade until it succeeds.
+                    if auth.isSignedIn {
+                        teamAlerts.setAlertsEnabled(true, for: club.id)
+                        notifications.applyMatchAlertDefaultsIfFirstTime()
+                        Task { await requestNotificationPermission() }
+                    } else {
+                        pendingTeamKey = club.id
+                        showAuthPrompt = true
+                    }
                 }
             ))
             .labelsHidden()

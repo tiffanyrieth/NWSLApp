@@ -47,8 +47,10 @@ struct FanZoneCardModel {
     /// When set, the game's current round/day is submitted/played — the compact status
     /// collapses to "Picks locked in" (predict/bracket) or "Done today" (trivia).
     var doneLine: String? = nil
-    /// Dims the whole card to 0.7 (the trivia completed-today state).
+    /// Dims the whole card to 0.7 (the completed/"done this cycle" state — all four games).
     var dimmed: Bool = false
+    /// Fresh content the user hasn't opened yet this cycle → a small `dsUnseen` dot (docs §10).
+    var isUnseen: Bool = false
 
     var accent: Color {
         switch game {
@@ -130,6 +132,17 @@ struct FanZoneCarouselCard: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(model.accent.opacity(0.2), lineWidth: 1)
         )
+        // Fresh-content "new" dot (docs §10) — top-trailing, cleared once the game is opened.
+        .overlay(alignment: .topTrailing) {
+            if model.isUnseen {
+                Circle()
+                    .fill(Color.dsUnseen)
+                    .frame(width: 9, height: 9)
+                    .overlay(Circle().stroke(Color.dsBgCard, lineWidth: 2))
+                    .padding(10)
+                    .accessibilityLabel("New")
+            }
+        }
         .opacity(model.dimmed ? 0.7 : 1)
     }
 

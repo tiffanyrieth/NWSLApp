@@ -83,7 +83,8 @@ NWSLApp/
 │   ├── NotificationPreferencesStore.swift — Profile's notification toggles (PURE OPT-IN: all default OFF, no auto-enable); → NotificationScheduler / NotificationSyncCoordinator
 │   ├── PredictionStore.swift          — Predict-the-XI durable state: predictions+scores by fixtureID (`predict.v2.*`); `seasonPoints` + `points(forTeam:)` + `scoredTeams`
 │   ├── TriviaStore.swift              — Daily-Trivia streak/bestStreak/accuracy + one-play/day gate
-│   └── KnowHerGameStore.swift         — Know Her Game durable state (`knowher.v1.*`): per-edition scores keyed `{weekKey}-{team}-{athleteId}` + weekly streak; in-memory weekly pool (via KnowHerService); `hasContent`/`totalPoints`/`unplayedPlayers`
+│   ├── KnowHerGameStore.swift         — Know Her Game durable state (`knowher.v1.*`): per-edition scores keyed `{weekKey}-{team}-{athleteId}` + weekly streak; in-memory weekly pool (via KnowHerService); `hasContent`/`totalPoints`/`unplayedPlayers`
+│   └── FanZoneSeenStore.swift         — Fan Zone new/unseen state (docs §10): per-game last-opened cycle key (`fanzone.seen.v1`); `isUnseen`/`markSeen`; drives the `dsUnseen` "new" dot that clears on open
 ├── ViewModels/                        — @Observable; one per screen (idle/loading/loaded/error)
 │   ├── BracketViewModel.swift         — Bracket session: round phase, progress, results, leaderboard, settled-round scoring (+ Game Center submit)
 │   ├── FeedViewModel.swift            — Social-tab source-class chips (All·Reporters·Players·Clubs by `resolvedSourceType`; Reporters = reporter Bluesky + news articles; `league` has no chip → All only) + 30-day recency cut on reporter/league/news (`isFresh`; club/player age-agnostic) + `arranged` = per-club `ContentRoundRobin.balanced` over all team-tagged cards (volume-blind); `itemsError` on fetch failure

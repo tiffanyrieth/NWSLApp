@@ -42,6 +42,7 @@ struct NWSLAppApp: App {
             BracketStore.debugResetState()
             PredictionStore.debugResetState()
             KnowHerGameStore.debugResetState()
+            FanZoneSeenStore.debugResetState()
             // One-time coach marks + the Fan Zone sign-in invite are bare @AppStorage
             // flags. Reset them (write `false` sentinels — same CFPreferences-snapshot
             // reason as the stores) so a reset truly re-fires them: the Teams bell mark,

@@ -59,6 +59,11 @@ extension Color {
     static let dsGamePredict = Color(hex: "#FF375F")  // pink
     static let dsGameSpotlight = Color(hex: "#F5A623") // amber — Know Her Game (docs §12)
 
+    // MARK: Fan Zone "new/unseen" dot
+    /// The small dot on a Fan Zone card with fresh, unopened content (docs §10). Deliberately
+    /// NOT red — red is reserved for live/error — a bright cyan "new" cue that clears on open.
+    static let dsUnseen = Color(hex: "#32D6FF")
+
     // MARK: Dividers
     /// Hairline separator used inside cards/rows (`rgba(84,84,88,0.35)`).
     static let dsSeparator = Color(red: 84/255, green: 84/255, blue: 88/255, opacity: 0.35)

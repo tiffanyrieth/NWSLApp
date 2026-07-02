@@ -40,6 +40,7 @@ struct HomeView: View {
     @Environment(BracketStore.self) private var bracket
     @Environment(PredictionStore.self) private var predict
     @Environment(KnowHerGameStore.self) private var knowHer
+    @Environment(FanZoneSeenStore.self) private var seen
     // Cross-tab navigation (Module 4's "Full schedule →" jumps to Schedule).
     @Environment(AppRouter.self) private var router
 
@@ -415,6 +416,10 @@ struct HomeView: View {
                     }
                     .buttonStyle(.plain)
                     .frame(width: 152)
+                    // Opening a game marks its current cycle SEEN → the "new" dot clears (docs §10).
+                    .simultaneousGesture(TapGesture().onEnded {
+                        seen.markSeen(game: Self.seenKey(game), cycleKey: cycleKey(for: game))
+                    })
                 }
                 // Trailing Superfan card — display-only (computed locally / synced to Game
                 // Center as today), shown once the user has a cross-game score (≥2 games
@@ -475,12 +480,54 @@ struct HomeView: View {
     // FanZoneGameCard a flat model to render.
 
     private func cardModel(for game: FanGame) -> FanZoneCardModel {
+        var model: FanZoneCardModel
         switch game {
-        case .predict: return predictCardModel
-        case .bracket: return bracketCardModel
-        case .trivia:  return triviaCardModel
-        case .knowHer: return knowHerCardModel
+        case .predict: model = predictCardModel
+        case .bracket: model = bracketCardModel
+        case .trivia:  model = triviaCardModel
+        case .knowHer: model = knowHerCardModel
         }
+        // Unified 3-state (docs §10): done → dim (unify Predict/Bracket to match Trivia/Know Her);
+        // else if there's fresh unopened content this cycle → the "new" dot.
+        let isDone = model.doneLine != nil || model.dimmed
+        if isDone { model.dimmed = true }
+        model.isUnseen = seen.isUnseen(game: Self.seenKey(game), cycleKey: cycleKey(for: game), isDone: isDone)
+        return model
+    }
+
+    // MARK: Unseen/new state (docs §10)
+
+    private static func seenKey(_ game: FanGame) -> String {
+        switch game {
+        case .predict: return "predict"
+        case .bracket: return "bracket"
+        case .trivia:  return "trivia"
+        case .knowHer: return "knowher"
+        }
+    }
+
+    /// The current content-cycle key per game — changes when there's a genuinely new window
+    /// (new day / round / fixture / week), which is what re-triggers the "new" dot.
+    private func cycleKey(for game: FanGame) -> String? {
+        switch game {
+        case .predict:
+            // The soonest open fixture = the current matchday; a NEW fixture opening rolls the key.
+            return (openPredictFixtures.min { $0.deadline < $1.deadline }?.id) ?? nextPredictFixture?.id
+        case .bracket:
+            return bracket.summary.map { "\($0.id)-r\($0.currentRoundRaw)" }
+        case .trivia:
+            return Self.todayKey()
+        case .knowHer:
+            return knowHer.weekKey
+        }
+    }
+
+    /// Local-day key ("yyyy-MM-dd") — Trivia's cycle (a fresh set each day).
+    private static func todayKey() -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: Date())
     }
 
     /// The Fan Zone "Know Her Game" card. One followed player → names her ("Trinity Rodman ·
@@ -803,6 +850,7 @@ struct HomeView: View {
         .environment(BracketStore())
         .environment(PredictionStore())
         .environment(KnowHerGameStore())
+        .environment(FanZoneSeenStore())
         .environment(AuthStore())
         .environment(NotificationPreferencesStore())
 }

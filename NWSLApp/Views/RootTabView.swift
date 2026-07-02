@@ -67,6 +67,10 @@ struct RootTabView: View {
     // read the same played state (see KnowHerGameStore). A persistent Store, like the others.
     @State private var knowHer = KnowHerGameStore()
 
+    // Fan Zone "seen" state — which game cycle the user last opened, for the new/unseen dot
+    // (docs §10). Shared so the dot state is consistent wherever a card renders.
+    @State private var seen = FanZoneSeenStore()
+
     // Feed content preferences (content-type toggles + muted sources), created once
     // and shared so the Feed list and its Sources sheet read the same settings.
     @State private var feedPreferences = FeedPreferencesStore()
@@ -220,6 +224,7 @@ struct RootTabView: View {
         .environment(bracket)
         .environment(predict)
         .environment(knowHer)
+        .environment(seen)
         .environment(feedPreferences)
         .environment(feedStore)
         .environment(homeContent)

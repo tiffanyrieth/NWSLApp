@@ -376,8 +376,8 @@ struct HomeView: View {
         var games: [FanGame] = []
         if predictXIVisible { games.append(.predict) }
         if bracketVisible { games.append(.bracket) }
-        if triviaVisible { games.append(.trivia) }
-        if knowHerVisible { games.append(.knowHer) }   // appended after Trivia (fixed order)
+        if knowHerVisible { games.append(.knowHer) }
+        if triviaVisible { games.append(.trivia) }   // Trivia last (owner order)
         return games
     }
 

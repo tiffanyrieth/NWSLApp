@@ -72,7 +72,11 @@ struct NotificationsView: View {
     // MARK: - Section 1: Match alerts (per-team ON/OFF)
 
     private var matchAlertsSection: some View {
-        let followed = clubStore.clubs.filter { following.isFollowing($0) }
+        // Clubs AND followed national teams share this one list (both buzz you on match day, both
+        // respect the global Alert-types below). National teams are keyed by FIFA code.
+        let clubs = clubStore.clubs.filter { following.isFollowing($0) }
+        let ntCodes = following.followedNationalTeams.sorted()
+        let hasAny = !clubs.isEmpty || !ntCodes.isEmpty
         return SettingsGroup(
             title: "Match alerts — your teams",
             subtitle: "Which teams buzz your phone on match day"
@@ -80,7 +84,7 @@ struct NotificationsView: View {
             // is always free, and the sign-in gate explains Tier-2 contextually when a
             // push toggle is tapped. The pre-emptive line read as a paywall (Part B Bug 8).
         ) {
-            if followed.isEmpty {
+            if !hasAny {
                 Text("Follow teams to turn on match alerts.")
                     .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
@@ -88,12 +92,55 @@ struct NotificationsView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 13)
             } else {
-                ForEach(Array(followed.enumerated()), id: \.element.id) { index, club in
+                ForEach(Array(clubs.enumerated()), id: \.element.id) { index, club in
                     if index > 0 { SettingsRowDivider() }
                     teamAlertRow(club)
                 }
+                ForEach(Array(ntCodes.enumerated()), id: \.element) { index, code in
+                    if index > 0 || !clubs.isEmpty { SettingsRowDivider() }
+                    nationalTeamAlertRow(code)
+                }
             }
         }
+    }
+
+    // A followed national team's alert row — flag + name + the SAME intent-driven-cascade toggle as
+    // a club (keyed by FIFA code). A code not in the bundled directory falls back to a globe + code.
+    private func nationalTeamAlertRow(_ code: String) -> some View {
+        let team = NationalTeam.team(code: code)
+        return HStack(spacing: 12) {
+            Group {
+                if let flag = UIImage(named: "Flags/\(code.uppercased())") {
+                    Image(uiImage: flag).resizable().scaledToFit()
+                } else {
+                    Image(systemName: "globe").foregroundStyle(Color.dsFgSecondary)
+                }
+            }
+            .frame(width: DS.avatarMd, height: DS.avatarMd * 0.68)
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            Text(team?.name ?? code)
+                .dsFont(15)
+                .foregroundStyle(Color.dsFgPrimary)
+            Spacer(minLength: 8)
+            Toggle("", isOn: Binding(
+                get: { teamAlerts.alertsEnabled(for: code) },
+                set: { newValue in
+                    guard newValue else { teamAlerts.setAlertsEnabled(false, for: code); return }
+                    if auth.isSignedIn {
+                        teamAlerts.setAlertsEnabled(true, for: code)
+                        notifications.applyMatchAlertDefaultsIfFirstTime()
+                        Task { await requestNotificationPermission() }
+                    } else {
+                        pendingTeamKey = code
+                        showAuthPrompt = true
+                    }
+                }
+            ))
+            .labelsHidden()
+            .tint(Color.dsSuccess)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
     }
 
     private func teamAlertRow(_ club: Club) -> some View {

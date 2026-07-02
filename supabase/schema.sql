@@ -351,6 +351,45 @@ create policy "Users delete own competition follows"
 grant select, insert, update, delete on public.competition_follows to authenticated;
 
 
+-- ═════════════════════════════════════════════════════════════════════════════
+-- National-team match alerts (competition_alert_preferences, 0.4.x)
+-- ═════════════════════════════════════════════════════════════════════════════
+-- The national-team twin of `team_alert_preferences`: WHICH national teams buzz your phone on
+-- match day (🔔), keyed by the SAME `follow_key` as `competition_follows` ("nt:USA"). Following a
+-- national team (⭐, competition_follows) and getting its match alerts (🔔, this) are independent,
+-- exactly like clubs. WHAT you're alerted about is still the GLOBAL `notification_preferences` row,
+-- applied to every alerting team + national team.
+--
+-- WHY a separate table (not `team_alert_preferences`): that table is keyed by ESPN CLUB id, and the
+-- match-watcher joins it by club id from the NWSL scoreboard; a FIFA-code row there would muddy those
+-- follower lookups (the schema comment on `competition_follows` warns of exactly this). The watcher
+-- reads THIS table (as service_role) when it polls the national-team ESPN feeds and fans a NT event
+-- out by FIFA code.
+create table public.competition_alert_preferences (
+  user_id uuid references auth.users(id) on delete cascade not null,
+  follow_key text not null,              -- "nt:USA" (matches competition_follows.follow_key)
+  alerts_enabled boolean not null default false,
+  updated_at timestamptz default now(),
+  primary key (user_id, follow_key)      -- backs the app's upsert onConflict
+);
+
+alter table public.competition_alert_preferences enable row level security;
+
+create policy "Users read own competition alert prefs"
+  on public.competition_alert_preferences for select using (auth.uid() = user_id);
+create policy "Users insert own competition alert prefs"
+  on public.competition_alert_preferences for insert with check (auth.uid() = user_id);
+create policy "Users update own competition alert prefs"
+  on public.competition_alert_preferences for update using (auth.uid() = user_id);
+create policy "Users delete own competition alert prefs"
+  on public.competition_alert_preferences for delete using (auth.uid() = user_id);
+
+-- Grants (the 42501 gotcha — RLS does not imply privilege). authenticated writes its own rows; the
+-- match-watcher reads this as service_role for the NT push fan-out — explicit grant required.
+grant select, insert, update, delete on public.competition_alert_preferences to authenticated;
+grant select on public.competition_alert_preferences to service_role;
+
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Predict the XI — per-team leaderboard (Fan Zone game 1)
 -- ═══════════════════════════════════════════════════════════════════════════

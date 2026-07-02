@@ -163,16 +163,18 @@ final class GameCenterManager {
     /// on foreground, and after a game commits — so the boards self-heal after an
     /// offline session. The combined Superfan total + "Played All 3" + streak
     /// milestones live here (they need cross-store data the per-screen hooks lack).
-    func syncAll(trivia: TriviaStore, predict: PredictionStore, bracket: BracketStore) {
+    func syncAll(trivia: TriviaStore, predict: PredictionStore, bracket: BracketStore, knowHer: KnowHerGameStore) {
         guard isAuthenticated else { return }
 
-        submit(trivia.bestStreak, to: GameCenterID.Leaderboard.triviaStreak)
+        // NWSL Trivia has no competitive board (the streak board was retired — docs §11); it
+        // and Know Her feed only the combined Superfan total.
         submit(predict.seasonPoints, to: GameCenterID.Leaderboard.predictSeasonPoints)
         submit(bracket.points, to: GameCenterID.Leaderboard.bracketTotalPoints)
         submit(GameCenterScores.superfanTotal(
                     triviaTotalCorrect: trivia.totalCorrect,
                     predictSeasonPoints: predict.seasonPoints,
-                    bracketPoints: bracket.points),
+                    bracketPoints: bracket.points,
+                    knowHerPoints: knowHer.totalPoints),
                to: GameCenterID.Leaderboard.superfanTotal)
 
         if predict.hasPredicted { report(GameCenterID.Achievement.firstPrediction) }

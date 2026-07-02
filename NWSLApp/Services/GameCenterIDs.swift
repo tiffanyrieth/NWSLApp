@@ -17,14 +17,16 @@ import Foundation
 
 /// Reverse-DNS Game Center identifiers, namespaced under the bundle id.
 enum GameCenterID {
-    /// The four leaderboards (3 per-game + a combined Superfan total).
+    /// The competitive leaderboards + a combined Superfan total. The quiz-style games
+    /// (NWSL Trivia, Know Her Game) deliberately have NO dedicated competitive board — a
+    /// "facts memorized" ranking is hollow (docs §11); their "how everyone did" community
+    /// screen replaces it. The old `trivia.streak` board was retired for the same reason.
     enum Leaderboard {
-        static let triviaStreak        = "com.tiffanyrieth.nwslapp.NWSLApp.leaderboard.trivia.streak"
         static let predictSeasonPoints = "com.tiffanyrieth.nwslapp.NWSLApp.leaderboard.predict.seasonpoints"
         static let bracketTotalPoints  = "com.tiffanyrieth.nwslapp.NWSLApp.leaderboard.bracket.totalpoints"
         static let superfanTotal       = "com.tiffanyrieth.nwslapp.NWSLApp.leaderboard.superfan.total"
 
-        static let all = [triviaStreak, predictSeasonPoints, bracketTotalPoints, superfanTotal]
+        static let all = [predictSeasonPoints, bracketTotalPoints, superfanTotal]
     }
 
     /// The starter achievement set.
@@ -43,11 +45,13 @@ enum GameCenterID {
 
 /// Pure cross-game score math (no GameKit, no stores) so it's directly testable.
 enum GameCenterScores {
-    /// The combined "Superfan" total. Trivia contributes lifetime correct answers
-    /// (cumulative + points-like), so the three terms sum as comparable quantities —
-    /// the dedicated Trivia board still ranks by best STREAK.
-    static func superfanTotal(triviaTotalCorrect: Int, predictSeasonPoints: Int, bracketPoints: Int) -> Int {
-        triviaTotalCorrect + predictSeasonPoints + bracketPoints
+    /// The combined "Superfan" total (the one leaderboard the quiz games feed). Trivia
+    /// contributes lifetime correct answers and Know Her its banked edition points — both
+    /// cumulative + points-like — so all four terms sum as comparable engagement quantities.
+    /// `knowHerPoints` defaults to 0 so older call sites (and tests) stay valid.
+    static func superfanTotal(triviaTotalCorrect: Int, predictSeasonPoints: Int,
+                              bracketPoints: Int, knowHerPoints: Int = 0) -> Int {
+        triviaTotalCorrect + predictSeasonPoints + bracketPoints + knowHerPoints
     }
 
     /// "Played All 3 Games" — true only once the user has engaged with every game.

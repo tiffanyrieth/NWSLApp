@@ -271,6 +271,16 @@ NWSL players through men; this guardrail actively fights that. It's a brand valu
   It is the MANUAL path, deliberately distinct from the automated Wikipedia+Haiku pipeline (§4); do NOT
   wire its web search into an automated loop (that is the §4 ~$2/player cost trap). It supersedes the
   deleted `knowher_prototype.mjs`.
+- **✅ RODMAN RUN = a major win (owner, 2026-07-03).** The biggest early worry — can we generate accurate,
+  guardrailed, source-*discriminating* content? — is essentially SOLVED. The Rodman generation got the info
+  right, interleaved stats with fun facts, and correctly identified + dropped sources below our standard.
+  That's the hard engine working; what remains is tuning, not rebuilding.
+- **🧪 MC difficulty self-audit (EXPERIMENTAL, 2026-07-03 — pending the ACFC + Jónsdóttir test runs).** The
+  one Rodman-run gap: 2 MC came out too easy (owner hand-edited them live). Added a self-audit step to the
+  canonical prompt requiring every MC (stat + fun) to have ≥2 genuinely-pickable distractors and no obvious
+  answer (stat distractors in-range; "which has she done" false options equally plausible). **UNTESTED** —
+  the pre-self-audit prompt is the proven BASELINE/fallback; if the next runs don't harden MC, revert.
+  Next data points: re-gen ACFC + generate Sveindís Jónsdóttir (planned 2026-07-04).
 
 ## 8. Screen flow 🔒 (mockup `Player Spotlight Game.html`)
 

@@ -236,15 +236,30 @@ did an ex influence her writing, who she's dating. Rule ≠ "no personal life"; 
 defines her through someone else." **Why it matters:** AI reproduces training-data bias that frames
 NWSL players through men; this guardrail actively fights that. It's a brand value, not just a filter.
 
-## 7. Question design ✅
+## 7. Question design ✅ (REVISED 2026-07-02 after the first live playthrough)
 
 - **Hybrid** stats + within-bounds personal; MC (4) + True/False. Categories shown as labels:
   `Her game` / `Her story` / `Her world` / `True or false`.
-- **Difficulty via wording, not obscurity** — hyper-specific T/F makes real-but-obscure facts fun &
-  guessable ("Does she bring a PS5 when she travels? T/F").
+- **⚠️ FIRST-PLAYTHROUGH LEARNINGS (owner, Trin pool) — the generator produced the wrong mix:**
+  1. **Too many gimme stats.** "What position?" / "What's her number?" / "How many games this year?" are
+     trivial for a star (she starts every game → the answer is obvious). A few identity anchors are fine,
+     but NOT 8 of them. Make stat questions actually think: MC options that are genuinely CLOSE (the
+     minutes question — several 900-range options — was the only hard one, and it worked), or stats that
+     aren't self-evident. Difficulty via *plausible-close options*, not obscurity.
+  2. **Only 1 fun fact, dumped at the END.** That sets a "stat quiz" vibe and underwhelms — the emotional
+     bond is the whole point. Target **2–3 fun-fact questions, INTERLEAVED** through the set (not all at
+     the end). Stats are the FLOOR to reach ~10, not the bulk. Lead human-first.
+  3. **The lone hyper-specific T/F is a DUD.** A single "True or false: she wrote a children's book called
+     '<exact title>'" is un-challenging — the answer is obviously TRUE (you can't invent that specificity,
+     so it's a free guess; the answer is never plausibly false). **Fix:** (a) for a SINGLE fun fact, use
+     an **MC "which of these has she actually done?"** — one true option among 3–4 plausible-but-false
+     ones (e.g. "produced a song / wrote a children's book / biked across several states / …"). This
+     forces real knowledge. (b) Only use **True/False when there are ≥2 fun facts AND at least some T/F
+     statements are plausibly FALSE** (a believable-but-untrue claim), so "true" isn't a free guess. A
+     hyper-specific-and-always-true T/F is banned.
 - **Hybrid is the goal for EVERY player** (the emotional bond is the point). A thin-content rookie
-  skewing to "9 stats + 1 human" is an accepted *fallback floor* to reach 10 — not the target; always
-  reach for a human detail first.
+  skewing to "9 stats + 1 human" is an accepted *fallback FLOOR* — never the target; always reach for
+  human details first, aim for 2–3, interleave them.
 
 ## 8. Screen flow 🔒 (mockup `Player Spotlight Game.html`)
 

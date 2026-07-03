@@ -260,6 +260,17 @@ NWSL players through men; this guardrail actively fights that. It's a brand valu
 - **Hybrid is the goal for EVERY player** (the emotional bond is the point). A thin-content rookie
   skewing to "9 stats + 1 human" is an accepted *fallback FLOOR* — never the target; always reach for
   human details first, aim for 2–3, interleave them.
+- **Target mix (the ratio, per the canonical prompt):** **≥6 HUMAN/story** questions
+  (`herStory`/`herWorld`/`trueOrFalse`) and **≤4 stat/identity** (`herGame`); 2–3 of the human ones are the
+  delightful "fun facts," interleaved. The `9 stats + 1 human` line above is the floor, not the aim.
+- 📌 **Canonical generation prompt (single source of truth) — proxy repo
+  `scripts/knowher-generation-prompt.md`.** The runnable, Rodman-refined **MANUAL** prompt these §7 rules
+  came from: fill the player block with verified stats → run a web-search model → paste JSON into
+  `/knowher/admin` (`upsertPlayer`). It also carries the five-layer guardrail (§6), the GOLD-TIER source
+  allow-list (§5c's allow-list made concrete), and the output JSON schema — **keep it in sync with §6/§7.**
+  It is the MANUAL path, deliberately distinct from the automated Wikipedia+Haiku pipeline (§4); do NOT
+  wire its web search into an automated loop (that is the §4 ~$2/player cost trap). It supersedes the
+  deleted `knowher_prototype.mjs`.
 
 ## 8. Screen flow 🔒 (mockup `Player Spotlight Game.html`)
 

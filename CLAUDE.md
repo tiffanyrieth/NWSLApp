@@ -29,7 +29,7 @@ in previews + tests). Treat it as a real product; never suggest a demo/placehold
 
 ## Stack
 
-Swift 5.9+ / SwiftUI (not UIKit), min iOS 17.2 (`@Observable`; 17.2 = Live Activity push-to-start), Xcode 26.5. `URLSession` + async/await,
+Swift 5.9+ / SwiftUI (not UIKit), min iOS 17.2 (`@Observable`; 17.2 = Live Activity push-to-start), Xcode 27.0 beta 2. `URLSession` + async/await,
 no third-party HTTP. UserDefaults (small local state) + **Supabase** (Postgres, durable per-user once
 signed in); SwiftData nowhere. Sign in with Apple → Supabase (Apple auth + RLS). The **only**
 third-party dep is `supabase-swift` (SPM). Testing = **Swift Testing** (`@Test`/`#expect`), not XCTest.

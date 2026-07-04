@@ -109,6 +109,10 @@ final class AuthStore {
     func restoreSession() async {
         defer { sessionRestoreAttempted = true }
         currentUser = try? await client.auth.session.user
+        NotifTrace.shared.log("session-restore", currentUser != nil ? .ok : .skip,
+            currentUser != nil ? "signed in" : "no stored session")
+        // A restored session means buffered pre-sign-in breadcrumbs can now upload (keyed to this user).
+        await NotifTrace.shared.flush()
         // Pull the display name + chosen flag from the server. UserDefaults was wiped on a
         // reinstall, so the local cache can't be trusted as the source — the server is.
         await hydrateProfile()
@@ -181,6 +185,12 @@ final class AuthStore {
             // observers run from app launch (before sign-in), so a brand-new user's token was seen but
             // skipped (no session yet); register it now rather than waiting for the next launch.
             LiveActivityManager.shared.userDidSignIn()
+
+            // A fresh sign-in means the V1 device token (if already delivered) can now upsert, and any
+            // buffered pre-sign-in breadcrumbs can upload. The coordinator observes `currentUser` too,
+            // but nudge explicitly so registration doesn't wait on the next launch/foreground.
+            NotifTrace.shared.log("sign-in", .ok, "handleSignIn")
+            await NotifTrace.shared.flush()
 
             // Apple returns the user's name only on the FIRST authorization, ever —
             // capture it now or never. Upsert keyed on the user id (= auth.uid()).

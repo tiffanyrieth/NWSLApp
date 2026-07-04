@@ -56,6 +56,19 @@ struct EventStatus: Decodable {
     let displayClock: String?
     let period: Int?
     let type: StatusType?
+    // Match-ELAPSED seconds (ESPN's continuous clock — a 2nd-half value is ~2700–5400,
+    // not reset to 0). Powers the app's local football-clock tick (see MatchClock);
+    // `displayClock` is ESPN's pre-formatted string, `clock` is the raw number we tick from.
+    let clock: Double?
+
+    // Explicit memberwise init with all-nil defaults so decode stays synthesized AND test
+    // fixtures / previews can build a status with just the fields they care about.
+    init(displayClock: String? = nil, period: Int? = nil, type: StatusType? = nil, clock: Double? = nil) {
+        self.displayClock = displayClock
+        self.period = period
+        self.type = type
+        self.clock = clock
+    }
 }
 
 struct StatusType: Decodable {

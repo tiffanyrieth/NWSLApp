@@ -754,38 +754,56 @@ struct MatchDetailView: View {
             || viewModel.weather?.roundedTemp != nil
     }
 
-    // Broadcast color chip + venue (+ attendance for a finished match) — the
-    // schedule card's rail, scaled into the header.
+    // Broadcast color chip + venue on line 1; post-match metadata (kickoff weather +
+    // attendance) on line 2 for a finished match. Two lines rather than one so a long
+    // broadcast name + weather + attendance never crowd each other into truncation — the
+    // second line is all post-match data, so it groups naturally (and stays absent for
+    // future/live matches, which only ever show line 1).
     private var compactInfoRow: some View {
-        HStack(spacing: 10) {
-            if let channel = broadcastName {
-                BroadcastChip(name: channel)
+        VStack(alignment: .leading, spacing: 6) {
+            // Line 1 — broadcast + venue (all temporal states).
+            HStack(spacing: 10) {
+                if let channel = broadcastName {
+                    BroadcastChip(name: channel)
+                }
+                if let venue = event.venueName {
+                    Text(venue)
+                        .dsFont(12)
+                        .foregroundStyle(Color.dsFgSecondary)
+                        .lineLimit(1)
+                }
             }
-            if let venue = event.venueName {
-                Text(venue)
-                    .dsFont(12)
-                    .foregroundStyle(Color.dsFgSecondary)
-                    .lineLimit(1)
-            }
-            // Historical kickoff weather (past matches only) — an icon + temperature stamp.
-            // Concatenating Text(Image) + Text keeps the SF Symbol on the same @ScaledMetric
-            // .dsFont axis as the number, so Dynamic Type scales the icon and temp together.
-            if temporalState == .past, let weather = viewModel.weather, let temp = weather.roundedTemp {
-                Circle().fill(Color.dsFgQuaternary).frame(width: 3, height: 3)
-                (Text(Image(systemName: weather.symbolName)) + Text(" \(temp)°"))
-                    .dsFont(12)
-                    .foregroundStyle(Color.dsFgSecondary)
-                    .lineLimit(1)
-                    .accessibilityLabel(weather.accessibilityLabel)
-            }
-            if temporalState == .past, let attendance = attendanceText {
-                Circle().fill(Color.dsFgQuaternary).frame(width: 3, height: 3)
-                Text("Attendance: \(attendance)")
-                    .dsFont(12)
-                    .foregroundStyle(Color.dsFgSecondary)
-                    .lineLimit(1)
+            // Line 2 — kickoff weather + attendance (past matches only).
+            if temporalState == .past, hasPostMatchMeta {
+                HStack(spacing: 10) {
+                    // Weather stamp: an icon + temperature. Concatenating Text(Image) + Text keeps
+                    // the SF Symbol on the same @ScaledMetric .dsFont axis as the number, so Dynamic
+                    // Type scales the icon and temp together.
+                    if let weather = viewModel.weather, let temp = weather.roundedTemp {
+                        (Text(Image(systemName: weather.symbolName)) + Text(" \(temp)°"))
+                            .dsFont(12)
+                            .foregroundStyle(Color.dsFgSecondary)
+                            .lineLimit(1)
+                            .accessibilityLabel(weather.accessibilityLabel)
+                    }
+                    if let attendance = attendanceText {
+                        // Bullet only when weather precedes it — no leading bullet on a lone attendance.
+                        if viewModel.weather?.roundedTemp != nil {
+                            Circle().fill(Color.dsFgQuaternary).frame(width: 3, height: 3)
+                        }
+                        Text("Attendance: \(attendance)")
+                            .dsFont(12)
+                            .foregroundStyle(Color.dsFgSecondary)
+                            .lineLimit(1)
+                    }
+                }
             }
         }
+    }
+
+    /// Whether the finished-match line 2 has anything to show (kickoff weather or attendance).
+    private var hasPostMatchMeta: Bool {
+        viewModel.weather?.roundedTemp != nil || attendanceText != nil
     }
 
     // Spanish-language secondary, shown only where ESPN's feed IS the Spanish feed

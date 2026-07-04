@@ -1,4 +1,5 @@
 import UserNotifications
+import UIKit   // NSValue(cgRect:) lives in UIKit's geometry additions on iOS
 import os
 
 /// Rich-notification attachment extension.
@@ -67,7 +68,11 @@ final class NotificationService: UNNotificationServiceExtension {
                 .appendingPathExtension(ext)
             do {
                 try fileManager.moveItem(at: tempURL, to: destURL)
-                let attachment = try UNNotificationAttachment(identifier: "matchcard", url: destURL, options: nil)
+                // For a goal the watcher sends a `thumbnailRect`; use it to crop the COLLAPSED
+                // banner thumbnail to the scoring team's crest (instead of a shrunk whole-card).
+                // Absent (non-goals) → nil → iOS's default whole-image thumbnail (unchanged).
+                let options = Self.thumbnailOptions(from: bestAttemptContent.userInfo)
+                let attachment = try UNNotificationAttachment(identifier: "matchcard", url: destURL, options: options)
                 bestAttemptContent.attachments = [attachment]
             } catch {
                 Self.log.error("Building attachment failed: \(error.localizedDescription, privacy: .public)")
@@ -83,6 +88,17 @@ final class NotificationService: UNNotificationServiceExtension {
         if let contentHandler, let bestAttemptContent {
             contentHandler(bestAttemptContent)
         }
+    }
+
+    /// A `thumbnailRect` in the payload (normalized `[x, y, w, h]`, sent for goals) crops the
+    /// attachment's COLLAPSED thumbnail to the scoring team's crest. `nil` when the key is
+    /// absent/malformed → iOS uses the whole image (the prior behavior for non-goal pushes).
+    private static func thumbnailOptions(from userInfo: [AnyHashable: Any]) -> [String: Any]? {
+        guard let raw = userInfo["thumbnailRect"] as? [Any], raw.count == 4 else { return nil }
+        let r = raw.compactMap { ($0 as? NSNumber)?.doubleValue }
+        guard r.count == 4 else { return nil }
+        let rect = CGRect(x: r[0], y: r[1], width: r[2], height: r[3])
+        return [UNNotificationAttachmentOptionsThumbnailClippingRectKey: NSValue(cgRect: rect)]
     }
 
     /// Pick a file extension so `UNNotificationAttachment` can infer the media type.

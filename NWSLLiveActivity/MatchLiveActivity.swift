@@ -54,7 +54,9 @@ struct MatchLiveActivity: Widget {
         ActivityConfiguration(for: MatchActivityAttributes.self) { context in
             // Lock-screen / banner surface.
             LockScreenBanner(attributes: context.attributes, state: context.state)
-                .activityBackgroundTint(Color.black.opacity(0.35))
+                // Slightly-navy base under the team wash (matches dsMdPanel), replacing the
+                // old flat black — the team-color gradient rides on top inside the banner.
+                .activityBackgroundTint(LA.panel.opacity(0.85))
                 .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             let a = context.attributes
@@ -145,7 +147,9 @@ private struct LockScreenBanner: View {
     let state: MatchActivityAttributes.ContentState
 
     var body: some View {
-        VStack(spacing: 8) {
+        ZStack {
+            teamWash
+            VStack(spacing: 8) {
             HStack {
                 team(attributes.homeAbbr, attributes.homeColorHex)
                 Spacer()
@@ -179,8 +183,26 @@ private struct LockScreenBanner: View {
                     Text(b).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.white.opacity(0.45))
                 }
             }
+            }
+            .padding(14)
         }
-        .padding(14)
+    }
+
+    // Team-color wash: home color bleeds from the left edge, away from the right — the
+    // SAME gradient stops as the schedule cards (MatchCard.swift), punched from 0.18 to
+    // 0.28 because the lock-screen banner sits over varied wallpapers and needs more
+    // presence than an in-app card. Reads the static team hexes on `attributes`.
+    private var teamWash: some View {
+        LinearGradient(
+            stops: [
+                .init(color: Color(hex: attributes.homeColorHex).opacity(0.28), location: 0.0),
+                .init(color: Color(hex: attributes.homeColorHex).opacity(0.0),  location: 0.34),
+                .init(color: Color(hex: attributes.awayColorHex).opacity(0.0),  location: 0.66),
+                .init(color: Color(hex: attributes.awayColorHex).opacity(0.28), location: 1.0),
+            ],
+            startPoint: UnitPoint(x: 0, y: 0.42),
+            endPoint: UnitPoint(x: 1, y: 0.58)
+        )
     }
 
     private var scoreText: String {

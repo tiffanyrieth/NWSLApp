@@ -99,10 +99,11 @@ grant select, insert, update          on public.profiles to service_role;
 create table public.device_tokens (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users(id) on delete cascade not null,
+  device_id text not null,             -- Keychain-stable per-device UUID (DeviceIdentity.swift)
   token text not null,                 -- APNs device token (hex string)
   platform text not null default 'ios',
   updated_at timestamptz default now(),
-  unique(user_id, token)               -- backs the app's upsert onConflict
+  unique(user_id, device_id)           -- backs the app's upsert onConflict (one token per device)
 );
 
 -- Notification preferences (1:1 with the user; the 9 Profile toggles)
@@ -467,9 +468,10 @@ grant select, insert, update on public.trivia_scores to authenticated;
 
 create table public.live_activity_start_tokens (
   user_id uuid references auth.users(id) on delete cascade not null,
+  device_id text not null,             -- Keychain-stable per-device UUID (DeviceIdentity.swift)
   token text not null,
   updated_at timestamptz default now(),
-  primary key (user_id, token)
+  primary key (user_id, device_id)
 );
 
 create table public.live_activities (

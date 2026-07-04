@@ -38,12 +38,12 @@ struct DisplayNameEntry: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Display name")
+            Text("Username")
                 .dsFont(12, weight: .medium)
                 .foregroundStyle(Color.dsFgSecondary)
                 .padding(.leading, 2)
 
-            TextField("Enter a name…", text: $draft)
+            TextField("Enter a username…", text: $draft)
                 .textInputAutocapitalization(.words)
                 .submitLabel(.done)
                 .onSubmit { if isValid { onSubmit() } }
@@ -103,7 +103,7 @@ struct DisplayNameEditorSheet: View {
             .background(Color.dsBgGrouped)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text("Display name").font(.headline).foregroundStyle(Color.dsFgPrimary)
+                    Text("Username").font(.headline).foregroundStyle(Color.dsFgPrimary)
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -242,7 +242,7 @@ struct FanZoneGateSheet: View {
                 .dsFont(48)
                 .foregroundStyle(Color.dsSuccess)
             VStack(spacing: 8) {
-                Text("You're in! Choose your name.")
+                Text("You're in! Pick a username.")
                     .dsFont(22, weight: .bold)
                     .multilineTextAlignment(.center)
                 Text("This is how you'll appear on the leaderboard. Make it good — other fans will see this.")
@@ -255,7 +255,7 @@ struct FanZoneGateSheet: View {
                              accent: Color.dsGameBracket) {
                 Task { await saveName() }
             }
-            Text("A display name is required to play ranked games")
+            Text("A username is required to play ranked games")
                 .dsFont(11)
                 .foregroundStyle(Color.dsFgTertiary)
         }
@@ -264,7 +264,8 @@ struct FanZoneGateSheet: View {
     private func handleSignIn(_ result: Result<ASAuthorization, Error>) async {
         do {
             try await auth.handleSignIn(result)
-            // Always confirm/choose the name after a fresh sign-in (Apple's value prefills).
+            // Require a username after a fresh sign-in. New users start blank (we don't pull a name
+            // from Apple); a returning user's chosen username is prefilled so they can keep or edit it.
             draftName = auth.displayName ?? ""
             step = .name
         } catch {

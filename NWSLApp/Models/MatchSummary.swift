@@ -88,9 +88,30 @@ struct MatchPlayer: Decodable {
     let position: MatchPosition?
     let starter: Bool?
     let formationPlace: String?      // ESPN sends as String ("1"–"11")
-    let subbedIn: Bool?
-    let subbedOut: Bool?
+    let subbedIn: SubStatus?
+    let subbedOut: SubStatus?
     let active: Bool?                // false ≈ unused sub (no `didNotPlay` key exists)
+}
+
+/// ESPN's sub flags are shape-inconsistent across feeds: a LIVE match's `/summary`
+/// sends an OBJECT (`{"didSub": false}`), while other snapshots may send a bare Bool.
+/// Decoding only one shape throws a `DecodingError` that fails the ENTIRE
+/// `MatchSummary` — the "Couldn't read the match details" bug that hid a live match's
+/// full lineups. So we accept BOTH (and any unknown shape → `didSub == false`) and
+/// let callers read `.didSub`.
+struct SubStatus: Decodable {
+    let didSub: Bool
+
+    private struct Object: Decodable { let didSub: Bool? }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let flag = try? container.decode(Bool.self) {
+            didSub = flag
+        } else {
+            didSub = (try? container.decode(Object.self))?.didSub ?? false
+        }
+    }
 }
 
 struct MatchAthlete: Decodable {
@@ -203,6 +224,10 @@ extension MatchRoster {
 }
 
 extension MatchPlayer {
+    /// Did this player come on / go off — reading through the shape-tolerant `SubStatus`.
+    var didSubIn: Bool { subbedIn?.didSub == true }
+    var didSubOut: Bool { subbedOut?.didSub == true }
+
     /// `formationPlace` parsed to Int (ESPN sends it as a String).
     var formationPlaceValue: Int? {
         guard let formationPlace else { return nil }

@@ -47,11 +47,28 @@ struct MatchDetailView: View {
         case stats = "Stats"
     }
 
-    private var event: Event { viewModel.event }
+    /// The live event snapshot powering the header + temporal state. Prefer the
+    /// shared MatchStore's copy — the RootTabView live-poll keeps it fresh, so the
+    /// header score/clock and the past→live→final transition ADVANCE while this
+    /// screen is open (the seed event handed in at push is frozen). Falls back to
+    /// that seed until the store has this id (or for a feed the store doesn't carry).
+    private var event: Event {
+        matchStore.events.first { $0.id == viewModel.event.id } ?? viewModel.event
+    }
+
+    /// Temporal state derived from the LIVE `event` above (not the VM's frozen seed),
+    /// so a match that kicks off or finishes while open flips state without a relaunch.
+    private var temporalState: MatchTemporalState {
+        switch event.statusState {
+        case "in":   return .live
+        case "post": return .past
+        default:     return .future
+        }
+    }
 
     var body: some View {
         Group {
-            switch viewModel.temporalState {
+            switch temporalState {
             case .past, .live: tabbedLayout
             case .future:      futureLayout
             }
@@ -68,12 +85,15 @@ struct MatchDetailView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task {
-            // First load (shows a spinner), then poll silently every 30s while
-            // the match is live so events/score/clock fill in — the proxy's TTL
-            // makes this cheap once /summary is proxied.
+            // First load (shows a spinner), then poll the /summary tabs until the match
+            // is final. We loop while NOT past (re-reading the LIVE temporal state each
+            // tick) rather than only-while-live, so a screen opened before kickoff still
+            // starts refreshing once the store flips it live — 30s live, slower pre-match.
+            // The header score/clock advance separately via `event` (the refreshing store).
             if case .idle = viewModel.summaryState { await viewModel.loadSummary() }
-            while !Task.isCancelled && viewModel.temporalState == .live {
-                try? await Task.sleep(for: .seconds(30))
+            while !Task.isCancelled && temporalState != .past {
+                let interval: Duration = temporalState == .live ? .seconds(30) : .seconds(120)
+                try? await Task.sleep(for: interval)
                 if Task.isCancelled { break }
                 await viewModel.refresh()
             }
@@ -150,7 +170,7 @@ struct MatchDetailView: View {
 
     private var underlineColor: Color {
         // Cyan for a past recap, orange while live (the design's state accents).
-        viewModel.temporalState == .live ? .dsStateClock : .dsStateKickoff
+        temporalState == .live ? .dsStateClock : .dsStateKickoff
     }
 
     private func tabLabel(_ tab: DetailTab) -> String { tab.rawValue }
@@ -174,7 +194,7 @@ struct MatchDetailView: View {
                     }
                 }
 
-                if viewModel.temporalState == .live {
+                if temporalState == .live {
                     Text("Updates every ~30 seconds")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
@@ -274,7 +294,13 @@ struct MatchDetailView: View {
 
     @ViewBuilder
     private func lineupsTab(_ summary: MatchSummary) -> some View {
-        if summary.homeRoster == nil && summary.awayRoster == nil {
+        // Gate on ACTUAL players, not just the roster object: ESPN/the proxy can return
+        // team-header "shells" (roster present, no players) — showing an honest empty
+        // state beats a "STARTING XI" heading with nothing under it. (Diagnostic is
+        // emitted in the VM on load; NO SILENT FAILURES.)
+        let homePlayers = summary.homeRoster?.roster?.count ?? 0
+        let awayPlayers = summary.awayRoster?.roster?.count ?? 0
+        if homePlayers == 0 && awayPlayers == 0 {
             emptyState("Lineups aren't available for this match.")
         } else if let homeR = summary.homeRoster, let awayR = summary.awayRoster,
                   CombinedPitchView.supports(home: side(homeR, matchColors.home),
@@ -395,7 +421,7 @@ struct MatchDetailView: View {
                 .foregroundStyle(.secondary)
             Text(subLastName(player))
                 .font(.caption2)
-            if player.subbedIn == true {
+            if player.didSubIn {
                 Image(systemName: "arrow.up.circle.fill")
                     .dsFont(9)
                     .foregroundStyle(.green.opacity(0.8))
@@ -429,12 +455,12 @@ struct MatchDetailView: View {
                         .frame(width: 24, alignment: .trailing)
                     Text(player.athlete?.displayName ?? "—")
                         .font(.subheadline)
-                    if player.subbedOut == true {
+                    if player.didSubOut {
                         Image(systemName: "arrow.down.circle.fill")
                             .font(.caption2)
                             .foregroundStyle(.red.opacity(0.7))
                     }
-                    if player.subbedIn == true {
+                    if player.didSubIn {
                         Image(systemName: "arrow.up.circle.fill")
                             .font(.caption2)
                             .foregroundStyle(.green.opacity(0.7))
@@ -714,7 +740,7 @@ struct MatchDetailView: View {
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
             }
-            if viewModel.temporalState == .past, let attendance = attendanceText {
+            if temporalState == .past, let attendance = attendanceText {
                 Circle().fill(Color.dsFgQuaternary).frame(width: 3, height: 3)
                 Text("Attendance: \(attendance)")
                     .dsFont(12)
@@ -817,7 +843,7 @@ struct MatchDetailView: View {
     @ViewBuilder
     private var centerColumn: some View {
         VStack(spacing: 8) {
-            switch viewModel.temporalState {
+            switch temporalState {
             case .live:
                 liveIndicator
                 if let clockLine {
@@ -839,6 +865,13 @@ struct MatchDetailView: View {
                 Text(kickoffTimeText)
                     .dsFont(28, weight: .bold, design: .rounded, monospacedDigit: true)
                     .foregroundStyle(Color.dsStateKickoff)
+                    // Keep the time on ONE line and let it scale down to fit the squeezed
+                    // center column. Without this the 28pt "10:00 PM" (double-digit hours)
+                    // both wrapped the "M" to a second line AND, being a rigid full-width
+                    // Text, pushed the header past the viewport → horizontal drift. A
+                    // minimumScaleFactor makes its width flexible, fixing both.
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                 if let date = dateHeadline {
                     Text(date)
                         .font(.caption)

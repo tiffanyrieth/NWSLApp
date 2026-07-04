@@ -95,7 +95,9 @@ final class MatchDetailViewModel {
     func loadSummary() async {
         summaryState = .loading
         do {
-            summaryState = .loaded(try await service.fetchSummary(eventID: event.id))
+            let summary = try await service.fetchSummary(eventID: event.id)
+            recordSummaryGaps(summary)
+            summaryState = .loaded(summary)
         } catch {
             Diagnostics.shared.record(.apiFailure, "match summary \(event.id): \(error.localizedDescription)")
             summaryState = .error(message(for: error))
@@ -107,7 +109,30 @@ final class MatchDetailViewModel {
     /// poll failures — the screen keeps showing the last good summary.
     func refresh() async {
         if let fresh = try? await service.fetchSummary(eventID: event.id) {
+            recordSummaryGaps(fresh)
             summaryState = .loaded(fresh)
+        }
+    }
+
+    /// Flag a live/finished match whose summary came back materially empty — the
+    /// signature of a stale proxy cache or an ESPN feed gap. Future matches
+    /// legitimately have no lineups/timeline yet, so we only check once the match is
+    /// live or done. The UI degrades honestly (empty state); this makes the gap LOUD
+    /// to the engineer too (NO SILENT FAILURES).
+    private func recordSummaryGaps(_ summary: MatchSummary) {
+        let state = event.statusState
+        guard state == "in" || state == "post" else { return }
+        let rostersPresent = summary.homeRoster != nil || summary.awayRoster != nil
+        let noPlayers = (summary.homeRoster?.roster?.isEmpty ?? true)
+            && (summary.awayRoster?.roster?.isEmpty ?? true)
+        if rostersPresent && noPlayers {
+            Diagnostics.shared.record(.unexpectedEmpty,
+                "match \(event.id): lineups empty for a \(state ?? "?") match (roster shells / stale summary)")
+        }
+        let goals = (Int(event.homeCompetitor?.score ?? "") ?? 0) + (Int(event.awayCompetitor?.score ?? "") ?? 0)
+        if summary.timelineEvents.isEmpty && goals > 0 {
+            Diagnostics.shared.record(.unexpectedEmpty,
+                "match \(event.id): score shows \(goals) goal(s) but summary has no key events")
         }
     }
 

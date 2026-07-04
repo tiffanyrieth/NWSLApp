@@ -83,4 +83,42 @@ struct MatchSummaryTests {
         #expect(summary.gameInfo?.venue?.fullName == "Audi Field")
         #expect(summary.gameInfo?.attendance == 19215)
     }
+
+    // MARK: - SubStatus shape tolerance (regression: the "Couldn't read the match
+    // details" bug). ESPN's LIVE feed sends subbedIn/subbedOut as `{"didSub": Bool}`
+    // OBJECTS, while other snapshots send a bare Bool. Before SubStatus, the object
+    // shape threw a DecodingError that failed the ENTIRE MatchSummary — hiding a live
+    // match's full lineups. These prove the whole summary still decodes for every shape.
+
+    /// Decode a one-player MatchSummary with the given raw JSON for the sub fields.
+    private func decodePlayer(subbedIn: String, subbedOut: String) throws -> MatchPlayer {
+        let json = """
+        { "rosters": [ { "homeAway": "home", "roster": [
+            { "athlete": { "id": "1", "displayName": "Test Player" },
+              "jersey": "9", "starter": true, "formationPlace": "11",
+              "subbedIn": \(subbedIn), "subbedOut": \(subbedOut) }
+        ] } ] }
+        """
+        let summary = try JSONDecoder().decode(MatchSummary.self, from: Data(json.utf8))
+        return try #require(summary.homeRoster?.roster?.first)
+    }
+
+    @Test func decodesSubStatusObjectShape() throws {
+        // The LIVE shape: {"didSub": …} — must decode, not throw and kill the summary.
+        let player = try decodePlayer(subbedIn: #"{"didSub": true}"#, subbedOut: #"{"didSub": false}"#)
+        #expect(player.didSubIn == true)
+        #expect(player.didSubOut == false)
+    }
+
+    @Test func decodesSubStatusBoolAndUnknownShapes() throws {
+        // Legacy bare-Bool shape still works (backward compatible)…
+        let boolPlayer = try decodePlayer(subbedIn: "true", subbedOut: "false")
+        #expect(boolPlayer.didSubIn == true)
+        #expect(boolPlayer.didSubOut == false)
+
+        // …and an unexpected/absent shape degrades to `false`, never failing the decode.
+        let oddPlayer = try decodePlayer(subbedIn: #"{"other": 1}"#, subbedOut: "null")
+        #expect(oddPlayer.didSubIn == false)
+        #expect(oddPlayer.didSubOut == false)
+    }
 }

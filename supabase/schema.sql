@@ -148,8 +148,10 @@ grant select, insert, update, delete on public.device_tokens            to authe
 grant select, insert, update          on public.notification_preferences to authenticated;
 -- The match-watcher reads these as service_role (Tier-2 push fan-out). Bypassing RLS is NOT a
 -- substitute for the table grant — without it the watcher's reads fail with 42501 on the first live match.
-grant select on public.device_tokens            to service_role;
-grant select on public.notification_preferences to service_role;
+-- device_tokens also needs DELETE: the watcher self-prunes tokens APNs rejects (410/400) via
+-- pruneDeadTokens — the other half of the per-device zombie-token fix. select-only silently strands them.
+grant select, delete on public.device_tokens            to service_role;
+grant select          on public.notification_preferences to service_role;
 
 
 -- ═════════════════════════════════════════════════════════════════════════════

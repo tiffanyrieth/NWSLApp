@@ -11,14 +11,19 @@
 -- reinstall, so a reinstall reuses the same id and replaces the token in place).
 --
 -- Existing rows have no device_id; tokens auto re-register on the next app launch, so wiping is clean.
--- No new grants needed (columns inherit each table's existing authenticated/service_role grants). The
--- watcher (service_role) additionally self-prunes any token APNs rejects (410 Unregistered / 400
+-- The watcher (service_role) additionally self-prunes any token APNs rejects (410 Unregistered / 400
 -- BadDeviceToken) — see nwslapp-match-watcher supabase.ts pruneDeadTokens.
+--
+-- GRANTS (re-asserted below, idempotent): device-verify on build 22 surfaced two grant gaps the live
+-- DB never had, distinct from the constraint swap — `authenticated` was missing DELETE on device_tokens
+-- (app removeToken → 42501 permission denied) and `service_role` was missing DELETE (watcher pruneDeadTokens
+-- couldn't prune). Re-granting is harmless if already present, so this migration is self-contained.
 
 -- device_tokens: PK stays `id`; swap the (user_id, token) UNIQUE for (user_id, device_id).
 alter table public.device_tokens add column if not exists device_id text;
 delete from public.device_tokens;
 alter table public.device_tokens drop constraint if exists device_tokens_user_id_token_key;
+alter table public.device_tokens drop constraint if exists device_tokens_user_device_key;  -- idempotent re-run
 alter table public.device_tokens alter column device_id set not null;
 alter table public.device_tokens add constraint device_tokens_user_device_key unique (user_id, device_id);
 
@@ -28,3 +33,9 @@ delete from public.live_activity_start_tokens;
 alter table public.live_activity_start_tokens drop constraint if exists live_activity_start_tokens_pkey;
 alter table public.live_activity_start_tokens alter column device_id set not null;
 alter table public.live_activity_start_tokens add primary key (user_id, device_id);
+
+-- Grant corrections (idempotent — re-assert the intended grants; see the GRANTS note above).
+grant select, insert, update, delete on public.device_tokens              to authenticated; -- app removeToken
+grant select, delete                 on public.device_tokens              to service_role;  -- watcher pruneDeadTokens
+grant select, insert, update, delete on public.live_activity_start_tokens to authenticated;
+grant select, insert, update, delete on public.live_activity_start_tokens to service_role;

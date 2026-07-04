@@ -139,7 +139,11 @@ authenticated` or signed-in queries fail silently with `42501` (RLS ≠ privileg
 **Worker reads/writes as `service_role`** — the watcher (`device_tokens`, `*_preferences`,
 `team_alert_preferences`, `live_activity_*`) OR the proxy (`profiles`, for the SIWA `apple_refresh_token`)
 — needs an explicit `grant … to service_role` too: default privileges don't cover it, and bypassing RLS
-is NOT table privilege (this latent gap 42501'd the first real service_role read).
+is NOT table privilege (this latent gap 42501'd the first real service_role read). The grant must match
+the **operation**: the watcher's `pruneDeadTokens` DELETEs `device_tokens`, so a `select`-only grant
+strands dead tokens — grant `select, delete`. And any secret the proxy signs into a JWT **raw** (SIWA
+`APPLE_TEAM_ID`/`SIWA_KEY_ID`) must be whitespace-clean — a trailing newline signs a JWT Apple rejects
+as `invalid_client`; set via **stdin, never copy-paste** (`printf '%s' … | wrangler secret put`).
 
 ## Workflow & engineering practices (requirements — flag the trade-off before bypassing)
 

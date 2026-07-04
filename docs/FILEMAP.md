@@ -166,13 +166,13 @@ NWSLApp/
 └── Assets.xcassets/                   — app icons, accent; `Crests/` (16 NWSL: 11 vector SVG + 5 raster PNG), `Flags/` (8 FEATURED NT flags, vector SVG; browse-all = download+cache) — bundled for zero-network first launch; `Social/` (5 brand glyphs — bluesky/instagram/reddit/tiktok/youtube — vector SVG, template-rendered for tinting)
 
 NotificationServiceExtension/          — rich-notification target (the .appex embedded in the app). Wakes on `mutable-content:1`, downloads the payload's `imageUrl` (server-rendered match card), attaches it; always delivers text-only on failure/timeout (os_log spine — separate process can't reach Diagnostics)
-├── NotificationService.swift          — UNNotificationServiceExtension: didReceive (download → UNNotificationAttachment) + serviceExtensionTimeWillExpire fallback
+├── NotificationService.swift          — UNNotificationServiceExtension: didReceive (download → UNNotificationAttachment) + serviceExtensionTimeWillExpire fallback; honors an optional payload `thumbnailRect` to crop the COLLAPSED thumbnail to the scoring crest (ThumbnailClippingRectKey), else whole-card
 ├── Info.plist                         — NSExtension (usernotifications.service) + CFBundle keys via build vars (GENERATE_INFOPLIST_FILE=NO)
 └── NotificationServiceExtension.entitlements — aps-environment (mirrors app; auto-prod on archive)
 
 NWSLLiveActivity/                      — V2 Live Activity target (WidgetKit extension .appex; min iOS 17.2 for push-to-start). The silent "glance" layer (lock screen + Dynamic Island) complementing V1 rich push; never buzzes
 ├── NWSLLiveActivityBundle.swift       — `@main` WidgetBundle → MatchLiveActivity()
-├── MatchLiveActivity.swift            — ActivityConfiguration for MatchActivityAttributes: lock-screen banner + Dynamic Island compact/expanded/minimal; temporal pill colors (Live/HT/FT/pre); bundled crests (no ring); local advancing minute via `Text(timerInterval:)` from clockStartEpoch
+├── MatchLiveActivity.swift            — ActivityConfiguration for MatchActivityAttributes: lock-screen banner (team-color gradient wash, home-left/away-right @0.28, over LA.panel #14151C) + Dynamic Island compact/expanded/minimal; temporal pill colors (Live/HT/FT/pre); bundled crests (no ring); local advancing minute via `Text(timerInterval:)` from clockStartEpoch
 ├── Info.plist                         — NSExtension (widgetkit-extension) + CFBundle keys via build vars (GENERATE_INFOPLIST_FILE=NO; full key set incl. CFBundleExecutable/version — appex install fails without them)
 └── Assets.xcassets/Crests/            — copy of the 16 NWSL crests (separate bundle; widget can't read the app's catalog)
 

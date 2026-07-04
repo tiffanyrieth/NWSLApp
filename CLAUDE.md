@@ -71,6 +71,12 @@ Cloudflare Worker** (sibling repo `~/Projects/nwslapp-proxy`); DEBUG `-useESPNDi
 **Roster** routes through the proxy's `/roster` too (last-known-good KV: ESPN intermittently serves an
 implausibly small squad — e.g. 1 player — so the proxy caches a plausible roster and serves it with a
 `proxyCachedAsOf` marker → app shows a "Roster as of …" note; teams/standings still hit ESPN directly).
+**Kickoff weather** routes through the proxy's `/weather?event={id}` too — a PAST match's kickoff-hour
+temperature + sky condition from **Open-Meteo** (free, no key; ESPN carries NO NWSL weather). Keyed by a
+static **ESPN-venue-id**→lat/lon table (id-keyed so a rename can't silently break it), the exact kickoff
+HOUR (not the daily high), **cached write-once in KV** (a finished match's weather is immutable → lazy
+backfill covers all history, no cron/watcher); night-aware via `is_day` (sun/moon icon). PAST-ONLY;
+envelope versioned for a later forecast mode. Shows as a quiet stamp under the MatchDetail header.
 **Tier-2 server push** (live match alerts) is a SECOND sibling Worker, **`nwslapp-match-watcher`**
 (`~/Projects/nwslapp-match-watcher`): a `* * * * *` cron that diffs the proxy scoreboard (reached via a
 **service binding** — same-account Worker→Worker over `*.workers.dev` 404s with CF **error 1042**, so a

@@ -27,6 +27,24 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   honest "Roster as of …" label (`ClubSquad.cachedAsOf`). Never silent (emits `rosterStaleServe` /
   `rosterImplausibleNoCache` / `rosterUnavailable` diag); deploy gate `health_check_roster.mjs`. ACFC
   was seeded once from the official club site (`scripts/seed_acfc_roster.mjs`).
+- **Kickoff weather** (`src/weather.ts`): `GET /weather?event={espnEventId}` serves a PAST match's
+  kickoff-hour temperature + WMO sky condition from **Open-Meteo** (free, no key — ESPN has no NWSL
+  weather). Resolves venue/kickoff/state via the worker's OWN edge-cached `/summary` (the byte-identical
+  URL the app already requests → warm hit, no extra ESPN calls), maps venue→lat/lon by a static
+  **ESPN venue-id** table (`VENUE_COORDS`, 22 venues incl. alt/neutral sites — id-keyed so a stadium
+  rename can't silently break it), and indexes Open-Meteo's **HOURLY** array at the exact kickoff hour
+  (not the daily high; `timezone=UTC` so a UTC instant indexes a UTC-labelled array — no per-venue tz
+  table). Source by age: forecast API `past_days` for matches <7d old (the archive API lags ~days),
+  archive API for older; one fallback to the other if the hour is missing. **Cached write-once in KV**
+  (`weather:{eventId}`, NO TTL — a finished match's weather is immutable → first open backfills, everyone
+  after is instant; lazy so it covers ALL history, no cron). Night-aware via `is_day` (sun vs. moon icon
+  app-side). Guarded to state `post`; future/live → `{mode:"unavailable",reason:"not-finished"}`; unknown
+  venue → `unknown-venue` + `weatherVenueUnknown` diag (no KV write). Versioned envelope
+  (`{v,mode,tempF,weatherCode,isDay,condition,asOf}`) leaves room for a later `mode:"forecast"` (upcoming
+  matches). Strict `?event` validation (writes KV) unlike `/summary`'s pass-through. Deploy gate
+  `health_check_weather.mjs` (FAILS on an NWSL `unknown-venue` = a new/renamed stadium needs coords). App
+  side: `MatchWeather` model (WMO→SF-Symbol day/night map) + `MatchDetailView` header stamp
+  (`MatchDetailViewModel.loadWeather`, additive/non-blocking, past-only).
 - **Content routes** (build + normalize to `[ContentCard]`/models): `/team-videos` (Home: YouTube +
   club OG news + club IG), `/feed` (Feed: Bluesky reporters/clubs + news RSS + player IG), `/spotlight`,
   `/trivia` (KV pool), `/national-teams` (data-driven NT Browse-all, deduped by FIFA, 24h), `/telemetry`

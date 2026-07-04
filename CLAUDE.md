@@ -88,6 +88,13 @@ catch-up push for late tokens. `POST /test-activity` + `scripts/replay.mjs` driv
 mirrors push-to-start/per-Activity tokens under a UIKit background-task assertion (background-launch upload);
 detail in `docs/backend.md`. The app side: `registerForRemoteNotifications` → AppDelegate →
 `PushBridge` → `DeviceTokenService` upserts `device_tokens` (per-team toggles in `team_alert_preferences`).
+**Token lifecycle = PER-DEVICE, replace-not-accumulate:** every APNs token table (`device_tokens`,
+`live_activity_start_tokens`) keys on **`(user_id, device_id)`**, `device_id` = a Keychain-stable per-device
+UUID (`DeviceIdentity.swift`, survives reinstall). So each device keeps ONE current token (a rotation
+replaces it in place; the same user on two devices = two rows), instead of piling up a dead token per
+reinstall/rotation. The watcher ALSO self-prunes — a send returning `410 Unregistered`/`400 BadDeviceToken`
+deletes that token (`pruneDeadTokens`). This accumulation of zombie tokens (the old `(user_id, token)`
+keying) was the V2 Live-Activity "delivered-but-never-renders" bug; per-device + prune fixed it (build 23).
 **Notifications = OPT-IN (owner rule — no dark patterns):** nothing auto-enables at onboarding/launch;
 the user turns on exactly what they want. **Nuance (owner, match-alerts):** an EXPLICIT match-alert
 bell tap IS the opt-in, so it CASCADES the full default bundle the first time (day-before + kickoff +

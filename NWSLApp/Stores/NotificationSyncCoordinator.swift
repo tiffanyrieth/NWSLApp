@@ -68,6 +68,11 @@ final class NotificationSyncCoordinator {
         observe()
     }
 
+    /// Force a reconcile — called from the launch/foreground registration reconcile to RETRY a
+    /// previously-failed token upload (on failure the shadow isn't advanced, so `sync()` re-attempts)
+    /// and to catch a token/session the observation may have missed.
+    func resync() { sync() }
+
     // MARK: - Observation
 
     /// Re-arming observation of the three inputs: the signed-in user, the APNs
@@ -124,7 +129,10 @@ final class NotificationSyncCoordinator {
         }
 
         // Tier 2 requires sign-in: nothing to mirror while signed out.
-        guard let userID = newID else { return }
+        guard let userID = newID else {
+            NotifTrace.shared.log("sync", .skip, "no signed-in user")
+            return
+        }
 
         if let token = bridge.deviceToken, token != lastUploadedToken {
             // Advance the shadow ONLY after the write succeeds — otherwise a failure (after a
@@ -134,10 +142,15 @@ final class NotificationSyncCoordinator {
                 do {
                     try await tokenService.registerToken(token, userID: userID)
                     lastUploadedToken = token
+                    NotifTrace.shared.log("device-upsert", .ok, "token=\(token.prefix(10))…")
                 } catch {
                     Diagnostics.shared.record(.apiFailure, "notif registerToken: \(error.localizedDescription)")
+                    NotifTrace.shared.log("device-upsert", .fail, error.localizedDescription)
                 }
             }
+        } else if bridge.deviceToken == nil {
+            // The symptom we're chasing: signed in, but no APNs token has arrived to upload.
+            NotifTrace.shared.log("sync", .skip, "signed in, no APNs token yet (not registered?)")
         }
 
         let snapshot = preferences.snapshot

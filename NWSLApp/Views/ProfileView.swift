@@ -127,6 +127,10 @@ struct ProfileView: View {
                 }
                 NavigationLink { NotificationsView() } label: { notificationsRow }
                     .buttonStyle(.plain)
+                rowDivider
+                // TEMP diagnostics entry — remove with NotifTrace once the token pipeline is proven.
+                NavigationLink { NotificationDiagnosticsView() } label: { diagnosticsRow }
+                    .buttonStyle(.plain)
             }
             .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
@@ -506,6 +510,26 @@ struct ProfileView: View {
             .fill(Color.dsSeparator)
             .frame(height: 1)
             .padding(.leading, 16)
+    }
+
+    // TEMP diagnostics entry (remove with NotifTrace once the token pipeline is proven).
+    private var diagnosticsRow: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.dsBgTertiary)
+                Image(systemName: "stethoscope").dsFont(15).foregroundStyle(Color.dsFgSecondary)
+            }
+            .frame(width: 29, height: 29)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Notification Diagnostics").dsFont(15).foregroundStyle(Color.dsFgPrimary)
+                Text("Token registration state").dsFont(11).foregroundStyle(Color.dsFgTertiary)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
+        .contentShape(Rectangle())
     }
 
     private var versionLabel: some View {

@@ -97,6 +97,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // foreground and handle taps. Set early, before any push can arrive.
         UNUserNotificationCenter.current().delegate = self
 
+        // First breadcrumb of the registration chain — proves the app launched (and whether it's a
+        // background launch, e.g. a push-to-start wake). device_id anchors the whole trail.
+        Task { @MainActor in
+            NotifTrace.shared.log("app-launch", .ok, "state=\(application.applicationState.rawValue) device=\(DeviceIdentity.deviceID.prefix(8))")
+        }
+
         // Prime the V2 Live Activity observers HERE — at launch, not from a view — so they're listening
         // on a cold *background* launch (a push-to-start creates the Activity with the app not running;
         // iOS background-launches us, and only a launch-primed `activityUpdates` observer can capture
@@ -116,7 +122,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
         let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
-        Task { @MainActor in PushBridge.shared.didRegister(token: hex) }
+        Task { @MainActor in
+            NotifTrace.shared.log("didRegister", .ok, "apns=\(hex.prefix(10))…")
+            PushBridge.shared.didRegister(token: hex)
+        }
     }
 
     func application(
@@ -124,8 +133,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         didFailToRegisterForRemoteNotificationsWithError error: Error
     ) {
         // Expected in the Simulator (no APNs) and offline; non-fatal — Tier 1 local
-        // notifications and the whole app keep working without a token.
-        print("[AppDelegate] APNs registration failed: \(error)")
+        // notifications and the whole app keep working without a token. But a REAL
+        // on-device failure (bad `aps-environment`, provisioning, APNs unreachable) was
+        // previously invisible — surface it LOUD on both spines so it's diagnosable.
+        Task { @MainActor in
+            NotifTrace.shared.log("didFail", .fail, error.localizedDescription)
+            Diagnostics.shared.record(.apiFailure, "APNs registration failed: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - UNUserNotificationCenterDelegate

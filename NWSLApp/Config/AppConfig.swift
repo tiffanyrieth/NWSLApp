@@ -166,6 +166,19 @@ enum AppConfig {
         return components.url
     }
 
+    // MARK: - Match weather
+
+    /// The proxy route serving a past match's historical kickoff weather:
+    /// `GET /weather?event=<espnEventId>` (Open-Meteo behind it — see nwslapp-proxy/src/weather.ts).
+    /// Proxy-only by design: there is no ESPN equivalent (ESPN carries no NWSL weather), so unlike
+    /// `summaryBaseURL` there is deliberately NO `-useESPNDirect` fallback. Returns nil on a bad URL.
+    static func weatherURL(eventID: String) -> URL? {
+        let endpoint = scoreboardProxyBase.appendingPathComponent("weather")
+        guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return nil }
+        components.queryItems = [URLQueryItem(name: "event", value: eventID)]
+        return components.url
+    }
+
     // MARK: - Team crests
 
     /// The proxy route serving a team's NWSL crest as a transparent PNG: `GET /crest?team=WAS`.

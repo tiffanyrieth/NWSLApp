@@ -7,7 +7,7 @@ NWSLApp/
 ├── NWSLAppApp.swift                   — app entry; launches RootTabView; forces dark; DEBUG `-resetOnboarding`; AppDelegate (APNs token + foreground/tap → PushBridge)
 ├── NWSLApp.entitlements               — Sign in with Apple + aps-environment (push) + usernotifications.time-sensitive (live-match rich alerts) + game-center (Game Center)
 ├── Config/
-│   ├── AppConfig.swift                — base URLs; scoreboard/summary/roster → proxy; DEBUG `-useESPNDirect`; content route URLs (teamVideos/feed/spotlight/trivia)
+│   ├── AppConfig.swift                — base URLs; scoreboard/summary/roster/weather → proxy; DEBUG `-useESPNDirect`; content route URLs (teamVideos/feed/spotlight/trivia)
 │   ├── Secrets.swift                  — 🔒 GITIGNORED Supabase URL + anon key
 │   └── Secrets.example                — checked-in template (non-.swift so it never compiles)
 ├── DesignSystem/
@@ -22,6 +22,7 @@ NWSLApp/
 │   ├── NationalTeam.swift             — followable women's NT: FIFA code + name + flag + brand color. Curated `featured(8)`/`all(16)` + a `discovered` init for data-driven Browse-all (ESPN flag by FIFA; color via DesignTeamColors.displayHex else neutral)
 │   ├── AthleteStatistics.swift        — ESPN Core API /statistics → PlayerSeasonStats
 │   ├── MatchSummary.swift             — ESPN /summary: lineups+formation, boxscore, key-events timeline
+│   ├── MatchWeather.swift             — past match's historical kickoff weather (proxy `/weather`, Open-Meteo); WMO code → night-aware SF Symbol + temp for the MatchDetail header stamp
 │   ├── PlayerSpotlight.swift          — (legacy) player-of-week model; the Home Spotlight section was retired for Know Her Game; model retained for the `/spotlight` decode path
 │   ├── KnowHerGame.swift              — Know Her Game content: `KnowHerPool`/`KnowHerPlayer`/`KnowHerQuestion` (Codable, mirrors proxy `src/knowher.ts`); category labels; `editionKey(weekKey:)`
 │   ├── PlayerStats.swift              — per-player season stats + team-leaders (real ESPN data)
@@ -37,7 +38,7 @@ NWSLApp/
 │   ├── BracketService.swift           — Bracket Supabase client: currentEdition/results/leaderboard/submit + standings/myEditionStats (Leaderboard screen); throw or honest-empty (online-only)
 │   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats
 │   ├── ContentService.swift           — ALIVE content client: homeCards→/team-videos · feedCards→/feed · spotlightCards→/spotlight; all `throws` (online-only; no seed)
-│   ├── ESPNService.swift              — async fetch: scoreboard + summary + roster (proxy)/teams/standings + seasonStats (Core API)
+│   ├── ESPNService.swift              — async fetch: scoreboard + summary + weather + roster (proxy)/teams/standings + seasonStats (Core API)
 │   ├── FollowSyncService.swift        — Supabase `follows` client (fetch/push/add/remove); RLS-scoped
 │   ├── CompetitionFollowSyncService.swift — Supabase `competition_follows` client (NT + Champions Cup keys: "nt:USA"/"concacaf"); competition twin of FollowSyncService; RLS-scoped
 │   ├── DeviceTokenService.swift       — Supabase `device_tokens` client (APNs token); RLS-scoped
@@ -92,7 +93,7 @@ NWSLApp/
 │   ├── BracketViewModel.swift         — Bracket session: round phase, progress, results, leaderboard, settled-round scoring (+ Game Center submit)
 │   ├── FeedViewModel.swift            — Social-tab source-class chips (All·Reporters·Players·Clubs by `resolvedSourceType`; Reporters = reporter Bluesky + news articles; `league` has no chip → All only) + 30-day recency cut on reporter/league/news (`isFresh`; club/player age-agnostic) + `arranged` = per-club `ContentRoundRobin.balanced` over all team-tagged cards (volume-blind); `itemsError` on fetch failure
 │   ├── HomeViewModel.swift            — @MainActor; derives Home modules from MatchStore+ClubStore+Following; M1/M2 read from shared HomeContentStore (passthrough errors/loading + `retryContent`/`refresh`). M1 "All" capped at 7 (overflow → "See more"); per-team chip = full single-club lens; `hasRefreshed` gates first-load `ArticlePriority` (off after pull-to-refresh)
-│   ├── MatchDetailViewModel.swift     — one match: temporalState (past/live/future) + /summary + live refresh + preview
+│   ├── MatchDetailViewModel.swift     — one match: temporalState (past/live/future) + /summary + live refresh + preview + past-match /weather (additive, non-blocking)
 │   ├── PredictXIViewModel.swift       — Predict slate (open fixtures per followed team) + scoring via /summary + per-team leaderboards (+ GC submit)
 │   ├── XIPickerViewModel.swift        — in-flight XI picker: formation + slot→athlete + scoreline; read-only once submitted
 │   ├── ScheduleViewModel.swift        — day-grouped sections + filters from MatchStore

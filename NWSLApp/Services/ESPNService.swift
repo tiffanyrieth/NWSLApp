@@ -122,6 +122,17 @@ struct ESPNService {
         return try await fetch(MatchSummary.self, from: url)
     }
 
+    // Fetches a past match's historical kickoff weather from the proxy's `/weather?event={id}`
+    // (Open-Meteo behind it — ESPN has no NWSL weather). Additive/nice-to-have: the caller
+    // (MatchDetailViewModel.loadWeather) treats any failure as "no stamp", never a screen error.
+    // Proxy-only, so it uses AppConfig.weatherURL rather than a per-service base + -useESPNDirect.
+    func fetchWeather(eventID: String) async throws -> MatchWeather {
+        guard let url = AppConfig.weatherURL(eventID: eventID) else {
+            throw ESPNServiceError.badURL
+        }
+        return try await fetch(MatchWeather.self, from: url)
+    }
+
     // Fetches real season stats for a squad from ESPN's Core API — one call per
     // athlete (`…/seasons/{year}/types/1/athletes/{id}/statistics`), fanned out in
     // parallel. Replaces the former simulated StatsProvider; the call site in

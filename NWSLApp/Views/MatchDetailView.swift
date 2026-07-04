@@ -91,12 +91,18 @@ struct MatchDetailView: View {
             // starts refreshing once the store flips it live — 30s live, slower pre-match.
             // The header score/clock advance separately via `event` (the refreshing store).
             if case .idle = viewModel.summaryState { await viewModel.loadSummary() }
+            // Historical kickoff weather for the header stamp — fire alongside the summary,
+            // not gated on it (additive; loadWeather no-ops unless the match is already past).
+            await viewModel.loadWeather()
             while !Task.isCancelled && temporalState != .past {
                 let interval: Duration = temporalState == .live ? .seconds(30) : .seconds(120)
                 try? await Task.sleep(for: interval)
                 if Task.isCancelled { break }
                 await viewModel.refresh()
             }
+            // The poll loop only exits once the match is past — a match that finished while
+            // on-screen now has weather available, so make one attempt after the loop.
+            await viewModel.loadWeather()
         }
     }
 
@@ -581,8 +587,9 @@ struct MatchDetailView: View {
         }
     }
 
-    // Venue / Broadcast / Competition tiles (weather deferred). Each renders only
-    // when its value is known, so a sparse fixture degrades gracefully.
+    // Venue / Broadcast / Competition tiles. Each renders only when its value is known,
+    // so a sparse fixture degrades gracefully. (Past matches show a kickoff-weather stamp in
+    // the header's compactInfoRow; a FUTURE forecast tile here is deferred to the forecast build.)
     private var futureInfoGrid: some View {
         HStack(spacing: 10) {
             if let venue = venueText {
@@ -721,13 +728,19 @@ struct MatchDetailView: View {
             }
 
             // Broadcast color chip + venue (+ attendance for past) — the same rail
-            // as the schedule card, shown across every state.
-            if hasCompactInfo { compactInfoRow }
+            // as the schedule card — with the past-match kickoff weather as a quiet
+            // centered line beneath it.
+            if hasCompactInfo {
+                VStack(spacing: 5) {
+                    compactInfoRow
+                    weatherStamp
+                }
+            }
             spanishBroadcastRow
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)
-        .padding(.bottom, 20)
+        .padding(.bottom, 14)
         .frame(maxWidth: .infinity)
         // Bleed the wash up under the transparent nav bar so the header reads
         // edge-to-edge (the §0 "card grows into the page" full-bleed).
@@ -744,6 +757,7 @@ struct MatchDetailView: View {
 
     private var hasCompactInfo: Bool {
         event.venueName != nil || broadcastName != nil || attendanceText != nil
+            || viewModel.weather?.roundedTemp != nil
     }
 
     // Broadcast color chip + venue (+ attendance for a finished match) — the
@@ -766,6 +780,21 @@ struct MatchDetailView: View {
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
             }
+        }
+    }
+
+    // Historical kickoff weather (past matches only) — a quiet centered line UNDER the
+    // metadata row, not crowded into it. Concatenating Text(Image) + Text keeps the SF
+    // Symbol on the same @ScaledMetric .dsFont axis as the temperature so Dynamic Type
+    // scales the icon and number together; dsFgTertiary reads a step quieter than the row.
+    @ViewBuilder
+    private var weatherStamp: some View {
+        if temporalState == .past, let weather = viewModel.weather, let temp = weather.roundedTemp {
+            (Text(Image(systemName: weather.symbolName)) + Text(" \(temp)°"))
+                .dsFont(12)
+                .foregroundStyle(Color.dsFgTertiary)
+                .lineLimit(1)
+                .accessibilityLabel(weather.accessibilityLabel)
         }
     }
 

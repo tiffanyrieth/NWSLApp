@@ -67,6 +67,11 @@ final class MatchDetailViewModel {
     let event: Event
     private(set) var summaryState: State = .idle
 
+    /// Historical kickoff weather for a PAST match (the "☀️ 70°" header stamp). Nil until it
+    /// arrives, or if there's nothing to show. Entirely additive — it never gates the summary,
+    /// so a weather miss leaves the rest of the screen exactly as it is.
+    private(set) var weather: MatchWeather?
+
     private let service: ESPNService
 
     init(event: Event, service: ESPNService = ESPNService()) {
@@ -101,6 +106,32 @@ final class MatchDetailViewModel {
         } catch {
             Diagnostics.shared.record(.apiFailure, "match summary \(event.id): \(error.localizedDescription)")
             summaryState = .error(message(for: error))
+        }
+    }
+
+    /// Fetches the past match's historical kickoff weather for the header stamp. Additive and
+    /// non-blocking: only runs for a finished match, only sets `weather` on a real historical
+    /// reading, and NEVER touches `summaryState` — so it can't block or fail the summary render.
+    /// A `not-finished` body is expected-silent (the match just isn't over yet); a thrown error or
+    /// any other unexpected `unavailable` reason fails LOUD to the engineer via Diagnostics
+    /// (NO SILENT FAILURES) while failing gracefully to the user (the row simply omits the stamp).
+    func loadWeather() async {
+        guard temporalState == .past, weather == nil else { return }
+        do {
+            let result = try await service.fetchWeather(eventID: event.id)
+            if result.isHistorical {
+                weather = result
+            } else if result.mode != "unavailable" || result.mode == nil {
+                // A shape we didn't expect (not historical, not a clean "unavailable") — surface it.
+                Diagnostics.shared.record(.unexpectedEmpty,
+                    "match weather \(event.id): unexpected mode \(result.mode ?? "nil")")
+            }
+            // mode == "unavailable" (not-finished / unknown-venue / upstream-error) → no stamp,
+            // no noise: an already-finished match has Open-Meteo coverage back to 1940, so the
+            // common case is a clean historical hit; the proxy's own diag covers venue/API gaps.
+        } catch {
+            Diagnostics.shared.record(.apiFailure,
+                "match weather \(event.id): \(error.localizedDescription)")
         }
     }
 

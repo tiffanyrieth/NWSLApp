@@ -153,7 +153,7 @@ struct ProfileView: View {
             }
             .frame(width: 29, height: 29)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Display name")
+                Text("Username")
                     .dsFont(15)
                     .foregroundStyle(Color.dsFgPrimary)
                 Text("Shown on leaderboards")
@@ -161,7 +161,7 @@ struct ProfileView: View {
                     .foregroundStyle(Color.dsFgTertiary)
             }
             Spacer(minLength: 8)
-            Text(auth.displayName ?? "Set name")
+            Text(auth.displayName ?? "Set username")
                 .dsFont(15)
                 .foregroundStyle(Color.dsFgSecondary)
                 .lineLimit(1)
@@ -281,7 +281,7 @@ struct ProfileView: View {
                                 .foregroundStyle(Color.dsAccent)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Edit display name")
+                        .accessibilityLabel("Edit username")
                     }
                     Text("Signed in with Apple")
                         .dsFont(12)

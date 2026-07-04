@@ -124,7 +124,10 @@ final class AuthStore {
     func configureSignInRequest(_ request: ASAuthorizationAppleIDRequest) {
         let nonce = Self.randomNonce()
         currentNonce = nonce
-        request.requestedScopes = [.fullName, .email]
+        // Email only — we deliberately do NOT request the user's name. The leaderboard identity is a
+        // user-chosen USERNAME (Fan Zone gate), never their real name (privacy: a username isn't
+        // identifying, and pre-filling "First Last" invites publishing a real name in one tap).
+        request.requestedScopes = [.email]
         request.nonce = Self.sha256(nonce)
     }
 
@@ -192,18 +195,13 @@ final class AuthStore {
             NotifTrace.shared.log("sign-in", .ok, "handleSignIn")
             await NotifTrace.shared.flush()
 
-            // Apple returns the user's name only on the FIRST authorization, ever —
-            // capture it now or never. Upsert keyed on the user id (= auth.uid()).
-            // We do NOT mark it `name_is_custom`: an Apple name is present but unconfirmed,
-            // so the gate still asks the user to confirm it before it hits a leaderboard.
-            let name = Self.displayName(from: credential.fullName)
-            if let name {
-                displayName = name
-                UserDefaults.standard.set(name, forKey: Self.nameKey)
-            }
-            await upsertProfile(userID: session.user.id, displayName: name)
-            // Then pull the authoritative profile (covers the "Keychain wiped → re-sign-in"
-            // case: Apple returns no name, but the server still has it + the chosen flag).
+            // We deliberately do NOT pull a name from Apple — the leaderboard identity is a
+            // user-CHOSEN username (set at the Fan Zone gate), never their real name. Ensure the
+            // profiles row exists (id only; `display_name` untouched, so a returning user's chosen
+            // username is never clobbered), then hydrate the authoritative profile so that returning
+            // user's username is restored (the server row survives reinstall). A brand-new user has
+            // no username yet → stays nil → the gate requires one before any ranked play.
+            await upsertProfile(userID: session.user.id, displayName: nil)
             await hydrateProfile()
         }
     }
@@ -376,9 +374,4 @@ final class AuthStore {
             .joined()
     }
 
-    private static func displayName(from name: PersonNameComponents?) -> String? {
-        guard let name else { return nil }
-        let formatted = PersonNameComponentsFormatter().string(from: name)
-        return formatted.isEmpty ? nil : formatted
-    }
 }

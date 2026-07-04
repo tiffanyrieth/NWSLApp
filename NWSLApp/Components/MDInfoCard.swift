@@ -5,7 +5,8 @@
 //  One tile in the future-match info grid (design handoff `match-detail.jsx` →
 //  the `Info` tiles): a tracked-caps label over a value, left-aligned on the card
 //  surface — no emoji (the redesign drops the icons). Used for Venue / Broadcast /
-//  Competition (weather is deferred — see CLAUDE.md What's-Next).
+//  Competition. (Past-match kickoff weather ships as a header stamp; a future-match
+//  forecast tile here is deferred to the forecast build.)
 //
 
 import SwiftUI

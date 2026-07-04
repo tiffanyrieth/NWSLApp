@@ -20,6 +20,9 @@ import SwiftUI
 
 struct MatchCard: View {
     let match: ScheduledMatch
+    /// When the match data was last fetched (MatchStore.lastLoadedAt) — anchors the live
+    /// minute's local tick. nil (e.g. previews) → fall back to ESPN's `displayClock` string.
+    var anchor: Date? = nil
     private var event: Event { match.event }
 
     // Drives the pulsing LIVE dot (live matches only).
@@ -139,7 +142,15 @@ struct MatchCard: View {
                     .dsFont(11, weight: .bold)
                     .tracking(0.6)
                     .foregroundStyle(Color.dsStateLive)
-                if let clock = event.status?.displayClock {
+                // Locally-ticking football minute ("51'", "45'+2'") when we know when the
+                // data was fetched; otherwise ESPN's last-fetched displayClock string.
+                if let anchor, let clock = event.status?.clock {
+                    LiveMinuteText(clockSeconds: clock, period: event.status?.period, anchor: anchor) { label in
+                        Text(label)
+                            .dsFont(11, weight: .bold, monospacedDigit: true)
+                            .foregroundStyle(Color.dsStateClock)
+                    }
+                } else if let clock = event.status?.displayClock {
                     Text(clock)
                         .dsFont(11, weight: .bold, monospacedDigit: true)
                         .foregroundStyle(Color.dsStateClock)

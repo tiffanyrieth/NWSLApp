@@ -31,6 +31,12 @@ final class MatchStore {
 
     private(set) var state: State = .idle
 
+    /// Wall-clock time of the last successful load/refresh — the anchor for the in-app
+    /// football clock: a live event's `status.clock` (elapsed seconds) was current AS OF
+    /// this instant, so the tick shows `clock + (now − lastLoadedAt)`. Updated every ~30s
+    /// by the live poll, which re-syncs the clock to reality. nil until the first success.
+    private(set) var lastLoadedAt: Date?
+
     /// Per-competition load failures (keyed by house-style label), so the Schedule's
     /// "My teams" can show an honest per-source retry while NWSL keeps working. NWSL
     /// itself never lands here — a NWSL failure is a hard `state = .error`.
@@ -120,6 +126,7 @@ final class MatchStore {
             }
 
             partialErrors = errors
+            lastLoadedAt = now()
             state = .loaded(dedupedByEventID(matches))
         } catch {
             Diagnostics.shared.record(.apiFailure, "schedule \(silent ? "refresh" : "load"): \(error.localizedDescription)")

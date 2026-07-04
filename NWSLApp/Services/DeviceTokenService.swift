@@ -21,12 +21,16 @@ struct DeviceTokenService {
     private var client: SupabaseClient { SupabaseManager.client }
 
     /// Register (or refresh) this device's APNs token for the user. Upsert on
-    /// `(user_id, token)` so re-registering the same token on launch is a no-op
-    /// rather than a duplicate row.
+    /// `(user_id, device_id)` so a rotated/reinstalled token REPLACES this device's row in place
+    /// instead of accumulating a new row — while a second device (its own `device_id`) keeps its own
+    /// row and still receives pushes. `device_id` is the Keychain-stable per-device UUID.
     func registerToken(_ token: String, userID: UUID) async throws {
         try await client
             .from("device_tokens")
-            .upsert(DeviceTokenInsert(user_id: userID, token: token), onConflict: "user_id,token")
+            .upsert(
+                DeviceTokenInsert(user_id: userID, device_id: DeviceIdentity.deviceID, token: token),
+                onConflict: "user_id,device_id"
+            )
             .execute()
     }
 
@@ -46,5 +50,6 @@ struct DeviceTokenService {
 // `platform` defaults to 'ios' in the table, so we don't send it.
 private struct DeviceTokenInsert: Encodable {
     let user_id: UUID
+    let device_id: String
     let token: String
 }

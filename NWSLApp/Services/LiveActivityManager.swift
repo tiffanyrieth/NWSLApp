@@ -125,7 +125,8 @@ final class LiveActivityManager {
             }
             do {
                 try await self.client.from("live_activity_start_tokens")
-                    .upsert(["user_id": userID.uuidString, "token": token], onConflict: "user_id,token")
+                    .upsert(["user_id": userID.uuidString, "device_id": DeviceIdentity.deviceID, "token": token],
+                            onConflict: "user_id,device_id")
                     .execute()
                 Diagnostics.shared.record(.liveActivityTrace, "start-token upsert ok")
             } catch { Diagnostics.shared.record(.apiFailure, "LA start-token upsert: \(error.localizedDescription)") }

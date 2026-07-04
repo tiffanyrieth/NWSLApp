@@ -29,6 +29,14 @@ struct NotificationPreferencesSnapshot: Equatable {
     var fanZoneRounds: Bool
     var playerSpotlight: Bool
     var liveActivitiesEnabled: Bool
+
+    /// Any toggle on ⇒ the user has opted into notifications, so we may reconcile/re-request
+    /// permission for them (used by the launch/foreground registration reconcile). Keeps the
+    /// model opt-in: a user with everything off is never prompted.
+    var anyEnabled: Bool {
+        dayBefore || lineupPosted || kickoff || goals || halftime || fullTime
+            || substitutions || fanZoneRounds || playerSpotlight || liveActivitiesEnabled
+    }
 }
 
 @Observable

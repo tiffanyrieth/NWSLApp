@@ -84,8 +84,11 @@ final class MatchAlertPresenter {
         if await center.notificationSettings().authorizationStatus == .notDetermined {
             _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
         }
-        if await center.notificationSettings().authorizationStatus == .authorized {
+        let status = await center.notificationSettings().authorizationStatus
+        NotifTrace.shared.log("bell-permission", status == .authorized ? .ok : .fail, status.traceLabel)
+        if status == .authorized {
             UIApplication.shared.registerForRemoteNotifications()
+            NotifTrace.shared.log("register-called", .ok, "from bell toggle")
         }
     }
 }

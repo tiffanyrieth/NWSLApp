@@ -327,14 +327,10 @@ struct RootTabView: View {
                 Task { await LiveActivityManager.shared.debugDriveSampleLifecycle() }
             }
             #endif
-            // If the user already granted notification permission in a prior launch,
-            // re-register for remote notifications so APNs hands us a fresh device
-            // token (tokens can rotate). No-op in the Simulator. New grants register
-            // from ProfileView's permission flow.
-            if await UNUserNotificationCenter.current().notificationSettings()
-                .authorizationStatus == .authorized {
-                UIApplication.shared.registerForRemoteNotifications()
-            }
+            // Ensure this device is registered for pushes on EVERY open (self-heal) — see
+            // reconcileNotificationRegistration. Replaces the old "register only if already
+            // authorized" gate, which left opt-in / reinstalled users with no token forever.
+            await reconcileNotificationRegistration()
             // Out-of-band: refresh the bundled crest/flag artwork if the cadence is due
             // (>30 days, or forced once in March). Deferred to its own low-priority task and
             // best-effort, so it never competes with the launch network window — the bundled
@@ -398,12 +394,79 @@ struct RootTabView: View {
                 // last-seen minute/score until the next tick — the exact "hours later, still
                 // 51'" bug. Silent refresh: keeps the last good schedule on a transient miss.
                 Task { await matches.refresh() }
+                // Re-check token registration on EVERY foreground (self-heal): registers when
+                // authorized, re-requests permission for an opted-in user whose grant was reset
+                // (reinstall), retries a failed upload, and re-flushes the V2 push-to-start token.
+                Task { await reconcileNotificationRegistration() }
             }
             // Leaving the foreground flushes any pending no-silent-failure telemetry to the
             // remote sink (best-effort) so a field miss reaches the owner without a user report.
             if phase == .background {
                 Task { await Diagnostics.shared.flushRemote() }
             }
+        }
+    }
+
+    /// Ensure this device has a registered APNs token whenever the app opens (cold launch + every
+    /// foreground) and re-flush the V2 push-to-start token — the "check every time, self-heal" fix
+    /// for the empty-token bug. Near-zero cost: `registerForRemoteNotifications()` just re-delivers
+    /// the cached token when already authorized (no network to Apple), and the Supabase upsert is
+    /// guarded to only write when the token/user changed. Keeps the model opt-in: only re-requests
+    /// permission for a signed-in user who already has ≥1 alert on (the reinstall/restored-on state).
+    private func reconcileNotificationRegistration() async {
+        let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        let laEnabled = LiveActivityManager.areActivitiesEnabled
+        let wantsNotifs = notifications.snapshot.anyEnabled || teamAlerts.enabledCount > 0
+        NotifTrace.shared.log("reconcile", .ok,
+            "auth=\(status.traceLabel) la=\(laEnabled) signedIn=\(auth.userID != nil) wantsNotifs=\(wantsNotifs)")
+
+        switch status {
+        case .authorized, .provisional, .ephemeral:
+            UIApplication.shared.registerForRemoteNotifications()
+            NotifTrace.shared.log("register-called", .ok, status.traceLabel)
+        case .notDetermined where auth.userID != nil && wantsNotifs:
+            // Reinstall/restored-on: alerts are on but iOS permission was reset. Re-request
+            // (owner-approved) so the token can register — no Settings trip needed.
+            NotifTrace.shared.log("reprompt", .ok, "notDetermined + wantsNotifs → requesting")
+            let granted = (try? await UNUserNotificationCenter.current()
+                .requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+            if granted {
+                UIApplication.shared.registerForRemoteNotifications()
+                NotifTrace.shared.log("register-called", .ok, "after reprompt")
+            } else {
+                NotifTrace.shared.log("reprompt", .skip, "not granted at reprompt")
+            }
+        case .notDetermined:
+            NotifTrace.shared.log("reconcile", .skip, "notDetermined, no alert intent — respecting opt-in")
+        case .denied:
+            if wantsNotifs {
+                // Honest LOUD failure: they think alerts are on but iOS blocks them; iOS forbids a
+                // re-prompt, so this needs a Settings trip (surfaced in the diagnostics screen).
+                Diagnostics.shared.record(.apiFailure, "notifications DENIED but alerts on — user gets no pushes")
+                NotifTrace.shared.log("reconcile", .fail, "denied but wantsNotifs — needs Settings")
+            }
+        @unknown default:
+            break
+        }
+
+        // Retry any previously-failed device-token upload, re-flush the V2 push-to-start token
+        // (fixes the returning-user session race), and push the trace to Supabase.
+        notificationSyncCoordinator?.resync()
+        await LiveActivityManager.shared.reflushStartToken(reason: "reconcile")
+        await NotifTrace.shared.flush()
+    }
+}
+
+extension UNAuthorizationStatus {
+    /// Compact label for the diagnostics trail.
+    var traceLabel: String {
+        switch self {
+        case .authorized: return "authorized"
+        case .denied: return "denied"
+        case .notDetermined: return "notDetermined"
+        case .provisional: return "provisional"
+        case .ephemeral: return "ephemeral"
+        @unknown default: return "unknown"
         }
     }
 }

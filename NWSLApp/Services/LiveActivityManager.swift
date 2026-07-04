@@ -50,12 +50,26 @@ final class LiveActivityManager {
         // whole point of #104). `activities` is the snapshot of Activities that already exist — on a
         // push-to-start background launch the just-created Activity is usually here.
         let snapshot = Activity<MatchActivityAttributes>.activities
+        let laEnabled = Self.areActivitiesEnabled
         Diagnostics.shared.record(.liveActivityTrace,
-            "startObserving state=\(Self.appStateLabel) snapshot=\(snapshot.count)")
+            "startObserving state=\(Self.appStateLabel) snapshot=\(snapshot.count) laEnabled=\(laEnabled)")
+        // Gap E: if Live Activities are OFF in iOS Settings the OS NEVER yields a push-to-start token,
+        // so `live_activity_start_tokens` can't populate. Surface it as a fail crumb so it's diagnosable
+        // rather than looking identical to "token received and uploaded" from the server's side.
+        NotifTrace.shared.log("push-start-observe", laEnabled ? .ok : .fail,
+            "laEnabled=\(laEnabled) snapshot=\(snapshot.count) state=\(Self.appStateLabel)")
         observePushToStartTokens()
         observeNewActivities()
         for activity in snapshot { track(activity) }
     }
+
+    /// Whether iOS Live Activities are enabled for this app (the Settings toggle). When false the OS
+    /// emits no push-to-start token — read by the reconcile + surfaced in the diagnostics screen.
+    static var areActivitiesEnabled: Bool { ActivityAuthorizationInfo().areActivitiesEnabled }
+
+    /// Diagnostics-only: the 10-char prefix of the push-to-start token the OS has emitted this process,
+    /// or nil if none seen yet (the empty-table symptom). For the in-app Notification Diagnostics screen.
+    var startTokenPrefix: String? { latestStartToken.map { String($0.prefix(10)) } }
 
     /// Call when a user signs in — flush a push-to-start token captured before the session existed (the
     /// observer skipped its upload). Returning users upload directly from the restored session, so this
@@ -65,6 +79,18 @@ final class LiveActivityManager {
         Task { await upsertStartToken(token) }
     }
 
+    /// Re-upload the last-known push-to-start token — the RETRY/re-flush hook. Called from the launch +
+    /// foreground reconcile and after session restore, so a token that was dropped because the session
+    /// wasn't ready yet (the returning-user race, Gap A) gets uploaded once a session exists. No-op if
+    /// the OS hasn't emitted a token yet.
+    func reflushStartToken(reason: String) async {
+        guard let token = latestStartToken else {
+            NotifTrace.shared.log("push-start-reflush", .skip, "no token yet (\(reason))")
+            return
+        }
+        await upsertStartToken(token)
+    }
+
     // MARK: - Push-to-start token (per device → lets the watcher remote-start the Activity)
     private func observePushToStartTokens() {
         Task {
@@ -72,6 +98,7 @@ final class LiveActivityManager {
                 let token = Self.hex(tokenData)
                 latestStartToken = token
                 Diagnostics.shared.record(.liveActivityTrace, "start-token rx state=\(Self.appStateLabel)")
+                NotifTrace.shared.log("push-start-rx", .ok, "token=\(token.prefix(10))… state=\(Self.appStateLabel)")
                 await upsertStartToken(token)
             }
         }
@@ -121,6 +148,7 @@ final class LiveActivityManager {
         await withBackgroundTime("LA start-token upsert") {
             guard let userID = await self.resolveUserID() else {
                 Diagnostics.shared.record(.liveActivityTrace, "start-token drop: no session state=\(Self.appStateLabel)")
+                NotifTrace.shared.log("push-start-upsert", .skip, "dropped: no session (reflushed later) state=\(Self.appStateLabel)")
                 return
             }
             do {
@@ -129,7 +157,11 @@ final class LiveActivityManager {
                             onConflict: "user_id,device_id")
                     .execute()
                 Diagnostics.shared.record(.liveActivityTrace, "start-token upsert ok")
-            } catch { Diagnostics.shared.record(.apiFailure, "LA start-token upsert: \(error.localizedDescription)") }
+                NotifTrace.shared.log("push-start-upsert", .ok, "token=\(token.prefix(10))…")
+            } catch {
+                Diagnostics.shared.record(.apiFailure, "LA start-token upsert: \(error.localizedDescription)")
+                NotifTrace.shared.log("push-start-upsert", .fail, error.localizedDescription)
+            }
         }
     }
 
@@ -177,6 +209,10 @@ final class LiveActivityManager {
         let app = UIApplication.shared
         var taskID: UIBackgroundTaskIdentifier = .invalid
         taskID = app.beginBackgroundTask(withName: reason) {
+            // Gap D: the assertion ran out of time — the upsert may have been abandoned mid-flight.
+            // Was previously silent; leave a crumb so a timed-out write is diagnosable (a reflush on
+            // the next foreground/reconcile recovers it).
+            NotifTrace.shared.log("bg-expiry", .fail, reason)
             if taskID != .invalid { app.endBackgroundTask(taskID); taskID = .invalid }
         }
         await work()

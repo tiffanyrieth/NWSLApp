@@ -129,6 +129,7 @@ final class NotificationPreferencesStore {
         goals = false
         halftime = false
         fullTime = false
+        lineupPosted = false
         liveActivitiesEnabled = false
         // Also clear the first-bell sentinel: sign-out wiped the Tier-2 intent, so a returning
         // signed-in user's next bell tap must re-cascade the bundle — otherwise they'd land back in
@@ -153,6 +154,7 @@ final class NotificationPreferencesStore {
         goals = true
         halftime = true
         fullTime = true
+        lineupPosted = true
         liveActivitiesEnabled = true
         defaults.set(true, forKey: Self.appliedDefaultsKey)
     }

@@ -75,7 +75,8 @@ implausibly small squad — e.g. 1 player — so the proxy caches a plausible ro
 (`~/Projects/nwslapp-match-watcher`): a `* * * * *` cron that diffs the proxy scoreboard (reached via a
 **service binding** — same-account Worker→Worker over `*.workers.dev` 404s with CF **error 1042**, so a
 public fetch silently fails; the rich-card crest fetch uses the same binding) for
-kickoff/goal/halftime/full-time + **VAR goal-correction** (a debounced score *decrease* — re-poll a
+kickoff/goal/halftime/full-time + **lineup-posted** (polls `/summary` in a 75-min pre-kickoff window) +
+**VAR goal-correction** (a debounced score *decrease* — re-poll a
 cache-busted scoreboard before firing, so an ESPN glitch never sends a false "Goal Disallowed"), looks
 up `device_tokens` of users with that alert on, and sends APNs
 (ES256 `.p8` JWT). Deployed; `POST /test-push` (`x-trigger-secret`) sends a synthetic push for
@@ -88,6 +89,12 @@ catch-up push for late tokens. `POST /test-activity` + `scripts/replay.mjs` driv
 mirrors push-to-start/per-Activity tokens under a UIKit background-task assertion (background-launch upload);
 detail in `docs/backend.md`. The app side: `registerForRemoteNotifications` → AppDelegate →
 `PushBridge` → `DeviceTokenService` upserts `device_tokens` (per-team toggles in `team_alert_preferences`).
+**Register on EVERY open (canonical Apple pattern — NOT gated on a toggle):** `registerForRemoteNotifications`
+fires on cold launch + every foreground (`scenePhase .active`); a signed-in user whose iOS permission was
+reset (reinstall) but who has any alert on is auto-re-prompted then registered (denied → honest surface, never
+a silent "alerts on but no token"). The OLD gate — register only if already `.authorized`, permission requested
+only by a bell toggle — left opt-in/reinstalled users with an EMPTY `device_tokens` (no token ⇒ no pushes at
+all). Upsert is guarded (writes only on token change); `didFailToRegister` → Diagnostics (never a bare print).
 **Token lifecycle = PER-DEVICE, replace-not-accumulate:** every APNs token table (`device_tokens`,
 `live_activity_start_tokens`) keys on **`(user_id, device_id)`**, `device_id` = a Keychain-stable per-device
 UUID (`DeviceIdentity.swift`, survives reinstall). So each device keeps ONE current token (a rotation
@@ -98,14 +105,18 @@ keying) was the V2 Live-Activity "delivered-but-never-renders" bug; per-device +
 **Notifications = OPT-IN (owner rule — no dark patterns):** nothing auto-enables at onboarding/launch;
 the user turns on exactly what they want. **Nuance (owner, match-alerts):** an EXPLICIT match-alert
 bell tap IS the opt-in, so it CASCADES the full default bundle the first time (day-before + kickoff +
-goals + halftime + full-time + Live Activities via `applyMatchAlertDefaultsIfFirstTime`) — a complete
+goals + halftime + full-time + lineups + Live Activities via `applyMatchAlertDefaultsIfFirstTime`) — a complete
 feature makes the best first impression; a bell-on-nothing-fires state is the banned "silent failure
 that looks like success." First-time only (a sentinel respects later manual edits; reset on sign-out).
 Because the bundle is mostly Tier-2, a signed-out bell tap presents Sign in with Apple FIRST
 (intercept: success → enable+cascade+toast, cancel → bell stays off). **Tier 1** = deliverable without
 an account (local: day-before, Player Spotlight); **Tier 2** = watcher-triggered ⇒ needs an account ⇒
 sign-in-gated (`tier2Binding` / the bell intercept) + reset on sign-out (`resetServerPushTypes`:
-kickoff/goals/HT/FT + V2 Live Activity). NEVER auto-enable a notification WITHOUT an explicit user
+kickoff/goals/HT/FT + lineup-posted + V2 Live Activity). **Lineup-posted (Stage D, done):** the watcher polls
+`/summary` (cache-busted via the proxy binding) in a 75-min pre-kickoff window and pushes "Lineups in" the tick
+BOTH XIs are posted (≥11 starters/side, KV-deduped); the app shows the pre-match XI in `MatchDetailView`'s
+future layout. UI groups kickoff+HT+FT under one "Match updates" toggle (grouping only — each still gates its
+own column server-side). NEVER auto-enable a notification WITHOUT an explicit user
 action. National-team alerts: bell keyed by FIFA code → `competition_alert_preferences` (separate from
 the club-id `team_alert_preferences`); the watcher polls the 7 NT feeds + fans out by code.
 Per-user state in **Supabase**, offline-first (UserDefaults cache). **Follows sync = RESTORE-ONLY launch

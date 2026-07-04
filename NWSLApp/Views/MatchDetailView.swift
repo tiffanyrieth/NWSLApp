@@ -803,12 +803,35 @@ struct MatchDetailView: View {
         .onAppear { pulse = true }
     }
 
-    /// "63:18 — Second Half": the running clock + the period name from ESPN.
+    /// "63:18 — Second Half": ESPN's last-fetched running clock + the period name.
+    /// Fallback for when we can't tick locally (no raw `clock`/anchor).
     private var clockLine: String? {
         let clock = event.status?.displayClock
         let period = event.status?.type?.description
         let parts = [clock, period].compactMap { ($0?.isEmpty == false) ? $0 : nil }
         return parts.isEmpty ? nil : parts.joined(separator: " — ")
+    }
+
+    /// The live clock: a locally-ticking football minute ("51' — Second Half") anchored to
+    /// the last fetch, so it advances smoothly between the ~30s polls. Falls back to ESPN's
+    /// static `clockLine` when the raw clock/anchor aren't available.
+    @ViewBuilder
+    private var liveClockLine: some View {
+        let periodName = event.status?.type?.description
+        let suffix = (periodName?.isEmpty == false) ? " — \(periodName!)" : ""
+        if let anchor = matchStore.lastLoadedAt, let clock = event.status?.clock {
+            LiveMinuteText(clockSeconds: clock, period: event.status?.period, anchor: anchor) { label in
+                Text(label + suffix)
+                    .dsFont(13, weight: .medium)
+                    .foregroundStyle(Color.dsStateClock)   // orange live clock
+                    .multilineTextAlignment(.center)
+            }
+        } else if let clockLine {
+            Text(clockLine)
+                .dsFont(13, weight: .medium)
+                .foregroundStyle(Color.dsStateClock)
+                .multilineTextAlignment(.center)
+        }
     }
 
     private func teamColumn(_ competitor: Competitor?, color: Color) -> some View {
@@ -846,12 +869,7 @@ struct MatchDetailView: View {
             switch temporalState {
             case .live:
                 liveIndicator
-                if let clockLine {
-                    Text(clockLine)
-                        .dsFont(13, weight: .medium)
-                        .foregroundStyle(Color.dsStateClock)   // orange live clock
-                        .multilineTextAlignment(.center)
-                }
+                liveClockLine
             case .past:
                 Text("FULL TIME")
                     .dsFont(12, weight: .bold)

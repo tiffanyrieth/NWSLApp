@@ -18,6 +18,9 @@ import SwiftUI
 
 struct ComingUpRow: View {
     let fixture: HomeViewModel.FollowedFixture
+    /// Fetch time (MatchStore.lastLoadedAt) — anchors the live minute's local tick. nil →
+    /// falls back to ESPN's `displayClock` in `detailLine`.
+    var anchor: Date? = nil
     @Environment(ClubStore.self) private var clubStore
 
     private var event: Event { fixture.event }
@@ -37,7 +40,7 @@ struct ComingUpRow: View {
             crests
             VStack(alignment: .leading, spacing: 2) {
                 matchupLine
-                Text(detailLine)
+                detailLineView
                     .dsFont(12)
                     .foregroundStyle(detailColor)
                     .lineLimit(1)
@@ -85,6 +88,20 @@ struct ComingUpRow: View {
     }
 
     // MARK: - Text
+
+    /// The detail line, with the live minute ticking locally ("45' · 1–0" advancing) when
+    /// we have the raw clock + anchor; otherwise the static `detailLine` string.
+    @ViewBuilder
+    private var detailLineView: some View {
+        if event.statusState == "in", let anchor, let clock = event.status?.clock {
+            let suffix = scoreText.map { " · \($0)" } ?? ""
+            LiveMinuteText(clockSeconds: clock, period: event.status?.period, anchor: anchor) { label in
+                Text(label + suffix)
+            }
+        } else {
+            Text(detailLine)
+        }
+    }
 
     /// Live: "45' · 1–0". Result: "FT · 2–1". Upcoming: "Tomorrow · 7:30 PM".
     private var detailLine: String {

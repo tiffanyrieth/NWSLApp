@@ -735,7 +735,7 @@ struct HomeView: View {
                         NavigationLink {
                             MatchDetailView(event: fixture.event)
                         } label: {
-                            ComingUpRow(fixture: fixture)
+                            ComingUpRow(fixture: fixture, anchor: matchStore.lastLoadedAt)
                         }
                         .buttonStyle(.plain)
                     }

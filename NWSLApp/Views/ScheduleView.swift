@@ -169,7 +169,7 @@ struct ScheduleView: View {
                                     MatchDetailView(event: match.event,
                                                     competition: match.competition)
                                 } label: {
-                                    MatchCard(match: match)
+                                    MatchCard(match: match, anchor: matchStore.lastLoadedAt)
                                 }
                                 .buttonStyle(.plain)
                                 // The per-card scroll anchor target (event id).

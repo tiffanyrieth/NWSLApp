@@ -60,6 +60,27 @@ final class MatchStore {
     // TeamsView, so revisiting a tab doesn't refetch.
     func load() async {
         state = .loading
+        await performLoad(silent: false)
+    }
+
+    /// Silent live refresh: refetch and swap in fresh events WITHOUT a `.loading`
+    /// flash, so a live game's score/clock advances in place while the user is
+    /// looking at the Schedule/Home cards or a Match Detail header. A transient
+    /// failure KEEPS the last good schedule on screen (emit diag) rather than
+    /// blanking to an error — the opposite of `load()`, whose failure is a hard
+    /// `.error`. Drives the RootTabView live-poll loop + scenePhase-active refresh.
+    func refresh() async {
+        // Before the first successful load there's nothing to refresh in place —
+        // fall back to a normal load (which shows the spinner).
+        guard case .loaded = state else { await load(); return }
+        await performLoad(silent: true)
+    }
+
+    /// Whether any loaded match is currently in progress — lets the live poll run
+    /// fast (~30s) while a game is on and slow otherwise, and gates the detail poll.
+    var hasLiveMatch: Bool { events.contains { $0.statusState == "in" } }
+
+    private func performLoad(silent: Bool) async {
         let year = calendar.component(.year, from: now())
         let followedCodes = following?.followedNationalTeams ?? []
         do {
@@ -101,9 +122,14 @@ final class MatchStore {
             partialErrors = errors
             state = .loaded(dedupedByEventID(matches))
         } catch {
-            Diagnostics.shared.record(.apiFailure, "schedule load: \(error.localizedDescription)")
-            partialErrors = [:]
-            state = .error(message(for: error))
+            Diagnostics.shared.record(.apiFailure, "schedule \(silent ? "refresh" : "load"): \(error.localizedDescription)")
+            // A silent live-refresh blip must NOT blank the whole tab: keep the last
+            // good schedule (state stays `.loaded`). A first-load failure IS a hard
+            // error (the schedule is genuinely empty), so surface it.
+            if !silent {
+                partialErrors = [:]
+                state = .error(message(for: error))
+            }
         }
     }
 

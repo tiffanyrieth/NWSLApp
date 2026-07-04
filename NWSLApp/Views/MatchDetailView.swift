@@ -571,6 +571,7 @@ struct MatchDetailView: View {
                 futureInfoGrid
                 HowToWatchCard(broadcast: broadcastName)
                     .padding(.horizontal, 20)
+                preMatchLineups
                 if preview.hasData {
                     seasonComparison(preview)
                     recentForm(preview)
@@ -594,6 +595,24 @@ struct MatchDetailView: View {
                        value: competition.displayLabel ?? "NWSL Regular Season")
         }
         .padding(.horizontal, 20)
+    }
+
+    /// Pre-kickoff starting XIs, shown once ESPN posts them (~1h before kickoff — the future detail's
+    /// 120s `/summary` poll + the proxy's lineup-window TTL surface them). Reuses the exact live/past
+    /// lineups rendering (`lineupsTab`). Hidden entirely until real players arrive, so a pre-publish
+    /// future match shows no empty card.
+    @ViewBuilder
+    private var preMatchLineups: some View {
+        if let summary = viewModel.summary,
+           summary.homeRoster?.roster?.isEmpty == false || summary.awayRoster?.roster?.isEmpty == false {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Starting lineups")
+                    .dsFont(17, weight: .bold)
+                    .foregroundStyle(Color.dsFgPrimary)
+                    .padding(.horizontal, 20)
+                lineupsTab(summary)
+            }
+        }
     }
 
     private func seasonComparison(_ preview: MatchPreview) -> some View {

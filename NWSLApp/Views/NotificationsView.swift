@@ -17,7 +17,8 @@
 //  request iOS permission on first-on. Kickoff/goals/halftime/full-time are Tier 2
 //  (server push) — turning one on while signed out presents the honest sign-in gate
 //  (NotificationAuthPromptView) and does NOT flip until sign-in succeeds. Fan Zone
-//  rounds is deferred (persists intent only). Lineup/subs aren't shown — no backing.
+//  rounds is deferred (persists intent only). Subs aren't shown — no backing; lineup-posted
+//  IS shown now (the watcher polls /summary pre-kickoff, Stage D).
 //
 
 import SwiftUI
@@ -32,8 +33,9 @@ struct NotificationsView: View {
     @Environment(AuthStore.self) private var auth
 
     @State private var showAuthPrompt = false
-    // The Tier-2 toggle awaiting sign-in — flipped on by the gate's onSignedIn.
-    @State private var pendingTier2: ReferenceWritableKeyPath<NotificationPreferencesStore, Bool>?
+    // The Tier-2 toggle(s) awaiting sign-in — flipped on by the gate's onSignedIn. An array so a
+    // GROUPED row (e.g. "Match updates" = kickoff+halftime+full time) can defer all of its columns.
+    @State private var pendingTier2: [ReferenceWritableKeyPath<NotificationPreferencesStore, Bool>] = []
     // A team whose alerts are awaiting sign-in (the bundle cascade includes Tier-2, so turning a
     // team on while signed-out is gated too) — enabled + cascaded by the gate's onSignedIn.
     @State private var pendingTeamKey: String?
@@ -54,8 +56,8 @@ struct NotificationsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAuthPrompt) {
             NotificationAuthPromptView(onSignedIn: {
-                if let kp = pendingTier2 {
-                    notifications[keyPath: kp] = true
+                if !pendingTier2.isEmpty {
+                    for kp in pendingTier2 { notifications[keyPath: kp] = true }
                     Task { await requestNotificationPermission() }
                 }
                 if let key = pendingTeamKey {
@@ -63,7 +65,7 @@ struct NotificationsView: View {
                     notifications.applyMatchAlertDefaultsIfFirstTime()   // cascade the bundle (first time)
                     Task { await requestNotificationPermission() }
                 }
-                pendingTier2 = nil
+                pendingTier2 = []
                 pendingTeamKey = nil
             })
         }
@@ -182,28 +184,27 @@ struct NotificationsView: View {
             title: "Alert types",
             subtitle: "What you'll be notified about, for the teams above"
         ) {
-            // Day-before is Tier 1 (local, no account needed). Kickoff/Goals/
-            // Halftime/Full time are Tier 2 (server push): the account requirement is
-            // revealed on TAP (the tier2Binding presents the sign-in sheet), not shown
-            // upfront — keeps the rows clean.
-            SettingsToggleRow(title: "Day-before reminder", subtitle: "24 hours before kickoff",
-                              isOn: tier1Binding(\.dayBefore))
-            SettingsRowDivider()
-            SettingsToggleRow(title: "Kickoff", subtitle: "When the match starts",
-                              isOn: tier2Binding(\.kickoff))
+            // Regrouped (MLS-informed): the low-drama score updates collapse into ONE "Match updates"
+            // toggle (kickoff/halftime/full time), while Goals + Lineups stay their own rows. Day-before
+            // is Tier 1 (local, no account). The rest are Tier 2 (server push): the account requirement is
+            // revealed on TAP (tier2Binding presents the sign-in sheet), not shown upfront.
+            SettingsToggleRow(title: "Match updates", subtitle: "Kickoff, halftime & full time",
+                              isOn: tier2GroupBinding([\.kickoff, \.halftime, \.fullTime]))
             SettingsRowDivider()
             SettingsToggleRow(title: "Goals", subtitle: "When any team scores",
                               isOn: tier2Binding(\.goals))
             SettingsRowDivider()
-            SettingsToggleRow(title: "Halftime", subtitle: "Halftime score update",
-                              isOn: tier2Binding(\.halftime))
+            SettingsToggleRow(title: "Lineups posted", subtitle: "Starting XI, ~1 hour before kickoff",
+                              isOn: tier2Binding(\.lineupPosted))
             SettingsRowDivider()
-            SettingsToggleRow(title: "Full time", subtitle: "Final score when the match ends",
-                              isOn: tier2Binding(\.fullTime))
+            SettingsToggleRow(title: "Day-before reminder", subtitle: "24 hours before kickoff",
+                              isOn: tier1Binding(\.dayBefore))
             SettingsRowDivider()
-            // Live Activities (V2) — the silent live-score card. Tier-2 (the watcher push-to-starts it →
+            // Live Activity (V2) — the silent live-score card. Tier-2 (the watcher push-to-starts it →
             // needs an account), so it's a sign-in-gated opt-in like the alerts above; it just doesn't buzz.
-            SettingsToggleRow(title: "Live Activities", subtitle: "Live score on your Lock Screen & Dynamic Island",
+            // Title keeps Apple's term ("Live Activity", matches iOS Settings) + names WHERE it appears.
+            SettingsToggleRow(title: "Live Activity on Lock Screen",
+                              subtitle: "Live score on your Lock Screen & Dynamic Island",
                               isOn: tier2Binding(\.liveActivitiesEnabled))
         }
         // Inert + greyed until at least one team has alerts on (these types have
@@ -249,7 +250,26 @@ struct NotificationsView: View {
                     notifications[keyPath: kp] = true
                     Task { await requestNotificationPermission() }
                 } else {
-                    pendingTier2 = kp
+                    pendingTier2 = [kp]
+                    showAuthPrompt = true
+                }
+            }
+        )
+    }
+
+    /// Tier-2 binding for a GROUPED row that toggles several columns as one (e.g. "Match updates" =
+    /// kickoff + halftime + full time). Reads ON if ANY column is on; toggling normalizes all of them.
+    /// This is a UI grouping only — each column still gates its own event server-side (fully reversible).
+    private func tier2GroupBinding(_ kps: [ReferenceWritableKeyPath<NotificationPreferencesStore, Bool>]) -> Binding<Bool> {
+        Binding(
+            get: { kps.contains { notifications[keyPath: $0] } },
+            set: { newValue in
+                guard newValue else { for kp in kps { notifications[keyPath: kp] = false }; return }
+                if auth.isSignedIn {
+                    for kp in kps { notifications[keyPath: kp] = true }
+                    Task { await requestNotificationPermission() }
+                } else {
+                    pendingTier2 = kps
                     showAuthPrompt = true
                 }
             }

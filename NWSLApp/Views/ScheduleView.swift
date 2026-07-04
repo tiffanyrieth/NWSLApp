@@ -184,6 +184,11 @@ struct ScheduleView: View {
             }
             .contentMargins(.horizontal, 16, for: .scrollContent)
             .background(Color.dsBgGrouped)
+            // Pull-to-refresh: silently refetch the season so live scores/minutes advance
+            // on demand. The live-poll loop + foreground refresh (RootTabView) keep this
+            // current automatically; this is the manual escape hatch. `refresh()` (not
+            // `load()`) → no full-screen spinner, keeps the last good schedule on a miss.
+            .refreshable { await matchStore.refresh() }
             // Hidden until the first anchor lands (no flash), then revealed positioned.
             .opacity(hasPositioned ? 1 : 0)
             .onAppear {
@@ -205,8 +210,6 @@ struct ScheduleView: View {
                 anchorToBoundary(proxy, animated: false)
             }
         }
-        // No pull-to-refresh: the season loads once a year and live scores already
-        // update in-card in real time, so a manual refresh has nothing to fetch.
     }
 
     /// Scroll so the rest "boundary" card (the last kicked-off game) is at the top —

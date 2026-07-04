@@ -373,10 +373,31 @@ struct RootTabView: View {
                 GameCenterManager.shared.syncAll(trivia: trivia, predict: predict, bracket: bracket, knowHer: knowHer)
             }
         }
+        // Live scoreboard poll: while the app is foregrounded, silently refresh the shared
+        // season store so live cards (Schedule/Home) AND the Match Detail header advance
+        // without a relaunch — the core fix for "live scores never update in-app." Fast
+        // (~30s, matching the "Updates every ~30 seconds" copy) while a game is in progress,
+        // slow (~5min) otherwise, aligning with the proxy scoreboard TTL. The loop suspends
+        // in the background (Task.sleep) and resumes on foreground; scenePhase == .active also
+        // kicks an immediate refresh so returning to the app is instant.
+        .task {
+            while !Task.isCancelled {
+                let interval: Duration = matches.hasLiveMatch ? .seconds(30) : .seconds(300)
+                try? await Task.sleep(for: interval)
+                if Task.isCancelled { break }
+                await matches.refresh()
+            }
+        }
         // Returning to the foreground re-syncs (covers scores earned while offline).
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 GameCenterManager.shared.syncAll(trivia: trivia, predict: predict, bracket: bracket, knowHer: knowHer)
+                // Refresh live scores immediately on return to foreground. The live-poll
+                // loop below is suspended while backgrounded, so without this a game that
+                // advanced (or finished) while the app was away would stay frozen at the
+                // last-seen minute/score until the next tick — the exact "hours later, still
+                // 51'" bug. Silent refresh: keeps the last good schedule on a transient miss.
+                Task { await matches.refresh() }
             }
             // Leaving the foreground flushes any pending no-silent-failure telemetry to the
             // remote sink (best-effort) so a field miss reaches the owner without a user report.

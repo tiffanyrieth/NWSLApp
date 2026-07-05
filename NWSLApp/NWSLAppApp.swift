@@ -145,12 +145,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     // MARK: - UNUserNotificationCenterDelegate
 
     /// Show goal/live pushes even while the app is in the foreground (otherwise iOS
-    /// suppresses them). Banner + sound, no badge.
+    /// suppresses them). Banner + sound + Notification Center, no badge.
+    /// `.list` is REQUIRED alongside `.banner`: a banner auto-dismisses after ~2-5s, and
+    /// without `.list` the notification is never stored in Notification Center — it
+    /// vanishes untappably (the "lineup push disappeared in 2 seconds" bug, 2026-07-04).
+    /// Background/locked deliveries were never affected (willPresent only runs foreground).
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .sound]
+        [.banner, .list, .sound]
     }
 
     /// A tapped push that carries an `eventID` deep-links into that match. We only

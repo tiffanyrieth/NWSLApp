@@ -119,6 +119,16 @@ knowable on-device (lock screen) or via the app's own observation (`snapshot=N`,
   back to 45:00 (widget). THE RULE: anchors must be MONOTONIC — re-anchor only when the clock
   ADVANCES or the period changes. Implemented 7/5 in `MatchStore.reconciledTickAnchors` (app,
   unit-tested) and `StoredState.virtualKickoff` (watcher → `contentStateFromMatch`).
+- ⚠️ **ESPN advances `period` → 2 at the START of the halftime break** (observed live 7/5; `state`
+  stays `"in"`, clock frozen at 2700). So "period changed" alone is NOT the second-half restart. The
+  watcher's original anchor rule re-based on that break-start period flip and its `Math.min` guard
+  then pinned the anchor there — the ~15-min break leaked into `clockStartEpoch` and the widget read
+  **1:31 at the 31st minute of the second half** (the 7/5 live bug). THE RULE: reconcile the anchor
+  ONLY while the clock is RUNNING (`clockRunning` in watcher `events.ts` — in-progress and not
+  HALFTIME/SHOOTOUT); a pause leaves the anchor untouched, so the period re-base fires at the real
+  restart and absorbs the break (regression-locked in watcher `test/clock.test.ts`, watcher PR #20).
+  NOTE: `replay.mjs`/`/test-activity` bypass `nextState` and re-anchor from the passed minute — a
+  replay CANNOT reproduce this class of bug; only a real game (or the unit tests) exercises it.
 - End-to-end latency: cron floor 1 min + proxy live TTL 30s ⇒ an event reaches phones ≤ ~90s after
   ESPN reflects it.
 

@@ -51,6 +51,12 @@ struct ScheduleView: View {
     // the tab) animate, which is the intended behavior.
     @State private var hasPositioned = false
 
+    // Push-tap deep link (consumes AppRouter.pendingMatchEventID): the resolved match to
+    // push + the binding navigationDestination drives. Event isn't Hashable, so the
+    // isPresented variant (not item:) is the mechanism.
+    @State private var pushedMatch: ScheduledMatch?
+    @State private var isShowingPushedMatch = false
+
     var body: some View {
         NavigationStack {
             // A custom large-title header (title + filter chips) pinned via
@@ -169,7 +175,7 @@ struct ScheduleView: View {
                                     MatchDetailView(event: match.event,
                                                     competition: match.competition)
                                 } label: {
-                                    MatchCard(match: match, anchor: matchStore.lastLoadedAt)
+                                    MatchCard(match: match, anchor: matchStore.tickAnchor(for: match.event.id))
                                 }
                                 .buttonStyle(.plain)
                                 // The per-card scroll anchor target (event id).
@@ -203,6 +209,18 @@ struct ScheduleView: View {
                 guard router.reselectedTab == .schedule else { return }
                 anchorToBoundary(proxy, animated: true)
             }
+            // Push-tap deep link: a notification tap (goal/lineup/FT…) recorded a pending
+            // event id (AppRouter.openMatch) — resolve it against the loaded season and push
+            // the match detail DIRECTLY (completes the old TEMP seam that stranded the user
+            // on the Schedule tab). Retries when the season lands (push can beat first load).
+            .navigationDestination(isPresented: $isShowingPushedMatch) {
+                if let pushedMatch {
+                    MatchDetailView(event: pushedMatch.event, competition: pushedMatch.competition)
+                }
+            }
+            .onChange(of: router.pendingMatchEventID) { _, _ in consumePendingMatch() }
+            .onChange(of: matchStore.lastLoadedAt) { _, _ in consumePendingMatch() }
+            .onAppear { consumePendingMatch() }
             // "My teams" needs the club directory, which resolves a beat after the
             // season; re-anchor when those clubs land so it isn't stuck at the opener.
             .onChange(of: viewModel.clubs.isEmpty) { _, isEmpty in
@@ -210,6 +228,15 @@ struct ScheduleView: View {
                 anchorToBoundary(proxy, animated: false)
             }
         }
+    }
+
+    /// Consume a pending push-tap deep link once the season can resolve it.
+    private func consumePendingMatch() {
+        guard let id = router.pendingMatchEventID,
+              let match = matchStore.scheduledMatch(for: id) else { return }
+        router.pendingMatchEventID = nil
+        pushedMatch = match
+        isShowingPushedMatch = true
     }
 
     /// Scroll so the rest "boundary" card (the last kicked-off game) is at the top —

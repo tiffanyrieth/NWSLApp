@@ -37,6 +37,48 @@ final class MatchStore {
     /// by the live poll, which re-syncs the clock to reality. nil until the first success.
     private(set) var lastLoadedAt: Date?
 
+    // MARK: Monotonic live-clock tick anchors
+
+    /// Per-live-match anchor for the local football-clock tick. ESPN FREEZES `status.clock` at
+    /// 45:00/90:00 through stoppage time, and re-anchoring to `lastLoadedAt` on every ~30s poll
+    /// wiped the local accumulation before it could ever cross a minute boundary — pinning the
+    /// display at 45'+1'/90'+1' for ALL of stoppage (observed live 2026-07-04). Rule: while a
+    /// match's (clock, period) hasn't advanced, KEEP the anchor from when that clock value was
+    /// FIRST seen, so `clock + (now − anchor)` keeps counting +2'…+11'. Re-anchor when the clock
+    /// advances or the period changes (the halftime pause breaks continuity legitimately).
+    struct TickAnchor: Equatable {
+        let clock: Double
+        let period: Int
+        let date: Date
+    }
+
+    private var tickAnchors: [String: TickAnchor] = [:]
+
+    /// The anchor to feed `LiveMinuteText` for this event (falls back to `lastLoadedAt`, which
+    /// is only ever hit for a match not in the current loaded set — e.g. mid-first-load).
+    func tickAnchor(for eventID: String) -> Date? {
+        tickAnchors[eventID]?.date ?? lastLoadedAt
+    }
+
+    /// Pure reconcile — nonisolated static so `MatchClockTests` exercises the frozen-clock rule directly.
+    nonisolated static func reconciledTickAnchors(
+        previous: [String: TickAnchor],
+        events: [Event],
+        at instant: Date
+    ) -> [String: TickAnchor] {
+        var next: [String: TickAnchor] = [:]
+        for event in events where event.statusState == "in" {
+            guard let clock = event.status?.clock else { continue }
+            let period = event.status?.period ?? 0
+            if let old = previous[event.id], old.period == period, clock <= old.clock {
+                next[event.id] = old // frozen/stalled server clock → keep accumulating locally
+            } else {
+                next[event.id] = TickAnchor(clock: clock, period: period, date: instant)
+            }
+        }
+        return next // non-live matches drop out
+    }
+
     /// Per-competition load failures (keyed by house-style label), so the Schedule's
     /// "My teams" can show an honest per-source retry while NWSL keeps working. NWSL
     /// itself never lands here — a NWSL failure is a hard `state = .error`.
@@ -126,8 +168,11 @@ final class MatchStore {
             }
 
             partialErrors = errors
-            lastLoadedAt = now()
-            state = .loaded(dedupedByEventID(matches))
+            let instant = now()
+            lastLoadedAt = instant
+            let deduped = dedupedByEventID(matches)
+            tickAnchors = Self.reconciledTickAnchors(previous: tickAnchors, events: deduped.map(\.event), at: instant)
+            state = .loaded(deduped)
         } catch {
             Diagnostics.shared.record(.apiFailure, "schedule \(silent ? "refresh" : "load"): \(error.localizedDescription)")
             // A silent live-refresh blip must NOT blank the whole tab: keep the last
@@ -230,6 +275,12 @@ final class MatchStore {
     /// The loaded season as raw events — the shape existing readers (Schedule, Home,
     /// Predict) already use. Derived from `matches`, ALL competitions.
     var events: [Event] { matches.map(\.event) }
+
+    /// The loaded ScheduledMatch for an event id — push-tap deep-link resolution.
+    func scheduledMatch(for eventID: String) -> ScheduledMatch? {
+        if case .loaded(let matches) = state { return matches.first { $0.event.id == eventID } }
+        return nil
+    }
 
     /// NWSL-only events. Use this (not `events`) for anything that joins by NWSL club
     /// abbreviation — Standings' Last-5, season-form comparisons, `matches(for:)` —

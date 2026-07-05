@@ -109,12 +109,19 @@ struct ESPNService {
     // formation), team match stats, and the key-events timeline (see
     // MatchSummary.swift). Built on `summaryBase` (ESPN direct for now) with the
     // event id as a query item, mirroring fetchScoreboard's URLComponents shape.
-    func fetchSummary(eventID: String) async throws -> MatchSummary {
+    func fetchSummary(eventID: String, nearKickoff: Bool = false) async throws -> MatchSummary {
         let endpoint = summaryBase.appendingPathComponent("summary")
         guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
             throw ESPNServiceError.badURL
         }
         components.queryItems = [URLQueryItem(name: "event", value: eventID)]
+        // `w=near` is a CACHE-KEY-ONLY bucket (the proxy strips it before ESPN): inside the 2h
+        // pre-kickoff lineup window it forks the proxy's edge-cache key, so a pre-lineup shell
+        // cached HOURS earlier (with a TTL running to ~kickoff) can't mask a freshly posted XI —
+        // the first near-window fetch is a guaranteed MISS under the proxy's short near TTL.
+        if nearKickoff {
+            components.queryItems?.append(URLQueryItem(name: "w", value: "near"))
+        }
         guard let url = components.url else {
             throw ESPNServiceError.badURL
         }

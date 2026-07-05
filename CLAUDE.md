@@ -222,6 +222,10 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
 - **`docs/FILEMAP.md`** — every file + one-liner. Read to locate code. **Update it after every feature.**
 - **`docs/backend.md`** — ESPN quirks, the proxy (routes / headshots / crests / bracket engine),
   Supabase schema + migrations.
+- **`docs/live-activity-v2.md`** — ⚠️ THE V2 MANUAL. Read BEFORE touching/testing/troubleshooting
+  anything Live Activity: the render law (alert REQUIRED, `sound:""` = quiet), two-token system +
+  20-min lead, testing runbook (replay.mjs / test-activity / telemetry), AI-misconception traps
+  (V2 is NOT text-only; app does NOT need to be open; "1/1 ok" ≠ rendered; 8pm listing ≠ 8pm kickoff).
 - **`docs/navigation.md`** — each tab's lens + adjacency rules (read when adding/redesigning a screen).
 - **`docs/versioning.md`** — the (non-semver) version model + distribution.
 - **`docs/roadmap.md`** — What's Next (pending work).

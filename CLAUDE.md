@@ -66,7 +66,9 @@ injected via `.environment`, one-fetch-many-readers) · `Views/` (one screen per
 
 ESPN's unofficial NWSL endpoints (base in `Config/AppConfig.swift`) — **decode defensively**: scores
 are `String` not `Int`, scoreboard needs `&limit=500` for a full season, standings sit on a different
-base, endpoints break/rate-limit without notice. Most traffic routes through the **`nwslapp-proxy`
+base, endpoints break/rate-limit without notice, and **`status.clock` FREEZES at 45:00/90:00 through
+stoppage time** — any live clock must anchor MONOTONICALLY (re-anchor only when the clock advances or
+the period changes; naive `now − clock` re-anchoring pins the display at +1'/snaps the widget to 45:00). Most traffic routes through the **`nwslapp-proxy`
 Cloudflare Worker** (sibling repo `~/Projects/nwslapp-proxy`); DEBUG `-useESPNDirect` bypasses it.
 **Roster** routes through the proxy's `/roster` too (last-known-good KV: ESPN intermittently serves an
 implausibly small squad — e.g. 1 player — so the proxy caches a plausible roster and serves it with a
@@ -80,12 +82,20 @@ envelope versioned for a later forecast mode. Shows as a quiet stamp under the M
 **Tier-2 server push** (live match alerts) is a SECOND sibling Worker, **`nwslapp-match-watcher`**
 (`~/Projects/nwslapp-match-watcher`): a `* * * * *` cron that diffs the proxy scoreboard (reached via a
 **service binding** — same-account Worker→Worker over `*.workers.dev` 404s with CF **error 1042**, so a
-public fetch silently fails; the rich-card crest fetch uses the same binding) for
+public fetch silently fails) for
 kickoff/goal/halftime/full-time + **lineup-posted** (polls `/summary` in a 75-min pre-kickoff window) +
 **VAR goal-correction** (a debounced score *decrease* — re-poll a
 cache-busted scoreboard before firing, so an ESPN glitch never sends a false "Goal Disallowed"), looks
 up `device_tokens` of users with that alert on, and sends APNs
-(ES256 `.p8` JWT). Deployed; `POST /test-push` (`x-trigger-secret`) sends a synthetic push for
+(ES256 `.p8` JWT). **V1 push shape (2026-07-05 redesign): title = subject-first (`GOAL — Seattle Reign
+FC`), subtitle = scoreboard + detail (`NC 0–1 SEA · S. Menti 19'`), NO body; attachment = a square
+crest TILE from the THIRD sibling Worker `nwslapp-card`** (`/thumb/{ABBR}`, team-color wash, crest
+overscanned past the source PNGs' 41px baked-in border; same repo as the watcher, own
+`wrangler.card.jsonc`). The card/thumb renderer lives in that separate fetch-only worker because
+satori+resvg (~3.4MB) in the CRON's module graph blew the cold-start CPU budget (Exceeded CPU kills on
+idle ticks; lazy `import()` is impossible — Workers forbids runtime WASM instantiation). The watcher
+302s `/card/*` → nwslapp-card permanently (APNs can deliver stored pushes hours late). Deployed;
+`POST /test-push` (`x-trigger-secret`) sends a synthetic push for
 on-device E2E (`APNS_HOST` is production). A **V2 Live Activity** layer (lock-screen + Dynamic Island live
 score) rides the SAME watcher + `.p8`, ADDITIVE to V1 — but the roles split: **V1 is the interrupt (buzzes
 kickoff/goal/HT/FT per the user's toggles); V2 is a QUIET glance.** ⚠️ Gotcha (device-proven 2026-07-04,
@@ -120,7 +130,8 @@ feature makes the best first impression; a bell-on-nothing-fires state is the ba
 that looks like success." First-time only (a sentinel respects later manual edits; reset on sign-out).
 Because the bundle is mostly Tier-2, a signed-out bell tap presents Sign in with Apple FIRST
 (intercept: success → enable+cascade+toast, cancel → bell stays off). **Tier 1** = deliverable without
-an account (local: day-before, Player Spotlight); **Tier 2** = watcher-triggered ⇒ needs an account ⇒
+an account (local: day-before, Player Spotlight — ⚠️ iOS caps PENDING local notifications at 64/app:
+day-before is WINDOWED to the next 2 fixtures per alerting team, never the whole season); **Tier 2** = watcher-triggered ⇒ needs an account ⇒
 sign-in-gated (`tier2Binding` / the bell intercept) + reset on sign-out (`resetServerPushTypes`:
 kickoff/goals/HT/FT + lineup-posted + V2 Live Activity). **Lineup-posted (Stage D, done):** the watcher polls
 `/summary` (cache-busted via the proxy binding) in a 75-min pre-kickoff window and pushes "Lineups in" the tick

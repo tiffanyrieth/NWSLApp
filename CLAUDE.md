@@ -88,8 +88,12 @@ up `device_tokens` of users with that alert on, and sends APNs
 (ES256 `.p8` JWT). Deployed; `POST /test-push` (`x-trigger-secret`) sends a synthetic push for
 on-device E2E (`APNS_HOST` is production). A **V2 Live Activity** layer (lock-screen + Dynamic Island live
 score) rides the SAME watcher + `.p8`, ADDITIVE to V1 — but the roles split: **V1 is the interrupt (buzzes
-kickoff/goal/HT/FT per the user's toggles); V2 is a SILENT glance.** Gotcha: the push-to-start `alert` is
-OPTIONAL — OMIT it so the card renders with NO buzz/banner (adding one double-notifies against V1). Push-to-
+kickoff/goal/HT/FT per the user's toggles); V2 is a QUIET glance.** ⚠️ Gotcha (device-proven 2026-07-04,
+contradicts Apple's docs): the push-to-start **`alert` is REQUIRED to render** — omit it and APNs 200s but
+iOS NEVER presents the card (this shipped invisible Activities on every real game). The buzz-free shape is
+`alert` **+ `sound: ""`** (card + quiet banner, no sound/vibration; omitting the sound key still BUZZES).
+Updates/end stay alert-less. Also: iOS shows a one-time per-app "Allow Live Activities?" prompt with the
+app's FIRST presented Activity (a reinstall resets it). Push-to-
 start fires **≤20 min pre-kickoff** (a device can take minutes to register its per-Activity token) + a
 catch-up push for late tokens. `POST /test-activity` + `scripts/replay.mjs` drive it; app `LiveActivityManager`
 mirrors push-to-start/per-Activity tokens under a UIKit background-task assertion (background-launch upload);

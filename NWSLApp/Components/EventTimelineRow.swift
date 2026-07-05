@@ -27,7 +27,11 @@ struct EventTimelineRow: View {
     /// Running scoreline on a goal row, e.g. "1–0".
     var score: String? = nil
 
-    private var isGoal: Bool { (event.type?.type ?? "").contains("goal") }
+    /// Goal = ESPN's authoritative `scoringPlay` flag first (covers `penalty---scored`, own goals,
+    /// every variant), then the type-name fallback. NEVER substring-match loosely here: the type
+    /// "penalty---scoRED" contains "red" — which rendered scored penalties as red cards until
+    /// 2026-07-05 (owner caught it live, BOS vs BAY 5' penalty shown as a red card).
+    private var isGoal: Bool { event.scoringPlay == true || (event.type?.type ?? "").contains("goal") }
 
     var body: some View {
         HStack(spacing: 11) {
@@ -88,16 +92,18 @@ struct EventTimelineRow: View {
     @ViewBuilder
     private var iconView: some View {
         let type = event.type?.type ?? ""
-        if type.contains("substitution") {
-            SubstitutionArrows()
-        } else if type.contains("yellow") {
-            cardRect(.dsWarning)
-        } else if type.contains("red") {
-            cardRect(.dsLive)
-        } else if type.contains("goal") {
+        // Goal FIRST (scoringPlay-driven — see isGoal), and EXACT card matches: the loose
+        // `contains("red")` matched "penalty---scoRED" and drew scored penalties as red cards.
+        if isGoal {
             Image(systemName: "soccerball.inverse")
                 .dsFont(15)
                 .foregroundStyle(Color.dsFgPrimary)
+        } else if type.contains("substitution") {
+            SubstitutionArrows()
+        } else if type.contains("yellow-card") {
+            cardRect(.dsWarning)
+        } else if type.contains("red-card") {
+            cardRect(.dsLive)
         } else {
             Image(systemName: "circle.fill")
                 .dsFont(7)
@@ -132,7 +138,7 @@ struct EventTimelineRow: View {
         guard names.count > 1 else {
             return type.contains("card") ? event.type?.text : nil
         }
-        if type == "goal" {
+        if isGoal {
             return "Assist: \(names[1])"
         }
         if type.contains("substitution") {

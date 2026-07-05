@@ -94,13 +94,22 @@ final class MatchDetailViewModel {
         return nil
     }
 
+    /// Inside 2h of a FUTURE kickoff → request the proxy's `w=near` cache bucket, so a
+    /// stale pre-lineup shell cached hours ago can't hide a freshly posted starting XI
+    /// (see ESPNService.fetchSummary). Live/past matches use the normal key.
+    private var nearKickoff: Bool {
+        guard let kickoff = event.kickoff else { return false }
+        let untilKickoff = kickoff.timeIntervalSinceNow
+        return untilKickoff > 0 && untilKickoff <= 7200
+    }
+
     /// Fetches the match summary. Always refetches (so the live 30s poll works);
     /// callers guard on `.idle` for the first load. A failure leaves the screen
     /// on its header-only fallback.
     func loadSummary() async {
         summaryState = .loading
         do {
-            let summary = try await service.fetchSummary(eventID: event.id)
+            let summary = try await service.fetchSummary(eventID: event.id, nearKickoff: nearKickoff)
             recordSummaryGaps(summary)
             summaryState = .loaded(summary)
         } catch {
@@ -139,7 +148,7 @@ final class MatchDetailViewModel {
     /// leaves the current content (no `.loading` flash) and ignores transient
     /// poll failures — the screen keeps showing the last good summary.
     func refresh() async {
-        if let fresh = try? await service.fetchSummary(eventID: event.id) {
+        if let fresh = try? await service.fetchSummary(eventID: event.id, nearKickoff: nearKickoff) {
             recordSummaryGaps(fresh)
             summaryState = .loaded(fresh)
         }

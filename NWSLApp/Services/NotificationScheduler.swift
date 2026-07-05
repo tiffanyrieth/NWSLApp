@@ -150,7 +150,7 @@ final class NotificationScheduler {
         let alertingAbbreviations = alertingClubAbbreviations.union(alertingNationalCodes)
         guard !alertingAbbreviations.isEmpty else { return [] }
 
-        return matches.events.compactMap { event in
+        let candidates: [(followed: String, kickoff: Date, request: UNNotificationRequest)] = matches.events.compactMap { event in
             // Upcoming only, and only if the day-before moment is still in the
             // future (skips in-progress/past and games already inside 24h).
             guard event.statusState == "pre", let kickoff = event.kickoff else { return nil }
@@ -174,12 +174,31 @@ final class NotificationScheduler {
             content.sound = .default
 
             let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
-            return UNNotificationRequest(
-                identifier: "nwsl.\(event.id).dayBefore",
-                content: content,
-                trigger: trigger
-            )
+            return (followed: followed,
+                    kickoff: kickoff,
+                    request: UNNotificationRequest(
+                        identifier: "nwsl.\(event.id).dayBefore",
+                        content: content,
+                        trigger: trigger
+                    ))
         }
+
+        // iOS caps PENDING local notifications at 64 PER APP. The old unbounded full-season set
+        // (~100+ requests for 4 followed teams across all competitions) made every `add` past
+        // #64 throw "Repository could not save notification" (the 2026-07-04 telemetry flood)
+        // and silently dropped the season's tail. Window to the NEXT 2 fixtures per alerting
+        // team — the prune-all rebuild (reschedule() → removeAllPending…) re-runs on every
+        // schedule/prefs/follow change, so the window slides forward automatically as matches
+        // are played — plus a global safety cap far under the limit (spotlight uses 1 slot).
+        var perTeam: [String: Int] = [:]
+        var windowed: [UNNotificationRequest] = []
+        for candidate in candidates.sorted(by: { $0.kickoff < $1.kickoff }) {
+            if perTeam[candidate.followed, default: 0] >= 2 { continue }
+            perTeam[candidate.followed, default: 0] += 1
+            windowed.append(candidate.request)
+            if windowed.count >= 50 { break }
+        }
+        return windowed
     }
 
     /// Full club name for an abbreviation via the directory, falling back to the

@@ -867,7 +867,7 @@ struct MatchDetailView: View {
     private var liveClockLine: some View {
         let periodName = event.status?.type?.description
         let suffix = (periodName?.isEmpty == false) ? " — \(periodName!)" : ""
-        if let anchor = matchStore.lastLoadedAt, let clock = event.status?.clock {
+        if let anchor = matchStore.tickAnchor(for: event.id), let clock = event.status?.clock {
             LiveMinuteText(clockSeconds: clock, period: event.status?.period, anchor: anchor) { label in
                 Text(label + suffix)
                     .dsFont(13, weight: .medium)

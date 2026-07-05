@@ -70,7 +70,10 @@ base, endpoints break/rate-limit without notice, and **`status.clock` FREEZES at
 stoppage time** — any live clock must anchor MONOTONICALLY (re-anchor only when the clock advances or
 the period changes; naive `now − clock` re-anchoring pins the display at +1'/snaps the widget to 45:00).
 ESPN also keeps `state=="in"` THROUGH halftime (clock frozen, `description`/shortDetail says "Halftime"/"HT")
-and flips a match "live" ~5–10 min LATE with the clock reset — so surfaces show a STATIC "HT" (never a
+**and advances `period` to 2 at the START of the break** (so a period change alone ≠ the second-half
+restart — the watcher's widget-clock anchor reconciles only while `clockRunning`, else the ~15-min break
+leaked into the clock and the second half read 1:01+), and flips a match "live" ~5–10 min LATE with the
+clock reset — so surfaces show a STATIC "HT" (never a
 ticking clock) when `Event.isHalftime`, and a first sighting already at the 45:00/90:00 cap is UNKNOWABLE
 (don't fabricate +1' — defer to ESPN's string; anchors persist to UserDefaults so a relaunch doesn't reset
 the stoppage count). The **watcher** fetches only a yesterday→tomorrow scoreboard window (not the full

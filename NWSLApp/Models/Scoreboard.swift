@@ -154,6 +154,14 @@ extension Event {
     // "pre" | "in" | "post" | nil
     var statusState: String? { status?.type?.state }
 
+    /// ESPN keeps `state == "in"` THROUGH halftime (clock frozen at 2700, description "Halftime").
+    /// Every live-clock surface must check this and show a static HT label instead of ticking —
+    /// the clock ticking through the break was a live-game bug (2026-07-05, BOS vs BAY).
+    var isHalftime: Bool {
+        (status?.type?.description ?? "").localizedCaseInsensitiveContains("halftime")
+            || status?.type?.shortDetail == "HT"
+    }
+
     // Venue name for the match card's info line (pin icon), e.g. "Audi Field".
     var venueName: String? {
         competitions?.first?.venue?.fullName

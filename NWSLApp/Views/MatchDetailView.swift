@@ -867,7 +867,14 @@ struct MatchDetailView: View {
     private var liveClockLine: some View {
         let periodName = event.status?.type?.description
         let suffix = (periodName?.isEmpty == false) ? " — \(periodName!)" : ""
-        if let anchor = matchStore.tickAnchor(for: event.id), let clock = event.status?.clock {
+        // Halftime: ESPN keeps state "in" with the clock frozen — a ticking 45'+n' through the
+        // break is wrong (the V2 widget shows a static HT; the app must match).
+        if event.isHalftime {
+            Text("Halftime")
+                .dsFont(13, weight: .medium)
+                .foregroundStyle(Color.dsStateClock)
+                .multilineTextAlignment(.center)
+        } else if let anchor = matchStore.tickAnchor(for: event.id), let clock = event.status?.clock {
             LiveMinuteText(clockSeconds: clock, period: event.status?.period, anchor: anchor) { label in
                 Text(label + suffix)
                     .dsFont(13, weight: .medium)

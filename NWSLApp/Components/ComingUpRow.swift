@@ -93,7 +93,7 @@ struct ComingUpRow: View {
     /// we have the raw clock + anchor; otherwise the static `detailLine` string.
     @ViewBuilder
     private var detailLineView: some View {
-        if event.statusState == "in", let anchor, let clock = event.status?.clock {
+        if event.statusState == "in", !event.isHalftime, let anchor, let clock = event.status?.clock {
             let suffix = scoreText.map { " · \($0)" } ?? ""
             LiveMinuteText(clockSeconds: clock, period: event.status?.period, anchor: anchor) { label in
                 Text(label + suffix)
@@ -107,7 +107,7 @@ struct ComingUpRow: View {
     private var detailLine: String {
         switch event.statusState {
         case "in":
-            let clock = event.status?.displayClock ?? "LIVE"
+            let clock = event.isHalftime ? "HT" : (event.status?.displayClock ?? "LIVE")
             return [clock, scoreText].compactMap { $0 }.joined(separator: " · ")
         case "post":
             let detail = event.status?.type?.shortDetail ?? "FT"

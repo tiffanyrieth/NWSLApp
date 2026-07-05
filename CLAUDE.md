@@ -68,7 +68,13 @@ ESPN's unofficial NWSL endpoints (base in `Config/AppConfig.swift`) — **decode
 are `String` not `Int`, scoreboard needs `&limit=500` for a full season, standings sit on a different
 base, endpoints break/rate-limit without notice, and **`status.clock` FREEZES at 45:00/90:00 through
 stoppage time** — any live clock must anchor MONOTONICALLY (re-anchor only when the clock advances or
-the period changes; naive `now − clock` re-anchoring pins the display at +1'/snaps the widget to 45:00). Most traffic routes through the **`nwslapp-proxy`
+the period changes; naive `now − clock` re-anchoring pins the display at +1'/snaps the widget to 45:00).
+ESPN also keeps `state=="in"` THROUGH halftime (clock frozen, `description`/shortDetail says "Halftime"/"HT")
+and flips a match "live" ~5–10 min LATE with the clock reset — so surfaces show a STATIC "HT" (never a
+ticking clock) when `Event.isHalftime`, and a first sighting already at the 45:00/90:00 cap is UNKNOWABLE
+(don't fabricate +1' — defer to ESPN's string; anchors persist to UserDefaults so a relaunch doesn't reset
+the stoppage count). The **watcher** fetches only a yesterday→tomorrow scoreboard window (not the full
+season) so a per-minute cron tick isn't parsing ~240 events (CPU). Most traffic routes through the **`nwslapp-proxy`
 Cloudflare Worker** (sibling repo `~/Projects/nwslapp-proxy`); DEBUG `-useESPNDirect` bypasses it.
 **Roster** routes through the proxy's `/roster` too (last-known-good KV: ESPN intermittently serves an
 implausibly small squad — e.g. 1 player — so the proxy caches a plausible roster and serves it with a

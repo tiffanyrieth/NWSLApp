@@ -104,6 +104,23 @@ struct TickAnchorTests {
         #expect(second["e1"]?.period == 2)
     }
 
+    @Test func firstSightingAtTheCapIsFlaggedUnknowable() {
+        // Cold start mid-stoppage: clock already frozen at 45:00 with no history — the true
+        // stoppage minute is unknowable, so the anchor is flagged (views fall back to ESPN's
+        // string instead of fabricating 45'+1'). It clears once the clock advances (2nd half).
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        let fresh = MatchStore.reconciledTickAnchors(previous: [:], events: [liveEvent(clock: 2700, period: 1)], at: t0)
+        #expect(fresh["e1"]?.freshAtCap == true)
+
+        // A mid-half first sighting is NOT flagged (normal join-in-progress, tick away).
+        let midHalf = MatchStore.reconciledTickAnchors(previous: [:], events: [liveEvent(clock: 1500, period: 1)], at: t0)
+        #expect(midHalf["e1"]?.freshAtCap == false)
+
+        // Clock advances (second half underway) → re-anchored, flag cleared.
+        let resumed = MatchStore.reconciledTickAnchors(previous: fresh, events: [liveEvent(clock: 2760, period: 2)], at: t0.addingTimeInterval(900))
+        #expect(resumed["e1"]?.freshAtCap == false)
+    }
+
     @Test func nonLiveMatchesDropOut() {
         let t0 = Date(timeIntervalSince1970: 1_000_000)
         let first = MatchStore.reconciledTickAnchors(previous: [:], events: [liveEvent(clock: 2700, period: 1)], at: t0)

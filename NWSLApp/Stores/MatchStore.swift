@@ -46,18 +46,45 @@ final class MatchStore {
     /// match's (clock, period) hasn't advanced, KEEP the anchor from when that clock value was
     /// FIRST seen, so `clock + (now − anchor)` keeps counting +2'…+11'. Re-anchor when the clock
     /// advances or the period changes (the halftime pause breaks continuity legitimately).
-    struct TickAnchor: Equatable {
+    struct TickAnchor: Equatable, Codable {
         let clock: Double
         let period: Int
         let date: Date
+        /// True when this match was FIRST seen with its clock already frozen at the regulation
+        /// cap (45:00/90:00) — i.e. we joined mid-stoppage with no history. The true stoppage
+        /// minute is unknowable (ESPN doesn't transmit it), so ticking from "now" would fabricate
+        /// 45'+1' at the 7th minute of added time (owner hit this force-closing mid-stoppage,
+        /// 2026-07-05). `tickAnchor(for:)` returns nil for these → views fall back to ESPN's own
+        /// display string (honest) until the clock advances again and a real anchor forms.
+        var freshAtCap: Bool = false
     }
 
-    private var tickAnchors: [String: TickAnchor] = [:]
+    private var tickAnchors: [String: TickAnchor] = [:] {
+        didSet { Self.persistTickAnchors(tickAnchors) }
+    }
 
-    /// The anchor to feed `LiveMinuteText` for this event (falls back to `lastLoadedAt`, which
-    /// is only ever hit for a match not in the current loaded set — e.g. mid-first-load).
+    /// Anchors survive relaunch (UserDefaults): force-closing mid-stoppage used to reset the
+    /// count to 45'+1' because the in-memory history vanished.
+    private static let tickAnchorsKey = "matchStore.tickAnchors.v1"
+    nonisolated private static func persistTickAnchors(_ anchors: [String: TickAnchor]) {
+        if let data = try? JSONEncoder().encode(anchors) {
+            UserDefaults.standard.set(data, forKey: tickAnchorsKey)
+        }
+    }
+    nonisolated private static func loadTickAnchors() -> [String: TickAnchor] {
+        guard let data = UserDefaults.standard.data(forKey: tickAnchorsKey),
+              let anchors = try? JSONDecoder().decode([String: TickAnchor].self, from: data) else { return [:] }
+        return anchors
+    }
+
+    /// The anchor to feed `LiveMinuteText` for this event. nil for a fresh-at-cap match (see
+    /// TickAnchor.freshAtCap — views then show ESPN's display string instead of a fabricated
+    /// count) and falls back to `lastLoadedAt` only for a match not in the loaded set.
     func tickAnchor(for eventID: String) -> Date? {
-        tickAnchors[eventID]?.date ?? lastLoadedAt
+        if let anchor = tickAnchors[eventID] {
+            return anchor.freshAtCap ? nil : anchor.date
+        }
+        return lastLoadedAt
     }
 
     /// Pure reconcile — nonisolated static so `MatchClockTests` exercises the frozen-clock rule directly.
@@ -73,7 +100,12 @@ final class MatchStore {
             if let old = previous[event.id], old.period == period, clock <= old.clock {
                 next[event.id] = old // frozen/stalled server clock → keep accumulating locally
             } else {
-                next[event.id] = TickAnchor(clock: clock, period: period, date: instant)
+                // First sighting AT the frozen regulation cap (e.g. cold start mid-stoppage):
+                // the true stoppage minute is unknowable — flag it so views fall back to ESPN's
+                // string instead of fabricating 45'+1'. Clears itself once the clock advances.
+                let cap = MatchClock.regulationCap(period: period).map { Double($0) * 60 }
+                let freshAtCap = previous[event.id] == nil && cap != nil && clock >= cap!
+                next[event.id] = TickAnchor(clock: clock, period: period, date: instant, freshAtCap: freshAtCap)
             }
         }
         return next // non-live matches drop out
@@ -101,6 +133,7 @@ final class MatchStore {
         self.service = service
         self.calendar = calendar
         self.now = now
+        self.tickAnchors = Self.loadTickAnchors() // stoppage-count history survives relaunch
     }
 
     // Always refetches (so pull-to-refresh works). "Load once" is the caller's

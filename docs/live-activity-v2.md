@@ -145,8 +145,13 @@ Channel headers (all V2): `apns-topic: <bundle>.push-type.liveactivity`,
 - **END**: `event: "end"`, final content-state, `dismissal-date` = FT + ~15 min (card lingers, then goes).
 - **content-state keys MUST byte-match the Swift struct** (`Shared/MatchActivityAttributes.swift`
   `ContentState`): `homeScore` `awayScore` `phase` (`pre|live|halftime|extraTime|penalties|fulltime`)
-  `clockStartEpoch?` `staticLabel?` (+ `lastScorer?`, `broadcast?`). A mismatched/extra-typed key =
-  silent decode drop on-device. `compact()` strips nulls so optionals are OMITTED, never null.
+  `clockStartEpoch?` `staticLabel?` (+ `lastScorer?`, `broadcast?`, and the per-side detail added
+  2026-07-06: `homeScorers?`/`awayScorers?` [string[], chronological "C. Hutton 5'" lines, watcher-
+  capped 4/side with a "+N more" 4th] + `homeRedCards?`/`awayRedCards?` [ints, REDS only, omitted at
+  0]). A mismatched/extra-typed key = silent decode drop on-device. `compact()` strips nulls so
+  optionals are OMITTED, never null. New keys are additive-optional BOTH ways: old app builds ignore
+  unknown keys (synthesized Codable), and the Swift fields are Optional so old payloads decode —
+  `lastScorer` stays as the old builds' fallback line.
 
 Who gets a START: users with match alerts ON for a participating team (`team_alert_preferences`) AND
 `notification_preferences.live_activities_enabled = true` AND a registered start token. KV-deduped

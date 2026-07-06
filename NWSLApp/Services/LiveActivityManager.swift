@@ -241,11 +241,15 @@ final class LiveActivityManager {
             matchId: "debug-ORL-POR", homeAbbr: "ORL", awayAbbr: "POR",
             homeColorHex: "B07CE8", awayColorHex: "FF4D6D", competition: "NWSL")
         func state(_ phase: MatchActivityAttributes.Phase, _ h: Int, _ a: Int,
-                   minute: Int? = nil, label: String? = nil, scorer: String? = nil)
+                   minute: Int? = nil, label: String? = nil, scorer: String? = nil,
+                   homeScorers: [String]? = nil, awayScorers: [String]? = nil,
+                   homeReds: Int? = nil, awayReds: Int? = nil)
             -> MatchActivityAttributes.ContentState {
             .init(homeScore: h, awayScore: a, phase: phase,
                   clockStartEpoch: minute.map { Date().timeIntervalSince1970 - Double($0) * 60 },
-                  staticLabel: label, lastScorer: scorer, broadcast: "Paramount+")
+                  staticLabel: label, lastScorer: scorer, broadcast: "Paramount+",
+                  homeScorers: homeScorers, awayScorers: awayScorers,
+                  homeRedCards: homeReds, awayRedCards: awayReds)
         }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
             Self.log.error("Live Activities disabled in Settings; cannot start sample.")
@@ -260,13 +264,25 @@ final class LiveActivityManager {
             Self.log.error("sample LA start failed: \(error.localizedDescription)")
             return
         }
+        // Steps exercise the per-side layout: scorer columns fill in under each team, a red
+        // card appears on the away side at 61', and the legacy lastScorer keeps riding along
+        // (production sends both; the widget prefers the columns and drops the footer line).
         let steps: [(MatchActivityAttributes.ContentState, UInt64)] = [
             (state(.live, 0, 0, minute: 1), 5),
-            (state(.live, 1, 0, minute: 23, scorer: "B. Banda 23'"), 5),
-            (state(.halftime, 1, 0, label: "HT"), 5),
-            (state(.live, 1, 0, minute: 46), 5),
-            (state(.live, 2, 1, minute: 78, scorer: "Marta 78'"), 5),
-            (state(.fulltime, 2, 1, label: "FT"), 5),
+            (state(.live, 1, 0, minute: 23, scorer: "B. Banda 23'",
+                   homeScorers: ["B. Banda 23'"]), 5),
+            (state(.halftime, 1, 0, label: "HT",
+                   homeScorers: ["B. Banda 23'"]), 5),
+            (state(.live, 1, 0, minute: 46,
+                   homeScorers: ["B. Banda 23'"]), 5),
+            (state(.live, 1, 0, minute: 61,
+                   homeScorers: ["B. Banda 23'"], awayReds: 1), 5),
+            (state(.live, 2, 1, minute: 78, scorer: "Marta 78'",
+                   homeScorers: ["B. Banda 23'", "Marta 78'"],
+                   awayScorers: ["S. Wilson 70'"], awayReds: 1), 5),
+            (state(.fulltime, 2, 1, label: "FT",
+                   homeScorers: ["B. Banda 23'", "Marta 78'"],
+                   awayScorers: ["S. Wilson 70'"], awayReds: 1), 5),
         ]
         for (s, delay) in steps {
             try? await Task.sleep(nanoseconds: delay * 1_000_000_000)

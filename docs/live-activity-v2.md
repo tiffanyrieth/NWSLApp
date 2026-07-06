@@ -159,9 +159,17 @@ per match (`la-start:{matchId}`); fires on the first cron tick inside kickoff−
 
 ## 7. Testing runbook (the exact recipes)
 
-**The simulator CANNOT receive push / push-to-start. All V2 testing is real-device.** (Local
-`-driveLiveActivity` drives the widget UI in-sim, but the Dynamic Island doesn't composite into
-`simctl io screenshot` — pixel checks are device-only.)
+**⚠️ THE SIMULATOR PRESENTS LIVE ACTIVITIES *NOT AT ALL* — device-only, full stop.** This is
+stronger than "can't receive push," and it's an AI-trap that has cost time (re-confirmed 2026-07-06
+on Xcode 27 / Device Hub): a LOCAL `Activity.request` — the DEBUG `-driveLiveActivity` driver, no
+push involved — DOES start (you'll see `liveActivityTrace activityUpdate match=… state=active` in the
+trace), but iOS renders **nothing** in the sim: no lock-screen banner, no Dynamic Island, nothing to
+`simctl io screenshot`. So do NOT try to eyeball the widget layout (scorers, red-card rects, pre-match
+island, clock) in the simulator — there is no surface to capture. An earlier note that the driver
+"drives the widget UI in-sim" was WRONG. What the DEBUG driver IS good for: exercising the
+state-transition CODE and confirming the app compiles + starts/updates/ends an Activity without
+crashing (watch the trace). The VISUAL is verified only on a TestFlight/real-device build — same as
+push, delivery, and the render law. All V2 testing that involves seeing pixels is real-device.
 
 Tools (watcher repo):
 - `POST /test-activity` (header `x-trigger-secret`): body `{mode: start|update|end, matchId, h, a, hs,

@@ -27,8 +27,9 @@ NWSLApp/
 │   ├── KnowHerGame.swift              — Know Her Game content: `KnowHerPool`/`KnowHerPlayer`/`KnowHerQuestion` (Codable, mirrors proxy `src/knowher.ts`); category labels; `editionKey(weekKey:)`
 │   ├── PlayerStats.swift              — per-player season stats + team-leaders (real ESPN data)
 │   ├── Roster.swift                   — squad + team profile from one roster fetch; `ClubSquad.cachedAsOf` from the proxy's `proxyCachedAsOf` marker (last-known-good fallback)
-│   ├── Scoreboard.swift               — ESPN scoreboard structs + Event helpers
+│   ├── Scoreboard.swift               — ESPN scoreboard structs + Event helpers; `Event.season` (year/type/`slug`: regular-season / `playoffs---*`) drives postseason detection; `Competitor.winner` (authoritative on PK results); memberwise inits so the postseason simulator/previews build events in code
 │   ├── Standings.swift                — table rows (rank + Club + GP/W/D/L/PTS + GF/GA/GD from ESPN pointsfor/against/differential)
+│   ├── PlayoffModels.swift            — PURE postseason bracket: `PlayoffRound` (slug-derived, format-resilient) / `BracketSide` / `PlayoffMatchup` / `SeedTree` (standard single-elim pairings from seed count) / `PlayoffBracket.derive(events+seeds)` (QF from seeds, later rounds from feeder winners; overlay real ESPN scores) + `path`/`winContext`/`storyline` + format tripwire. Unit-tested (PlayoffDerivationTests)
 │   ├── TeamSocialLinks.swift          — per-team social links for TeamDetail (reference data, no live API); `iconAssetName` → bundled brand glyph in `Assets.xcassets/Social/`
 │   ├── TriviaQuestion.swift           — one Daily-Trivia question (4 options)
 │   └── XIPrediction.swift             — Predict the XI: PositionGroup · Formation · PredictionFixture · XIPrediction (draft→submitted) · ActualResult · PredictionScore
@@ -84,6 +85,8 @@ NWSLApp/
 │   ├── FollowingStore.swift           — followed clubs + national teams + Champions Cup toggle + onboarding gate; offline-first; `replace`/`replaceCompetitionFollowKeys` (mirror reconcile); `competitionFollowKeys` for sync; one-time legacy-competition migration; DEBUG `debugResetState`
 │   ├── NationalTeamDirectoryStore.swift — @Observable; loads `/national-teams` once (data-driven Browse-all directory); idle/loading/loaded/failed
 │   ├── MatchStore.swift               — shared season store; one fetch, many readers
+│   ├── PlayoffStore.swift             — @Observable, injected; DERIVES the postseason bracket from MatchStore events + standings seeds (no own poll). `isPostseasonActive` gate (real `playoffs---*` events w/ placed teams = seeding locked); offseason self-fetches the PRIOR year for the historical keepsake bracket; `event(forID:)` for matchup→MatchDetail; emits `.playoffFormatMismatch` on a tripwire. `PlayoffSegment` enum
+│   ├── PostseasonSimulator.swift      — DEBUG-only; drives the whole feature off the REAL 2025 postseason in-code (stages: qfUpcoming/midRun/complete) so every state renders in the sim now. Launch arg `-simulatePostseason2025 [-…Stage <qf|mid|done>]`
 │   ├── NotificationPreferencesStore.swift — Profile's notification toggles (PURE OPT-IN: all default OFF, no auto-enable); → NotificationScheduler / NotificationSyncCoordinator
 │   ├── PredictionStore.swift          — Predict-the-XI durable state: predictions+scores by fixtureID (`predict.v2.*`); `seasonPoints` + `points(forTeam:)` + `scoredTeams`
 │   ├── TriviaStore.swift              — Daily-Trivia streak/bestStreak/accuracy + one-play/day gate
@@ -129,7 +132,9 @@ NWSLApp/
 │   ├── CombinedPitchView.swift        — BOTH teams' XIs on ONE pitch; Lineups default
 │   ├── FormationPitchView.swift       — single-team XI on a pitch; per-team list fallback
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
-│   ├── StandingsView.swift            — color-block table (# · TEAM · PTS · GP · W · D · L · GD · LAST 5); signed GD; crest + color-coded abbr; cyan PLAYOFF LINE; team-color spine/tint/accent rank = FOLLOW indicator; Last-5 via RecentForm
+│   ├── StandingsView.swift            — color-block table (# · TEAM · PTS · GP · W · D · L · GD · LAST 5); signed GD; crest + color-coded abbr; cyan PLAYOFF LINE; team-color spine/tint/accent rank = FOLLOW indicator; Last-5 via RecentForm. POSTSEASON: a segmented Picker (Your Path / Bracket / Standings) appears above the table when `PlayoffStore.isPostseasonActive` (default = Your Path if a followed team is in the bracket, else Bracket); table = the 3rd segment, unchanged; matchup tap → MatchDetailView (isPresented push)
+│   ├── PlayoffBracketView.swift       — "Bracket" segment: VERTICAL round-grouped list (lifts BracketBattle overview layout — NEVER a horizontal tree), team rows (crest+abbr+seed, scores/LIVE/FT) + a date·time·TV·venue footer row, TBD placeholders, Win→ card, your-team accent border+★, tap→MatchDetail
+│   ├── PlayoffPathView.swift          — "Your Path" segment: per-followed-team hero + accent timeline (current round→🏆), the "Win → face X in the [round]" projection line, multi-team stacked sections + "if both win…" storyline, eliminated-team muted state
 │   ├── FeedView.swift                 — **Social** tab ("The world talking about your teams"): header + 4 left-aligned source-class chips (h-scroll HStack, same as Home's `HomeTeamChips`) + per-club-balanced ContentCardViews; opens to `defaultFeedFilter`; full-screen error+retry on fetch failure
 │   ├── FeedSourcesView.swift          — Feed content preferences: Default-view picker + content-type toggles + mute sources
 │   ├── _ColorAuditView.swift          — 🔧 DEBUG-only 16-club color audit (`-colorAudit`); remove once verified

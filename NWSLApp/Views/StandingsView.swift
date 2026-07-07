@@ -33,6 +33,17 @@ struct StandingsView: View {
     @Environment(FollowingStore.self) private var following
     // The shared season — source of the derived Last-5 form column.
     @Environment(MatchStore.self) private var matchStore
+    // Postseason bracket (derived) — drives the segmented control below during the playoffs.
+    @Environment(PlayoffStore.self) private var playoffs
+    @Environment(ClubStore.self) private var clubs
+
+    // Segmented-control state (postseason only). Session-scoped: always defaults to the
+    // computed default on a fresh open, per the README.
+    @State private var segment: PlayoffSegment = .yourPath
+    @State private var segmentInitialized = false
+    // Match-detail push (Event isn't Hashable → the ScheduleView isPresented workaround).
+    @State private var pushedEvent: Event?
+    @State private var isShowingMatch = false
 
     // NWSL's current playoff format: the top 8 of the table advance. ESPN exposes
     // no playoff-spots field, so this is the single source of truth for both the
@@ -72,6 +83,13 @@ struct StandingsView: View {
                 .navigationDestination(for: Club.self) { club in
                     TeamDetailView(club: club)
                 }
+                // A tapped playoff matchup → Match Detail (Event isn't Hashable, so the
+                // same isPresented push ScheduleView uses).
+                .navigationDestination(isPresented: $isShowingMatch) {
+                    if let pushedEvent {
+                        MatchDetailView(event: pushedEvent, competition: .nwsl)
+                    }
+                }
         }
         // Load once on first appearance. Standings also reads the shared season for
         // its Last-5 column, so ensure that's fetched too (guarded on .idle — a
@@ -80,26 +98,108 @@ struct StandingsView: View {
         .task {
             if case .idle = viewModel.state { await viewModel.load() }
             if case .idle = matchStore.state { await matchStore.load() }
+            if clubs.clubs.isEmpty { await clubs.load() }   // Your Path needs crests/colors + follow lookup
+            await refreshPlayoffs()
+            initSegmentIfReady()
         }
+        // Re-derive the bracket when the season or the standings change (live advancement).
+        .onChange(of: matchStore.lastLoadedAt) { _, _ in Task { await refreshPlayoffs() } }
+        .onChange(of: viewModel.rows.count) { _, _ in Task { await refreshPlayoffs() } }
+        // Set the default segment once we have everything needed to compute it correctly
+        // (postseason on + bracket derived + club directory loaded so the follow check works).
+        .onChange(of: playoffs.isPostseasonActive) { _, _ in initSegmentIfReady() }
+        .onChange(of: clubs.clubs.count) { _, _ in initSegmentIfReady() }
     }
+
+    /// Choose the default segment exactly once, when all inputs are ready.
+    private func initSegmentIfReady() {
+        guard !segmentInitialized, playoffs.isPostseasonActive,
+              playoffs.bracket != nil, !clubs.clubs.isEmpty else { return }
+        segment = defaultSegment()
+        segmentInitialized = true
+    }
+
+    // MARK: - Playoff sync
+
+    /// Feed the derived-bracket store the current season events + seeds (or, in DEBUG, the
+    /// postseason simulator). Cheap + guarded inside the store so repeats are no-ops.
+    private func refreshPlayoffs() async {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-simulatePostseason2025") {
+            playoffs.simulatePostseason2025(stage: PostseasonSimulator.Stage(arg: launchArg("-simulatePostseason2025Stage")))
+            return   // segment default is set by initSegmentIfReady()
+        }
+        #endif
+        let seeds = Dictionary(viewModel.rows.map { ($0.club.abbreviation, $0.rank) },
+                               uniquingKeysWith: { a, _ in a })
+        await playoffs.sync(matchEvents: matchStore.events, seeds: seeds)
+    }
+
+    /// Your Path if a followed team is in the bracket, else Bracket (README rule).
+    private func defaultSegment() -> PlayoffSegment {
+        guard let bracket = playoffs.bracket else { return .yourPath }
+        let followedInBracket = bracket.seeds.keys.contains { abbr in
+            clubs.club(forAbbreviation: abbr).map { following.isFollowing($0) } ?? false
+        }
+        return followedInBracket ? .yourPath : .bracket
+    }
+
+    private func openMatch(_ eventID: String) {
+        guard let event = playoffs.event(forID: eventID) else { return }
+        pushedEvent = event
+        isShowingMatch = true
+    }
+
+    #if DEBUG
+    private func launchArg(_ name: String) -> String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: name), i + 1 < args.count else { return nil }
+        let next = args[i + 1]
+        return next.hasPrefix("-") ? nil : next
+    }
+    #endif
 
     @ViewBuilder
     private var content: some View {
         ScrollView {
             VStack(spacing: 0) {
                 header
-                switch viewModel.state {
-                case .idle, .loading:
-                    ProgressView("Loading standings…")
-                        .padding(.top, 100)
-                        .frame(maxWidth: .infinity)
-                case .error(let message):
-                    errorView(message)
-                case .loaded:
-                    tableBody
+                if playoffs.isPostseasonActive, let bracket = playoffs.bracket {
+                    segmentPicker
+                    switch segment {
+                    case .yourPath:  PlayoffPathView(bracket: bracket, onOpenMatch: openMatch)
+                    case .bracket:   PlayoffBracketView(bracket: bracket, onOpenMatch: openMatch)
+                    case .standings: tableStateContent
+                    }
+                } else {
+                    tableStateContent
                 }
             }
         }
+    }
+
+    /// The existing table (its load/error/loaded states) — now also the "Standings" segment.
+    @ViewBuilder
+    private var tableStateContent: some View {
+        switch viewModel.state {
+        case .idle, .loading:
+            ProgressView("Loading standings…")
+                .padding(.top, 100)
+                .frame(maxWidth: .infinity)
+        case .error(let message):
+            errorView(message)
+        case .loaded:
+            tableBody
+        }
+    }
+
+    private var segmentPicker: some View {
+        Picker("View", selection: $segment) {
+            ForEach(PlayoffSegment.allCases) { Text($0.label).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, DS.pagePadding)
+        .padding(.bottom, 12)
     }
 
     // MARK: - Header (title + playoff pill + season subtitle)
@@ -115,16 +215,19 @@ struct StandingsView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                 Spacer()
-                Text("TOP \(playoffSpots) ADVANCE")
-                    .dsFont(11, weight: .bold)
-                    .tracking(0.4)
-                    .foregroundStyle(Color.dsStateKickoff)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .background(Color.dsStateKickoff.opacity(0.14), in: Capsule())
+                // The regular-season "top N advance" cue is redundant once the bracket is live.
+                if !playoffs.isPostseasonActive {
+                    Text("TOP \(playoffSpots) ADVANCE")
+                        .dsFont(11, weight: .bold)
+                        .tracking(0.4)
+                        .foregroundStyle(Color.dsStateKickoff)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(Color.dsStateKickoff.opacity(0.14), in: Capsule())
+                }
             }
             // `String(...)` so the year renders "2026", not the locale-grouped "2,026".
-            Text("\(String(seasonYear)) NWSL · Regular season")
+            Text("\(String(seasonYear)) NWSL · \(playoffs.isPostseasonActive ? "Playoffs" : "Regular season")")
                 .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
         }

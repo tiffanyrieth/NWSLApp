@@ -82,10 +82,15 @@ struct ESPNService {
     // while everything else is `apis/site/v2/…` (the `site/v2` standings path
     // returns an empty object). So we build this URL explicitly rather than
     // appending to `base`.
-    func fetchStandings() async throws -> [StandingsRow] {
-        guard let url = URL(string: "https://site.api.espn.com/apis/v2/sports/soccer/usa.nwsl/standings") else {
+    // `season` fetches a PRIOR year's final table (the endpoint accepts `?season=YYYY`) —
+    // used by PlayoffStore to seed a completed historical bracket in the offseason gap.
+    // Omit for the current live table.
+    func fetchStandings(season: Int? = nil) async throws -> [StandingsRow] {
+        guard var components = URLComponents(string: "https://site.api.espn.com/apis/v2/sports/soccer/usa.nwsl/standings") else {
             throw ESPNServiceError.badURL
         }
+        if let season { components.queryItems = [URLQueryItem(name: "season", value: "\(season)")] }
+        guard let url = components.url else { throw ESPNServiceError.badURL }
         return try await fetch(StandingsResponse.self, from: url).rows
     }
 

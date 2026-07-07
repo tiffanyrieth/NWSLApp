@@ -104,7 +104,7 @@ struct PlayoffPathView: View {
                 .overlay(Circle().strokeBorder(nodeFilled ? accent : Color.dsFgTertiary, lineWidth: 2))
                 .padding(.top, 2)
             VStack(alignment: .leading, spacing: 8) {
-                Text(step.round.title).dsFont(10, weight: .bold).tracking(1).foregroundStyle(labelColor)
+                Text(step.round.title).dsFont(11, weight: .bold).tracking(1).foregroundStyle(labelColor)
                 stepCard(step)
                 if let win = step.winContext {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -150,21 +150,21 @@ struct PlayoffPathView: View {
             sideLine(m.away, isFinal: m.isFinal)
             HStack(spacing: 8) {
                 if m.state == .live {
-                    Text("● LIVE").dsFont(10, weight: .heavy).foregroundStyle(Color.dsStateLive)
+                    Text("● LIVE").dsFont(11, weight: .heavy).foregroundStyle(Color.dsStateLive)
                 } else if m.isFinal {
-                    Text("Full Time").dsFont(10, weight: .semibold).foregroundStyle(Color.dsStateFinal)
+                    Text("Full Time").dsFont(11, weight: .semibold).foregroundStyle(Color.dsStateFinal)
                 } else {
                     let today = m.kickoff.map { Calendar.current.isDateInToday($0) } ?? false
                     Text(today ? "Today" : (dateText(m.kickoff) ?? "Upcoming"))
-                        .dsFont(10, weight: .semibold).foregroundStyle(today ? Color.dsStateClock : Color.dsStateKickoff)
-                    if let t = timeText(m.kickoff) { Text(t).dsFont(10, weight: .semibold).foregroundStyle(Color.dsFgPrimary) }
+                        .dsFont(11, weight: .semibold).foregroundStyle(today ? Color.dsStateClock : Color.dsStateKickoff)
+                    if let t = timeText(m.kickoff) { Text(t).dsFont(11, weight: .semibold).foregroundStyle(Color.dsFgPrimary) }
                     if let b = m.broadcast {
-                        Text(b).dsFont(9, weight: .bold).foregroundStyle(.white)
+                        Text(b).dsFont(10, weight: .bold).foregroundStyle(.white)
                             .padding(.horizontal, 6).padding(.vertical, 1)
                             .background(Color.dsBgTertiary, in: RoundedRectangle(cornerRadius: 4))
                     }
                 }
-                if let v = m.venue { Text("· \(v)").dsFont(10).foregroundStyle(Color.dsFgTertiary).lineLimit(1) }
+                if let v = m.venue { Text("· \(v)").dsFont(11).foregroundStyle(Color.dsFgSecondary).lineLimit(1) }
                 Spacer(minLength: 0)
             }
         }
@@ -181,13 +181,13 @@ struct PlayoffPathView: View {
     private func sideLine(_ side: BracketSide, isFinal: Bool) -> some View {
         let club = side.abbreviation.flatMap { clubs.club(forAbbreviation: $0) }
         let dimmed = isFinal && !side.isWinner && !side.isTBD
-        return HStack(spacing: 8) {
-            TeamLogo(urlString: club?.logoURL, teamAbbreviation: side.abbreviation, size: 30)
+        return HStack(spacing: 9) {
+            TeamLogo(urlString: club?.logoURL, teamAbbreviation: side.abbreviation, size: 34)
             Text(side.abbreviation ?? "TBD")
-                .dsFont(14, weight: side.isWinner && isFinal ? .heavy : .semibold)
+                .dsFont(16, weight: side.isWinner && isFinal ? .heavy : .bold)
                 .foregroundStyle(side.isTBD ? Color.dsFgQuaternary : (club?.accentColor ?? .dsFgPrimary))
             if let seed = side.seed {
-                Text("#\(seed)").dsFont(10, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
+                Text("#\(seed)").dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
             }
             Spacer(minLength: 0)
         }

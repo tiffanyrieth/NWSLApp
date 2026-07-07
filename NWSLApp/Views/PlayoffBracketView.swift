@@ -117,17 +117,17 @@ struct PlayoffBracketView: View {
         let dimmed = isFinal && !side.isWinner && !side.isTBD
         return HStack(spacing: 8) {
             if leading { crest(side, club: club) }
-            VStack(alignment: leading ? .leading : .trailing, spacing: 1) {
+            VStack(alignment: leading ? .leading : .trailing, spacing: 2) {
                 Text(side.abbreviation ?? "TBD")
-                    .dsFont(14, weight: side.isWinner && isFinal ? .heavy : .bold)
+                    .dsFont(16, weight: side.isWinner && isFinal ? .heavy : .bold)
                     .foregroundStyle(side.isTBD ? Color.dsFgQuaternary : (club?.accentColor ?? .dsFgPrimary))
                 if let seed = side.seed {
-                    Text("#\(seed) seed").dsFont(9, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
+                    Text("#\(seed) seed").dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                 }
             }
             if isFinal, let score = side.score {
                 Text("\(score)")
-                    .dsFont(18, weight: .heavy, monospacedDigit: true)
+                    .dsFont(20, weight: .heavy, monospacedDigit: true)
                     .foregroundStyle(side.isWinner ? Color.dsFgPrimary : Color.dsFgTertiary)
                     .frame(minWidth: 16, alignment: leading ? .leading : .trailing)
             }
@@ -158,33 +158,33 @@ struct PlayoffBracketView: View {
     private func infoRow(_ m: PlayoffMatchup) -> some View {
         HStack(spacing: 8) {
             if m.state == .live {
-                Text("● LIVE").dsFont(10, weight: .heavy).foregroundStyle(Color.dsStateLive)
+                Text("● LIVE").dsFont(11, weight: .heavy).foregroundStyle(Color.dsStateLive)
                 if let b = m.broadcast { broadcastPill(b) }
-                if let v = m.venue { dot; Text(v).dsFont(10).foregroundStyle(Color.dsFgTertiary).lineLimit(1) }
+                if let v = m.venue { dot; Text(v).dsFont(11).foregroundStyle(Color.dsFgSecondary).lineLimit(1) }
             } else if m.isFinal {
-                Text("Full Time").dsFont(10, weight: .semibold).foregroundStyle(Color.dsStateFinal)
-                if let v = m.venue { dot; Text(v).dsFont(10).foregroundStyle(Color.dsFgTertiary).lineLimit(1) }
+                Text("Full Time").dsFont(11, weight: .semibold).foregroundStyle(Color.dsStateFinal)
+                if let v = m.venue { dot; Text(v).dsFont(11).foregroundStyle(Color.dsFgSecondary).lineLimit(1) }
             } else if m.isResolved || m.kickoff != nil {
                 let today = isToday(m.kickoff)
                 Text(today ? "Today" : (dateText(m.kickoff) ?? "Upcoming"))
-                    .dsFont(10, weight: .semibold)
+                    .dsFont(11, weight: .semibold)
                     .foregroundStyle(today ? Color.dsStateClock : Color.dsFgSecondary)
-                if let t = timeText(m.kickoff) { Text(t).dsFont(10, weight: .semibold).foregroundStyle(Color.dsFgPrimary) }
+                if let t = timeText(m.kickoff) { Text(t).dsFont(11, weight: .semibold).foregroundStyle(Color.dsFgPrimary) }
                 if let b = m.broadcast { broadcastPill(b) }
-                if let v = m.venue { dot; Text(v).dsFont(10).foregroundStyle(Color.dsFgTertiary).lineLimit(1) }
+                if let v = m.venue { dot; Text(v).dsFont(11).foregroundStyle(Color.dsFgSecondary).lineLimit(1) }
             } else {
-                Text("Matchup TBD").dsFont(10, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
+                Text("Matchup TBD").dsFont(11, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 14).padding(.vertical, 8)
+        .padding(.horizontal, 14).padding(.vertical, 9)
     }
 
     private var dot: some View { Text("·").dsFont(10).foregroundStyle(Color.dsFgTertiary) }
 
     private func broadcastPill(_ name: String) -> some View {
-        Text(name).dsFont(9, weight: .bold).foregroundStyle(.white)
-            .padding(.horizontal, 6).padding(.vertical, 1)
+        Text(name).dsFont(10, weight: .bold).foregroundStyle(.white)
+            .padding(.horizontal, 6).padding(.vertical, 2)
             .background(Color.dsBgTertiary, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
     }
 

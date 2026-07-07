@@ -93,21 +93,37 @@ envelope versioned for a later forecast mode. Shows as a quiet stamp under the M
 **service binding** — same-account Worker→Worker over `*.workers.dev` 404s with CF **error 1042**, so a
 public fetch silently fails) for
 kickoff/goal/halftime/full-time + **lineup-posted** (polls `/summary` in a 75-min pre-kickoff window) +
+**RED CARD** (reds ONLY — yellows are per-game noise; keys on ESPN's explicit `redCard` boolean on the
+scoreboard `details` entry, NEVER text; rides the **`goals`** pref column = zero schema change, precedent
+= VAR corrections; per-side `StoredState.redCards` fire-once ledger, a pre-existing KV row baselines
+rather than late-firing) +
 **VAR goal-correction** (a debounced score *decrease* — re-poll a
 cache-busted scoreboard before firing, so an ESPN glitch never sends a false "Goal Disallowed"), looks
 up `device_tokens` of users with that alert on, and sends APNs
-(ES256 `.p8` JWT). **V1 push shape (2026-07-05 redesign): title = subject-first (`GOAL — Seattle Reign
-FC`), subtitle = scoreboard + detail (`NC 0–1 SEA · S. Menti 19'`), NO body; attachment = a square
-crest TILE from the THIRD sibling Worker `nwslapp-card`** (`/thumb/{ABBR}`, team-color wash, crest
+(ES256 `.p8` JWT). **V1 push shape (copy v4, 2026-07-07 — device-tested): title = subject-first with a
+COLON (`GOAL: Seattle Reign FC`, never an em-dash), subtitle = scan-ordered detail — goal = SCORER
+first then scoreboard (`S. Menti 19' · NC 0–1 SEA`); red card = minute-first player, NO scoreline
+(`23' E. Wheeler`); halftime + full-time = scoreline ONLY (no last-scorer at HT, no "…win" tail at FT).
+Caps only on GOAL/NO GOAL. NO body; attachment = a square crest TILE from the THIRD sibling Worker
+`nwslapp-card`** (`/thumb/{ABBR}`, team-color wash, crest
 overscanned past the source PNGs' 41px baked-in border; same repo as the watcher, own
 `wrangler.card.jsonc`). The card/thumb renderer lives in that separate fetch-only worker because
 satori+resvg (~3.4MB) in the CRON's module graph blew the cold-start CPU budget (Exceeded CPU kills on
 idle ticks; lazy `import()` is impossible — Workers forbids runtime WASM instantiation). The watcher
 302s `/card/*` → nwslapp-card permanently (APNs can deliver stored pushes hours late). Deployed;
 `POST /test-push` (`x-trigger-secret`) sends a synthetic push for
-on-device E2E (`APNS_HOST` is production). A **V2 Live Activity** layer (lock-screen + Dynamic Island live
-score) rides the SAME watcher + `.p8`, ADDITIVE to V1 — but the roles split: **V1 is the interrupt (buzzes
-kickoff/goal/HT/FT per the user's toggles); V2 is a QUIET glance.** ⚠️ Gotcha (device-proven 2026-07-04,
+on-device E2E (`APNS_HOST` is production — ⚠️ a USB/Xcode DEBUG build registers a SANDBOX token → prod
+gateway 400 `BadDeviceToken`; the test endpoints take an optional `sandbox:true` → `testApnsConfig`
+routes THAT call to the sandbox host WITHOUT flipping the global host, which would make the cron prune
+real prod tokens. `/replay-tick` + `scripts/replay-realtime.mjs` push a synthetic ESPN scoreboard
+through the REAL pipeline for on-device V1/V2 tests). A **V2 Live Activity** layer (lock-screen + Dynamic
+Island live score) rides the SAME watcher + `.p8`, ADDITIVE to V1 — but the roles split: **V1 is the
+interrupt (buzzes kickoff/goal/HT/FT per the user's toggles); V2 is a QUIET glance.** V2 content-state
+carries **per-side scorers** (`homeScorers`/`awayScorers`, capped 4 +N) + `homeRedCards`/`awayRedCards`
+(all additive-optional — old app builds ignore unknown keys) → the card stacks each team's scorers under
+its crest + a red-card rect. ⚠️ The V2 widget clock is Apple's **mm:ss** (deliberate — a true `45'+2'`
+needs per-minute pushes); the football-minute `45'+2'`/`90'+7'` clock is **IN-APP ONLY** (`MatchClock` in
+Match Detail / Schedule cards). Two different surfaces — don't mistake the widget's mm:ss for a regression. ⚠️ Gotcha (device-proven 2026-07-04,
 contradicts Apple's docs): the push-to-start **`alert` is REQUIRED to render** — omit it and APNs 200s but
 iOS NEVER presents the card (this shipped invisible Activities on every real game). The buzz-free shape is
 `alert` **+ `sound: ""`** (card + quiet banner, no sound/vibration; omitting the sound key still BUZZES).
@@ -231,7 +247,10 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
 - **Team naming:** one team as subject → full club name (Gotham FC); **two-team contexts (match cards,
   match detail, comparisons, standings rows) → CREST + ABBREVIATION (e.g. WAS), never crest-less text or
   full names.** ESPN has no nickname field.
-- **Crest rule:** bare crests via `TeamLogo`, no ring (only player monograms get a ring). **Team
+- **Crest rule:** bare crests via `TeamLogo`, no ring (only player monograms get a ring). **Crests are
+  PROMINENT — render them LARGE, never shrunk toward an icon/spec size; the crest is the team's identity
+  (players/fans lift it to their chest) and outranks the abbreviation/name text. AI keeps shrinking them;
+  don't — err larger** (à la The Athletic; owner directive, e.g. the LA card crest is 48pt). **Team
   colors:** `DesignTeamColors` by abbreviation; use each club's default brand colors — no manual
   overrides without a documented rendering conflict.
 - Clarity over density (~4–5 schedule cards/screen; avoid oversized cards); schedule shows the full

@@ -5,8 +5,10 @@
 //  The "Your Path" segment — the default during the postseason when a followed team is in the
 //  bracket. For each followed playoff team: a hero header, a vertical team-color timeline from
 //  its current round to the Championship, and — the feature's whole point — a plain-language
-//  "Win → face X in the [round]" line under each step. Multiple followed teams stack; if two
-//  could still meet, a storyline card says so. An eliminated team keeps its section (muted).
+//  "Win → face X in the [round]" line under each step. Matchup steps render via the shared
+//  PlayoffMatchupRow (MatchCard anatomy) so they read like every other game in the app.
+//  Multiple followed teams stack; if two could still meet, a storyline card says so. An
+//  eliminated team keeps its section (muted).
 //
 
 import SwiftUI
@@ -25,7 +27,7 @@ struct PlayoffPathView: View {
                 emptyState
             } else {
                 ForEach(teams, id: \.self) { teamSection($0) }
-                ForEach(storylines(teams), id: \.text) { storylineCard($0.text, round: $0.round) }
+                ForEach(storylines(teams), id: \.text) { storylineCard($0.text) }
             }
         }
         .padding(.horizontal, DS.pagePadding)
@@ -41,7 +43,7 @@ struct PlayoffPathView: View {
         let elimRound = bracket.eliminationRound(abbr)
         VStack(alignment: .leading, spacing: 0) {
             hero(abbr, accent: accent, elimRound: elimRound)
-            timeline(abbr, accent: accent, elimRound: elimRound)
+            timeline(abbr, accent: accent)
         }
     }
 
@@ -49,7 +51,7 @@ struct PlayoffPathView: View {
         let club = clubs.club(forAbbreviation: abbr)
         let seed = bracket.seeds[abbr]
         return HStack(spacing: 12) {
-            TeamLogo(urlString: club?.logoURL, teamAbbreviation: abbr, size: 48)
+            TeamLogo(urlString: club?.logoURL, teamAbbreviation: abbr, size: 60)
             VStack(alignment: .leading, spacing: 3) {
                 if let seed {
                     Text("#\(seed) SEED").trackedCaps(color: accent)
@@ -79,7 +81,7 @@ struct PlayoffPathView: View {
     // MARK: Timeline (nodes + connecting line + steps)
 
     @ViewBuilder
-    private func timeline(_ abbr: String, accent: Color, elimRound: PlayoffRound?) -> some View {
+    private func timeline(_ abbr: String, accent: Color) -> some View {
         if let steps = bracket.path(forAbbreviation: abbr) {
             ZStack(alignment: .topLeading) {
                 // Continuous accent line down the left.
@@ -88,7 +90,7 @@ struct PlayoffPathView: View {
                     .padding(.leading, 6).padding(.top, 6).padding(.bottom, 30)
                 VStack(alignment: .leading, spacing: 22) {
                     ForEach(steps) { stepRow($0, accent: accent) }
-                    championRow(accent: accent, championAbbr: bracket.championship?.winnerAbbreviation)
+                    championRow(championAbbr: bracket.championship?.winnerAbbreviation)
                 }
             }
         }
@@ -117,12 +119,12 @@ struct PlayoffPathView: View {
         }
     }
 
-    /// The step's card: a real matchup (tappable) if the team is placed this round, else a
-    /// dashed "to be decided" placeholder (the prior step's Win→ line names the likely opponent).
+    /// The step's card: the shared MatchCard-anatomy row if the team is placed this round, else
+    /// a dashed "to be decided" placeholder (the prior step's Win→ line names the opponent).
     @ViewBuilder
     private func stepCard(_ step: PlayoffPathStep) -> some View {
         if let m = step.matchup, m.isResolved {
-            matchupCard(m)
+            matchupRow(m)
         } else {
             HStack(spacing: 6) {
                 Text(step.round.slug == PlayoffRound.championship.slug ? "NWSL Championship" : "Opponent to be decided")
@@ -137,64 +139,22 @@ struct PlayoffPathView: View {
         }
     }
 
-    private func matchupCard(_ m: PlayoffMatchup) -> some View {
-        let card = VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                sideLine(m.home, isFinal: m.isFinal)
-                Spacer(minLength: 8)
-                if m.isFinal, let hs = m.home.score, let as_ = m.away.score {
-                    Text("\(hs)–\(as_)").dsFont(22, weight: .heavy, design: .rounded, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
-                }
-            }
-            Rectangle().fill(Color.dsSeparator).frame(height: DS.hairline)
-            sideLine(m.away, isFinal: m.isFinal)
-            HStack(spacing: 8) {
-                if m.state == .live {
-                    Text("● LIVE").dsFont(11, weight: .heavy).foregroundStyle(Color.dsStateLive)
-                } else if m.isFinal {
-                    Text("Full Time").dsFont(11, weight: .semibold).foregroundStyle(Color.dsStateFinal)
-                } else {
-                    let today = m.kickoff.map { Calendar.current.isDateInToday($0) } ?? false
-                    Text(today ? "Today" : (dateText(m.kickoff) ?? "Upcoming"))
-                        .dsFont(11, weight: .semibold).foregroundStyle(today ? Color.dsStateClock : Color.dsStateKickoff)
-                    if let t = timeText(m.kickoff) { Text(t).dsFont(11, weight: .semibold).foregroundStyle(Color.dsFgPrimary) }
-                    if let b = m.broadcast {
-                        Text(b).dsFont(10, weight: .bold).foregroundStyle(.white)
-                            .padding(.horizontal, 6).padding(.vertical, 1)
-                            .background(Color.dsBgTertiary, in: RoundedRectangle(cornerRadius: DS.radiusXs))
-                    }
-                }
-                if let v = m.venue { Text("· \(v)").dsFont(11).foregroundStyle(Color.dsFgSecondary).lineLimit(1) }
-                Spacer(minLength: 0)
-            }
-        }
-        .padding(14)
-        .background(Color.dsBgCard, in: RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
-
-        return Group {
-            if let id = m.eventID {
-                Button { onOpenMatch(id) } label: { card }.buttonStyle(.plain)
-            } else { card }
+    @ViewBuilder
+    private func matchupRow(_ m: PlayoffMatchup) -> some View {
+        let row = PlayoffMatchupRow(
+            matchup: m,
+            homeClub: m.home.abbreviation.flatMap { clubs.club(forAbbreviation: $0) },
+            awayClub: m.away.abbreviation.flatMap { clubs.club(forAbbreviation: $0) },
+            followedAbbreviations: followedAbbrs
+        )
+        if let id = m.eventID {
+            Button { onOpenMatch(id) } label: { row }.buttonStyle(.plain)
+        } else {
+            row
         }
     }
 
-    private func sideLine(_ side: BracketSide, isFinal: Bool) -> some View {
-        let club = side.abbreviation.flatMap { clubs.club(forAbbreviation: $0) }
-        let dimmed = isFinal && !side.isWinner && !side.isTBD
-        return HStack(spacing: 10) {
-            TeamLogo(urlString: club?.logoURL, teamAbbreviation: side.abbreviation, size: 44)
-            Text(side.abbreviation ?? "TBD")
-                .dsFont(18, weight: side.isWinner && isFinal ? .heavy : .bold)
-                .foregroundStyle(side.isTBD ? Color.dsFgQuaternary : (club?.accentColor ?? .dsFgPrimary))
-            if let seed = side.seed {
-                Text("#\(seed)").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
-            }
-            Spacer(minLength: 0)
-        }
-        .opacity(dimmed ? 0.45 : 1)
-    }
-
-    private func championRow(accent: Color, championAbbr: String?) -> some View {
+    private func championRow(championAbbr: String?) -> some View {
         HStack(spacing: 12) {
             Circle().fill(Color.dsBgTertiary).frame(width: 16, height: 16)
                 .overlay(Text("🏆").dsFont(10))
@@ -213,7 +173,7 @@ struct PlayoffPathView: View {
 
     // MARK: Storyline (two followed teams)
 
-    private func storylineCard(_ text: String, round: PlayoffRound) -> some View {
+    private func storylineCard(_ text: String) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "sparkles").dsFont(16).foregroundStyle(Color.dsGameBracket)
             Text(humanize(text)).dsFont(13, weight: .medium).foregroundStyle(Color.dsFgPrimary)
@@ -254,7 +214,13 @@ struct PlayoffPathView: View {
             .sorted { (bracket.seeds[$0] ?? 99) < (bracket.seeds[$1] ?? 99) }
     }
 
-    private func color(_ abbr: String) -> Color { clubs.club(forAbbreviation: abbr)?.accentColor ?? .dsAccent }
+    private var followedAbbrs: Set<String> { Set(followedTeams) }
+
+    /// Team color per the match-surface convention (DesignTeamColors, dark-adjusted).
+    private func color(_ abbr: String) -> Color {
+        guard let hex = DesignTeamColors.displayHex(for: abbr) else { return .dsAccent }
+        return Color.teamFillOnDark(hex: hex)
+    }
 
     private func humanize(_ phrase: String) -> String {
         var out = phrase
@@ -266,14 +232,5 @@ struct PlayoffPathView: View {
             out = out.replacingOccurrences(of: "and \(abbr) ", with: "and \(name) ")
         }
         return out
-    }
-
-    private func dateText(_ date: Date?) -> String? {
-        guard let date else { return nil }
-        let f = DateFormatter(); f.dateFormat = "MMM d"; return f.string(from: date)
-    }
-    private func timeText(_ date: Date?) -> String? {
-        guard let date else { return nil }
-        let f = DateFormatter(); f.timeStyle = .short; f.dateStyle = .none; return f.string(from: date)
     }
 }

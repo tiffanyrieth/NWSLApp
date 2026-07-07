@@ -63,8 +63,7 @@
       ignoresPersistentStateOnLaunch = "NO"
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
-      allowLocationSimulation = "YES"
-      queueDebuggingEnableBacktraceRecording = "No">
+      allowLocationSimulation = "YES">
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
          <BuildableReference
@@ -79,6 +78,10 @@
          <CommandLineArgument
             argument = "-resetOnboarding"
             isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-simulatePostseason2025"
+            isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>
       <StoreKitConfigurationFileReference

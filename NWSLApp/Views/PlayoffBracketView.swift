@@ -3,11 +3,11 @@
 //  NWSLApp
 //
 //  The "Bracket" segment of the postseason Standings tab: the whole bracket as a VERTICAL,
-//  round-grouped list — NEVER a horizontal tree (unreadable upright on a phone). It lifts the
-//  proven visual language of Bracket Battle's "bracket so far" overview (round header + status
-//  dot, left connecting line, round-grouped rows, TBD placeholders) and re-expresses it for
-//  real teams: crest + abbreviation + seed per side, scores for finished games, plus a footer
-//  row the game doesn't have — date · time · TV · venue. Your teams get an accent border + ★.
+//  round-grouped list — NEVER a horizontal tree (unreadable upright on a phone). Round
+//  headers carry a status dot (cyan = current/upcoming, green = complete) with the left
+//  connecting line, per Bracket Battle's overview. Each matchup renders via the shared
+//  PlayoffMatchupRow — MatchCard's anatomy (two-team wash, crest heroes, center state
+//  column, BroadcastChip rail) so a playoff game reads identically to a Schedule game.
 //  Tapping a placed matchup opens MatchDetailView.
 //
 
@@ -43,7 +43,7 @@ struct PlayoffBracketView: View {
         guard let team = followedAlive,
               let step = bracket.path(forAbbreviation: team)?.first(where: { $0.winContext != nil })
         else { return nil }
-        return step.winContext.map { humanize($0, team: team) }
+        return step.winContext.map { humanize($0) }
     }
 
     private func winContextCard(_ text: String) -> some View {
@@ -71,7 +71,7 @@ struct PlayoffBracketView: View {
                 Text("· \(status.note)").dsFont(12).foregroundStyle(Color.dsFgTertiary)
                 Spacer(minLength: 0)
             }
-            VStack(spacing: 8) {
+            VStack(spacing: DS.cardGap) {
                 ForEach(bracket.matchups(in: round)) { m in matchupRow(m) }
             }
             .padding(.leading, 16)
@@ -80,112 +80,19 @@ struct PlayoffBracketView: View {
         .padding(.top, 16)
     }
 
-    // MARK: Matchup row
-
     @ViewBuilder
     private func matchupRow(_ m: PlayoffMatchup) -> some View {
-        let mine = m.contains(where: followedAbbrs)
-        let accent = mine ? color(m.mineAbbr(in: followedAbbrs) ?? "") : Color.clear
-        let card = VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 4) {
-                teamSide(m.home, align: .leading, isFinal: m.isFinal)
-                Text("vs").dsFont(11, weight: .bold).foregroundStyle(Color.dsFgQuaternary).padding(.horizontal, 2)
-                teamSide(m.away, align: .trailing, isFinal: m.isFinal)
-            }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            Rectangle().fill(Color.dsSeparator).frame(height: DS.hairline)
-            infoRow(m)
-        }
-        .background(Color.dsBgCard)
-        .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous)
-                .strokeBorder(mine ? accent.opacity(0.45) : Color.clear, lineWidth: 1)
+        let row = PlayoffMatchupRow(
+            matchup: m,
+            homeClub: m.home.abbreviation.flatMap { clubs.club(forAbbreviation: $0) },
+            awayClub: m.away.abbreviation.flatMap { clubs.club(forAbbreviation: $0) },
+            followedAbbreviations: followedAbbrs
         )
-
         if let id = m.eventID, m.isResolved {
-            Button { onOpenMatch(id) } label: { card }.buttonStyle(.plain)
+            Button { onOpenMatch(id) } label: { row }.buttonStyle(.plain)
         } else {
-            card    // projected / TBD rows aren't tappable (no event yet)
+            row    // projected / TBD rows aren't tappable (no event yet)
         }
-    }
-
-    /// One side: crest + abbr + seed, and (finished game) the score. Loser dimmed.
-    private func teamSide(_ side: BracketSide, align: HorizontalAlignment, isFinal: Bool) -> some View {
-        let leading = align == .leading
-        let club = side.abbreviation.flatMap { clubs.club(forAbbreviation: $0) }
-        let dimmed = isFinal && !side.isWinner && !side.isTBD
-        return HStack(spacing: 8) {
-            if leading { crest(side, club: club) }
-            VStack(alignment: leading ? .leading : .trailing, spacing: 2) {
-                Text(side.abbreviation ?? "TBD")
-                    .dsFont(18, weight: side.isWinner && isFinal ? .heavy : .bold)
-                    .foregroundStyle(side.isTBD ? Color.dsFgQuaternary : (club?.accentColor ?? .dsFgPrimary))
-                if let seed = side.seed {
-                    Text("#\(seed) seed").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
-                }
-            }
-            if isFinal, let score = side.score {
-                Text("\(score)")
-                    .dsFont(30, weight: .heavy, design: .rounded, monospacedDigit: true)
-                    .foregroundStyle(side.isWinner ? Color.dsFgPrimary : Color.dsFgTertiary)
-                    .frame(minWidth: 22, alignment: leading ? .leading : .trailing)
-            }
-            if !leading { crest(side, club: club) }
-        }
-        .opacity(dimmed ? 0.45 : 1)
-        .frame(maxWidth: .infinity, alignment: leading ? .leading : .trailing)
-    }
-
-    /// Prominent crest (crest-prominence rule — larger than the game's text-only rows).
-    @ViewBuilder
-    private func crest(_ side: BracketSide, club: Club?) -> some View {
-        if side.isTBD {
-            Circle().fill(Color.dsBgTertiary).frame(width: 46, height: 46)
-                .overlay(Text("?").dsFont(18, weight: .bold).foregroundStyle(Color.dsFgQuaternary))
-        } else {
-            ZStack(alignment: .topTrailing) {
-                TeamLogo(urlString: club?.logoURL, teamAbbreviation: side.abbreviation, size: 46)
-                if isFollowed(side.abbreviation) {
-                    Text("★").dsFont(11).foregroundStyle(color(side.abbreviation ?? ""))
-                        .offset(x: 5, y: -3)
-                }
-            }
-        }
-    }
-
-    /// The added footer: date · time · TV pill · venue, or a green "Full Time" for finals.
-    private func infoRow(_ m: PlayoffMatchup) -> some View {
-        HStack(spacing: 8) {
-            if m.state == .live {
-                Text("● LIVE").dsFont(11, weight: .heavy).foregroundStyle(Color.dsStateLive)
-                if let b = m.broadcast { broadcastPill(b) }
-                if let v = m.venue { dot; Text(v).dsFont(11).foregroundStyle(Color.dsFgSecondary).lineLimit(1) }
-            } else if m.isFinal {
-                Text("Full Time").dsFont(11, weight: .semibold).foregroundStyle(Color.dsStateFinal)
-                if let v = m.venue { dot; Text(v).dsFont(11).foregroundStyle(Color.dsFgSecondary).lineLimit(1) }
-            } else if m.isResolved || m.kickoff != nil {
-                let today = isToday(m.kickoff)
-                Text(today ? "Today" : (dateText(m.kickoff) ?? "Upcoming"))
-                    .dsFont(11, weight: .semibold)
-                    .foregroundStyle(today ? Color.dsStateClock : Color.dsFgSecondary)
-                if let t = timeText(m.kickoff) { Text(t).dsFont(11, weight: .semibold).foregroundStyle(Color.dsFgPrimary) }
-                if let b = m.broadcast { broadcastPill(b) }
-                if let v = m.venue { dot; Text(v).dsFont(11).foregroundStyle(Color.dsFgSecondary).lineLimit(1) }
-            } else {
-                Text("Matchup TBD").dsFont(11, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 14).padding(.vertical, 9)
-    }
-
-    private var dot: some View { Text("·").dsFont(10).foregroundStyle(Color.dsFgTertiary) }
-
-    private func broadcastPill(_ name: String) -> some View {
-        Text(name).dsFont(10, weight: .bold).foregroundStyle(.white)
-            .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(Color.dsBgTertiary, in: RoundedRectangle(cornerRadius: DS.radiusXs, style: .continuous))
     }
 
     private var footerNote: some View {
@@ -204,10 +111,11 @@ struct PlayoffBracketView: View {
         if !ms.isEmpty, played == ms.count {
             return RoundStatus(color: .dsStateFinal, note: "Complete")
         }
-        // date range across this round's kickoffs, else "Upcoming".
+        if ms.contains(where: { $0.state == .live }) {
+            return RoundStatus(color: .dsStateLive, note: "Live")
+        }
         if let range = dateRange(ms) {
-            let color: Color = ms.contains { isToday($0.kickoff) } ? .dsStateClock : .dsStateKickoff
-            return RoundStatus(color: color, note: range)
+            return RoundStatus(color: .dsStateKickoff, note: range)
         }
         return RoundStatus(color: .dsStateKickoff, note: "Upcoming")
     }
@@ -221,10 +129,13 @@ struct PlayoffBracketView: View {
         guard let abbr, let club = clubs.club(forAbbreviation: abbr) else { return false }
         return following.isFollowing(club)
     }
-    private func color(_ abbr: String) -> Color { clubs.club(forAbbreviation: abbr)?.accentColor ?? .dsAccent }
+    private func color(_ abbr: String) -> Color {
+        guard let hex = DesignTeamColors.displayHex(for: abbr) else { return .dsAccent }
+        return Color.teamFillOnDark(hex: hex)
+    }
 
     /// Replace bare abbreviations in a Win→ phrase with full club names where we can.
-    private func humanize(_ phrase: String, team: String) -> String {
+    private func humanize(_ phrase: String) -> String {
         var out = phrase
         for abbr in bracket.seeds.keys {
             if let name = clubs.club(forAbbreviation: abbr)?.displayName {
@@ -235,37 +146,14 @@ struct PlayoffBracketView: View {
         return out
     }
 
-    private func dateText(_ date: Date?) -> String? {
-        guard let date else { return nil }
-        let f = DateFormatter(); f.dateFormat = "MMM d"; return f.string(from: date)
-    }
-    private func timeText(_ date: Date?) -> String? {
-        guard let date else { return nil }
-        let f = DateFormatter(); f.timeStyle = .short; f.dateStyle = .none; return f.string(from: date)
-    }
-    private func isToday(_ date: Date?) -> Bool {
-        guard let date else { return false }
-        return Calendar.current.isDateInToday(date)
-    }
+    /// Round-header date range, Schedule-style parts ("Nov 7–9").
     private func dateRange(_ ms: [PlayoffMatchup]) -> String? {
         let dates = ms.compactMap { $0.kickoff }.sorted()
         guard let first = dates.first, let last = dates.last else { return nil }
-        let f = DateFormatter(); f.dateFormat = "MMM d"
-        let d = DateFormatter(); d.dateFormat = "d"
+        let f = DateFormatter(); f.locale = .current; f.timeZone = .current; f.dateFormat = "MMM d"
+        let d = DateFormatter(); d.locale = .current; d.timeZone = .current; d.dateFormat = "d"
         if Calendar.current.isDate(first, inSameDayAs: last) { return f.string(from: first) }
         let sameMonth = Calendar.current.component(.month, from: first) == Calendar.current.component(.month, from: last)
         return sameMonth ? "\(f.string(from: first))–\(d.string(from: last))" : "\(f.string(from: first))–\(f.string(from: last))"
-    }
-}
-
-// Small conveniences on the matchup for followed-team checks.
-private extension PlayoffMatchup {
-    func contains(where followed: Set<String>) -> Bool {
-        (home.abbreviation.map(followed.contains) ?? false) || (away.abbreviation.map(followed.contains) ?? false)
-    }
-    func mineAbbr(in followed: Set<String>) -> String? {
-        if let h = home.abbreviation, followed.contains(h) { return h }
-        if let a = away.abbreviation, followed.contains(a) { return a }
-        return nil
     }
 }

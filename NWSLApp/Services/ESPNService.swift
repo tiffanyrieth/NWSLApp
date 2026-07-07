@@ -82,6 +82,14 @@ struct ESPNService {
     // while everything else is `apis/site/v2/…` (the `site/v2` standings path
     // returns an empty object). So we build this URL explicitly rather than
     // appending to `base`.
+    /// The operator playoff override for a season (proxy `/playoff-override`). BEST-EFFORT: any
+    /// failure (offline, 404, decode) returns nil so the bracket simply derives from ESPN — the
+    /// override must never be able to break the feature it exists to protect.
+    func fetchPlayoffOverride(season: Int) async -> PlayoffOverride? {
+        guard let url = AppConfig.playoffOverrideURL(season: season) else { return nil }
+        return try? await fetch(PlayoffOverrideEnvelope.self, from: url).override
+    }
+
     // `season` fetches a PRIOR year's final table (the endpoint accepts `?season=YYYY`) —
     // used by PlayoffStore to seed a completed historical bracket in the offseason gap.
     // Omit for the current live table.

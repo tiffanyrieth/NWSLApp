@@ -216,16 +216,19 @@ struct PlayoffBracket {
 
 extension PlayoffBracket {
     /// Build the bracket from ESPN playoff events + a seed map (abbr→rank from standings).
-    /// `now` classifies matchup state where ESPN's own state is absent. Pure + deterministic.
-    static func derive(from events: [Event], seeds: [String: Int], now: Date = Date()) -> PlayoffBracket {
+    /// `now` classifies matchup state where ESPN's own state is absent. `forcedTeamCount` (from a
+    /// PlayoffOverride) pins the bracket size when ESPN's data can't be trusted. Pure + deterministic.
+    static func derive(from events: [Event], seeds: [String: Int], now: Date = Date(),
+                       forcedTeamCount: Int? = nil) -> PlayoffBracket {
         let playoffEvents = events.filter { $0.isPlayoffEvent }
         // Rounds present in the DATA, ordered — this is the format-resilient round list.
         let dataRounds = Set(playoffEvents.compactMap { $0.seasonSlug.flatMap(PlayoffRound.init(slug:)) })
 
-        // teamCount from the first round's game count (× 2); default to 8 (standard NWSL).
+        // teamCount from the first round's game count (× 2); default to 8 (standard NWSL). An
+        // operator override wins outright.
         let firstRound = dataRounds.min()
         let firstRoundGames = firstRound.map { r in playoffEvents.filter { $0.seasonSlug == r.slug }.count } ?? 4
-        let teamCount = max(2, firstRoundGames * 2)
+        let teamCount = forcedTeamCount ?? max(2, firstRoundGames * 2)
         let tree = SeedTree(teamCount: teamCount)
 
         // The tree's canonical round list (first → championship), same length as tree rounds.

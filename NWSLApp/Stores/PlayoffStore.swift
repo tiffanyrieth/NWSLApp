@@ -35,8 +35,6 @@ final class PlayoffStore {
     private let service: ESPNService
     private var historicalLoaded = false
     private var simulating = false
-    /// Cheap change-detection so we don't re-derive on every identical MatchStore emit.
-    private var lastSignature = ""
 
     init(service: ESPNService = ESPNService()) {
         self.service = service
@@ -50,12 +48,12 @@ final class PlayoffStore {
         if simulating { return }   // DEBUG simulate override owns the state
 
         let currentPlayoffs = matchEvents.filter { $0.isPlayoffEvent && $0.hasTwoPlacedTeams }
+        let year = Calendar.current.component(.year, from: now)
         if !currentPlayoffs.isEmpty {
             historicalLoaded = false
-            let sig = "cur:" + currentPlayoffs.map { "\($0.id)\($0.statusState ?? "")" }.joined() + seeds.count.description
-            guard sig != lastSignature else { return }
-            lastSignature = sig
-            apply(events: matchEvents, seeds: seeds, now: now)
+            // Best-effort operator override (nil unless ESPN needs correcting) — layered in apply().
+            let override = await service.fetchPlayoffOverride(season: year)
+            apply(events: matchEvents, seeds: seeds, now: now, override: override)
             return
         }
 
@@ -65,18 +63,27 @@ final class PlayoffStore {
         } else {
             // Regular season (or preseason with games scheduled) → nothing to show.
             historicalLoaded = false
-            lastSignature = "inactive"
             isPostseasonActive = false
             bracket = nil
             sourceEvents = []
         }
     }
 
-    private func apply(events: [Event], seeds: [String: Int], now: Date) {
-        sourceEvents = events
-        let derived = PlayoffBracket.derive(from: events, seeds: seeds, now: now)
+    private func apply(events: [Event], seeds: [String: Int], now: Date, override: PlayoffOverride?) {
+        // Kill switch: operator hid the feature (ESPN too broken to show anything honest).
+        if override?.hideBracket == true {
+            Diagnostics.shared.record(.playoffFormatMismatch, "override: hideBracket")
+            isPostseasonActive = false; bracket = nil; sourceEvents = []
+            return
+        }
+        // Layer operator corrections onto the raw inputs BEFORE derive, so a fixed winner
+        // propagates to later rounds.
+        let corrected = override?.corrected(events: events, seeds: seeds) ?? (events: events, seeds: seeds)
+        sourceEvents = corrected.events
+        let derived = PlayoffBracket.derive(from: corrected.events, seeds: corrected.seeds, now: now,
+                                            forcedTeamCount: override?.teamCount)
         bracket = derived
-        isPostseasonActive = events.contains { $0.isPlayoffEvent && $0.hasTwoPlacedTeams }
+        isPostseasonActive = corrected.events.contains { $0.isPlayoffEvent && $0.hasTwoPlacedTeams }
         if let reason = derived.tripwireReason {
             // Fail LOUD to the engineer: the published bracket diverged from the seed tree.
             Diagnostics.shared.record(.playoffFormatMismatch, reason)
@@ -91,11 +98,12 @@ final class PlayoffStore {
             var seeds: [String: Int] = [:]
             for row in rows { seeds[row.club.abbreviation] = row.rank }
             historicalLoaded = true
+            let override = await service.fetchPlayoffOverride(season: priorYear)
             guard board.events.contains(where: { $0.isPlayoffEvent }) else {
                 isPostseasonActive = false; bracket = nil; sourceEvents = []
                 return
             }
-            apply(events: board.events, seeds: seeds, now: now)
+            apply(events: board.events, seeds: seeds, now: now, override: override)
         } catch {
             Diagnostics.shared.record(.apiFailure, "playoff historical \(priorYear): \(error.localizedDescription)")
             isPostseasonActive = false

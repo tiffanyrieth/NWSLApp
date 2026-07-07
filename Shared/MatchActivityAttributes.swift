@@ -35,8 +35,18 @@ struct MatchActivityAttributes: ActivityAttributes {
         var clockStartEpoch: Double?
         // Shown verbatim when the clock is NOT ticking: pre = "3:00 PM", halftime = "HT", fulltime = "FT".
         var staticLabel: String?
-        var lastScorer: String?     // "S. Smith 67'", nil at 0–0
+        var lastScorer: String?     // "S. Smith 67'", nil at 0–0 — legacy single line, kept as the
+                                    // fallback when the per-side lists below are absent (old watcher)
         var broadcast: String?      // "Paramount+", nil if unknown
+        // Per-side scorer lines ("C. Hutton 5'"), chronological, watcher-capped at 4 (+N overflow) —
+        // rendered under each team, FIFA-style. ALL four fields below are Optional BY CONTRACT:
+        // an old watcher payload omits them (this struct must still decode), and an old app build
+        // ignores them (synthesized Codable skips unknown keys). Keys byte-match the watcher's
+        // LiveContentState (activitykit.ts) — grow the two only in lock-step.
+        var homeScorers: [String]?
+        var awayScorers: [String]?
+        var homeRedCards: Int?      // RED cards only (yellows excluded by design); nil when 0
+        var awayRedCards: Int?
     }
 
     enum Phase: String, Codable, Hashable {

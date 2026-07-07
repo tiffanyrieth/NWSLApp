@@ -71,7 +71,9 @@ struct MatchLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.center) {
                     VStack(spacing: 2) {
                         pill(s.phase)
-                        Text("\(s.homeScore) – \(s.awayScore)")
+                        // Pre-match honesty: "vs", not a fabricated 0 – 0 (parity with the
+                        // lock screen's scoreText — a score that doesn't exist yet isn't shown).
+                        Text(s.phase == .pre ? "vs" : "\(s.homeScore) – \(s.awayScore)")
                             .font(.system(size: 22, weight: .heavy, design: .rounded))
                             .foregroundStyle(.white)
                         minuteView(s, font: .system(size: 11, weight: .semibold))
@@ -91,20 +93,32 @@ struct MatchLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
+                // Pre-match honesty (owner call, matches FIFA/The Athletic): before kickoff the
+                // island shows just the crests — a "0" for a match that hasn't started reads as
+                // a live 0–0, which is a lie.
                 HStack(spacing: 3) {
                     CrestBadge(abbr: a.homeAbbr, hex: a.homeColorHex, size: 18)
-                    Text("\(s.homeScore)").font(.system(size: 14, weight: .heavy)).foregroundStyle(.white)
+                    if s.phase != .pre {
+                        Text("\(s.homeScore)").font(.system(size: 14, weight: .heavy)).foregroundStyle(.white)
+                    }
                 }
             } compactTrailing: {
                 HStack(spacing: 3) {
-                    Text("\(s.awayScore)").font(.system(size: 14, weight: .heavy)).foregroundStyle(.white)
+                    if s.phase != .pre {
+                        Text("\(s.awayScore)").font(.system(size: 14, weight: .heavy)).foregroundStyle(.white)
+                    }
                     CrestBadge(abbr: a.awayAbbr, hex: a.awayColorHex, size: 18)
                 }
             } minimal: {
-                // Minimal (second concurrent Activity): the leading team's score in its color.
-                Text("\(s.homeScore)")
-                    .font(.system(size: 13, weight: .heavy))
-                    .foregroundStyle(Color(hex: a.homeColorHex))
+                // Minimal (second concurrent Activity): the leading team's score in its color —
+                // pre-match, its crest instead (same honesty rule as compact).
+                if s.phase == .pre {
+                    CrestBadge(abbr: a.homeAbbr, hex: a.homeColorHex, size: 16)
+                } else {
+                    Text("\(s.homeScore)")
+                        .font(.system(size: 13, weight: .heavy))
+                        .foregroundStyle(Color(hex: a.homeColorHex))
+                }
             }
             .keylineTint(s.phase.pillColor)
         }
@@ -150,8 +164,14 @@ private struct LockScreenBanner: View {
         ZStack {
             teamWash
             VStack(spacing: 8) {
-            HStack {
-                team(attributes.homeAbbr, attributes.homeColorHex)
+            // Top-aligned so each side's scorer column grows DOWNWARD under its team while the
+            // center score block stays put — the FIFA/match-thread layout (home events left,
+            // away events right) the owner asked for.
+            HStack(alignment: .top) {
+                sideColumn(
+                    abbr: attributes.homeAbbr, hex: attributes.homeColorHex,
+                    scorers: state.homeScorers, reds: state.homeRedCards, alignment: .leading
+                )
                 Spacer()
                 VStack(spacing: 3) {
                     Text(state.phase.pillText)
@@ -165,18 +185,21 @@ private struct LockScreenBanner: View {
                     minute
                 }
                 Spacer()
-                team(attributes.awayAbbr, attributes.awayColorHex)
+                sideColumn(
+                    abbr: attributes.awayAbbr, hex: attributes.awayColorHex,
+                    scorers: state.awayScorers, reds: state.awayRedCards, alignment: .trailing
+                )
             }
             HStack {
                 Text(attributes.competition)
                     .font(.system(size: 10, weight: .bold)).tracking(0.8)
                     .foregroundStyle(Color.white.opacity(0.4))
                 Spacer()
-                if let scorer = state.lastScorer {
-                    HStack(spacing: 4) {
-                        Circle().fill(Color(hex: attributes.homeColorHex)).frame(width: 5, height: 5)
-                        Text(scorer).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.75))
-                    }
+                // Legacy fallback: an OLD watcher payload has no per-side lists, so the single
+                // last-scorer line keeps working. (Text only — the old 5×5 dot was hardcoded to
+                // the HOME color regardless of who scored, which was quietly wrong.)
+                if !hasSideDetail, let scorer = state.lastScorer {
+                    Text(scorer).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.75))
                 }
                 if let b = state.broadcast {
                     Spacer().frame(width: 10)
@@ -186,6 +209,13 @@ private struct LockScreenBanner: View {
             }
             .padding(14)
         }
+    }
+
+    /// True when the watcher sent per-side detail — the footer's single-line fallback stands
+    /// down so the same scorer isn't shown twice.
+    private var hasSideDetail: Bool {
+        state.homeScorers?.isEmpty == false || state.awayScorers?.isEmpty == false
+            || (state.homeRedCards ?? 0) > 0 || (state.awayRedCards ?? 0) > 0
     }
 
     // Team-color wash: home color bleeds from the left edge, away from the right — the
@@ -221,10 +251,44 @@ private struct LockScreenBanner: View {
         }
     }
 
-    private func team(_ abbr: String, _ hex: String) -> some View {
-        HStack(spacing: 8) {
-            CrestBadge(abbr: abbr, hex: hex, size: 36)
-            Text(abbr).font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
+    /// One side of the banner: crest + abbreviation (+ red-card rects), with that side's scorer
+    /// lines stacked underneath. Home is leading-aligned, away trailing — mirroring a match
+    /// thread's home-left / away-right event columns.
+    private func sideColumn(
+        abbr: String, hex: String, scorers: [String]?, reds: Int?, alignment: HorizontalAlignment
+    ) -> some View {
+        VStack(alignment: alignment, spacing: 4) {
+            HStack(spacing: 8) {
+                // Crest is PROMINENT by design — it's the team's identity (players/fans lift the
+                // crest to their chest), and it outranks the abbreviation. Never shrink it toward
+                // an "icon" size; if anything it should read as big as the space allows (à la The
+                // Athletic's national-team flags). 48pt here dominates the 14pt abbr intentionally.
+                CrestBadge(abbr: abbr, hex: hex, size: 48)
+                Text(abbr).font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
+                if let reds, reds > 0 {
+                    // Red-card marker(s): the app's card language (EventTimelineRow.cardRect —
+                    // a filled rounded rect, never an SF symbol), scaled to sit beside the abbr.
+                    HStack(spacing: 2) {
+                        ForEach(0..<min(reds, 2), id: \.self) { _ in
+                            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                                .fill(LA.live)
+                                .frame(width: 8, height: 11)
+                        }
+                    }
+                }
+            }
+            if let scorers, !scorers.isEmpty {
+                VStack(alignment: alignment, spacing: 2) {
+                    // Index-keyed: two goals by one player can render the same line when ESPN
+                    // omits the minute, and duplicate \.self IDs would drop one.
+                    ForEach(Array(scorers.enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.75))
+                            .lineLimit(1)
+                    }
+                }
+            }
         }
     }
 }

@@ -55,8 +55,8 @@ struct PlayoffBracketView: View {
             Spacer(minLength: 0)
         }
         .padding(12)
-        .background(accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(accent.opacity(0.25)))
+        .background(accent.opacity(0.10), in: RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous).strokeBorder(accent.opacity(0.25)))
         .padding(.bottom, 8)
     }
 
@@ -67,7 +67,7 @@ struct PlayoffBracketView: View {
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Circle().fill(status.color).frame(width: 8, height: 8)
-                Text(round.title).dsFont(13, weight: .heavy).tracking(1.2).foregroundStyle(status.color)
+                Text(round.title).trackedCaps(size: 13, weight: .heavy, color: status.color)
                 Text("· \(status.note)").dsFont(12).foregroundStyle(Color.dsFgTertiary)
                 Spacer(minLength: 0)
             }
@@ -97,9 +97,9 @@ struct PlayoffBracketView: View {
             infoRow(m)
         }
         .background(Color.dsBgCard)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous)
                 .strokeBorder(mine ? accent.opacity(0.45) : Color.clear, lineWidth: 1)
         )
 
@@ -185,7 +185,7 @@ struct PlayoffBracketView: View {
     private func broadcastPill(_ name: String) -> some View {
         Text(name).dsFont(10, weight: .bold).foregroundStyle(.white)
             .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(Color.dsBgTertiary, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .background(Color.dsBgTertiary, in: RoundedRectangle(cornerRadius: DS.radiusXs, style: .continuous))
     }
 
     private var footerNote: some View {

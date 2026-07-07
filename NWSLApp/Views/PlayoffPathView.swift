@@ -52,7 +52,7 @@ struct PlayoffPathView: View {
             TeamLogo(urlString: club?.logoURL, teamAbbreviation: abbr, size: 48)
             VStack(alignment: .leading, spacing: 3) {
                 if let seed {
-                    Text("#\(seed) SEED").dsFont(11, weight: .bold).tracking(1.2).foregroundStyle(accent)
+                    Text("#\(seed) SEED").trackedCaps(color: accent)
                 }
                 if let elimRound {
                     Text("Eliminated in the \(elimRound.singular)")
@@ -104,7 +104,7 @@ struct PlayoffPathView: View {
                 .overlay(Circle().strokeBorder(nodeFilled ? accent : Color.dsFgTertiary, lineWidth: 2))
                 .padding(.top, 2)
             VStack(alignment: .leading, spacing: 8) {
-                Text(step.round.title).dsFont(11, weight: .bold).tracking(1).foregroundStyle(labelColor)
+                Text(step.round.title).trackedCaps(size: 11, tracking: 1, color: labelColor)
                 stepCard(step)
                 if let win = step.winContext {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -161,7 +161,7 @@ struct PlayoffPathView: View {
                     if let b = m.broadcast {
                         Text(b).dsFont(10, weight: .bold).foregroundStyle(.white)
                             .padding(.horizontal, 6).padding(.vertical, 1)
-                            .background(Color.dsBgTertiary, in: RoundedRectangle(cornerRadius: 4))
+                            .background(Color.dsBgTertiary, in: RoundedRectangle(cornerRadius: DS.radiusXs))
                     }
                 }
                 if let v = m.venue { Text("· \(v)").dsFont(11).foregroundStyle(Color.dsFgSecondary).lineLimit(1) }
@@ -197,14 +197,15 @@ struct PlayoffPathView: View {
     private func championRow(accent: Color, championAbbr: String?) -> some View {
         HStack(spacing: 12) {
             Circle().fill(Color.dsBgTertiary).frame(width: 16, height: 16)
-                .overlay(Text("🏆").font(.system(size: 9)))
+                .overlay(Text("🏆").dsFont(10))
                 .overlay(Circle().strokeBorder(Color.dsFgQuaternary, lineWidth: 2))
             if let championAbbr {
+                // Mixed case deliberately (club name stays proper-case, not shouted).
                 Text("\(clubs.club(forAbbreviation: championAbbr)?.displayName ?? championAbbr) — NWSL CHAMPION")
                     .dsFont(12, weight: .bold).tracking(0.4)
                     .foregroundStyle(color(championAbbr))
             } else {
-                Text("NWSL CHAMPION").dsFont(12, weight: .bold).tracking(0.8).foregroundStyle(Color.dsFgTertiary)
+                Text("NWSL CHAMPION").trackedCaps(size: 12, tracking: 0.8, color: .dsFgTertiary)
             }
             Spacer(minLength: 0)
         }

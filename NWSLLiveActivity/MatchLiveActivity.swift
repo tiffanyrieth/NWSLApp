@@ -259,7 +259,11 @@ private struct LockScreenBanner: View {
     ) -> some View {
         VStack(alignment: alignment, spacing: 4) {
             HStack(spacing: 8) {
-                CrestBadge(abbr: abbr, hex: hex, size: 36)
+                // Crest is PROMINENT by design — it's the team's identity (players/fans lift the
+                // crest to their chest), and it outranks the abbreviation. Never shrink it toward
+                // an "icon" size; if anything it should read as big as the space allows (à la The
+                // Athletic's national-team flags). 48pt here dominates the 14pt abbr intentionally.
+                CrestBadge(abbr: abbr, hex: hex, size: 48)
                 Text(abbr).font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
                 if let reds, reds > 0 {
                     // Red-card marker(s): the app's card language (EventTimelineRow.cardRect —

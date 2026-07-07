@@ -108,8 +108,8 @@ struct PlayoffPathView: View {
                 stepCard(step)
                 if let win = step.winContext {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("Win →").dsFont(12, weight: .heavy).foregroundStyle(accent)
-                        Text(humanize(win)).dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                        Text("Win →").dsFont(13, weight: .heavy).foregroundStyle(accent)
+                        Text(humanize(win)).dsFont(13).foregroundStyle(Color.dsFgSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -143,7 +143,7 @@ struct PlayoffPathView: View {
                 sideLine(m.home, isFinal: m.isFinal)
                 Spacer(minLength: 8)
                 if m.isFinal, let hs = m.home.score, let as_ = m.away.score {
-                    Text("\(hs)–\(as_)").dsFont(15, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
+                    Text("\(hs)–\(as_)").dsFont(22, weight: .heavy, design: .rounded, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
                 }
             }
             Rectangle().fill(Color.dsSeparator).frame(height: DS.hairline)
@@ -181,13 +181,13 @@ struct PlayoffPathView: View {
     private func sideLine(_ side: BracketSide, isFinal: Bool) -> some View {
         let club = side.abbreviation.flatMap { clubs.club(forAbbreviation: $0) }
         let dimmed = isFinal && !side.isWinner && !side.isTBD
-        return HStack(spacing: 9) {
-            TeamLogo(urlString: club?.logoURL, teamAbbreviation: side.abbreviation, size: 34)
+        return HStack(spacing: 10) {
+            TeamLogo(urlString: club?.logoURL, teamAbbreviation: side.abbreviation, size: 44)
             Text(side.abbreviation ?? "TBD")
-                .dsFont(16, weight: side.isWinner && isFinal ? .heavy : .bold)
+                .dsFont(18, weight: side.isWinner && isFinal ? .heavy : .bold)
                 .foregroundStyle(side.isTBD ? Color.dsFgQuaternary : (club?.accentColor ?? .dsFgPrimary))
             if let seed = side.seed {
-                Text("#\(seed)").dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                Text("#\(seed)").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
             }
             Spacer(minLength: 0)
         }

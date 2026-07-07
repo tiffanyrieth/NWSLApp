@@ -49,8 +49,8 @@ struct PlayoffBracketView: View {
     private func winContextCard(_ text: String) -> some View {
         let accent = color(followedAlive ?? "")
         return HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text("Win →").dsFont(12, weight: .heavy).foregroundStyle(accent)
-            Text(text).dsFont(12).foregroundStyle(Color.dsFgSecondary)
+            Text("Win →").dsFont(13, weight: .heavy).foregroundStyle(accent)
+            Text(text).dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
@@ -119,17 +119,17 @@ struct PlayoffBracketView: View {
             if leading { crest(side, club: club) }
             VStack(alignment: leading ? .leading : .trailing, spacing: 2) {
                 Text(side.abbreviation ?? "TBD")
-                    .dsFont(16, weight: side.isWinner && isFinal ? .heavy : .bold)
+                    .dsFont(18, weight: side.isWinner && isFinal ? .heavy : .bold)
                     .foregroundStyle(side.isTBD ? Color.dsFgQuaternary : (club?.accentColor ?? .dsFgPrimary))
                 if let seed = side.seed {
-                    Text("#\(seed) seed").dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                    Text("#\(seed) seed").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                 }
             }
             if isFinal, let score = side.score {
                 Text("\(score)")
-                    .dsFont(20, weight: .heavy, monospacedDigit: true)
+                    .dsFont(30, weight: .heavy, design: .rounded, monospacedDigit: true)
                     .foregroundStyle(side.isWinner ? Color.dsFgPrimary : Color.dsFgTertiary)
-                    .frame(minWidth: 16, alignment: leading ? .leading : .trailing)
+                    .frame(minWidth: 22, alignment: leading ? .leading : .trailing)
             }
             if !leading { crest(side, club: club) }
         }
@@ -141,14 +141,14 @@ struct PlayoffBracketView: View {
     @ViewBuilder
     private func crest(_ side: BracketSide, club: Club?) -> some View {
         if side.isTBD {
-            Circle().fill(Color.dsBgTertiary).frame(width: 34, height: 34)
-                .overlay(Text("?").dsFont(14, weight: .bold).foregroundStyle(Color.dsFgQuaternary))
+            Circle().fill(Color.dsBgTertiary).frame(width: 46, height: 46)
+                .overlay(Text("?").dsFont(18, weight: .bold).foregroundStyle(Color.dsFgQuaternary))
         } else {
             ZStack(alignment: .topTrailing) {
-                TeamLogo(urlString: club?.logoURL, teamAbbreviation: side.abbreviation, size: 34)
+                TeamLogo(urlString: club?.logoURL, teamAbbreviation: side.abbreviation, size: 46)
                 if isFollowed(side.abbreviation) {
-                    Text("★").dsFont(9).foregroundStyle(color(side.abbreviation ?? ""))
-                        .offset(x: 4, y: -4)
+                    Text("★").dsFont(11).foregroundStyle(color(side.abbreviation ?? ""))
+                        .offset(x: 5, y: -3)
                 }
             }
         }

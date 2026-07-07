@@ -115,6 +115,19 @@ struct StandingsView: View {
     private func initSegmentIfReady() {
         guard !segmentInitialized, playoffs.isPostseasonActive,
               playoffs.bracket != nil, !clubs.clubs.isEmpty else { return }
+        #if DEBUG
+        // Testing aid: force the initial segment (the SwiftUI picker can't be tapped headlessly).
+        if let forced = launchArg("-simulatePostseasonSegment") {
+            switch forced.lowercased() {
+            case "bracket": segment = .bracket
+            case "path", "yourpath": segment = .yourPath
+            case "standings": segment = .standings
+            default: segment = defaultSegment()
+            }
+            segmentInitialized = true
+            return
+        }
+        #endif
         segment = defaultSegment()
         segmentInitialized = true
     }

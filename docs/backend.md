@@ -52,6 +52,17 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   third-party buckets (reporter/league Bluesky + news RSS: isNWSL strict; fail-DROP for social /
   fail-open for news); club + player accounts are trusted fast paths. Every card carries a `sourceType`
   (club·reporter·player·league·news) for Feed chips. Plus a flood cap + dedupe.
+- **IG scrape = LOAD-BALANCED across two free tiers** (2026-07-05, after Apify's free $5/mo ran dry
+  mid-cycle): **clubs (16 handles → Home) via Apify** (~192 items/run ≈ $0.86/mo — Home serves the club
+  pool UNCAPPED and pages its ~12/profile depth on refresh, so the cheap actor ignoring per-post limits
+  is a feature) and **players (34 handles → Feed) via Bright Data's Web Scraper API** (recurring free 5k
+  records/mo; `num_of_posts=6` honored ≈ 3,060/mo; players serve-cap at 3/handle anyway). BD is ASYNC:
+  the every-2-day cron triggers, BD POSTs results to the proxy's `/brightdata-webhook` ~1–3 min later
+  (auth = `BD_WEBHOOK_SECRET` echoed in the Authorization header). SPLIT KV keys
+  (`social-cards-club-v1` / `social-cards-player-v1`, per-side keep-last-good — two writers, so a shared
+  key would race). Admin `POST /refresh-social` (`x-admin-key`) forces an immediate refresh (token swap /
+  aborted run). Gotcha: BD bills a record even for an EMPTY handle (renamed/dead account) — quota drains
+  silently, hence the `bdHandleEmpty` diag; keep the player handle list clean.
 - **Headshots** (`src/headshots.ts`): `GET /headshots` serves an `{espnAthleteId: nwslGuid}` map (NWSL
   SDP JSON name-matched to ESPN rosters, ~98%; weekly cron + admin `POST /headshots/run`; union-merged
   in KV with an unmatched/overrides audit). App builds the Cloudinary URL on-device — no image bytes.

@@ -27,6 +27,17 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   honest "Roster as of …" label (`ClubSquad.cachedAsOf`). Never silent (emits `rosterStaleServe` /
   `rosterImplausibleNoCache` / `rosterUnavailable` diag); deploy gate `health_check_roster.mjs`. ACFC
   was seeded once from the official club site (`scripts/seed_acfc_roster.mjs`).
+- **Playoff override** (`src/playoff-override.ts`): the roster last-known-good philosophy applied to
+  the postseason bracket — an operator escape hatch for when ESPN corrupts playoff data (wrong
+  winner/score, a dropped game) or the format surprises us. `GET /playoff-override?season=YYYY` →
+  `{ version, season, override }` (public; `override:null` = dormant, the app derives purely from
+  ESPN). The app (`PlayoffStore`) layers it over the derived bracket AT THE EVENT LEVEL before
+  derivation, so a corrected winner propagates to later rounds. Set/clear with the `BRACKET_ADMIN_KEY`:
+  `curl -X POST ".../playoff-override?season=2026" -H "x-admin-key: $KEY" -d '{JSON}'` (clear:
+  `&clear=1`). KV key `playoff-override:{season}` in `FEED_TAGS`, no TTL. Override JSON: `note` /
+  `hideBracket` (kill switch) / `teamCount` / `seeds{abbr:seed}` / `matchups[{round,home,away,
+  homeScore,awayScore,winner,state,kickoff,broadcast,venue}]` — all optional. Fix = live for every
+  user in minutes, no App Store release.
 - **Kickoff weather** (`src/weather.ts`): `GET /weather?event={espnEventId}` serves a PAST match's
   kickoff-hour temperature + WMO sky condition from **Open-Meteo** (free, no key — ESPN has no NWSL
   weather). Resolves venue/kickoff/state via the worker's OWN edge-cached `/summary` (the byte-identical

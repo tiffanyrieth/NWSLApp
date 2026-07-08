@@ -50,6 +50,37 @@ struct Event: Decodable, Identifiable {
     let date: String?
     let status: EventStatus?
     let competitions: [Competition]?
+    // ESPN tags every event with its season type: `slug` is "regular-season" or
+    // "playoffs---quarterfinals" / "---semifinals" / "---championship". This is the
+    // native, free postseason signal the Playoff feature keys on (no clinch math).
+    let season: EventSeason?
+
+    // Memberwise init (all defaulted) so the DEBUG postseason simulator + previews can
+    // build events in code; Decodable's synthesized `init(from:)` is unaffected.
+    init(id: String, name: String? = nil, shortName: String? = nil, date: String? = nil,
+         status: EventStatus? = nil, competitions: [Competition]? = nil, season: EventSeason? = nil) {
+        self.id = id
+        self.name = name
+        self.shortName = shortName
+        self.date = date
+        self.status = status
+        self.competitions = competitions
+        self.season = season
+    }
+}
+
+/// ESPN's `event.season` — the season-type tag. `slug` drives postseason detection +
+/// round grouping; `type` is ESPN's numeric id (varies per year, so we key on `slug`).
+struct EventSeason: Decodable {
+    let year: Int?
+    let type: Int?
+    let slug: String?
+
+    init(year: Int? = nil, type: Int? = nil, slug: String? = nil) {
+        self.year = year
+        self.type = type
+        self.slug = slug
+    }
 }
 
 struct EventStatus: Decodable {
@@ -76,6 +107,12 @@ struct StatusType: Decodable {
     let state: String?
     let description: String?
     let shortDetail: String?
+
+    init(state: String? = nil, description: String? = nil, shortDetail: String? = nil) {
+        self.state = state
+        self.description = description
+        self.shortDetail = shortDetail
+    }
 }
 
 struct Competition: Decodable {
@@ -84,6 +121,12 @@ struct Competition: Decodable {
     // extra request. Optional/defensive like everything else here.
     let venue: Venue?
     let broadcasts: [Broadcast]?
+
+    init(competitors: [Competitor]? = nil, venue: Venue? = nil, broadcasts: [Broadcast]? = nil) {
+        self.competitors = competitors
+        self.venue = venue
+        self.broadcasts = broadcasts
+    }
 }
 
 struct Venue: Decodable {
@@ -92,12 +135,19 @@ struct Venue: Decodable {
 
     struct Address: Decodable {
         let city: String?
+        init(city: String? = nil) { self.city = city }
+    }
+
+    init(fullName: String? = nil, address: Address? = nil) {
+        self.fullName = fullName
+        self.address = address
     }
 }
 
 struct Broadcast: Decodable {
     // ESPN nests channel names: broadcasts[].names = ["Prime Video"].
     let names: [String]?
+    init(names: [String]? = nil) { self.names = names }
 }
 
 struct Competitor: Decodable {
@@ -106,6 +156,16 @@ struct Competitor: Decodable {
     // ESPN sends this as a String ("0"), not a number.
     let score: String?
     let team: Team?
+    // Who advanced — authoritative even on a draw decided by penalties (2025 WAS 1–1 LOU,
+    // WAS advanced on PKs). Advancement keys on THIS, never on comparing scores.
+    let winner: Bool?
+
+    init(homeAway: String? = nil, score: String? = nil, team: Team? = nil, winner: Bool? = nil) {
+        self.homeAway = homeAway
+        self.score = score
+        self.team = team
+        self.winner = winner
+    }
 }
 
 struct Team: Decodable {
@@ -113,6 +173,14 @@ struct Team: Decodable {
     let abbreviation: String?
     let shortDisplayName: String?
     let logo: String?
+
+    init(displayName: String? = nil, abbreviation: String? = nil,
+         shortDisplayName: String? = nil, logo: String? = nil) {
+        self.displayName = displayName
+        self.abbreviation = abbreviation
+        self.shortDisplayName = shortDisplayName
+        self.logo = logo
+    }
 }
 
 // MARK: - Event helpers
@@ -153,6 +221,23 @@ extension Event {
 
     // "pre" | "in" | "post" | nil
     var statusState: String? { status?.type?.state }
+
+    // MARK: Postseason (Playoff feature)
+
+    /// ESPN's season-type slug, e.g. "regular-season" / "playoffs---quarterfinals".
+    var seasonSlug: String? { season?.slug }
+
+    /// Any postseason event (`playoffs---*`). The Playoff feature's activation + round
+    /// grouping key on this — it's ESPN's native tag, no clinch math.
+    var isPlayoffEvent: Bool { season?.slug?.hasPrefix("playoffs") ?? false }
+
+    var isRegularSeasonEvent: Bool { season?.slug == "regular-season" }
+
+    /// The abbreviation of the side ESPN flags as `winner` (authoritative on PK results).
+    var winnerAbbreviation: String? {
+        competitions?.first?.competitors?
+            .first(where: { $0.winner == true })?.team?.abbreviation
+    }
 
     /// ESPN keeps `state == "in"` THROUGH halftime (clock frozen at 2700, description "Halftime").
     /// Every live-clock surface must check this and show a static HT label instead of ticking —

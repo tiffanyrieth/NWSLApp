@@ -42,6 +42,10 @@ struct RootTabView: View {
     // readers (see MatchStore).
     @State private var matches = MatchStore()
 
+    // The postseason bracket, derived from the shared season + standings and shown only
+    // during the playoffs in the Standings tab — created once, injected, read there.
+    @State private var playoffs = PlayoffStore()
+
     // The league's club directory (all 16 clubs), created once and shared
     // app-wide: Teams lists it, Onboarding picks from it, and Home/Schedule/Feed
     // resolve followed IDs → Clubs — one fetch, many readers (see ClubStore).
@@ -219,6 +223,7 @@ struct RootTabView: View {
         .environment(router)
         .environment(following)
         .environment(matches)
+        .environment(playoffs)
         .environment(clubs)
         .environment(trivia)
         .environment(bracket)

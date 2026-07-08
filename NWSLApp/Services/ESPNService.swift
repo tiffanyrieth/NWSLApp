@@ -82,10 +82,49 @@ struct ESPNService {
     // while everything else is `apis/site/v2/…` (the `site/v2` standings path
     // returns an empty object). So we build this URL explicitly rather than
     // appending to `base`.
-    func fetchStandings() async throws -> [StandingsRow] {
-        guard let url = URL(string: "https://site.api.espn.com/apis/v2/sports/soccer/usa.nwsl/standings") else {
+    /// The season's phase calendar (ESPN core API `/seasons/{year}/types`): regular season +
+    /// playoff-round date windows, published months ahead — drives the Schedule's year-round TBD
+    /// playoff tail. The list is `$ref` links, so this derefs each (≤5 tiny GETs, once per launch
+    /// via PlayoffStore). BEST-EFFORT: any failure → [] (the tail degrades to dateless TBD).
+    func fetchSeasonWindows(year: Int) async -> [SeasonWindow] {
+        guard let listURL = URL(string:
+            "https://sports.core.api.espn.com/v2/sports/soccer/leagues/usa.nwsl/seasons/\(year)/types?limit=20")
+        else { return [] }
+        do {
+            let list = try await fetch(SeasonTypeList.self, from: listURL)
+            var windows: [SeasonWindow] = []
+            for item in list.items ?? [] {
+                guard let ref = item.ref,
+                      let url = URL(string: ref.replacingOccurrences(of: "http://", with: "https://"))
+                else { continue }
+                if let window = try? await fetch(SeasonWindow.self, from: url) {
+                    windows.append(window)
+                }
+            }
+            return windows
+        } catch {
+            await Diagnostics.shared.record(.apiFailure, "seasonWindows \(year): \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    /// The operator playoff override for a season (proxy `/playoff-override`). BEST-EFFORT: any
+    /// failure (offline, 404, decode) returns nil so the bracket simply derives from ESPN — the
+    /// override must never be able to break the feature it exists to protect.
+    func fetchPlayoffOverride(season: Int) async -> PlayoffOverride? {
+        guard let url = AppConfig.playoffOverrideURL(season: season) else { return nil }
+        return try? await fetch(PlayoffOverrideEnvelope.self, from: url).override
+    }
+
+    // `season` fetches a PRIOR year's final table (the endpoint accepts `?season=YYYY`) —
+    // used by PlayoffStore to seed a completed historical bracket in the offseason gap.
+    // Omit for the current live table.
+    func fetchStandings(season: Int? = nil) async throws -> [StandingsRow] {
+        guard var components = URLComponents(string: "https://site.api.espn.com/apis/v2/sports/soccer/usa.nwsl/standings") else {
             throw ESPNServiceError.badURL
         }
+        if let season { components.queryItems = [URLQueryItem(name: "season", value: "\(season)")] }
+        guard let url = components.url else { throw ESPNServiceError.badURL }
         return try await fetch(StandingsResponse.self, from: url).rows
     }
 

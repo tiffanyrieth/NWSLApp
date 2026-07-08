@@ -1,5 +1,15 @@
 # Roadmap / What's Next
 
+> ### 🧹 CLEANUP — remove the DEBUG postseason simulator's baked-in 2025 data (owner-parked)
+> **Kept ON PURPOSE (owner, 2026-07-07):** `PostseasonSimulator.swift` carries real 2025 bracket +
+> clinch data so the owner can exercise the Playoffs feature in-sim over the next few days before the
+> real Nov postseason. It is 100% `#if DEBUG` + launch-arg-gated (`-simulatePostseason2025…`) → compiles
+> out of Release/TestFlight and shows NOTHING in normal builds (scheme flag is off), so it is harmless to
+> ship as-is. **When the owner says they're satisfied:** strip the fake 2025 seeding data from
+> `PostseasonSimulator.swift` (or delete the sim harness) so no hard-coded 2025 bracket lingers in the
+> app source. The unit tests that reference `PostseasonSimulator.clinchTable` (`PlayoffClinchTests`) move
+> to inline fixtures at that point. Nothing auto-reminds — this note is the reminder.
+
 > ### 🎯 POLISH — lineup-push crest shows the WRONG team for away-team fans
 > **Observed (owner, 2026-07-05, live Boston vs Bay game):** the "Lineups in" V1 push attaches the
 > **home** club's crest (`crestAbbr()` defaults to home for lineup events, watcher `events.ts`). A fan

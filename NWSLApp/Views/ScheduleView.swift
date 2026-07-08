@@ -38,6 +38,9 @@ struct ScheduleView: View {
     @Environment(FollowingStore.self) private var following
     // For the tap-the-active-tab → scroll-to-today behavior (re-tap signal).
     @Environment(AppRouter.self) private var router
+    // The postseason state (bracket / windows / clinch) — the playoffs live HERE (owner
+    // decision: the bracket IS the schedule; Standings stays the pure table).
+    @Environment(PlayoffStore.self) private var playoffs
 
     // Which filter tab is selected. Defaults to NWSL (the full league) so fans
     // can discover other games — NOT "My teams" (see the spec).
@@ -79,12 +82,43 @@ struct ScheduleView: View {
             viewModel.store = matchStore
             viewModel.clubStore = clubStore
             viewModel.following = following
+            viewModel.playoffs = playoffs
             if case .idle = matchStore.state { await matchStore.load() }
             if case .idle = clubStore.state { await clubStore.load() }
+            await refreshPlayoffs()
+        }
+        // Re-derive the postseason state whenever the season data changes (live advancement).
+        .onChange(of: matchStore.lastLoadedAt) { _, _ in Task { await refreshPlayoffs() } }
+        // The Playoffs chip retires (postseason rolled over / sim off) → fall back to NWSL.
+        .onChange(of: playoffs.isChipVisible) { _, visible in
+            if !visible, selectedFilter == .playoffs { selectedFilter = .nwsl }
         }
         // First-open positioning + all re-anchors live INSIDE the ScrollViewReader
         // (matchList) so they can drive the scroll proxy directly. See `matchList`.
     }
+
+    /// Feed the derived-postseason store the loaded NWSL season (or, in DEBUG, the simulator).
+    private func refreshPlayoffs() async {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-simulatePostseason2025") {
+            playoffs.simulatePostseason2025(stage: PostseasonSimulator.Stage(arg: launchArg("-simulatePostseason2025Stage")))
+            if launchArg("-simulatePostseasonSegment")?.lowercased() == "playoffs" {
+                selectedFilter = .playoffs
+            }
+            return
+        }
+        #endif
+        await playoffs.sync(nwslEvents: matchStore.nwslEvents)
+    }
+
+    #if DEBUG
+    private func launchArg(_ name: String) -> String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: name), i + 1 < args.count else { return nil }
+        let next = args[i + 1]
+        return next.hasPrefix("-") ? nil : next
+    }
+    #endif
 
 
     // Large "Schedule" title + the filter chips, drawn as one pinned header.
@@ -101,10 +135,11 @@ struct ScheduleView: View {
         .background(Color.dsBgGrouped)
     }
 
-    // Three filter chips (design: NWSL · My teams · All matches), active = accent.
+    // The filter chips: NWSL · My teams, + "Playoffs" once 2+ teams have mathematically
+    // clinched (or the bracket is seeded) — visibility is the view model's `visibleFilters`.
     private var filterPicker: some View {
         HStack(spacing: 8) {
-            ForEach(ScheduleViewModel.Filter.allCases) { filter in
+            ForEach(viewModel.visibleFilters) { filter in
                 Chip(label: filter.title, isActive: selectedFilter == filter, compact: true) {
                     selectedFilter = filter
                 }
@@ -130,10 +165,13 @@ struct ScheduleView: View {
     }
 
     // The loaded body depends on the filter — "My teams" has its own empty
-    // states (no follows yet, or follows still resolving).
+    // states (no follows yet, or follows still resolving); "Playoffs" shows the
+    // my-path-to-the-playoffs experience instead of the match list.
     @ViewBuilder
     private var loadedContent: some View {
-        if selectedFilter == .myTeams && following.followedIDs.isEmpty
+        if selectedFilter == .playoffs {
+            playoffsContent
+        } else if selectedFilter == .myTeams && following.followedIDs.isEmpty
             && following.followedNationalTeams.isEmpty {
             // "My teams" is empty only when NOTHING is followed — clubs OR national
             // teams. (Following just a national team still fills this view.)
@@ -146,7 +184,7 @@ struct ScheduleView: View {
             // Show a real error + retry instead of a misleading "No matches" (#16).
             errorView(clubsError) { await clubStore.load() }
         } else {
-            let sections = viewModel.sections(for: selectedFilter)
+            let sections = viewModel.scheduleSections(for: selectedFilter)
             if sections.isEmpty {
                 emptyState
             } else {
@@ -155,7 +193,73 @@ struct ScheduleView: View {
         }
     }
 
-    private func matchList(_ sections: [ScheduleViewModel.DaySection]) -> some View {
+    // MARK: - Playoffs chip content ("my path to the playoffs")
+
+    /// Clinch window (chip visible, bracket unseeded): per-followed-team status + the TBD
+    /// rounds. Seeded: the full bracket road (PlayoffPathView).
+    @ViewBuilder
+    private var playoffsContent: some View {
+        ScrollView {
+            if let bracket = playoffs.bracket {
+                PlayoffPathView(bracket: bracket, onOpenMatch: openPlayoffMatch)
+                    .padding(.top, 8)
+            } else {
+                clinchWindowContent
+            }
+        }
+        .background(Color.dsBgGrouped)
+    }
+
+    private var clinchWindowContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            let followedAbbrs = viewModel.followedAbbreviations.sorted()
+            if followedAbbrs.isEmpty {
+                followPrompt.frame(minHeight: 240)
+            } else {
+                Text("MY PATH TO THE PLAYOFFS")
+                    .trackedCaps()
+                    .padding(.top, 8)
+                ForEach(followedAbbrs, id: \.self) { abbr in
+                    if let status = playoffs.clinchStatus(of: abbr) {
+                        ClinchStatusCard(abbreviation: abbr,
+                                         club: clubStore.club(forAbbreviation: abbr),
+                                         status: status)
+                    }
+                }
+            }
+            // The road ahead: the published playoff windows as TBD rounds.
+            ForEach(viewModel.scheduleRoundSectionsForPlayoffsChip()) { section in
+                VStack(alignment: .leading, spacing: 10) {
+                    RoundHeader(section: section)
+                    VStack(spacing: DS.cardGap) {
+                        ForEach(section.matchups) { m in
+                            PlayoffMatchupRow(matchup: m)
+                        }
+                    }
+                    .padding(.leading, 16)
+                    .overlay(Rectangle().fill(RoundHeader.color(for: section.status).opacity(0.3)).frame(width: 2),
+                             alignment: .leading)
+                }
+            }
+        }
+        .padding(.horizontal, DS.pagePadding)
+        .padding(.bottom, 20)
+    }
+
+    /// Open a playoff matchup's detail — resolve from the season first, else the simulator's
+    /// source events (DEBUG runs use synthetic events that aren't in MatchStore).
+    private func openPlayoffMatch(_ eventID: String) {
+        if let match = matchStore.scheduledMatch(for: eventID) {
+            pushedMatch = match
+        } else if let event = playoffs.event(forID: eventID) {
+            pushedMatch = ScheduledMatch(event: event, competition: .nwsl)
+        } else {
+            return
+        }
+        isShowingPushedMatch = true
+    }
+
+    private func matchList(_ sections: [ScheduleViewModel.ScheduleSection]) -> some View {
         // ScrollViewReader (not `.scrollPosition`) so we can anchor to a specific
         // CARD — the last kicked-off game — rather than a day-section: that card lands
         // at the very top with today's date bar + upcoming fixtures just below (so the
@@ -165,24 +269,29 @@ struct ScheduleView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 12, pinnedViews: [.sectionHeaders]) {
-                    ForEach(sections) { section in
-                        Section {
-                            ForEach(section.matches) { match in
-                                // Closure-based NavigationLink (not value-based): Event
-                                // isn't Hashable, and the card is the link's label so the
-                                // whole card is tappable. `.plain` keeps the card's look.
-                                NavigationLink {
-                                    MatchDetailView(event: match.event,
-                                                    competition: match.competition)
-                                } label: {
-                                    MatchCard(match: match, anchor: matchStore.tickAnchor(for: match.event.id))
+                    ForEach(sections) { scheduleSection in
+                        switch scheduleSection {
+                        case .day(let section):
+                            Section {
+                                ForEach(section.matches) { match in
+                                    // Closure-based NavigationLink (not value-based): Event
+                                    // isn't Hashable, and the card is the link's label so the
+                                    // whole card is tappable. `.plain` keeps the card's look.
+                                    NavigationLink {
+                                        MatchDetailView(event: match.event,
+                                                        competition: match.competition)
+                                    } label: {
+                                        MatchCard(match: match, anchor: matchStore.tickAnchor(for: match.event.id))
+                                    }
+                                    .buttonStyle(.plain)
+                                    // The per-card scroll anchor target (event id).
+                                    .id(match.id)
                                 }
-                                .buttonStyle(.plain)
-                                // The per-card scroll anchor target (event id).
-                                .id(match.id)
+                            } header: {
+                                DayHeader(dayKey: section.id, isToday: section.isToday)
                             }
-                        } header: {
-                            DayHeader(dayKey: section.id, isToday: section.isToday)
+                        case .round(let section):
+                            roundSection(section)
                         }
                     }
                 }
@@ -248,6 +357,81 @@ struct ScheduleView: View {
         } else {
             proxy.scrollTo(id, anchor: .top)
         }
+    }
+
+    // MARK: - Postseason round sections (the playoff merge: the bracket IS the schedule)
+
+    /// One postseason round in the schedule list: a pinned round header (status dot + title +
+    /// date range) with the round's games under the owner's status-color left bar. Rows are
+    /// PlayoffMatchupRow — MatchCard's anatomy, so playoff games read like every other game.
+    @ViewBuilder
+    private func roundSection(_ section: ScheduleViewModel.RoundSection) -> some View {
+        Section {
+            // The personal "Win →" line rides at the top of the postseason region (the first
+            // round section) when a followed team is still alive.
+            if playoffs.bracket?.rounds.first?.slug == section.round.slug,
+               let context = winContextLine {
+                winContextCard(context)
+            }
+            VStack(spacing: DS.cardGap) {
+                ForEach(section.matchups) { m in playoffRow(m) }
+            }
+            .padding(.leading, 16)
+            .overlay(Rectangle().fill(RoundHeader.color(for: section.status).opacity(0.3)).frame(width: 2),
+                     alignment: .leading)
+        } header: {
+            RoundHeader(section: section)
+        }
+    }
+
+    @ViewBuilder
+    private func playoffRow(_ m: PlayoffMatchup) -> some View {
+        let row = PlayoffMatchupRow(
+            matchup: m,
+            homeClub: m.home.abbreviation.flatMap { clubStore.club(forAbbreviation: $0) },
+            awayClub: m.away.abbreviation.flatMap { clubStore.club(forAbbreviation: $0) },
+            followedAbbreviations: viewModel.followedAbbreviations
+        )
+        if let id = m.eventID, m.isResolved {
+            Button { openPlayoffMatch(id) } label: { row }
+                .buttonStyle(.plain)
+                .id(id)   // scroll-anchor target, same as day cards (event id)
+        } else {
+            row   // TBD/projected rows aren't tappable (no event yet)
+        }
+    }
+
+    /// "Win → face Portland Thorns FC in the Semifinal" for the first followed team still alive.
+    private var winContextLine: String? {
+        guard let bracket = playoffs.bracket else { return nil }
+        let followed = viewModel.followedAbbreviations
+        guard let team = bracket.seeds.keys.filter({ followed.contains($0) })
+            .sorted(by: { (bracket.seeds[$0] ?? 99) < (bracket.seeds[$1] ?? 99) })
+            .first(where: { bracket.isAlive($0) }),
+              let step = bracket.path(forAbbreviation: team)?.first(where: { $0.winContext != nil }),
+              var text = step.winContext
+        else { return nil }
+        // Humanize abbreviations to full club names where the directory can resolve them.
+        for abbr in bracket.seeds.keys {
+            if let name = clubStore.club(forAbbreviation: abbr)?.displayName {
+                text = text.replacingOccurrences(of: " \(abbr) ", with: " \(name) ")
+                if text.hasSuffix(" \(abbr)") { text = String(text.dropLast(abbr.count)) + name }
+            }
+        }
+        return text
+    }
+
+    private func winContextCard(_ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text("Win →").dsFont(13, weight: .heavy).foregroundStyle(Color.dsStateKickoff)
+            Text(text).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Color.dsStateKickoff.opacity(0.08), in: RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous)
+            .strokeBorder(Color.dsStateKickoff.opacity(0.2)))
     }
 
     // "My teams" with nothing followed yet — a gentle nudge, per the spec.
@@ -349,10 +533,89 @@ private struct DayHeader: View {
     }
 }
 
+/// Sticky POSTSEASON round label — the DayHeader's sibling for the playoff merge: a status dot
+/// (cyan upcoming / red live / green complete) + the round title in status-colored tracked caps +
+/// the date range, over the same opaque page background so pinned headers don't bleed.
+private struct RoundHeader: View {
+    let section: ScheduleViewModel.RoundSection
+
+    static func color(for status: ScheduleViewModel.RoundSection.Status) -> Color {
+        switch status {
+        case .upcoming: return .dsStateKickoff
+        case .live: return .dsStateLive
+        case .complete: return .dsStateFinal
+        }
+    }
+
+    var body: some View {
+        let color = Self.color(for: section.status)
+        HStack(spacing: 8) {
+            Circle().fill(color).frame(width: 8, height: 8)
+            Text(section.round.title).trackedCaps(size: 12, tracking: 0.6, color: color)
+            if let range = section.dateRangeLabel {
+                Text("· \(range)").dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+            } else if section.status == .complete {
+                Text("· Complete").dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+            }
+            Rectangle()
+                .fill(Color.dsSeparator)
+                .frame(height: 1)
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 2)
+        .frame(maxWidth: .infinity)
+        .background(Color.dsBgGrouped)
+    }
+}
+
+/// One followed team's clinch-window status ("my path to the playoffs"): crest + club + the
+/// mathematical status — ✓ Clinched (green) / In position (cyan) / Out of the picture /
+/// Eliminated. Conservative math only (see PlayoffClinch) — never a false "clinched".
+private struct ClinchStatusCard: View {
+    let abbreviation: String
+    let club: Club?
+    let status: PlayoffClinch.Status
+
+    var body: some View {
+        HStack(spacing: 12) {
+            TeamLogo(urlString: club?.logoURL, teamAbbreviation: abbreviation, size: 44)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(club?.displayName ?? abbreviation)
+                    .dsFont(15, weight: .bold)
+                    .foregroundStyle(Color.dsFgPrimary)
+                statusLine
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgCard, in: RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var statusLine: some View {
+        switch status {
+        case .clinched:
+            Text("✓ Clinched a playoff spot")
+                .dsFont(13, weight: .semibold).foregroundStyle(Color.dsStateFinal)
+        case .inPosition(let rank, let gamesLeft):
+            Text("In position — #\(rank), \(gamesLeft) game\(gamesLeft == 1 ? "" : "s") left")
+                .dsFont(13, weight: .semibold).foregroundStyle(Color.dsStateKickoff)
+        case .outOfPicture:
+            Text("Outside the playoff line")
+                .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+        case .eliminated:
+            Text("Out of the playoff race")
+                .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
+        }
+    }
+}
+
 #Preview {
     ScheduleView()
         .environment(MatchStore())
         .environment(ClubStore())
         .environment(FollowingStore())
         .environment(AppRouter())
+        .environment(PlayoffStore())
 }

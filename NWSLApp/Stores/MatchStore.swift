@@ -161,12 +161,30 @@ final class MatchStore {
     /// fast (~30s) while a game is on and slow otherwise, and gates the detail poll.
     var hasLiveMatch: Bool { events.contains { $0.statusState == "in" } }
 
+    /// A new calendar year's feed must carry at least this many NWSL fixtures before the app
+    /// rolls over to it — guards the Dec→fixtures-release gap (a stray placeholder event must not
+    /// wipe the completed season; owner rule: last season stays browsable until the new schedule
+    /// is actually published).
+    private static let seasonRolloverMinimumFixtures = 10
+
     private func performLoad(silent: Bool) async {
-        let year = calendar.component(.year, from: now())
+        var year = calendar.component(.year, from: now())
         let followedCodes = following?.followedNationalTeams ?? []
         do {
             // NWSL is the spine — its failure is a hard error (the schedule is broken).
-            let board = try await service.fetchScoreboard(year: year)
+            var board = try await service.fetchScoreboard(year: year)
+            // SEASON ROLLOVER: if the new calendar year has no published schedule yet, keep
+            // serving the PRIOR season in full (results + playoffs + final) — no empty-app
+            // window between the championship and the next fixture release.
+            if board.events.count < Self.seasonRolloverMinimumFixtures {
+                let priorBoard = try await service.fetchScoreboard(year: year - 1)
+                if priorBoard.events.count >= Self.seasonRolloverMinimumFixtures {
+                    Diagnostics.shared.record(.staleServe,
+                        "season rollover gap: \(year) has \(board.events.count) fixtures — serving \(year - 1)")
+                    board = priorBoard
+                    year -= 1   // the extra feeds below follow the season we're serving
+                }
+            }
             var matches = board.events.map { ScheduledMatch(event: $0, competition: .nwsl) }
 
             // Followed women's national teams — each feed is an EXTRA: a failure

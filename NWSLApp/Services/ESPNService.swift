@@ -82,6 +82,32 @@ struct ESPNService {
     // while everything else is `apis/site/v2/…` (the `site/v2` standings path
     // returns an empty object). So we build this URL explicitly rather than
     // appending to `base`.
+    /// The season's phase calendar (ESPN core API `/seasons/{year}/types`): regular season +
+    /// playoff-round date windows, published months ahead — drives the Schedule's year-round TBD
+    /// playoff tail. The list is `$ref` links, so this derefs each (≤5 tiny GETs, once per launch
+    /// via PlayoffStore). BEST-EFFORT: any failure → [] (the tail degrades to dateless TBD).
+    func fetchSeasonWindows(year: Int) async -> [SeasonWindow] {
+        guard let listURL = URL(string:
+            "https://sports.core.api.espn.com/v2/sports/soccer/leagues/usa.nwsl/seasons/\(year)/types?limit=20")
+        else { return [] }
+        do {
+            let list = try await fetch(SeasonTypeList.self, from: listURL)
+            var windows: [SeasonWindow] = []
+            for item in list.items ?? [] {
+                guard let ref = item.ref,
+                      let url = URL(string: ref.replacingOccurrences(of: "http://", with: "https://"))
+                else { continue }
+                if let window = try? await fetch(SeasonWindow.self, from: url) {
+                    windows.append(window)
+                }
+            }
+            return windows
+        } catch {
+            await Diagnostics.shared.record(.apiFailure, "seasonWindows \(year): \(error.localizedDescription)")
+            return []
+        }
+    }
+
     /// The operator playoff override for a season (proxy `/playoff-override`). BEST-EFFORT: any
     /// failure (offline, 404, decode) returns nil so the bracket simply derives from ESPN — the
     /// override must never be able to break the feature it exists to protect.

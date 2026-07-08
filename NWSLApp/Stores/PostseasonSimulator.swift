@@ -18,18 +18,54 @@ import Foundation
 enum PostseasonSimulator {
 
     enum Stage: String {
+        case preSeeding   // no playoff events, no clinches — the year-round TBD windows tail only
+        case clinchWindow // late regular season: 2+ teams mathematically clinched → chip appears
         case qfUpcoming   // all 4 QFs upcoming (everyone alive; projection + storyline visible)
         case midRun       // 2 QFs final, 1 live, 1 upcoming; SF/Final TBD (the prototype state)
         case complete     // whole bracket final; GFC champion (historical/keepsake state)
 
         init(arg: String?) {
             switch arg?.lowercased() {
+            case "pre", "preseeding": self = .preSeeding
+            case "clinch", "clinchwindow": self = .clinchWindow
             case "qf", "qfupcoming": self = .qfUpcoming
             case "done", "complete": self = .complete
             default: self = .midRun
             }
         }
     }
+
+    /// The real 2025 playoff-round windows (matches ESPN's season-type calendar shape) — drives
+    /// the pre-seeding TBD tail in the sim.
+    static let windows2025: [SeasonWindow] = [
+        SeasonWindow(slug: "regular-season", name: "Regular Season",
+                     startDate: "2025-01-01T05:00Z", endDate: "2025-11-04T04:59Z"),
+        SeasonWindow(slug: "playoffs---quarterfinals", name: "Playoffs - Quarterfinals",
+                     startDate: "2025-11-04T05:00Z", endDate: "2025-11-11T04:59Z"),
+        SeasonWindow(slug: "playoffs---semifinals", name: "Playoffs - Semifinals",
+                     startDate: "2025-11-11T05:00Z", endDate: "2025-11-18T04:59Z"),
+        SeasonWindow(slug: "playoffs---championship", name: "Playoffs - Championship",
+                     startDate: "2025-11-18T05:00Z", endDate: "2026-01-01T04:59Z"),
+    ]
+
+    /// A late-October table (constructed, plausible): KC + WAS mathematically clinched (the
+    /// chip's 2+ trigger), SEA in position, CHI eliminated. 14 teams à la 2025; 26-game season.
+    static let clinchTable: [PlayoffClinch.TeamLine] = [
+        .init(abbreviation: "KC", points: 58, gamesPlayed: 24, rank: 1),
+        .init(abbreviation: "WAS", points: 52, gamesPlayed: 24, rank: 2),
+        .init(abbreviation: "POR", points: 44, gamesPlayed: 24, rank: 3),
+        .init(abbreviation: "ORL", points: 43, gamesPlayed: 24, rank: 4),
+        .init(abbreviation: "SEA", points: 38, gamesPlayed: 24, rank: 5),
+        .init(abbreviation: "SD", points: 36, gamesPlayed: 24, rank: 6),
+        .init(abbreviation: "LOU", points: 34, gamesPlayed: 24, rank: 7),
+        .init(abbreviation: "GFC", points: 33, gamesPlayed: 24, rank: 8),
+        .init(abbreviation: "NC", points: 31, gamesPlayed: 24, rank: 9),
+        .init(abbreviation: "HOU", points: 28, gamesPlayed: 24, rank: 10),
+        .init(abbreviation: "LA", points: 25, gamesPlayed: 24, rank: 11),
+        .init(abbreviation: "UTA", points: 22, gamesPlayed: 24, rank: 12),
+        .init(abbreviation: "BAY", points: 18, gamesPlayed: 24, rank: 13),
+        .init(abbreviation: "CHI", points: 10, gamesPlayed: 24, rank: 14),
+    ]
 
     /// abbr → seed for the full 2025 final table (top 8 make the bracket).
     static let seeds2025: [String: Int] = [
@@ -46,6 +82,8 @@ enum PostseasonSimulator {
 
     private static func events(for stage: Stage) -> [Event] {
         switch stage {
+        case .preSeeding, .clinchWindow:
+            return []   // no playoff fixtures yet — these stages drive windows/clinch state only
         case .qfUpcoming:
             return [
                 game("760606", .qf, home: ("KC", nil),  away: ("GFC", nil), winner: nil, iso: "2025-11-09T17:30Z", tv: "ABC",  venue: "CPKC Stadium",        state: .pre),
@@ -79,9 +117,11 @@ enum PostseasonSimulator {
 
     private static func referenceNow(for stage: Stage) -> Date {
         switch stage {
-        case .qfUpcoming: return iso("2025-11-07T18:00Z") ?? Date(timeIntervalSince1970: 1_762_538_400)
-        case .midRun:     return iso("2025-11-08T18:00Z") ?? Date(timeIntervalSince1970: 1_762_624_800)
-        case .complete:   return iso("2025-12-01T18:00Z") ?? Date(timeIntervalSince1970: 1_764_612_000)
+        case .preSeeding:   return iso("2025-07-15T18:00Z") ?? Date(timeIntervalSince1970: 1_752_602_400)
+        case .clinchWindow: return iso("2025-10-20T18:00Z") ?? Date(timeIntervalSince1970: 1_760_983_200)
+        case .qfUpcoming:   return iso("2025-11-07T18:00Z") ?? Date(timeIntervalSince1970: 1_762_538_400)
+        case .midRun:       return iso("2025-11-08T18:00Z") ?? Date(timeIntervalSince1970: 1_762_624_800)
+        case .complete:     return iso("2025-12-01T18:00Z") ?? Date(timeIntervalSince1970: 1_764_612_000)
         }
     }
 

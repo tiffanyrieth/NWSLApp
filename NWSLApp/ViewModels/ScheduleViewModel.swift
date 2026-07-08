@@ -31,17 +31,49 @@ final class ScheduleViewModel {
         let matches: [ScheduledMatch]   // tagged so the card can label non-NWSL competitions
     }
 
-    /// The two filter chips (Competitions feature: NWSL, and My teams — which now
-    /// folds in followed national teams' + Champions Cup matches. No third chip).
+    /// One postseason round as a schedule section — the playoff merge (owner decision: the
+    /// bracket IS the schedule). Placed games sort CHRONOLOGICALLY (not by bracket slot);
+    /// TBD placeholders follow.
+    struct RoundSection: Identifiable {
+        enum Status { case upcoming, live, complete }
+        let round: PlayoffRound
+        let status: Status
+        let dateRangeLabel: String?   // "Nov 4–11" from kickoffs, else the season window
+        let matchups: [PlayoffMatchup]
+        var id: String { round.slug }
+    }
+
+    /// The schedule list: chronological day sections, then the postseason round sections at
+    /// the season's end (real, or the year-round TBD tail).
+    enum ScheduleSection: Identifiable {
+        case day(DaySection)
+        case round(RoundSection)
+        var id: String {
+            switch self {
+            case .day(let d): return "day-\(d.id)"
+            case .round(let r): return "round-\(r.id)"
+            }
+        }
+    }
+
+    /// The filter chips. NWSL + My teams always; "Playoffs" appears when 2+ teams have
+    /// mathematically clinched (or the bracket is seeded) — see `visibleFilters`.
     enum Filter: String, CaseIterable, Identifiable {
-        case nwsl, myTeams
+        case nwsl, myTeams, playoffs
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .nwsl:    return "NWSL"
-            case .myTeams: return "My teams"
+            case .nwsl:     return "NWSL"
+            case .myTeams:  return "My teams"
+            case .playoffs: return "Playoffs"
             }
         }
+    }
+
+    /// Chips actually shown — the Playoffs chip is clinch/seeding-gated, so don't iterate
+    /// `Filter.allCases` blindly in the chip bar.
+    var visibleFilters: [Filter] {
+        (playoffs?.isChipVisible ?? false) ? [.nwsl, .myTeams, .playoffs] : [.nwsl, .myTeams]
     }
 
     // Set by ScheduleView from the environment before the first load. Optional
@@ -54,6 +86,9 @@ final class ScheduleViewModel {
     // Also handed in by the view: the personalization lens for the "My teams"
     // filter (which followed clubs are playing).
     var following: FollowingStore?
+    // The postseason state (bracket / windows / clinch) — drives the round sections and the
+    // Playoffs chip. Handed in by the view like the other shared stores.
+    var playoffs: PlayoffStore?
 
     private let calendar: Calendar
     private let now: () -> Date
@@ -79,9 +114,77 @@ final class ScheduleViewModel {
         await clubStore?.load()
     }
 
-    /// Day-grouped sections for a given filter tab.
-    func sections(for filter: Filter) -> [DaySection] {
-        sections(from: matches(for: filter))
+    /// The full schedule for a filter tab: day sections + (NWSL chip) the postseason round
+    /// sections at the end. My teams keeps playoff games inline as day cards — it's the
+    /// personal chronological timeline; the league-structure view lives on the NWSL chip.
+    func scheduleSections(for filter: Filter) -> [ScheduleSection] {
+        switch filter {
+        case .nwsl:
+            let rounds = roundSections()
+            let days = sections(from: matches(for: filter), excludingPlayoffs: !rounds.isEmpty)
+            return days.map { .day($0) } + rounds.map { .round($0) }
+        case .myTeams, .playoffs:
+            return sections(from: matches(for: filter), excludingPlayoffs: false).map { .day($0) }
+        }
+    }
+
+    /// The round sections for the Playoffs chip's clinch-window "road ahead" tail.
+    func scheduleRoundSectionsForPlayoffsChip() -> [RoundSection] { roundSections() }
+
+    /// The postseason round sections: the derived bracket when seeded, else the year-round TBD
+    /// tail from ESPN's published windows. Empty only when the playoff pipeline is unavailable
+    /// (windows fetch failed AND no bracket) — playoff games then fall back to day cards above
+    /// (honest degrade; they never vanish).
+    private func roundSections() -> [RoundSection] {
+        guard let playoffs else { return [] }
+
+        if let bracket = playoffs.bracket {
+            return bracket.rounds.map { round in
+                let all = bracket.matchups(in: round)
+                let placed = all.filter { $0.isResolved }
+                    .sorted { ($0.kickoff ?? .distantFuture) < ($1.kickoff ?? .distantFuture) }
+                let tbd = all.filter { !$0.isResolved }
+                let status: RoundSection.Status = {
+                    if !all.isEmpty, all.allSatisfy({ $0.isFinal }) { return .complete }
+                    if all.contains(where: { $0.state == .live }) { return .live }
+                    return .upcoming
+                }()
+                return RoundSection(round: round, status: status,
+                                    dateRangeLabel: dateRange(placed.compactMap(\.kickoff))
+                                        ?? windowRange(for: round),
+                                    matchups: placed + tbd)
+            }
+        }
+
+        // Pre-seeding: the TBD tail from the season windows.
+        return playoffs.upcomingRounds.map { upcoming in
+            let placeholders = (0..<upcoming.slotCount).map { slot in
+                PlayoffMatchup(round: upcoming.round, slotIndex: slot,
+                               home: .tbd, away: .tbd,
+                               kickoff: nil, broadcast: nil, venue: nil,
+                               state: .pre, eventID: nil)
+            }
+            return RoundSection(round: upcoming.round, status: .upcoming,
+                                dateRangeLabel: dateRange([upcoming.start, upcoming.end].compactMap { $0 }),
+                                matchups: placeholders)
+        }
+    }
+
+    /// "Nov 4–11" (same-month), "Nov 28–Dec 2" (cross-month), or "Nov 8" (single day).
+    private func dateRange(_ dates: [Date]) -> String? {
+        let sorted = dates.sorted()
+        guard let first = sorted.first, let last = sorted.last else { return nil }
+        let f = DateFormatter(); f.locale = .current; f.timeZone = .current; f.dateFormat = "MMM d"
+        if calendar.isDate(first, inSameDayAs: last) { return f.string(from: first) }
+        let d = DateFormatter(); d.locale = .current; d.timeZone = .current; d.dateFormat = "d"
+        let sameMonth = calendar.component(.month, from: first) == calendar.component(.month, from: last)
+        return sameMonth ? "\(f.string(from: first))–\(d.string(from: last))"
+                         : "\(f.string(from: first))–\(f.string(from: last))"
+    }
+
+    private func windowRange(for round: PlayoffRound) -> String? {
+        guard let window = playoffs?.windows.first(where: { $0.slug == round.slug }) else { return nil }
+        return dateRange([window.start, window.end].compactMap { $0 })
     }
 
     /// Followed clubs' team abbreviations — the join key for the "My teams"
@@ -117,10 +220,11 @@ final class ScheduleViewModel {
     private func matches(for filter: Filter) -> [ScheduledMatch] {
         let all = store?.matches ?? []
         switch filter {
-        case .nwsl:
+        case .nwsl, .playoffs:
             // The home-league chip shows NWSL competitions — the regular season/playoffs
             // AND the NWSL Challenge Cup (an NWSL competition, even though it's excluded
             // from the league table). The Champions Cup / national-team matches stay out.
+            // (.playoffs shows its own content in the view; the match set is the NWSL one.)
             return all.filter { $0.competition.inNWSLScheduleView }
         case .myTeams:
             // "Everything you care about", woven into one timeline:
@@ -140,9 +244,13 @@ final class ScheduleViewModel {
         }
     }
 
-    private func sections(from matches: [ScheduledMatch]) -> [DaySection] {
+    /// `excludingPlayoffs` — when the round sections are rendered, playoff games live THERE
+    /// (round-grouped), so day-grouping drops them to avoid double-rendering. When the playoff
+    /// pipeline is unavailable they stay here as plain day cards (never vanish).
+    private func sections(from matches: [ScheduledMatch], excludingPlayoffs: Bool) -> [DaySection] {
         let today = todayKey()
-        let grouped = Dictionary(grouping: matches.filter { $0.event.dayKey != nil }) { $0.event.dayKey! }
+        let visible = excludingPlayoffs ? matches.filter { !$0.event.isPlayoffEvent } : matches
+        let grouped = Dictionary(grouping: visible.filter { $0.event.dayKey != nil }) { $0.event.dayKey! }
         return grouped
             .map { (key, dayMatches) in
                 DaySection(

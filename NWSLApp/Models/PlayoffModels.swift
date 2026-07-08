@@ -21,6 +21,139 @@
 
 import Foundation
 
+// MARK: - Season windows (ESPN season-type calendar)
+
+/// One ESPN season-type window (`…/seasons/{year}/types/{n}`): the published date range for a
+/// phase of the season ("Regular Season", "Playoffs - Quarterfinals", …). Drives the Schedule's
+/// year-round TBD playoff tail — the round dates are known months before any fixture exists.
+struct SeasonWindow: Decodable, Equatable {
+    let slug: String?
+    let name: String?
+    // ESPN's "2026-11-04T05:00Z" — same seconds-less ISO shape as Event.date.
+    let startDate: String?
+    let endDate: String?
+
+    var isPlayoff: Bool { slug?.hasPrefix("playoffs") ?? false }
+    var round: PlayoffRound? { slug.flatMap(PlayoffRound.init(slug:)) }
+
+    var start: Date? { Self.parse(startDate) }
+    var end: Date? { Self.parse(endDate) }
+
+    static func parse(_ s: String?) -> Date? {
+        guard let s else { return nil }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        for fmt in ["yyyy-MM-dd'T'HH:mmZ", "yyyy-MM-dd'T'HH:mm:ssZ"] {
+            f.dateFormat = fmt
+            if let d = f.date(from: s) { return d }
+        }
+        return nil
+    }
+}
+
+/// The core-API list envelope: items are `$ref` links to the per-type detail documents.
+struct SeasonTypeList: Decodable {
+    struct Item: Decodable {
+        let ref: String?
+        enum CodingKeys: String, CodingKey { case ref = "$ref" }
+    }
+    let items: [Item]?
+}
+
+// MARK: - Clinch math (pure, conservative)
+
+/// Mathematical playoff clinch/elimination from the standings — ESPN carries NO clinch flag (its
+/// standings "note" is positional), so we compute it. CONSERVATIVE by design: strict inequalities
+/// mean tiebreakers can never make us falsely early — we detect a clinch slightly late rather than
+/// ever claim one wrongly (no-silent-failures' honest-to-the-user cousin).
+enum PlayoffClinch {
+    /// `rank` = ESPN's standings rank (tiebreakers applied) — used for display, never for the math.
+    struct TeamLine { let abbreviation: String; let points: Int; let gamesPlayed: Int; let rank: Int }
+    enum Status: Equatable { case clinched, inPosition(rank: Int, gamesLeft: Int), outOfPicture, eliminated }
+
+    /// Games each team plays in a season: double round-robin.
+    static func totalGames(leagueSize: Int) -> Int { max(0, (leagueSize - 1) * 2) }
+
+    /// A team is CLINCHED when ≥ (leagueSize − spots) rivals mathematically cannot catch it:
+    /// rival maxPoints (points + 3 × remaining) STRICTLY below the team's CURRENT points.
+    static func isClinched(_ team: TeamLine, table: [TeamLine], spots: Int = 8) -> Bool {
+        let total = totalGames(leagueSize: table.count)
+        let needUncatchable = table.count - spots
+        guard needUncatchable > 0 else { return true }
+        let uncatchable = table.filter { rival in
+            rival.abbreviation != team.abbreviation &&
+            rival.points + 3 * max(0, total - rival.gamesPlayed) < team.points
+        }.count
+        return uncatchable >= needUncatchable
+    }
+
+    /// A team is ELIMINATED when its max possible points can't STRICTLY beat enough teams: ≥ spots
+    /// teams already have points above the team's ceiling (again strict — never falsely early).
+    static func isEliminated(_ team: TeamLine, table: [TeamLine], spots: Int = 8) -> Bool {
+        let total = totalGames(leagueSize: table.count)
+        let ceiling = team.points + 3 * max(0, total - team.gamesPlayed)
+        let unbeatable = table.filter { rival in
+            rival.abbreviation != team.abbreviation && rival.points > ceiling
+        }.count
+        return unbeatable >= spots
+    }
+
+    /// All clinched abbreviations in a table.
+    static func clinched(in table: [TeamLine], spots: Int = 8) -> Set<String> {
+        Set(table.filter { isClinched($0, table: table, spots: spots) }.map(\.abbreviation))
+    }
+
+    /// Build the clinch table PURELY from the loaded season's finished regular-season games — no
+    /// standings fetch needed. Points = 3W+1D; rank = points → goal difference → goals for (the
+    /// primary NWSL tiebreakers; deeper ties may differ from ESPN's official rank — display-only,
+    /// the clinch/elimination MATH never uses rank). Playoff games are excluded by slug.
+    static func table(fromRegularSeason events: [Event]) -> [TeamLine] {
+        struct Tally { var points = 0, played = 0, gf = 0, ga = 0 }
+        var tallies: [String: Tally] = [:]
+
+        // Every team that appears in ANY regular-season fixture is in the league (so leagueSize
+        // is right even early-season when few games are played).
+        for event in events where event.isRegularSeasonEvent {
+            guard let home = event.homeCompetitor?.team?.abbreviation,
+                  let away = event.awayCompetitor?.team?.abbreviation else { continue }
+            if tallies[home] == nil { tallies[home] = Tally() }
+            if tallies[away] == nil { tallies[away] = Tally() }
+            guard event.statusState == "post",
+                  let hs = event.homeCompetitor?.score.flatMap({ Int($0) }),
+                  let as_ = event.awayCompetitor?.score.flatMap({ Int($0) }) else { continue }
+            tallies[home]?.played += 1; tallies[away]?.played += 1
+            tallies[home]?.gf += hs; tallies[home]?.ga += as_
+            tallies[away]?.gf += as_; tallies[away]?.ga += hs
+            if hs > as_ { tallies[home]?.points += 3 }
+            else if as_ > hs { tallies[away]?.points += 3 }
+            else { tallies[home]?.points += 1; tallies[away]?.points += 1 }
+        }
+
+        let ranked = tallies.sorted { a, b in
+            if a.value.points != b.value.points { return a.value.points > b.value.points }
+            let gdA = a.value.gf - a.value.ga, gdB = b.value.gf - b.value.ga
+            if gdA != gdB { return gdA > gdB }
+            if a.value.gf != b.value.gf { return a.value.gf > b.value.gf }
+            return a.key < b.key
+        }
+        return ranked.enumerated().map { index, entry in
+            TeamLine(abbreviation: entry.key, points: entry.value.points,
+                     gamesPlayed: entry.value.played, rank: index + 1)
+        }
+    }
+
+    /// One team's status line for the "my path to the playoffs" card. Display rank/position come
+    /// from ESPN's standings rank (tiebreakers applied); only clinch/elimination use our math.
+    static func status(of abbr: String, table: [TeamLine], spots: Int = 8) -> Status? {
+        guard let team = table.first(where: { $0.abbreviation == abbr }) else { return nil }
+        if isClinched(team, table: table, spots: spots) { return .clinched }
+        if isEliminated(team, table: table, spots: spots) { return .eliminated }
+        let gamesLeft = max(0, totalGames(leagueSize: table.count) - team.gamesPlayed)
+        return team.rank <= spots ? .inPosition(rank: team.rank, gamesLeft: gamesLeft) : .outOfPicture
+    }
+}
+
 // MARK: - Round
 
 /// One postseason round. Modeled as a struct (not a fixed enum) so a future ESPN slug —

@@ -179,6 +179,16 @@ enum AppConfig {
         return components.url
     }
 
+    /// The proxy route serving the operator PLAYOFF OVERRIDE for a season: `GET
+    /// /playoff-override?season=YYYY` → `{ version, season, override }`. Dormant (override null)
+    /// unless set. PlayoffStore fetches it best-effort and layers it over the ESPN-derived bracket.
+    static func playoffOverrideURL(season: Int) -> URL? {
+        let endpoint = scoreboardProxyBase.appendingPathComponent("playoff-override")
+        guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return nil }
+        components.queryItems = [URLQueryItem(name: "season", value: "\(season)")]
+        return components.url
+    }
+
     // MARK: - Team crests
 
     /// The proxy route serving a team's NWSL crest as a transparent PNG: `GET /crest?team=WAS`.

@@ -208,6 +208,11 @@ struct ScheduleView: View {
             }
         }
         .background(Color.dsBgGrouped)
+        // The Playoffs chip is a SEPARATE scroll view, so it tears down the match list's
+        // ScrollViewReader. Reset the one-time position flag so returning to NWSL/My teams
+        // re-runs the position-to-today path (hidden → anchor → reveal), instead of resting
+        // at the season opener.
+        .onAppear { hasPositioned = false }
     }
 
     private var clinchWindowContent: some View {

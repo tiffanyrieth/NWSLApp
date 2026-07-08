@@ -70,6 +70,17 @@ struct ScheduleView: View {
             content
                 .toolbar(.hidden, for: .navigationBar)
                 .safeAreaInset(edge: .top, spacing: 0) { scheduleHeader }
+                // The pushed-match destination lives at the NavigationStack level (NOT inside
+                // the match list) so a tap on the Playoffs chip — a separate scroll view —
+                // still pushes. A push-notification deep link also resolves from any chip.
+                .navigationDestination(isPresented: $isShowingPushedMatch) {
+                    if let pushedMatch {
+                        MatchDetailView(event: pushedMatch.event, competition: pushedMatch.competition)
+                    }
+                }
+                .onChange(of: router.pendingMatchEventID) { _, _ in consumePendingMatch() }
+                .onChange(of: matchStore.lastLoadedAt) { _, _ in consumePendingMatch() }
+                .onAppear { consumePendingMatch() }
         }
         // Hand the view model the shared store + following lens, then load on
         // first appearance. Gate ONLY the season on `.idle` (so re-selecting the
@@ -323,18 +334,8 @@ struct ScheduleView: View {
                 guard router.reselectedTab == .schedule else { return }
                 anchorToBoundary(proxy, animated: true)
             }
-            // Push-tap deep link: a notification tap (goal/lineup/FT…) recorded a pending
-            // event id (AppRouter.openMatch) — resolve it against the loaded season and push
-            // the match detail DIRECTLY (completes the old TEMP seam that stranded the user
-            // on the Schedule tab). Retries when the season lands (push can beat first load).
-            .navigationDestination(isPresented: $isShowingPushedMatch) {
-                if let pushedMatch {
-                    MatchDetailView(event: pushedMatch.event, competition: pushedMatch.competition)
-                }
-            }
-            .onChange(of: router.pendingMatchEventID) { _, _ in consumePendingMatch() }
-            .onChange(of: matchStore.lastLoadedAt) { _, _ in consumePendingMatch() }
-            .onAppear { consumePendingMatch() }
+            // (The pushed-match destination + push-tap deep-link handlers now live at the
+            // NavigationStack level — see `body` — so a tap works from any chip, incl. Playoffs.)
             // "My teams" needs the club directory, which resolves a beat after the
             // season; re-anchor when those clubs land so it isn't stuck at the opener.
             .onChange(of: viewModel.clubs.isEmpty) { _, isEmpty in

@@ -203,9 +203,21 @@ struct NotificationsView: View {
             // Live Activity (V2) — the silent live-score card. Tier-2 (the watcher push-to-starts it →
             // needs an account), so it's a sign-in-gated opt-in like the alerts above; it just doesn't buzz.
             // Title keeps Apple's term ("Live Activity", matches iOS Settings) + names WHERE it appears.
-            SettingsToggleRow(title: "Live Activity on Lock Screen",
-                              subtitle: "Live score on your Lock Screen & Dynamic Island",
-                              isOn: tier2Binding(\.liveActivitiesEnabled))
+            // GRACEFUL DEGRADATION: the in-match update rail is APNs Broadcast Channels (iOS 18+), so on
+            // iOS 17.x the row is disabled with an honest "Requires iOS 18" note (never a silent no-op).
+            // All other alerts on this screen reach iOS 17.x in full.
+            if #available(iOS 18.0, *) {
+                SettingsToggleRow(title: "Live Activity on Lock Screen",
+                                  subtitle: "Live score on your Lock Screen & Dynamic Island",
+                                  isOn: tier2Binding(\.liveActivitiesEnabled))
+            } else {
+                SettingsToggleRow(title: "Live Activity on Lock Screen",
+                                  subtitle: "Live score on your Lock Screen & Dynamic Island",
+                                  note: "Requires iOS 18",
+                                  isOn: .constant(false))
+                    .disabled(true)
+                    .opacity(0.55)
+            }
         }
         // Inert + greyed until at least one team has alerts on (these types have
         // nothing to apply to otherwise). Un-dims reactively when §1 turns one on.

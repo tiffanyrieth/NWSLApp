@@ -58,9 +58,20 @@ final class LiveActivityManager {
         // rather than looking identical to "token received and uploaded" from the server's side.
         NotifTrace.shared.log("push-start-observe", laEnabled ? .ok : .fail,
             "laEnabled=\(laEnabled) snapshot=\(snapshot.count) state=\(Self.appStateLabel)")
-        observePushToStartTokens()
-        observeNewActivities()
-        for activity in snapshot { track(activity) }
+        // GRACEFUL DEGRADATION (iOS 18 floor for V2): in-match Live Activity updates now ride APNs
+        // Broadcast Channels, which only iOS 18+ devices can subscribe to. So on iOS 17.x we do NOT
+        // register a push-to-start token — the watcher then never starts an Activity that could only
+        // receive (broadcast-only) updates it can't subscribe to (a frozen pre-match card). iOS 17.x
+        // keeps FULL V1 alerts (plain APNs, unaffected); Live Activities are an iOS 18+ feature. The
+        // settings toggle shows an honest "Requires iOS 18" (NotificationsView).
+        if #available(iOS 18.0, *) {
+            observePushToStartTokens()
+            observeNewActivities()
+            for activity in snapshot { track(activity) }
+        } else {
+            NotifTrace.shared.log("push-start-observe", .skip, "iOS<18 — Live Activities require iOS 18 (V1 unaffected)")
+            Diagnostics.shared.record(.liveActivityTrace, "push-to-start skipped: iOS<18 (Broadcast Channels need iOS 18)")
+        }
     }
 
     /// Whether iOS Live Activities are enabled for this app (the Settings toggle). When false the OS

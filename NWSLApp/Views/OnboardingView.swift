@@ -35,6 +35,7 @@ struct OnboardingView: View {
     // Per-team match-alert toggles. Onboarding rows surface a bell the moment a club is
     // followed (OFF by default) so the follow-vs-alerts distinction is taught visually.
     @Environment(TeamAlertStore.self) private var teamAlerts
+    @Environment(NotificationPreferencesStore.self) private var notifications
     @Environment(\.dismiss) private var dismiss
 
     // After the picker, a one-screen thesis statement frames what the app is before
@@ -175,7 +176,18 @@ struct OnboardingView: View {
     // hub on a first toggle-on — the Bell-Tap fix).
     private func bellButton(for club: Club) -> some View {
         let on = teamAlerts.alertsEnabled(for: club.id)
-        return Button { teamAlerts.toggle(for: club.id) } label: {
+        return Button {
+            let turningOn = !on
+            teamAlerts.toggle(for: club.id)
+            if turningOn {
+                // Onboarding opt-in enables the account-free Tier-1 day-before reminder (owner: at least
+                // this should be on, not a silent bell-with-nothing). The full Tier-2 bundle is NOT enabled
+                // here — no mid-onboarding sign-in — and the first-time sentinel is left untouched, so a
+                // later in-app bell tap still cascades the whole bundle at Sign in with Apple.
+                notifications.dayBefore = true
+                Task { await MatchAlertPresenter.requestNotificationPermission() }
+            }
+        } label: {
             Image(systemName: on ? "bell.fill" : "bell")
                 .dsFont(13, weight: .medium)
                 .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)

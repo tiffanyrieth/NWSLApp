@@ -165,6 +165,7 @@ struct HomeView: View {
     }
 
     private var hub: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             // Fan Zone leads the feed as a compact horizontal row; Club News follows
             // with a PINNED section header (the "you're in the feed" cue). LazyVStack +
@@ -177,6 +178,9 @@ struct HomeView: View {
             // break, which is the preceding Fan Zone module's `.padding(.bottom)` so it
             // scrolls away with the carousel (leaving the pinned header flush to the top).
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                // Zero-height top anchor — always present (Fan Zone hides in the offseason), so the
+                // follow-change scroll-to-top below always has a target. See bug B.
+                Color.clear.frame(height: 0).id(Self.topAnchor)
                 playSection
                 clubNewsSection
                 comingUp
@@ -186,7 +190,16 @@ struct HomeView: View {
         }
         .contentMargins(.horizontal, 16, for: .scrollContent)
         .background(Color.dsBgGrouped)
+        .onChange(of: following.followedIDs) {
+            // Follows changed → the feed re-scopes to the new teams. Snap to top so a full-replacement
+            // of the follow set doesn't strand the scroll offset past now-collapsed content (the "black
+            // screen" that only fills in when you scroll back up). Bug B.
+            proxy.scrollTo(Self.topAnchor, anchor: .top)
+        }
+        }
     }
+
+    private static let topAnchor = "home-feed-top"
 
     // MARK: - Module 1: From your teams (the hook)
 

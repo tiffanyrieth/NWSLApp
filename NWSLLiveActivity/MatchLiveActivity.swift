@@ -149,7 +149,8 @@ struct MatchLiveActivity: Widget {
                 .font(font.monospacedDigit())
                 .foregroundStyle(LA.clock)
                 .frame(maxWidth: 56)
-        } else if let label = s.staticLabel {
+        } else if s.phase != .fulltime, let label = s.staticLabel {
+            // At full-time the top pill already shows "FT" — don't repeat it in the clock slot.
             Text(label).font(font).foregroundStyle(LA.clock)
         }
     }
@@ -246,7 +247,8 @@ private struct LockScreenBanner: View {
                 .font(.system(size: 11, weight: .semibold).monospacedDigit())
                 .foregroundStyle(LA.clock)
                 .frame(maxWidth: 60)
-        } else if let label = state.staticLabel {
+        } else if state.phase != .fulltime, let label = state.staticLabel {
+            // At full-time the top pill already shows "FT" — don't repeat it in the clock slot.
             Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(LA.clock)
         }
     }

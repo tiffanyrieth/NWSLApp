@@ -32,7 +32,8 @@ in previews + tests). Treat it as a real product; never suggest a demo/placehold
 Swift 5.9+ / SwiftUI (not UIKit), min iOS 17.2 (`@Observable`; 17.2 = Live Activity push-to-start), Xcode 27.0 beta 2. `URLSession` + async/await,
 no third-party HTTP. UserDefaults (small local state) + **Supabase** (Postgres, durable per-user once
 signed in); SwiftData nowhere. Sign in with Apple → Supabase (Apple auth + RLS). The **only**
-third-party dep is `supabase-swift` (SPM). Testing = **Swift Testing** (`@Test`/`#expect`), not XCTest.
+third-party dep is `supabase-swift` (SPM) — a deliberate minimal-dependency stance, but a PREFERENCE to
+weigh, not an absolute (revisit on merits if a feature genuinely justifies one — e.g. push fan-out at scale). Testing = **Swift Testing** (`@Test`/`#expect`), not XCTest.
 Secrets in gitignored `Config/Secrets.swift` (anon key is public — RLS is the real boundary).
 
 ## Commands
@@ -164,7 +165,11 @@ BOTH XIs are posted (≥11 starters/side, KV-deduped); the app shows the pre-mat
 future layout. UI groups kickoff+HT+FT under one "Match updates" toggle (grouping only — each still gates its
 own column server-side). NEVER auto-enable a notification WITHOUT an explicit user
 action. National-team alerts: bell keyed by FIFA code → `competition_alert_preferences` (separate from
-the club-id `team_alert_preferences`); the watcher polls the 7 NT feeds + fans out by code.
+the club-id `team_alert_preferences`); the watcher polls the women's-international competition feeds
+(friendlies + confederation championships + WC/Olympic qualifying — the SAME slug set kept in sync across
+app `NationalTeamFeed.all`, proxy `WOMENS_NT_FEEDS`+allowlist, and watcher `NT_LEAGUES`) + fans out by code.
+⚠️ Display + alerts must stay aligned (the ESPN `all/teams/{id}/schedule` endpoint is HISTORY-only, so the
+schedule's UPCOMING fixtures come only from these per-competition scoreboards — add a slug to all three lists).
 Per-user state in **Supabase**, offline-first (UserDefaults cache). **Follows sync = RESTORE-ONLY launch
 reconcile:** launch `reconcile` NEVER deletes a server row — a wiped/un-onboarded device restores the full
 server set, and only local-only follows upload. **Unfollows propagate solely via the explicit per-toggle
@@ -237,7 +242,10 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
 
 - **Dark appearance app-wide**, no toggle (page `#1C1C1E`, cards `#2C2C2E`).
 - Persistent UI (tab/nav bars) never obscures scrollable content (respect safe areas); every drilled-in
-  view has an explicit back affordance (don't rely on edge-swipe alone); nav resets to root on tab tap.
+  view has an explicit back affordance (don't rely on edge-swipe alone). Tabs keep their OWN nav stack
+  across switches (**The Athletic model, owner-confirmed 2026-07**); re-tapping the ALREADY-active tab
+  pops it to root (intended affordance, PENDING). Do NOT reset on every tab tap — that's ESPN's jarring
+  model (owner rejected), and `.id()` on a TabView child desyncs selection from content (tried, reverted).
 - **Back button = bare ‹ chevron** (native iOS, MLS/Athletic-style), screen name as a centered inline
   title, via `nativeBackButton(title:)` (`DSText.swift` — full mechanism in its doc comment);
   identity-header screens (MatchDetail/TeamDetail/PlayerDetail) pass no title. Don't use
@@ -268,6 +276,9 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
 - **`docs/navigation.md`** — each tab's lens + adjacency rules (read when adding/redesigning a screen).
 - **`docs/versioning.md`** — the (non-semver) version model + distribution.
 - **`docs/roadmap.md`** — What's Next (pending work).
+- **`docs/push-fanout-scaling.md`** — the launch-scale APNs fan-out ceiling (free-tier 50 subrequests/
+  invocation drops pushes past ~40 followers/team — a launch blocker, not a 100k-someday one) + the option
+  menu (APNs Broadcast Channels for V2, Cloudflare Queues for V1, Paid stopgap). Read before push-scale/launch work.
 - **`.claude/rules/bracket-battle.md`** + **`.claude/rules/fan-zone.md`** — feature rules that
   **auto-load** (path-scoped) when you touch Bracket / Predict-the-XI / Fan-Zone / Trivia / Home-games
   files; you don't need to open them manually.

@@ -109,8 +109,9 @@ struct ScheduledMatch: Identifiable {
 /// These feed BOTH the Schedule "My teams" fold-in (a followed team's fixtures) AND the
 /// data-driven Browse-all directory (the proxy `/national-teams` union of each feed's `/teams`)
 /// — keep this list in sync with the proxy's `WOMENS_NT_FEEDS`. World Cup + Olympics fold their
-/// followed-team MATCHES in (their whole-tournament group/bracket UI is still deferred). Copa
-/// América Femenina / Arnold Clark slugs can be added once confirmed + allowlisted in the proxy.
+/// followed-team MATCHES in (their whole-tournament group/bracket UI is still deferred). Beyond
+/// friendlies + the majors, the confederation championships + WC/Olympic qualifying feeds are
+/// included so a followed team's COMPETITIVE fixtures surface too (not just friendlies).
 /// The CONCACAF W Champions Cup ESPN feed — a CLUB competition (NWSL clubs vs Liga
 /// MX et al.). Contrary to the earlier assumption, ESPN DOES carry it under this slug;
 /// MatchStore fetches it when the Champions Cup toggle is on and keeps matches that
@@ -142,5 +143,15 @@ struct NationalTeamFeed {
         .init(slug: "uefa.weuro",                   label: "UEFA Women's Euro"),
         .init(slug: "fifa.wwc",                     label: "Women's World Cup"),
         .init(slug: "fifa.w.olympics",              label: "Women's Olympics"),
+        // Confederation championships + WC/Olympic qualifying (kept in sync with the proxy allowlist
+        // + watcher NT_LEAGUES) — a followed team's competitive fixtures, not just friendlies.
+        .init(slug: "uefa.w.nations",               label: "UEFA Women's Nations League"),
+        .init(slug: "fifa.wworldq.uefa",            label: "World Cup Qualifying — UEFA"),
+        .init(slug: "afc.w.asian.cup",              label: "AFC Women's Asian Cup"),
+        .init(slug: "caf.w.nations",                label: "Women's Africa Cup of Nations"),
+        .init(slug: "conmebol.america.femenina",    label: "Copa América Femenina"),
+        .init(slug: "fifa.wwcq.ply",                label: "World Cup Qualifying — Playoff"),
+        .init(slug: "fifa.w.concacaf.olympicsq",    label: "Concacaf Olympic Qualifying"),
+        .init(slug: "global.pinatar_cup",           label: "Pinatar Cup"),
     ]
 }

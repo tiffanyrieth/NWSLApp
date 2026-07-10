@@ -22,7 +22,12 @@ struct MatchActivityAttributes: ActivityAttributes {
     let awayAbbr: String
     let homeColorHex: String   // brand hex WITHOUT '#', from DesignTeamColors
     let awayColorHex: String
-    let competition: String    // "NWSL" today (NWSL-only until the watcher is competition-aware — V1 gap)
+    let competition: String    // "NWSL", "International" (USWNT V2), …
+    // True for a NATIONAL-TEAM match → the widget renders FIFA-code FLAGS instead of club crests
+    // (USWNT V2). Defaulted `var` so it's ADDITIVE-optional both ways: old app builds omit it (club
+    // crest path), the watcher's newer payload sets it, and the synthesized decoder populates it from
+    // JSON when present (absent → nil → club crests). Keys byte-match the watcher's LiveAttributes.
+    var isNational: Bool? = nil
 
     struct ContentState: Codable, Hashable {
         var homeScore: Int

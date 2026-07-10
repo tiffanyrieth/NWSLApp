@@ -63,10 +63,10 @@ struct MatchLiveActivity: Widget {
             let s = context.state
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    teamColumn(abbr: a.homeAbbr, hex: a.homeColorHex)
+                    teamColumn(abbr: a.homeAbbr, hex: a.homeColorHex, isNational: a.isNational ?? false)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    teamColumn(abbr: a.awayAbbr, hex: a.awayColorHex)
+                    teamColumn(abbr: a.awayAbbr, hex: a.awayColorHex, isNational: a.isNational ?? false)
                 }
                 DynamicIslandExpandedRegion(.center) {
                     VStack(spacing: 2) {
@@ -97,7 +97,7 @@ struct MatchLiveActivity: Widget {
                 // island shows just the crests — a "0" for a match that hasn't started reads as
                 // a live 0–0, which is a lie.
                 HStack(spacing: 3) {
-                    CrestBadge(abbr: a.homeAbbr, hex: a.homeColorHex, size: 18)
+                    CrestBadge(abbr: a.homeAbbr, hex: a.homeColorHex, size: 18, isNational: a.isNational ?? false)
                     if s.phase != .pre {
                         Text("\(s.homeScore)").font(.system(size: 14, weight: .heavy)).foregroundStyle(.white)
                     }
@@ -107,13 +107,13 @@ struct MatchLiveActivity: Widget {
                     if s.phase != .pre {
                         Text("\(s.awayScore)").font(.system(size: 14, weight: .heavy)).foregroundStyle(.white)
                     }
-                    CrestBadge(abbr: a.awayAbbr, hex: a.awayColorHex, size: 18)
+                    CrestBadge(abbr: a.awayAbbr, hex: a.awayColorHex, size: 18, isNational: a.isNational ?? false)
                 }
             } minimal: {
                 // Minimal (second concurrent Activity): the leading team's score in its color —
                 // pre-match, its crest instead (same honesty rule as compact).
                 if s.phase == .pre {
-                    CrestBadge(abbr: a.homeAbbr, hex: a.homeColorHex, size: 16)
+                    CrestBadge(abbr: a.homeAbbr, hex: a.homeColorHex, size: 16, isNational: a.isNational ?? false)
                 } else {
                     Text("\(s.homeScore)")
                         .font(.system(size: 13, weight: .heavy))
@@ -124,10 +124,10 @@ struct MatchLiveActivity: Widget {
         }
     }
 
-    // Expanded-region team column (crest + abbreviation).
-    private func teamColumn(abbr: String, hex: String) -> some View {
+    // Expanded-region team column (crest/flag + abbreviation).
+    private func teamColumn(abbr: String, hex: String, isNational: Bool = false) -> some View {
         VStack(spacing: 4) {
-            CrestBadge(abbr: abbr, hex: hex, size: 28)
+            CrestBadge(abbr: abbr, hex: hex, size: 28, isNational: isNational)
             Text(abbr).font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
         }
     }
@@ -171,7 +171,8 @@ private struct LockScreenBanner: View {
             HStack(alignment: .top) {
                 sideColumn(
                     abbr: attributes.homeAbbr, hex: attributes.homeColorHex,
-                    scorers: state.homeScorers, reds: state.homeRedCards, alignment: .leading
+                    scorers: state.homeScorers, reds: state.homeRedCards, alignment: .leading,
+                    isNational: attributes.isNational ?? false
                 )
                 Spacer()
                 VStack(spacing: 3) {
@@ -188,7 +189,8 @@ private struct LockScreenBanner: View {
                 Spacer()
                 sideColumn(
                     abbr: attributes.awayAbbr, hex: attributes.awayColorHex,
-                    scorers: state.awayScorers, reds: state.awayRedCards, alignment: .trailing
+                    scorers: state.awayScorers, reds: state.awayRedCards, alignment: .trailing,
+                    isNational: attributes.isNational ?? false
                 )
             }
             HStack {
@@ -257,7 +259,8 @@ private struct LockScreenBanner: View {
     /// lines stacked underneath. Home is leading-aligned, away trailing — mirroring a match
     /// thread's home-left / away-right event columns.
     private func sideColumn(
-        abbr: String, hex: String, scorers: [String]?, reds: Int?, alignment: HorizontalAlignment
+        abbr: String, hex: String, scorers: [String]?, reds: Int?, alignment: HorizontalAlignment,
+        isNational: Bool = false
     ) -> some View {
         VStack(alignment: alignment, spacing: 4) {
             HStack(spacing: 8) {
@@ -265,7 +268,7 @@ private struct LockScreenBanner: View {
                 // crest to their chest), and it outranks the abbreviation. Never shrink it toward
                 // an "icon" size; if anything it should read as big as the space allows (à la The
                 // Athletic's national-team flags). 48pt here dominates the 14pt abbr intentionally.
-                CrestBadge(abbr: abbr, hex: hex, size: 48)
+                CrestBadge(abbr: abbr, hex: hex, size: 48, isNational: isNational)
                 Text(abbr).font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
                 if let reds, reds > 0 {
                     // Red-card marker(s): the app's card language (EventTimelineRow.cardRect —
@@ -295,13 +298,49 @@ private struct LockScreenBanner: View {
     }
 }
 
-// MARK: - Crest (real bundled badge; colored ring + abbreviation only as fallback)
+// MARK: - Crest / flag (real bundled badge; colored ring + abbreviation only as fallback)
 struct CrestBadge: View {
     let abbr: String
     let hex: String
     let size: CGFloat
+    /// National-team match → render the FIFA-code FLAG instead of a club crest (USWNT V2). Both asset
+    /// sets are bundled in the WIDGET's own catalog (it can't read the app target's). Default false.
+    var isNational: Bool = false
 
     var body: some View {
+        if isNational {
+            flagBadge
+        } else {
+            crestBadge
+        }
+    }
+
+    // National-team FLAG — mirrors the app's canonical flag grammar (NationalTeamCard.flag): a
+    // rectangular mark at the ~52×36 ratio (width = size, height = size·0.69), FILLED, rounded-6
+    // continuous clip + a white hairline so white-edged flags (Japan) stay defined on the dark card.
+    // Flags are PNG in the widget catalog (Live Activity image-memory budget — SVG is app-only).
+    @ViewBuilder private var flagBadge: some View {
+        let h = size * 0.69
+        if let img = UIImage(named: "Flags/\(abbr.uppercased())") {
+            Image(uiImage: img)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: size, height: h)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1))
+        } else {
+            // Load miss → a country-color block in the same flag shape (never blank).
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color(hex: hex).opacity(0.85))
+                .frame(width: size, height: h)
+                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1))
+        }
+    }
+
+    // Club CREST — the reference standard, UNTOUCHED: prominent, square, fit; colored ring + abbr fallback.
+    @ViewBuilder private var crestBadge: some View {
         if let img = UIImage(named: "Crests/\(abbr.uppercased())") {
             Image(uiImage: img)
                 .resizable().scaledToFit()

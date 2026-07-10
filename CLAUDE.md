@@ -20,6 +20,12 @@ table stakes that must work but are **not** the differentiator.
   (scores/schedule/standings/stats — must work, not the differentiator) → (3) **hardening**
   (bugs/tests/robustness). Never put 3 above 1.
 - **Owner:** Tiffany Rieth. Personal project → production-quality iOS skills + a real App Store app.
+- **Sizing calibration (not enterprise, not toy):** solo indie dev, **free** app, **tip-jar-only**
+  revenue. Size for **~1k active users at launch** (mandatory — a few hundred one-team fans enabling
+  alerts must all get pushes) and architect for **100k over years**. Fixed monthly cost that triggers
+  at small scale is disqualifying; prefer flat tiers over metered billing. Full method + the two
+  stress tests (1k mandatory / 100k headroom) in **`docs/stress-testing.md`** — read before any
+  scaling/sizing/publish-readiness work.
 
 ## State
 
@@ -33,7 +39,9 @@ Swift 5.9+ / SwiftUI (not UIKit), min iOS 17.2 (`@Observable`; 17.2 = Live Activ
 no third-party HTTP. UserDefaults (small local state) + **Supabase** (Postgres, durable per-user once
 signed in); SwiftData nowhere. Sign in with Apple → Supabase (Apple auth + RLS). The **only**
 third-party dep is `supabase-swift` (SPM) — a deliberate minimal-dependency stance, but a PREFERENCE to
-weigh, not an absolute (revisit on merits if a feature genuinely justifies one — e.g. push fan-out at scale). Testing = **Swift Testing** (`@Test`/`#expect`), not XCTest.
+weigh, not an absolute (revisit on merits if a feature genuinely justifies one). The 2026-07-09 push
+fan-out review weighed + DECLINED Firebase and the chosen fix (Cloudflare Queues + APNs Broadcast
+Channels) adds **no** app dependency, so the line stays true. Testing = **Swift Testing** (`@Test`/`#expect`), not XCTest.
 Secrets in gitignored `Config/Secrets.swift` (anon key is public — RLS is the real boundary).
 
 ## Commands
@@ -276,9 +284,14 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
 - **`docs/navigation.md`** — each tab's lens + adjacency rules (read when adding/redesigning a screen).
 - **`docs/versioning.md`** — the (non-semver) version model + distribution.
 - **`docs/roadmap.md`** — What's Next (pending work).
-- **`docs/push-fanout-scaling.md`** — the launch-scale APNs fan-out ceiling (free-tier 50 subrequests/
-  invocation drops pushes past ~40 followers/team — a launch blocker, not a 100k-someday one) + the option
-  menu (APNs Broadcast Channels for V2, Cloudflare Queues for V1, Paid stopgap). Read before push-scale/launch work.
+- **`docs/stress-testing.md`** — the launch-readiness charter: indie-sizing calibration, the two stress
+  tests (1k mandatory / 100k headroom), the efficiency-first rule, and the 8-step method for stress-testing
+  any subsystem + a checklist of what still needs it. Read before any scaling/sizing/publish-readiness work.
+- **`docs/push-fanout-scaling.md`** — the launch-scale APNs fan-out ceiling (free-tier ~40 followers/team
+  drops pushes — a launch blocker) — now **DECIDED** (2026-07-09, primary-doc-verified): **V1 buzz + LA
+  push-to-start → Cloudflare Queues** ($0, free since 2026-02-04); **V2 in-match updates → APNs Broadcast
+  Channels** (channel-per-match, iOS 18+; iOS 17 = V1-only graceful degradation); Firebase declined;
+  Workers Paid $5/mo = the ~10–15k-user expansion slot. Build pending. Read before push-scale/launch work.
 - **`.claude/rules/bracket-battle.md`** + **`.claude/rules/fan-zone.md`** — feature rules that
   **auto-load** (path-scoped) when you touch Bracket / Predict-the-XI / Fan-Zone / Trivia / Home-games
   files; you don't need to open them manually.

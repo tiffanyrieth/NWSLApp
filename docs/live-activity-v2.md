@@ -16,7 +16,7 @@ Two independent notification layers ride the same watcher + `.p8` APNs key:
 | Surface | Notification banner + Notification Center | Persistent lock-screen card + Dynamic Island |
 | Role | **The interrupt** — buzzes for kickoff/goal/HT/FT/lineups per the user's toggles | **The quiet glance** — a live scoreboard that sits on the lock screen for the whole match |
 | Renders | Text + a server-rendered PNG card (`nwslapp-card` worker `/card`, attached by the NSE) | **Native SwiftUI** drawn ON-DEVICE by the widget target (`NWSLLiveActivity/MatchLiveActivity.swift`) from pushed JSON state |
-| Sound | Yes (per toggle; `interruption-level: time-sensitive`) | Never buzzes after start (updates/end are alert-less) |
+| Sound | Yes (per toggle; `interruption-level: time-sensitive`) | **Buzzes ONCE on arrival** (`sound: "default"` on the start), then SILENT — updates/end are alert-less (§3 arrival-buzz law) |
 | Persistence | Stacks in Notification Center (`thread-id: match-<id>`) | Ephemeral: dismisses ~15 min after FT; leaves no history |
 | Channel | `apns-push-type: alert`, topic = bundle id | `apns-push-type: liveactivity`, topic = `<bundle>.push-type.liveactivity` |
 
@@ -61,19 +61,35 @@ A start fired 1 minute before kickoff will "succeed" (APNs 200) and the device w
 opening minutes because its per-Activity token hasn't checked in. This was learned twice (6/30, 7/4).
 A catch-up push (KV `la-seen:{matchId}`) brings late-registering devices straight to the current score.
 
-## 3. ⚠️ THE RENDER LAW — what it takes for a card to actually appear
+## 3. ⚠️ THE RENDER LAW + THE ARRIVAL-BUZZ LAW — what it takes for a card to actually appear
 
-**Device-proven 2026-07-04 (controlled A/B, permission granted, fresh token), contradicting Apple's
-docs:** a push-to-start WITHOUT an `alert` object **NEVER renders**. APNs returns 200, the watcher logs
-`1/1 ok`, and iOS silently drops it. The three axes:
+**Part 1 — the alert object is REQUIRED (device-proven 2026-07-04):** a push-to-start WITHOUT an
+`alert` object **NEVER renders**. APNs returns 200, the watcher logs `1/1 ok`, and iOS silently drops it.
+
+**Part 2 — THE ARRIVAL-BUZZ LAW (corrected 2026-07-09 against the 7/5 A/B logs — supersedes the earlier
+"`sound:""` renders buzz-free" claim, which was OVERFIT):** a start with **`sound: ""` (fully silent) is
+UNRELIABLE — on real games it OFTEN NEVER PRESENTS.** The A/B is unambiguous in the owner's own words:
+silent → *"does not show up on my phone"*; sounded → *"went straight to my lock screen"* (7/5 03:35–03:40).
+The old clean claim was built on ONE controlled A/B moment + an ambiguous 11:41 "organic" render where a
+V1 lineup buzz co-occurred with the card's arrival (the buzz she felt was likely V1's, not proof the
+silent card self-presented).
 
 | Start payload | Result |
 |---|---|
 | No `alert` | ❌ Never renders (delivered-but-invisible; looks like success server-side) |
-| `alert: {title, body}` (no sound key) | ✅ Renders — but BUZZES (omitting sound does NOT silence it) |
-| `alert: {title, body, sound: ""}` | ✅ Renders + quiet banner, **no sound/vibration** ← **shipped design** |
+| `alert: {…, sound: ""}` (fully silent) | ⚠️ **FLAKY — often never presents on real games.** Renders *sometimes* in a manual test (flaky-positive), which is exactly the trap that burned us repeatedly (Fri/Sat live games failed, tests "passed"). **Do NOT ship.** |
+| `alert: {…, sound: "default"}` (buzz once) | ✅ Renders reliably + a single arrival buzz ← **shipped design (2026-07-09)** |
 
-Updates and END are alert-less (silent) — that works fine; the law applies to the START only.
+**Likely WHY (owner's hypothesis — reasoned, not Apple-documented):** a Live Activity is a **persistent,
+power-drawing lock-screen surface**, so iOS appears to enforce a **one-time arrival announcement** (a buzz)
+the first time the card appears — a privacy/awareness guarantee that the user knows *something just parked
+itself on their lock screen*. After that first announcement, **silent updates are honored**. This matches
+other apps' V2 cards (The Athletic buzzes once on arrival, silent after). The BEHAVIOR is device-proven;
+the RATIONALE is a strong hypothesis.
+
+**Shipped design = BUZZ-ONCE:** START carries `alert` + `sound: "default"` (one buzz on arrival); every
+UPDATE and END is alert-less/SILENT (that works fine — the law is START-only). V1 still owns the
+per-event interrupts; V2's single arrival buzz is the Athletic pattern.
 
 **UPDATE-push alerts (device-tested 2026-07-05, pure-V2 run, real NC vs SEA timeline):** an
 `alert {title, body, sound}` on an `event: "update"` push DOES buzz + light the screen (kickoff,
@@ -148,9 +164,11 @@ Channel headers (all V2): `apns-topic: <bundle>.push-type.liveactivity`,
 `apns-push-type: liveactivity`, `apns-priority: 10`.
 
 - **START** (to push-to-start token): `aps = { timestamp, event: "start",
-  "attributes-type": "MatchActivityAttributes", attributes: {matchId, homeAbbr, awayAbbr, competition},
-  "content-state": {...}, "stale-date": now+8h, "relevance-score": 100,
-  alert: {title: "WAS vs HOU", body, sound: ""} }` ← alert REQUIRED (§3).
+  "attributes-type": "MatchActivityAttributes", attributes: {matchId, homeAbbr, awayAbbr, competition,
+  isNational?}, "content-state": {...}, "stale-date": now+8h, "relevance-score": 100,
+  alert: {title: "WAS vs HOU", body, sound: "default"}, "input-push-channel"?: <id> }` ← alert REQUIRED
+  and `sound: "default"` (buzz once) REQUIRED for reliable presentation (§3). `input-push-channel`
+  (iOS 18) subscribes the created Activity to the match's broadcast channel for all later updates.
 - **UPDATE** (to per-Activity token): same minus attributes/alert; `event: "update"`, stale-date +1h.
 - **END**: `event: "end"`, final content-state, `dismissal-date` = FT + ~15 min (card lingers, then goes).
 - **content-state keys MUST byte-match the Swift struct** (`Shared/MatchActivityAttributes.swift`
@@ -166,6 +184,34 @@ Channel headers (all V2): `apns-topic: <bundle>.push-type.liveactivity`,
 Who gets a START: users with match alerts ON for a participating team (`team_alert_preferences`) AND
 `notification_preferences.live_activities_enabled = true` AND a registered start token. KV-deduped
 per match (`la-start:{matchId}`); fires on the first cron tick inside kickoff−20min.
+
+⚠️ **UPDATES NOW BROADCAST (2026-07-09, `docs/push-fanout-scaling.md`).** The watcher no longer sends
+per-Activity-token UPDATE/END pushes. Instead it creates a **broadcast channel per match**, the start
+payload's `input-push-channel` subscribes each Activity to it (iOS 18, OS-level — no app code), and every
+in-match update is **ONE broadcast POST** to the channel (Apple fans out). The `live_activities`
+per-Activity token table + app upload still exist (harmless) but the cron ignores them. This
+**structurally kills the old "per-Activity token lag → real-game updates silently missed" failure**
+(the likely Fri/Sat-2026-07 killer): the channel doesn't wait on a per-device token. iOS <18 devices
+can't subscribe to channels → they get V1 only (graceful degradation; app gates the start-token
+registration to iOS 18+).
+
+## 6b. ⚠️ What a SCRIPT test proves vs. what only a REAL GAME proves (the lesson that cost us weekends)
+
+Tests passed; then weekend live games failed — repeatedly (Fri/Sat failed, Sun finally worked). Why the
+gap, and what to trust:
+
+- **Same between test route & real cron:** identical `startLiveActivity` / APNs payload (alert, sound,
+  content-state). So **payload-behavior findings DO transfer** (e.g. silent-vs-sounded rendering — §3).
+- **A script test does NOT prove:** (1) **the START's real-world reliability** — a `sound:""` start
+  renders *sometimes* in a manual test (flaky-positive), so a passing test is NOT evidence a real game
+  will present; (2) **preference gating** — the test routes fan to *all* tokens (`allStartTokens`), the
+  cron gates on `team_alert_preferences ∩ live_activities_enabled ∩ start token`; (3) the **≤20-min
+  timing window + KV dedup**; (4) the **queue transport** (cron enqueues, test sends direct — same
+  payload, different path); (5) **environment** — a USB/debug build's SANDBOX token is unreachable by the
+  production cron (test routes use `sandbox:true`; real games need a TestFlight/production token).
+- **RULE: never declare the V2 START "done" off a script test.** The start's flakiness only surfaces
+  under real conditions. Buzz-once (§3) is the mitigation; **a real live game is the only proof.** The
+  broadcast change makes UPDATE coverage representative, but the START still needs a real game to trust.
 
 ## 7. Testing runbook (the exact recipes)
 
@@ -248,6 +294,12 @@ reads need `--remote` (local KV is empty and lies); `wrangler tail` silently dro
   (kickoff/goals/HT), END alerts ignored → "V2-only" formally rejected, hybrid settled. FT card
   linger → 4h system default (cron drops dismissal-date). V1 redesign shipped (`ff93096`):
   title+subtitle copy system + square crest attachments, dark-blob thumbnails dead.
+- **7/9:** push fan-out redesign SHIPPED (V1 + LA-start → Cloudflare Queues; V2 in-match → APNs
+  **Broadcast Channels**, channel-per-match) + USWNT V2 (flag render, national colors) — all device-proven
+  via `/test-broadcast`. AND the manual's `sound:""` "renders buzz-free" claim was **corrected against the
+  7/5 A/B logs** (it was overfit to one moment + an ambiguous organic render): fully-silent start is
+  FLAKY on real games → **buzz-once** (`sound: "default"`) shipped as the reliable design (arrival-buzz
+  law §3), UPDATE/END stay silent. The "tests pass, weekends fail" lesson recorded in §6b.
 
 ---
 *Update this file the moment a new V2 fact is device-proven — this manual exists because these facts

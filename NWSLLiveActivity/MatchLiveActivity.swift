@@ -308,9 +308,40 @@ struct CrestBadge: View {
     var isNational: Bool = false
 
     var body: some View {
-        // Flags/{FIFA} for a national team (USWNT V2), else Crests/{ABBR} for a club.
-        let asset = isNational ? "Flags/\(abbr.uppercased())" : "Crests/\(abbr.uppercased())"
-        if let img = UIImage(named: asset) {
+        if isNational {
+            flagBadge
+        } else {
+            crestBadge
+        }
+    }
+
+    // National-team FLAG — mirrors the app's canonical flag grammar (NationalTeamCard.flag): a
+    // rectangular mark at the ~52×36 ratio (width = size, height = size·0.69), FILLED, rounded-6
+    // continuous clip + a white hairline so white-edged flags (Japan) stay defined on the dark card.
+    // Flags are PNG in the widget catalog (Live Activity image-memory budget — SVG is app-only).
+    @ViewBuilder private var flagBadge: some View {
+        let h = size * 0.69
+        if let img = UIImage(named: "Flags/\(abbr.uppercased())") {
+            Image(uiImage: img)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: size, height: h)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1))
+        } else {
+            // Load miss → a country-color block in the same flag shape (never blank).
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color(hex: hex).opacity(0.85))
+                .frame(width: size, height: h)
+                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1))
+        }
+    }
+
+    // Club CREST — the reference standard, UNTOUCHED: prominent, square, fit; colored ring + abbr fallback.
+    @ViewBuilder private var crestBadge: some View {
+        if let img = UIImage(named: "Crests/\(abbr.uppercased())") {
             Image(uiImage: img)
                 .resizable().scaledToFit()
                 .frame(width: size, height: size)

@@ -19,8 +19,10 @@
 > Every match-level moment (kickoff, lineup, halftime, full-time) and VAR corrections are **NEUTRAL** —
 > no image, no `mutable-content` (the NSE stays asleep), clean title+subtitle text; the tap still
 > deep-links. Watcher `events.ts` (`eventCarriesCrest` + conditional `toPayload`); pure-logic tested,
-> `tsc` clean, **deployed** (version `e11ae04f`). **Device-verify** on tonight's away-team games
-> (2026-07-10: KC in ORLvKC, BAY in LOUvBAY) — the lineup pushes should arrive crest-less.
+> `tsc` clean, **deployed** (version `e11ae04f`). **DEVICE-VERIFIED 2026-07-10, 7:12pm** on the exact bug
+> case: BAY (AWAY follow) received the LOUvBAY "Lineups in" push — delivered, tap deep-links correctly,
+> no crest issue. Still to observe (not failures, just not yet posted): KC away lineup (ORLvKC) + the
+> crest-KEPT path (a GOAL should still carry the scorer's crest).
 
 > ### ⚠️ OPEN — follows restore fix: MERGED, device-verify pending on build 25
 > **Status:** MERGED to main (app PR #97), headless-verified (clean build, green tests, destructive

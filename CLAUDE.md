@@ -228,6 +228,12 @@ as `invalid_client`; set via **stdin, never copy-paste** (`printf '%s' … | wra
 - **Before "done":** builds AND runs in the sim with no errors, **manually verified in-sim**
   (compiling ≠ working); update `docs/FILEMAP.md`; commit message `<Area>: <what changed>` (specific,
   present-tense); confirm before pushing (don't auto-push).
+- **Stress-test gate = part of "done" for load-bearing features.** Any NEW or REBUILT feature/subsystem
+  that adds or changes a **load path** (DB reads/writes, network, push fan-out, KV/storage, cron) must be
+  run through the **`docs/stress-testing.md` §5** method and shown to **pass the 1k SIZE test** (+ note the
+  100k lever) BEFORE it's done — never ship/rebuild a section (e.g. the Trivia weekly redesign) that
+  silently fails 1k/100k because we never re-tested it. Record the result in that doc's §6/§7. Pure
+  UI/cosmetic changes with no new load path are exempt (the gate is about load, not pixels).
 - **Build bump ⇒ consider the update gate (don't auto-couple).** On a TestFlight/App Store build bump,
   the forced-update gate's `minBuild` (proxy `/config`, `MIN_APP_BUILD`) is a manual FLOOR decoupled from
   the build number — it does NOT auto-track "latest". NEVER raise it on every bump (that force-updates

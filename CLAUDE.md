@@ -29,7 +29,7 @@ table stakes that must work but are **not** the differentiator.
 
 ## State
 
-Production-quality **v0.4.2**, used daily. **Online-only: NO demo/seed/fake data in the running app**
+Production-quality **v0.4.3**, used daily. **Online-only: NO demo/seed/fake data in the running app**
 — every surface shows live data or an honest "Couldn't load — tap to retry" (seed/fixtures live only
 in previews + tests). Treat it as a real product; never suggest a demo/placeholder mode.
 
@@ -108,8 +108,11 @@ scoreboard `details` entry, NEVER text; rides the **`goals`** pref column = zero
 rather than late-firing) +
 **VAR goal-correction** (a debounced score *decrease* — re-poll a
 cache-busted scoreboard before firing, so an ESPN glitch never sends a false "Goal Disallowed"), looks
-up `device_tokens` of users with that alert on, and sends APNs
-(ES256 `.p8` JWT). **V1 push shape (copy v4, 2026-07-07 — device-tested): title = subject-first with a
+up `device_tokens` of users with that alert on, and sends APNs (ES256 `.p8` JWT). **Delivery (SHIPPED
+2026-07-09, `docs/push-fanout-scaling.md`): V1 buzz + Live Activity push-to-start fan out via Cloudflare
+Queues** (cron enqueues chunked tokens → a consumer drains each batch with its own fresh subrequest
+budget → no launch-scale cap; `apns-collapse-id` dedupes); **V2 in-match Live Activity updates ride APNs
+Broadcast Channels** (channel-per-match, one POST/event, iOS 18+; iOS 17 = V1-only). **V1 push shape (copy v4, 2026-07-07 — device-tested): title = subject-first with a
 COLON (`GOAL: Seattle Reign FC`, never an em-dash), subtitle = scan-ordered detail — goal = SCORER
 first then scoreboard (`S. Menti 19' · NC 0–1 SEA`); red card = minute-first player, NO scoreline
 (`23' E. Wheeler`); halftime + full-time = scoreline ONLY (no last-scorer at HT, no "…win" tail at FT).
@@ -134,9 +137,13 @@ its crest + a red-card rect. ⚠️ The V2 widget clock is Apple's **mm:ss** (de
 needs per-minute pushes); the football-minute `45'+2'`/`90'+7'` clock is **IN-APP ONLY** (`MatchClock` in
 Match Detail / Schedule cards). Two different surfaces — don't mistake the widget's mm:ss for a regression. ⚠️ Gotcha (device-proven 2026-07-04,
 contradicts Apple's docs): the push-to-start **`alert` is REQUIRED to render** — omit it and APNs 200s but
-iOS NEVER presents the card (this shipped invisible Activities on every real game). The buzz-free shape is
-`alert` **+ `sound: ""`** (card + quiet banner, no sound/vibration; omitting the sound key still BUZZES).
-Updates/end stay alert-less. Also: iOS shows a one-time per-app "Allow Live Activities?" prompt with the
+iOS NEVER presents the card (this shipped invisible Activities on every real game). ⚠️ **ARRIVAL-BUZZ LAW
+(corrected 2026-07-09 vs the 7/5 A/B logs — supersedes the old "`sound:""` renders buzz-free" claim):** a
+fully-silent `sound: ""` start is **FLAKY — often never presents on real games** (renders in tests, drops
+on weekends). Shipped design = **BUZZ-ONCE**: start carries `alert` **+ `sound: "default"`** (one arrival
+buzz); every UPDATE/END stays silent. Likely iOS enforces a one-time arrival announcement for a
+persistent, power-drawing lock-screen surface. NEVER declare the V2 start "done" off a script test — only
+a real game proves it (full detail: `docs/live-activity-v2.md` §3 + §6b). Also: iOS shows a one-time per-app "Allow Live Activities?" prompt with the
 app's FIRST presented Activity (a reinstall resets it). Push-to-
 start fires **≤20 min pre-kickoff** (a device can take minutes to register its per-Activity token) + a
 catch-up push for late tokens. `POST /test-activity` + `scripts/replay.mjs` drive it; app `LiveActivityManager`
@@ -287,11 +294,10 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
 - **`docs/stress-testing.md`** — the launch-readiness charter: indie-sizing calibration, the two stress
   tests (1k mandatory / 100k headroom), the efficiency-first rule, and the 8-step method for stress-testing
   any subsystem + a checklist of what still needs it. Read before any scaling/sizing/publish-readiness work.
-- **`docs/push-fanout-scaling.md`** — the launch-scale APNs fan-out ceiling (free-tier ~40 followers/team
-  drops pushes — a launch blocker) — now **DECIDED** (2026-07-09, primary-doc-verified): **V1 buzz + LA
-  push-to-start → Cloudflare Queues** ($0, free since 2026-02-04); **V2 in-match updates → APNs Broadcast
-  Channels** (channel-per-match, iOS 18+; iOS 17 = V1-only graceful degradation); Firebase declined;
-  Workers Paid $5/mo = the ~10–15k-user expansion slot. Build pending. Read before push-scale/launch work.
+- **`docs/push-fanout-scaling.md`** — the launch-scale APNs fan-out fix — **BUILT + deployed + device-
+  proven 2026-07-09**: **V1 buzz + LA push-to-start → Cloudflare Queues** ($0); **V2 in-match updates →
+  APNs Broadcast Channels** (channel-per-match, iOS 18+; iOS 17 = V1-only graceful degradation); Firebase
+  declined; Workers Paid $5/mo = the ~10–15k-user expansion slot. Read before push-scale/launch work.
 - **`.claude/rules/bracket-battle.md`** + **`.claude/rules/fan-zone.md`** — feature rules that
   **auto-load** (path-scoped) when you touch Bracket / Predict-the-XI / Fan-Zone / Trivia / Home-games
   files; you don't need to open them manually.

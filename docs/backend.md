@@ -163,22 +163,23 @@ Worker, same ES256 `.p8` JWT signer, SECOND APNs channel: `apns-topic: <bundle>.
 attributes, stale-date, dismissal-date}` (`src/activitykit.ts`). **Two token types** mirrored to Supabase
 by the app (`Services/LiveActivityManager.swift`, RLS-scoped + `grant…to authenticated`): a per-device
 **push-to-start** token (`live_activity_start_tokens`) lets the watcher remote-create the Activity **≤20 min
-pre-kickoff**, and each running Activity's **per-Activity update token** (`live_activities`, keyed by
-`match_id`, pruned on end) lets it push goal/HT/FT updates. **ROLE SPLIT: V1 is the interrupt (buzzes), V2 is
-a SILENT glance** — the push-to-start `aps` carries **NO `alert`** (it's optional; omitting it renders the
-card with no buzz/banner, so V1's kickoff push is the single buzz; adding one double-notifies). The 20-min
-lead is deliberate: a device can take minutes to wake + upload its per-Activity token after push-to-start, so
-firing ≤5 min bled past kickoff and missed early goals. The token upload runs under a UIKit background-task
-assertion (`withBackgroundTime`) so a cold background launch finishes the session-refresh + Supabase write.
-**Cron flow (additive — V1 untouched):** on each detected event the watcher fires the existing V1 `sendApns`
-AND, separately, `syncLiveActivity` (update/end the match's Activities, low-frequency clock resync, **+ a
-catch-up push** — current state to any per-Activity token seen for the first time, `la-seen:{matchId}` KV, so
-a late-registering device isn't stale); a SEPARATE `startUpcomingActivities` branch (NOT folded into
-`detectEvents`) KV-dedups and sends `event:start` for matches ≤20 min from kickoff. **Clock:** the widget
-self-advances the minute locally from `clockStartEpoch` (virtual kickoff = now − elapsed) — no per-minute
-push; events + resync correct drift. **Activation gate:** `team_alert_preferences.alerts_enabled` for a team
-AND the user's **Tier-2 opt-in** `notification_preferences.live_activities_enabled = true` (`startTokensForTeams`)
-— NOT follow. Gated on iOS 17.2 (push-to-start). `POST /test-activity` (secret-gated) + `scripts/replay.mjs`
+pre-kickoff**. The per-Activity `live_activities` token table is retained but the cron **no longer uses it
+for updates** (see the Broadcast Channels change below). **ROLE SPLIT: V1 is the interrupt, V2 is a quiet
+glance.** ⚠️ **ARRIVAL-BUZZ LAW (device-proven, corrected 2026-07-09):** the start `aps` MUST carry an
+`alert` (omit it and iOS silently never presents the card), and it **BUZZES ONCE** on arrival (`sound:
+"default"`) — a fully-silent `sound:""` start is FLAKY and often never presents on real games; every UPDATE/
+END stays silent (`docs/live-activity-v2.md` §3). The 20-min lead is deliberate (a device can take minutes to
+register after push-to-start), under a UIKit background-task assertion (`withBackgroundTime`). **V2 in-match
+updates ride APNs BROADCAST CHANNELS (SHIPPED 2026-07-09, `docs/push-fanout-scaling.md`):** the watcher
+creates a channel per MATCH, the iOS 18 `input-push-channel` in the start payload auto-subscribes each
+Activity, and every update/end is **ONE broadcast POST** (Apple fans out) — killing the old per-Activity-token
+lag. `syncLiveActivity` broadcasts on event / low-frequency clock resync, and ends + deletes the channel at
+FT; `startUpcomingActivities` (NOT folded into `detectEvents`) KV-dedups + creates the channel + sends the
+per-device `event:start` (via the Queues rail) ≤20 min pre-kickoff. **Clock:** the widget self-advances the
+minute locally from `clockStartEpoch` — no per-minute push. **Activation gate:**
+`team_alert_preferences.alerts_enabled` AND the Tier-2 opt-in `notification_preferences.live_activities_enabled
+= true` (`startTokensForTeams`), NOT follow. **V2 requires iOS 18** (Broadcast Channels) — the app registers a
+start token only on iOS 18+; 17.x gets full V1 with an honest "Requires iOS 18" (graceful degradation). `POST /test-activity` (secret-gated) + `scripts/replay.mjs`
 (compressed real-match replay, `--team`/`--start-only`/`--updates-only`) drive on-device E2E. **Sim caveat:**
 push-to-start + the Dynamic Island don't work/composite in the sim — surface render is device-verified.
 

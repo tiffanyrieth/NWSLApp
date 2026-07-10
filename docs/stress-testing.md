@@ -118,7 +118,7 @@ For each subsystem, walk it explicitly:
 
 - [x] **Push fan-out (APNs)** — the known launch blocker. Scales with followers/team. **DECIDED &
       specced** → see `docs/push-fanout-scaling.md` (V1 = Cloudflare Queues, V2 = APNs Broadcast
-      Channels). Build pending.
+      Channels). BUILT + deployed + device-proven 2026-07-09.
 - [x] **Watcher KV writes** — fixed (write-on-change). Re-confirm under many concurrent matches
       (international windows): ~10 writes/match × ~30 matches ≈ 300/day, under the 1,000/day cap.
 - [ ] **Watcher subrequests per tick** — feed polls vs the 50-*external* cap. Note the 2026-02-11 split:
@@ -144,7 +144,7 @@ For each subsystem, walk it explicitly:
   → Cloudflare Queues fan-out ($0, free since 2026-02-04). V2 in-match updates → APNs Broadcast
   Channels (channel-per-match, one POST/event). Firebase declined. iOS 17 = graceful degradation (V1
   only, no Live Activities). Workers Paid $5/mo = the documented expansion slot at ~10–15k users. Full
-  spec + cost curve in `docs/push-fanout-scaling.md`. **Build pending** (Part A fan-out redesign +
+  spec + cost curve in `docs/push-fanout-scaling.md`. **BUILT + deployed 2026-07-09** (fan-out redesign +
   Part B USWNT V2).
 - **Watcher write-guard:** ✅ shipped/deployed (write-on-change).
 - **Supabase sizing:** ⏳ not yet run through §5 (numbers to verify).

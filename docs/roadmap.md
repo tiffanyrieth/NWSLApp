@@ -63,7 +63,8 @@ Pending work only (ALIVE > core > hardening); shipped work lives in git history 
   rides **Cloudflare Queues (V1) + APNs Broadcast Channels (V2)** — `docs/push-fanout-scaling.md`. Still
   open on the CLUB-competition axis: **Champions Cup / Challenge Cup (`usa.nwsl.cup`) push** — the watcher
   polls the NWSL + NT scoreboards but not these club-comp slugs; needs their slugs + a competition-aware
-  card footer/title (carry the comp label through the pipeline). (Verify: crest rendering moved to the
-  `nwslapp-card` worker — the old `card.ts crestDataUri` self-hosted-404 note may be obsolete.)
+  card footer/title (carry the comp label through the pipeline). (The old "self-hosted crest primary is
+  dead" item is RESOLVED — that was CF error 1042 from fetching the proxy over its public URL; `card.ts`
+  now uses the PROXY service binding, so self-hosted `/crest` is the working primary, ESPN the fallback.)
 - **Competitions follow-ups:** Challenge Cup (`usa.nwsl.cup`, single annual match) + Champions Cup + followed NTs fold into Schedule "My teams" (NT coverage now 16 feeds, shipped). WWC/Olympics whole-tournament UI DEFERRED; foreign-club color DB grows as Champions Cup opponents appear (`DesignTeamColors.international`).
 - **Feed** — user-added sources; richer filtering. **Weather** — kickoff-temp header slot.

@@ -116,7 +116,10 @@ Broadcast Channels** (channel-per-match, one POST/event, iOS 18+; iOS 17 = V1-on
 COLON (`GOAL: Seattle Reign FC`, never an em-dash), subtitle = scan-ordered detail — goal = SCORER
 first then scoreboard (`S. Menti 19' · NC 0–1 SEA`); red card = minute-first player, NO scoreline
 (`23' E. Wheeler`); halftime + full-time = scoreline ONLY (no last-scorer at HT, no "…win" tail at FT).
-Caps only on GOAL/NO GOAL. NO body; attachment = a square crest TILE from the THIRD sibling Worker
+Caps only on GOAL/NO GOAL. NO body; a square crest TILE attaches **ONLY to a GOAL (scorer's club) or
+RED CARD (carded club)** — kickoff/lineup/halftime/full-time + VAR corrections are **NEUTRAL (no image,
+no `mutable-content`)**: a single crest misreads for the OTHER team's fans (owner rule 2026-07-10; the
+away-team "Lineups in" showed the HOME crest). The tile comes from the THIRD sibling Worker
 `nwslapp-card`** (`/thumb/{ABBR}`, team-color wash, crest
 overscanned past the source PNGs' 41px baked-in border; same repo as the watcher, own
 `wrangler.card.jsonc`). The card/thumb renderer lives in that separate fetch-only worker because

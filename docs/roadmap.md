@@ -25,12 +25,11 @@
 > server-rendered.) Owner leaned neutral/both-crests as the easy win. Backend-only (proxy/card worker +
 > watcher) → no app build.
 
-> ### ⚠️ OPEN — follows restore fix: committed but NOT device-verified
-> **Status:** committed on `feature/display-name-hydration-auth`, headless-verified (clean build, green
-> tests, destructive launch-prune removed structurally); **device-verification pending.**
-> **Why pending:** the new build has never run on the owner's device — every prior reinstall test ran the
-> OLD build (TestFlight not re-cut to avoid spamming testers for one fix; USB-from-Xcode blocked by an
-> iOS 27 / Xcode 26.5 mismatch). So the reinstall-restore path is unverified on real hardware.
+> ### ⚠️ OPEN — follows restore fix: MERGED, device-verify pending on build 25
+> **Status:** MERGED to main (app PR #97), headless-verified (clean build, green tests, destructive
+> launch-prune removed structurally); **device-verification pending on build 25.**
+> **Why pending:** the reinstall-restore path hasn't been confirmed on real hardware yet — verify on the
+> build 25 TestFlight cut.
 > **Test fixture already in place — DO NOT DELETE:** the owner's account has 3 server follows
 > (Bay `22187`, `131562`, `131563`); these ARE the reinstall test fixture.
 > **Pass criteria (run on the next TestFlight build, for any reason):** clean reinstall → the TEMP trace
@@ -59,20 +58,12 @@ Pending work only (ALIVE > core > hardening); shipped work lives in git history 
 - **Club-page links data pass** — Website · Shop · Tickets (OFFICIAL) + Discord (Fan) → `SocialPlatform` + `TeamSocialLinksProvider`, per-club.
 
 **Longer-term:**
-- **Push — Tier 2 (SERVER push)** — code-complete through Stage C (`~/Projects/nwslapp-match-watcher`: cron + KV diff + APNs JWT; per-team targeting live). Remaining: flip `APNS_HOST` sandbox→production at TestFlight; on-device E2E; Stage D (subs + lineup-posted).
-- **Push: match-watcher is NOT competition-aware** — it polls only the `usa.nwsl` scoreboard and hard-codes the "NWSL" card footer (`card.ts`), so NON-LEAGUE competitions get no push at all: Concacaf W Champions Cup today, NWSL Challenge Cup (`usa.nwsl.cup`) tomorrow. Fix = poll the additional competition slugs + make the card footer/title competition-aware (carry the comp label through the watcher's event pipeline). The footer `comp` param is a ~3-line add in `card.ts crestDataUri`'s file — could ride the crest-cache fix below.
-- **Push: self-hosted crest primary is dead (rich card falls back to ESPN)** — the watcher's `/card` crest fetch (`card.ts crestDataUri`, `cf:{cacheEverything:true,cacheTtl:86400}`) is pinned to a STALE 404 cached during the 2026‑06‑24 deploy-before-crest-load window. All 16 crests ARE in the proxy KV and serve 200 externally; step‑1 (self-hosted) returns a cached 404 so prod silently uses step‑2 (ESPN). Cards still show real crests (ESPN works), but the "never-missing" safety net isn't live — an ESPN hiccup → rings. Fix: `cf:{cacheTtlByStatus:{"200-299":86400,"404":0,"500-599":0}}` + a one-char cache-version bump, redeploy. ~15 min.
-- **V2 — Live Activity (lock screen + Dynamic Island live score) — BUILT, awaiting owner device E2E:** the
-  premium glance layer, additive to V1 (both fire on each event — push interrupts, the Activity updates in
-  place; V1 send path untouched). Code-complete on `feature/live-activity-v2` (app widget target +
-  MatchActivityAttributes + token lifecycle + Supabase `migration_live_activity_tokens.sql`; watcher
-  `src/activitykit.ts` + a SEPARATE ~5-min pre-kickoff start-trigger (KV-deduped, not tangled into
-  detectEvents) + `/test-activity`). Self-verified: app+widget build, watcher compiles + 30 tests pass (V1
-  unchanged), local ActivityKit lifecycle drives pre→live→goal→HT→FT→dismiss (logs), system instantiates the
-  lock-screen widget. **Clock = local self-advancing timer + event resync** (NOT a push every ~60s). Owner
-  steps before this is "done": run `migration_live_activity_tokens.sql`, deploy the watcher, and the real-device
-  full lifecycle (push-to-start → updates over the air → FT+15 auto-dismiss) via `/test-activity` — the
-  Dynamic Island doesn't render in `simctl` screenshots, so the pixel-level surface check is device-only.
-  Batches into the next TestFlight build (with the parked follows fix).
-- **Competitions follow-ups:** Challenge Cup (`usa.nwsl.cup`, single annual match) + Champions Cup + followed NTs all fold into Schedule "My teams". WWC/Olympics whole-tournament UI DEFERRED; foreign-club color DB grows as Champions Cup opponents appear (`DesignTeamColors.international`); broaden NT coverage via `NationalTeamFeed.all` + proxy `WOMENS_NT_FEEDS`.
+- **Push — Tier 2 (SERVER push) — SHIPPED** (Stage A–D done: watcher cron + KV diff + APNs JWT, per-team
+  targeting, `APNS_HOST=production`, lineups-posted, red-card/VAR; NT alerts by FIFA code). Delivery now
+  rides **Cloudflare Queues (V1) + APNs Broadcast Channels (V2)** — `docs/push-fanout-scaling.md`. Still
+  open on the CLUB-competition axis: **Champions Cup / Challenge Cup (`usa.nwsl.cup`) push** — the watcher
+  polls the NWSL + NT scoreboards but not these club-comp slugs; needs their slugs + a competition-aware
+  card footer/title (carry the comp label through the pipeline). (Verify: crest rendering moved to the
+  `nwslapp-card` worker — the old `card.ts crestDataUri` self-hosted-404 note may be obsolete.)
+- **Competitions follow-ups:** Challenge Cup (`usa.nwsl.cup`, single annual match) + Champions Cup + followed NTs fold into Schedule "My teams" (NT coverage now 16 feeds, shipped). WWC/Olympics whole-tournament UI DEFERRED; foreign-club color DB grows as Champions Cup opponents appear (`DesignTeamColors.international`).
 - **Feed** — user-added sources; richer filtering. **Weather** — kickoff-temp header slot.

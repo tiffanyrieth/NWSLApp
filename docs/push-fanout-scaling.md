@@ -4,7 +4,7 @@
 > LA push-to-start → Cloudflare Queues; V2 in-match → APNs Broadcast Channels (channel-per-match); USWNT
 > V2 shipped. Worker→manage-port reachability, channel lifecycle, sandbox routing, and the full
 > start/update/end render all VERIFIED on device via `/test-broadcast`. APNs key rotated to `38T67RKM6T`.
-> Watcher deployed; app on TestFlight build 26. Remaining proof: a real live game (device tests can't
+> Watcher deployed; app on TestFlight build 25. Remaining proof: a real live game (device tests can't
 > prove the START's real-world reliability — see `docs/live-activity-v2.md` §6b). Read this with
 > `docs/stress-testing.md` (sizing charter) and `docs/live-activity-v2.md` (the V2 manual).
 

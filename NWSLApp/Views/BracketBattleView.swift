@@ -653,6 +653,11 @@ struct BracketBattleView: View {
         VStack(alignment: .leading, spacing: 4) {
             sectionLabel("Leaderboard").padding(.bottom, 6)
             ForEach(viewModel.leaderboard) { row in
+                // Below-fold "You" row (you rank past the visible top): separate it so the
+                // jump from the top list to your real rank reads honestly.
+                if row.isBelowFold {
+                    Divider().overlay(Color.dsFgTertiary).padding(.vertical, 2)
+                }
                 HStack(spacing: 12) {
                     Text("\(row.rank)").dsFont(13, weight: .bold).foregroundStyle(row.isYou ? accent : Color.dsFgTertiary).frame(width: 32, alignment: .trailing)
                     Text(row.name).dsFont(14, weight: row.isYou ? .bold : .medium).foregroundStyle(row.isYou ? accent : .dsFgPrimary)

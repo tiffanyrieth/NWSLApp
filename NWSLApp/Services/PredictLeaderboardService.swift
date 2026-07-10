@@ -51,8 +51,10 @@ struct PredictLeaderboardService {
         }
     }
 
-    /// Everyone ranked for a team this season (raw — the caller filters out the
-    /// signed-in user and splices their fresher local total). Empty on any failure.
+    /// The TOP of a team's board this season — capped at `visibleLimit` so a giant
+    /// board never pulls every row just to draw a short list (the caller filters out
+    /// the signed-in user and splices their fresher local total + true rank). Empty on
+    /// any failure.
     func standings(teamAbbreviation: String, season: String) async -> [Standing] {
         do {
             let rows: [ScoreRow] = try await client
@@ -61,6 +63,7 @@ struct PredictLeaderboardService {
                 .eq("team_abbreviation", value: teamAbbreviation)
                 .eq("season", value: season)
                 .order("points", ascending: false)
+                .limit(LeaderboardRanking.visibleLimit)
                 .execute()
                 .value
             return rows.map { Standing(userID: $0.user_id, name: $0.display_name ?? "Fan", points: $0.points) }
@@ -69,6 +72,26 @@ struct PredictLeaderboardService {
             // failure so a down board isn't silently invisible to the owner.
             await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict standings \(teamAbbreviation): \(error.localizedDescription)") }
             return []
+        }
+    }
+
+    /// The signed-in user's TRUE 1-based rank on a team's board, computed with a COUNT
+    /// (rows scoring strictly higher, +1) — no rows transferred. `nil` on failure, so
+    /// the caller falls back to an inline splice rather than a wrong number. Ties break
+    /// in the user's favour (strictly-greater only), matching the on-device sort.
+    func rank(teamAbbreviation: String, season: String, points: Int) async -> Int? {
+        do {
+            let response = try await client
+                .from("prediction_scores")
+                .select("user_id", head: true, count: .exact)
+                .eq("team_abbreviation", value: teamAbbreviation)
+                .eq("season", value: season)
+                .gt("points", value: points)
+                .execute()
+            return (response.count ?? 0) + 1
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict rank \(teamAbbreviation): \(error.localizedDescription)") }
+            return nil
         }
     }
 }

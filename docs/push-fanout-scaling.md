@@ -1,11 +1,12 @@
 # Push fan-out scalability — the launch-scale problem & the DECIDED architecture
 
-> **Status: DECIDED 2026-07-09** (4 parallel research agents, every hard number verified against primary
-> docs — Cloudflare/Apple/Firebase — with source URLs below). Supersedes the earlier RESEARCH/option-menu
-> version. Two facts in that version were **stale in our favor**: Cloudflare Queues is now **free** and
-> the subrequest budget was split external/internal. **Build pending** (Part A fan-out redesign + Part B
-> USWNT V2). Read this with `docs/stress-testing.md` (the charter that frames the sizing rules) and
-> `docs/live-activity-v2.md` (the V2 manual).
+> **Status: BUILT + device-proven 2026-07-09** (research → decision → build, all one session). V1 buzz +
+> LA push-to-start → Cloudflare Queues; V2 in-match → APNs Broadcast Channels (channel-per-match); USWNT
+> V2 shipped. Worker→manage-port reachability, channel lifecycle, sandbox routing, and the full
+> start/update/end render all VERIFIED on device via `/test-broadcast`. APNs key rotated to `38T67RKM6T`.
+> Watcher deployed; app on TestFlight build 26. Remaining proof: a real live game (device tests can't
+> prove the START's real-world reliability — see `docs/live-activity-v2.md` §6b). Read this with
+> `docs/stress-testing.md` (sizing charter) and `docs/live-activity-v2.md` (the V2 manual).
 
 ## The problem (a launch blocker, not a "100k someday" problem)
 

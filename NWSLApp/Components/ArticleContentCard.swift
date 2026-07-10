@@ -36,13 +36,11 @@ struct ArticleContentCard: View {
         VStack(alignment: .leading, spacing: 11) {
             headerRow
             if let headline = card.headline {
-                // Home (ADDENDUM v2): tighter 15pt headline clamped to 2 lines for density.
-                // Social (unified) keeps the roomier 16pt / 3-line treatment.
                 Text(headline)
-                    .dsFont(unified ? 16 : 15, weight: .bold)
+                    .dsFont(16, weight: .bold)
                     .foregroundStyle(Color.dsFgPrimary)
                     .lineSpacing(2)
-                    .lineLimit(unified ? 3 : 2)
+                    .lineLimit(3)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -60,10 +58,7 @@ struct ArticleContentCard: View {
             if card.thumbnailURL != nil { articleImage }
             footerRow
         }
-        // Home (ADDENDUM v2): tighter vertical padding (10/12) for density; Social keeps 14.
-        .padding(.horizontal, 14)
-        .padding(.top, unified ? 14 : 10)
-        .padding(.bottom, unified ? 14 : 12)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
@@ -130,10 +125,26 @@ struct ArticleContentCard: View {
             .background(teamColor.opacity(0.13), in: Capsule())
     }
 
-    // MARK: - Full-width article image (16:9, matches the card's inner radius)
+    // MARK: - Full-width article image (matches the card's inner radius)
+
+    /// News hero image ratio. Home (`!unified`) uses a shorter ~2.2:1 editorial banner so the
+    /// (tallest) news card doesn't fill the screen — it drops to roughly the IG/YouTube card
+    /// height and the next card peeks below the fold. News images are landscape graphics/action
+    /// shots that keep their subject through the mild center-crop (unlike portrait reels). Social
+    /// (`unified`) keeps the roomier 16:9.
+    private var mediaAspect: CGFloat { unified ? 16.0 / 9.0 : 20.0 / 9.0 }
 
     private var articleImage: some View {
-        mediaContainer
+        Color.clear
+            .aspectRatio(mediaAspect, contentMode: .fit)
+            .overlay {
+                ZStack {
+                    LinearGradient(colors: [teamColor.opacity(0.18), Color.dsBgTertiary],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                    // Cached so the frame survives a tab switch; a miss/404 → the gradient.
+                    CachedThumbnail(url: card.thumbnailURL) { Color.clear }
+                }
+            }
             // The single team label, bottom-left on the image (gated on 2+ clubs).
             .overlay(alignment: .bottomLeading) {
                 if !hideTeamIdentity, let abbr = card.teamAbbreviation {
@@ -141,34 +152,6 @@ struct ArticleContentCard: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
-    }
-
-    /// Home (ADDENDUM v2): a fixed 152pt media block, aspect-fill with a TOP-center crop
-    /// (faces/action sit upper-center in sports photos) — shorter than the old 16:9 box so
-    /// ~2.5 cards fit. Social (unified) keeps the full-width 16:9 letterbox-fit.
-    @ViewBuilder
-    private var mediaContainer: some View {
-        if unified {
-            Color.clear
-                .aspectRatio(16.0 / 9.0, contentMode: .fit)
-                .overlay { mediaFill }
-        } else {
-            Color.clear
-                .frame(height: 152)
-                .overlay { mediaFill }
-                .clipped()
-        }
-    }
-
-    /// The team-tinted gradient with the cached frame on top. `.top` alignment so the
-    /// aspect-fill overflow is cropped from the bottom (top-center gravity). A miss/404 →
-    /// the gradient shows through.
-    private var mediaFill: some View {
-        ZStack(alignment: .top) {
-            LinearGradient(colors: [teamColor.opacity(0.18), Color.dsBgTertiary],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
-            CachedThumbnail(url: card.thumbnailURL) { Color.clear }
-        }
     }
 
     // MARK: - Footer (CTA + bottom-left team chip when there's no image to host it)

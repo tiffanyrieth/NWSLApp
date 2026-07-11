@@ -140,13 +140,17 @@ its crest + a red-card rect. ⚠️ The V2 widget clock is Apple's **mm:ss** (de
 needs per-minute pushes); the football-minute `45'+2'`/`90'+7'` clock is **IN-APP ONLY** (`MatchClock` in
 Match Detail / Schedule cards). Two different surfaces — don't mistake the widget's mm:ss for a regression. ⚠️ Gotcha (device-proven 2026-07-04,
 contradicts Apple's docs): the push-to-start **`alert` is REQUIRED to render** — omit it and APNs 200s but
-iOS NEVER presents the card (this shipped invisible Activities on every real game). ⚠️ **ARRIVAL-BUZZ LAW
-(corrected 2026-07-09 vs the 7/5 A/B logs — supersedes the old "`sound:""` renders buzz-free" claim):** a
-fully-silent `sound: ""` start is **FLAKY — often never presents on real games** (renders in tests, drops
-on weekends). Shipped design = **BUZZ-ONCE**: start carries `alert` **+ `sound: "default"`** (one arrival
-buzz); every UPDATE/END stays silent. Likely iOS enforces a one-time arrival announcement for a
-persistent, power-drawing lock-screen surface. NEVER declare the V2 start "done" off a script test — only
-a real game proves it (full detail: `docs/live-activity-v2.md` §3 + §6b). Also: iOS shows a one-time per-app "Allow Live Activities?" prompt with the
+iOS NEVER presents the card. ⚠️ **START-PAYLOAD LAW (device-proven 2026-07-11 — THE §0 of
+`docs/live-activity-v2.md`; read it before touching any V2 payload).** TWO INDEPENDENT things, never
+conflate them (doing so cost weeks): **(1) RENDER** needs BOTH an `alert` object AND the payload wrapped
+in `{ aps: {…} }` on the wire (`buildStartAps` returns the CONTENTS — the sender must wrap; the 7/9 Queues
+redesign stored it UNWRAPPED in `enqueueLaStart`, so every queued start went out with no `aps` envelope →
+APNs `1 sent` but iOS silently dropped it → the 7/10 total no-show on three real games; fixed by
+`payload: { aps: buildStartAps(...) }`). **(2) BUZZ** is purely the `sound`: `"default"` = one arrival
+buzz (SHIPPED), `""` = renders but SILENT. The old "`sound:""` is flaky / never presents" claim was
+**WRONG — that was the missing envelope, not the sound.** 🔒 **CHANGE-RULE:** NEVER change the start
+payload's envelope/alert/sound on Apple-docs or theory — only a REAL-DEVICE test (real game OR the
+**fake-match harness** `POST /debug/fake-match`, watcher) counts; `1 sent` ≠ rendered. Also: iOS shows a one-time per-app "Allow Live Activities?" prompt with the
 app's FIRST presented Activity (a reinstall resets it). Push-to-
 start fires **≤20 min pre-kickoff** (a device can take minutes to register its per-Activity token) + a
 catch-up push for late tokens. `POST /test-activity` + `scripts/replay.mjs` drive it; app `LiveActivityManager`

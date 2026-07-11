@@ -10,20 +10,19 @@
 > app source. The unit tests that reference `PostseasonSimulator.clinchTable` (`PlayoffClinchTests`) move
 > to inline fixtures at that point. Nothing auto-reminds — this note is the reminder.
 
-> ### 🎯 POLISH — lineup-push crest shows the WRONG team for away-team fans
-> **Observed (owner, 2026-07-05, live Boston vs Bay game):** the "Lineups in" V1 push attaches the
-> **home** club's crest (`crestAbbr()` defaults to home for lineup events, watcher `events.ts`). A fan
-> who follows the AWAY team (Bay) sees the HOME crest (Boston) → reads as "Boston's lineup dropped" to a
-> Bay fan. Everything else about it works (deep-link → match detail → XI renders correctly).
-> **Why:** the lineup push is ONE payload fanned out to followers of BOTH teams
-> (`tokensForEvent([homeId, awayId], "lineup_posted")`), so a single crest can't be per-recipient without
-> splitting the fan-out.
-> **Two fixes (owner to pick):** (A) IDEAL — split the fan-out by team so each fan gets THEIR team's
-> crest (two token queries + two payloads; a both-teams follower gets two pushes). (B) SIMPLER + arguably
-> more correct — a **both-crests matchup tile** (BAY + BOS side-by-side) via a new card-worker `/thumb`
-> variant, one push, honest that it's a both-teams event. (SF Symbols can't be used — thumbnail is
-> server-rendered.) Owner leaned neutral/both-crests as the easy win. Backend-only (proxy/card worker +
-> watcher) → no app build.
+> ### ✅ RESOLVED — lineup-push crest showed the WRONG team for away-team fans
+> **Was (owner, 2026-07-05):** the "Lineups in" V1 push attached the **home** club's crest, so an
+> AWAY-team follower saw the HOME crest → read as the wrong team's lineup. Same latent issue on
+> kickoff/HT/FT (a single crest on a both-teams moment).
+> **Fixed 2026-07-10 (owner rule — a THIRD option, simpler than the A/B originally weighed):** a crest
+> attaches **ONLY to a team-attributable event — a GOAL (scorer's club) or a RED CARD (carded club)**.
+> Every match-level moment (kickoff, lineup, halftime, full-time) and VAR corrections are **NEUTRAL** —
+> no image, no `mutable-content` (the NSE stays asleep), clean title+subtitle text; the tap still
+> deep-links. Watcher `events.ts` (`eventCarriesCrest` + conditional `toPayload`); pure-logic tested,
+> `tsc` clean, **deployed** (version `e11ae04f`). **DEVICE-VERIFIED 2026-07-10, 7:12pm** on the exact bug
+> case: BAY (AWAY follow) received the LOUvBAY "Lineups in" push — delivered, tap deep-links correctly,
+> no crest issue. Still to observe (not failures, just not yet posted): KC away lineup (ORLvKC) + the
+> crest-KEPT path (a GOAL should still carry the scorer's crest).
 
 > ### ⚠️ OPEN — follows restore fix: MERGED, device-verify pending on build 25
 > **Status:** MERGED to main (app PR #97), headless-verified (clean build, green tests, destructive

@@ -7,6 +7,58 @@ AI/LLM assumptions. When in doubt, trust this file over intuition.
 
 ---
 
+## 0. ⛔ THE START-PAYLOAD LAW (LOCKED — device-proven 2026-07-11) — read this first, it supersedes §3/§6 conflations
+
+**The V2 start push has TWO INDEPENDENT requirements. Conflating them cost ~10 debugging cycles and
+multiple weekends. Never reason about one as if it were the other.**
+
+**(1) RENDER — does the card appear at all?** Needs BOTH, together:
+  - **(a) an `alert` object** in the payload — no alert ⇒ APNs returns 200 but iOS silently drops it
+    (the render law, device-proven 7/4); AND
+  - **(b) the payload wrapped in `{ "aps": { … } }`** on the wire. `buildStartAps` returns the *contents*
+    of `aps`; the sender MUST wrap it. The inline path (`postLiveActivity`, `JSON.stringify({ aps })`)
+    and V1 (`toPayload` returns `{aps,…}`) do. **The 7/9 Queues redesign moved la-start to
+    `enqueueLaStart` and stored the CONTENTS unwrapped → every queued start went out with NO `aps`
+    envelope → APNs 200 (`1 sent`) but iOS silently dropped it. THIS was the 7/10 total no-show on
+    three real games — NOT the sound.** Fixed 2026-07-11: `payload: { aps: buildStartAps(...) }`.
+
+**(2) BUZZ — does it vibrate on arrival?** Purely the `sound` value, and ONLY affects the buzz, never
+  whether it renders:
+  - `sound: "default"` → renders + **one arrival buzz** ← **SHIPPED (owner wants the arrival buzz).**
+  - `sound: ""` → renders but **SILENT** (device-verified 7/11 — a correctly-wrapped `""` start lands
+    with no buzz). *This corrects §3/§6/§6b's "`sound:""` is flaky / never presents" claims: those
+    real-game failures were the missing `{aps}` envelope (1b), misattributed to the sound.*
+
+Updates + end pushes carry **NO alert** → silent (the Athletic pattern). Only the START buzzes.
+
+**THE PROVEN-GOOD START PAYLOAD (device-verified via the fake-match harness, 2026-07-11):**
+```jsonc
+{ "aps": {
+    "event": "start", "attributes-type": "…", "attributes": {…}, "content-state": {…},
+    "input-push-channel": "<channelId>",        // iOS-18 broadcast subscribe — at aps ROOT, NOT in alert
+    "stale-date": …, "relevance-score": 100,
+    "alert": { "title": "…", "body": "…", "sound": "default" }   // alert REQUIRED; sound = arrival buzz
+} }
+```
+
+**🔒 THE CHANGE RULE (this is why it keeps breaking — enforce it):** NEVER change the start payload's
+**envelope, alert, or sound** on the strength of Apple's docs, a Reddit thread, or any theory. Apple's
+docs said "alert is optional" — the device said otherwise, and that mistake recurred for weeks. A change
+to this payload is valid **only after a REAL-DEVICE test proves it renders + buzzes** — either a real
+game OR the fake-match harness (§7). **"APNs 1 sent" ≠ rendered; only a card on a physical phone counts.**
+
+**VERIFICATION TOOL — the fake-match harness (built 2026-07-11):** `POST /debug/fake-match` (secret-gated)
+writes a KV flag that the cron discovers and runs through the FULL organic path (kickoff-window gate →
+`startTokensForTeams` preference gate → Queue enqueue → consumer drain → APNs → device) — the ONLY
+on-demand way to test the queue path (`/test-activity` uses the inline send and can't reproduce a
+queue-path bug). Brother-safe via the real preference gate (pick teams they don't follow). Runbook in §7.
+
+**HARDENING TODO (prevent recurrence structurally):** make `buildStartAps` return the FULL `{ aps: … }`
+payload so there is exactly one representation and the wrap/unwrap mismatch is impossible; add a pinning
+unit test asserting the enqueued la-start payload has a top-level `aps` key + `aps.alert.sound=="default"`.
+
+---
+
 ## 1. What V2 is (and how it splits from V1)
 
 Two independent notification layers ride the same watcher + `.p8` APNs key:
@@ -237,6 +289,22 @@ Tools (watcher repo):
   run so stale per-Activity tokens on other phones can't catch updates), `--ht-hold=<sec>` (dwell at
   halftime), `--start-hold=<sec>` (default 180 — do NOT lower it; see §2 timing law), `--correction`
   (VAR goal-disallowed test), `--dry-run`, `--team=ABBR`, `--event=<espnId>`, `--fixture`.
+  ⚠️ **`replay.mjs` uses `/test-activity` = the INLINE send. It CANNOT reproduce a queue-path bug** (it
+  wraps the payload correctly regardless). It proves presentation, not the organic delivery path.
+- **`POST /debug/fake-match` — the FAKE-MATCH HARNESS (built 2026-07-11): the ONLY on-demand test of the
+  full ORGANIC path** (cron discovers → gate → **Queue → consumer** → APNs → device). Writes a KV flag
+  (`debug:fake-match`) that `runWatch`'s `readFakeMatch` injects into the LA-start pass ONLY (never V1/
+  lineup). Body `{minutes?=5, homeId?=18206(ORL), homeAbbr?, awayId?=15360(CHI), awayAbbr?}` or
+  `{clear:true}`. Brother-safe by the real preference gate — pick teams your test device follows and the
+  other doesn't. Recipe: (1) confirm the test device has that team's alerts ON + Live Activities ON +
+  app opened once (fresh start token); (2) fire it; (3) watch `enqueued LA start … → drained …: 1 sent`
+  in `wrangler tail` AND the card+buzz on the phone. Set it directly (no secret) via wrangler:
+  ```bash
+  # kickoff 4 min out (inside the 20-min window ⇒ fires on the next cron tick):
+  echo '{"id":"fakematch-'$(date +%s000)'","date":"<ISO now+4min>","homeId":"18206","homeAbbr":"ORL","awayId":"15360","awayAbbr":"CHI"}' \
+    | npx wrangler kv key put "debug:fake-match" --namespace-id <MATCH_STATE ns> --remote --ttl 900 --path /dev/stdin
+  # cleanup after: delete debug:fake-match + any la-start:fakematch-* / la-chan:fakematch-* keys.
+  ```
 - Single-device targeting: env `MY_START_TOKEN` (V2 start) + `MY_DEVICE_TOKEN` (V1 pushes). Get them:
   ```sql
   select p.display_name, t.token as start_token, d.token as device_token
@@ -294,6 +362,16 @@ reads need `--remote` (local KV is empty and lies); `wrangler tail` silently dro
   (kickoff/goals/HT), END alerts ignored → "V2-only" formally rejected, hybrid settled. FT card
   linger → 4h system default (cron drops dismissal-date). V1 redesign shipped (`ff93096`):
   title+subtitle copy system + square crest attachments, dark-blob thumbnails dead.
+- **7/10–7/11 — THE BIG ONE (see §0):** on three real 8pm games the organic cron fired every start
+  (`enqueued → drained: 1 sent`) but **NO card appeared on any device.** Chased the sound for hours
+  (owner right that it wasn't broadcast/throttle). Root cause found by code diff: **`enqueueLaStart`
+  stored `buildStartAps(...)` UNWRAPPED — the queue path sent the payload with no `{aps}` envelope**, so
+  APNs 200'd and iOS silently dropped it. The 7/9 Queues redesign introduced it; V1 was unaffected
+  (`toPayload` already wraps). Fix = `payload: { aps: buildStartAps(...) }`. **Device-verified 7/11 via
+  the new fake-match harness (§7)** on the full organic path: `sound:""` renders SILENT, `sound:"default"`
+  renders + buzzes once → shipped `"default"`. Correction to §3/§6/§6b: the "`sound:""` is flaky / never
+  presents" claim was **misattributed — it was the envelope, not the sound.** THE §0 PAYLOAD LAW + the
+  change-rule exist because of this incident.
 - **7/9:** push fan-out redesign SHIPPED (V1 + LA-start → Cloudflare Queues; V2 in-match → APNs
   **Broadcast Channels**, channel-per-match) + USWNT V2 (flag render, national colors) — all device-proven
   via `/test-broadcast`. AND the manual's `sound:""` "renders buzz-free" claim was **corrected against the

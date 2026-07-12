@@ -55,7 +55,8 @@ xcrun simctl list devices booted                                   # find the bo
 xcrun simctl install <SIM_ID> <NWSLApp.app>
 xcrun simctl launch  <SIM_ID> com.tiffanyrieth.nwslapp.NWSLApp
 ```
-DEBUG args: `-resetOnboarding`, `-useESPNDirect`, `-startTab <home|schedule|standings|teams|feed>`.
+DEBUG args: `-resetOnboarding`, `-useESPNDirect`, `-startTab <home|schedule|standings|teams|feed>`,
+`-debugOpenMatch <espnEventID>` (deep-links a match detail tap-free — for in-sim verification; Xcode 27 killed idb HID).
 Decode-only tests read `NWSLAppTests/Fixtures/*.json` via `#filePath`. **Driving the sim:** `idb` is
 installed — start `idb_companion --udid <SIM>`, then `idb ui tap <x> <y>` (DEVICE points) + `idb ui
 describe-all` (element frames + a11y labels — exact for locating/measuring UI) are the reliable way to
@@ -74,7 +75,10 @@ injected via `.environment`, one-fetch-many-readers) · `Views/` (one screen per
 ## Data sources (essentials — full detail in `docs/backend.md`)
 
 ESPN's unofficial NWSL endpoints (base in `Config/AppConfig.swift`) — **decode defensively**: scores
-are `String` not `Int`, scoreboard needs `&limit=500` for a full season, standings sit on a different
+are `String` not `Int`, scoreboard needs `&limit=500` for a full season **but the full-season `dates=`
+query serves live state 25–47 min STALE mid-game** (ESPN-side cache — the app's whole-game "stuck clock",
+2026-07-11; windowed/default queries stay fresh, `_cb` forces ESPN to recompute → the proxy busts the ESPN
+upstream on every `/scoreboard` MISS, and the app's live poll rides the windowed query), standings sit on a different
 base, endpoints break/rate-limit without notice, and **`status.clock` FREEZES at 45:00/90:00 through
 stoppage time** — any live clock must anchor MONOTONICALLY (re-anchor only when the clock advances or
 the period changes; naive `now − clock` re-anchoring pins the display at +1'/snaps the widget to 45:00).
@@ -136,9 +140,13 @@ Island live score) rides the SAME watcher + `.p8`, ADDITIVE to V1 — but the ro
 interrupt (buzzes kickoff/goal/HT/FT per the user's toggles); V2 is a QUIET glance.** V2 content-state
 carries **per-side scorers** (`homeScorers`/`awayScorers`, capped 4 +N) + `homeRedCards`/`awayRedCards`
 (all additive-optional — old app builds ignore unknown keys) → the card stacks each team's scorers under
-its crest + a red-card rect. ⚠️ The V2 widget clock is Apple's **mm:ss** (deliberate — a true `45'+2'`
-needs per-minute pushes); the football-minute `45'+2'`/`90'+7'` clock is **IN-APP ONLY** (`MatchClock` in
-Match Detail / Schedule cards). Two different surfaces — don't mistake the widget's mm:ss for a regression. ⚠️ Gotcha (device-proven 2026-07-04,
+its crest + a red-card rect. ⚠️ The V2 widget clock is Apple's **mm:ss** during regular play (deliberate —
+`showsHours:false` so it reads `68:12` not `1:08`; the football-minute `45'+2'` clock is **IN-APP ONLY**,
+`MatchClock`, Match Detail / Schedule cards). **EXCEPTION (build 26): in ADDED TIME the widget shows the
+football stoppage `90'+2'`** — the watcher broadcasts a `stoppageDisplay` string each minute (cheap via
+Broadcast Channels; the "never push per-minute" rule yields for stoppage only). Don't mistake the widget's
+mm:ss for a regression. The watcher **30s-double-polls** live windows (goal/HT/FT latency ~30s) and
+resyncs the widget clock the instant the anchor jumps ≥30s (each half's late live-flip). ⚠️ Gotcha (device-proven 2026-07-04,
 contradicts Apple's docs): the push-to-start **`alert` is REQUIRED to render** — omit it and APNs 200s but
 iOS NEVER presents the card. ⚠️ **START-PAYLOAD LAW (device-proven 2026-07-11 — THE §0 of
 `docs/live-activity-v2.md`; read it before touching any V2 payload).** TWO INDEPENDENT things, never

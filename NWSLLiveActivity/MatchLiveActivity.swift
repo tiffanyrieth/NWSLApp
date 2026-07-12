@@ -143,9 +143,14 @@ struct MatchLiveActivity: Widget {
 
     @ViewBuilder
     private func minuteView(_ s: MatchActivityAttributes.ContentState, font: Font) -> some View {
-        if s.phase.isClockRunning, let epoch = s.clockStartEpoch {
-            // Auto-advancing local clock — no push needed to tick.
-            Text(timerInterval: Date(timeIntervalSince1970: epoch)...Date.distantFuture, countsDown: false)
+        if s.phase.isClockRunning, let stoppage = s.stoppageDisplay {
+            // Added time: the watcher pushes a static "90'+2'" each minute (the self-ticking timer can't
+            // format football stoppage). Takes priority over the mm:ss clock while present.
+            Text(stoppage).font(font).foregroundStyle(LA.clock)
+        } else if s.phase.isClockRunning, let epoch = s.clockStartEpoch {
+            // Auto-advancing local clock — no push needed to tick. showsHours:false keeps it mm:ss past
+            // 60:00 (the 68th minute reads "68:12", not "1:08:12") — a match clock never rolls to hours.
+            Text(timerInterval: Date(timeIntervalSince1970: epoch)...Date.distantFuture, countsDown: false, showsHours: false)
                 .font(font.monospacedDigit())
                 .foregroundStyle(LA.clock)
                 .frame(maxWidth: 56)
@@ -244,8 +249,10 @@ private struct LockScreenBanner: View {
 
     @ViewBuilder
     private var minute: some View {
-        if state.phase.isClockRunning, let epoch = state.clockStartEpoch {
-            Text(timerInterval: Date(timeIntervalSince1970: epoch)...Date.distantFuture, countsDown: false)
+        if state.phase.isClockRunning, let stoppage = state.stoppageDisplay {
+            Text(stoppage).font(.system(size: 11, weight: .semibold)).foregroundStyle(LA.clock)
+        } else if state.phase.isClockRunning, let epoch = state.clockStartEpoch {
+            Text(timerInterval: Date(timeIntervalSince1970: epoch)...Date.distantFuture, countsDown: false, showsHours: false)
                 .font(.system(size: 11, weight: .semibold).monospacedDigit())
                 .foregroundStyle(LA.clock)
                 .frame(maxWidth: 60)

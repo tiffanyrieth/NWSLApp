@@ -52,6 +52,13 @@ struct MatchActivityAttributes: ActivityAttributes {
         var awayScorers: [String]?
         var homeRedCards: Int?      // RED cards only (yellows excluded by design); nil when 0
         var awayRedCards: Int?
+        // Stoppage-time label ("45'+2'" / "90'+3'"), set by the watcher ONLY while the match is in
+        // added time (numeric clock frozen at the 45:00/90:00 cap). The widget renders THIS verbatim
+        // instead of the self-ticking mm:ss timer, since Apple's Text(timerInterval:) can't format
+        // football stoppage and its free-run would read "91:12". nil during normal play/pre/HT/FT →
+        // widget falls back to the timer/static label. Additive-optional BY CONTRACT (old builds ignore
+        // it, old watcher payloads omit it); byte-matches the watcher's LiveContentState key.
+        var stoppageDisplay: String?
     }
 
     enum Phase: String, Codable, Hashable {

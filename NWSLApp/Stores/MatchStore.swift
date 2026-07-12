@@ -151,10 +151,66 @@ final class MatchStore {
     /// blanking to an error — the opposite of `load()`, whose failure is a hard
     /// `.error`. Drives the RootTabView live-poll loop + scenePhase-active refresh.
     func refresh() async {
-        // Before the first successful load there's nothing to refresh in place —
-        // fall back to a normal load (which shows the spinner).
-        guard case .loaded = state else { await load(); return }
-        await performLoad(silent: true)
+        await performWindowedRefresh()
+    }
+
+    /// Yesterday→tomorrow as ESPN's `dates=YYYYMMDD-YYYYMMDD` (UTC; ±1 day covers any ET/UTC
+    /// date-boundary game) — the small, always-fresh window the live poll fetches instead of the
+    /// ~2MB season. Mirrors the watcher's `scoreboardWindow()`.
+    static func scoreboardWindow(now: Date = Date()) -> String {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = .gmt
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.timeZone = .gmt
+        fmt.dateFormat = "yyyyMMdd"
+        func day(_ offset: Int) -> String {
+            let d = cal.date(byAdding: .day, value: offset, to: now) ?? now
+            return fmt.string(from: d)
+        }
+        return "\(day(-1))-\(day(1))"
+    }
+
+    /// Silent live refresh over the small window (not the ~2MB season). Fetches the windowed NWSL
+    /// board (+ the same followed NT / Champions / Challenge feeds, windowed) and MERGES the fresh
+    /// events over the loaded season by event id — so a live match's score/clock advances in place
+    /// without re-downloading the whole season, and live state rides the fresh windowed query rather
+    /// than ESPN's laggy full-season cache. A transient failure KEEPS the last good schedule (never
+    /// blanks). Falls back to a full `load()` before the first successful load.
+    private func performWindowedRefresh() async {
+        guard case .loaded(let existing) = state else { await load(); return }
+        let dates = Self.scoreboardWindow(now: now())
+        let year = calendar.component(.year, from: now())
+        let followedCodes = following?.followedNationalTeams ?? []
+        do {
+            var fresh = try await service.fetchScoreboard(dates: dates).events
+                .map { ScheduledMatch(event: $0, competition: .nwsl) }
+            if !followedCodes.isEmpty {
+                let (nt, _) = await fetchNationalTeamMatches(year: year, followedCodes: followedCodes, dates: dates)
+                fresh += nt
+            }
+            if following?.isConcacafFollowed == true {
+                let (cc, _) = await fetchChampionsCupMatches(year: year, dates: dates)
+                fresh += cc
+            }
+            if !(following?.followedIDs.isEmpty ?? true) {
+                let (ch, _) = await fetchChallengeCupMatches(year: year, dates: dates)
+                fresh += ch
+            }
+            // Replace any loaded event that reappears in the window with its fresh copy; keep the rest
+            // of the season; append a window-only event not already loaded (rare mid-session addition).
+            let freshById = Dictionary(fresh.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            let existingIds = Set(existing.map(\.id))
+            let merged = existing.map { freshById[$0.id] ?? $0 } + fresh.filter { !existingIds.contains($0.id) }
+            let deduped = dedupedByEventID(merged)
+            let instant = now()
+            lastLoadedAt = instant
+            tickAnchors = Self.reconciledTickAnchors(previous: tickAnchors, events: deduped.map(\.event), at: instant)
+            state = .loaded(deduped)
+        } catch {
+            // A live-poll blip must NOT blank the tab — keep the last good schedule (state stays `.loaded`).
+            Diagnostics.shared.record(.apiFailure, "schedule windowed refresh: \(error.localizedDescription)")
+        }
     }
 
     /// Whether any loaded match is currently in progress — lets the live poll run
@@ -240,13 +296,13 @@ final class MatchStore {
     /// FOLLOWED national team (matched by FIFA code = ESPN's competitor abbreviation),
     /// tagged with the feed's house-style label. Returns the matches + per-feed errors.
     private func fetchNationalTeamMatches(
-        year: Int, followedCodes: Set<String>
+        year: Int, followedCodes: Set<String>, dates: String? = nil
     ) async -> (matches: [ScheduledMatch], errors: [String: String]) {
         await withTaskGroup(of: (label: String, result: Result<[ScheduledMatch], Error>).self) { group in
             for feed in NationalTeamFeed.all {
                 group.addTask {
                     do {
-                        let board = try await self.service.fetchScoreboard(year: year, league: feed.slug)
+                        let board = try await self.service.fetchScoreboard(year: year, league: feed.slug, dates: dates)
                         let kept = board.events.filter { event in
                             let home = event.homeCompetitor?.team?.abbreviation
                             let away = event.awayCompetitor?.team?.abbreviation
@@ -278,9 +334,9 @@ final class MatchStore {
     /// Fetch the CONCACAF W Champions Cup feed, keeping only matches that involve an
     /// NWSL club (a known abbreviation — DesignTeamColors covers the 16; the Liga MX
     /// vs Liga MX ties aren't "yours"). Tagged `.concacafChampionsCup`. Soft-fail.
-    private func fetchChampionsCupMatches(year: Int) async -> (matches: [ScheduledMatch], error: String?) {
+    private func fetchChampionsCupMatches(year: Int, dates: String? = nil) async -> (matches: [ScheduledMatch], error: String?) {
         do {
-            let board = try await service.fetchScoreboard(year: year, league: ChampionsCupFeed.slug)
+            let board = try await service.fetchScoreboard(year: year, league: ChampionsCupFeed.slug, dates: dates)
             let kept = board.events.filter { event in
                 DesignTeamColors.hex(for: event.homeCompetitor?.team?.abbreviation) != nil
                     || DesignTeamColors.hex(for: event.awayCompetitor?.team?.abbreviation) != nil
@@ -296,9 +352,9 @@ final class MatchStore {
     /// feed is already just that one match, but we keep the same NWSL-club guard as the Champions
     /// Cup so a stray non-NWSL entry can never slip in. Tagged `.challengeCup` (`isNWSL == false`,
     /// so it stays out of league records/standings/Predict). Soft-fail — never breaks the spine.
-    private func fetchChallengeCupMatches(year: Int) async -> (matches: [ScheduledMatch], error: String?) {
+    private func fetchChallengeCupMatches(year: Int, dates: String? = nil) async -> (matches: [ScheduledMatch], error: String?) {
         do {
-            let board = try await service.fetchScoreboard(year: year, league: ChallengeCupFeed.slug)
+            let board = try await service.fetchScoreboard(year: year, league: ChallengeCupFeed.slug, dates: dates)
             let kept = board.events.filter { event in
                 DesignTeamColors.hex(for: event.homeCompetitor?.team?.abbreviation) != nil
                     || DesignTeamColors.hex(for: event.awayCompetitor?.team?.abbreviation) != nil

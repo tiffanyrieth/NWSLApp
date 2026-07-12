@@ -173,13 +173,25 @@ knowable on-device (lock screen) or via the app's own observation (`snapshot=N`,
 
 ## 4. The clock (how the ticking minute works)
 
-- The watcher does NOT push every minute (Cloudflare subrequest cap + APNs pacing make per-minute
-  fan-out unscalable). Instead each content-state carries **`clockStartEpoch` = now − elapsed** (a
-  "virtual kickoff"), and the WIDGET advances the clock locally (Apple's timer text) between pushes.
-- The lock-screen widget deliberately shows Apple's **mm:ss** format; the true football clock
-  ("45'+2'") ticks IN-APP only (`MatchClock` + TimelineView). Don't "fix" the widget's mm:ss — that's
-  a settled scale decision.
-- Drift is corrected by a resync push every ~10 min (`LA_RESYNC_MS`) and at every real event.
+- During **regular play (1'–90')** the watcher does NOT push every minute (per-minute fan-out for the
+  whole match is ~90× waste). Each content-state carries **`clockStartEpoch` = now − elapsed** (a
+  "virtual kickoff") and the WIDGET advances the clock locally (Apple's `Text(timerInterval:)`) between
+  pushes, in **mm:ss** with **`showsHours:false`** (so the 68th minute reads `68:12`, not `1:08:12`).
+  The true football minute ("45'+2'") still ticks IN-APP only (`MatchClock` + TimelineView). Don't
+  "fix" the widget's mm:ss for regular play — that's a settled scale decision.
+- ⚠️ **SUPERSEDED FOR STOPPAGE ONLY (build 26, 2026-07-11):** in **added time** the widget DOES show
+  the football label. Apple's timer can't format `90'+2'`, and once Broadcast Channels shipped (7/9) a
+  per-minute push became cheap (ONE POST/channel, follower-independent, only ~2–8 min/match). So the
+  watcher computes **`stoppageDisplay`** from the monotonic anchor (`stoppageLabel`, mirrors
+  `MatchClock.minuteLabel`) and broadcasts it each minute past the cap; the widget renders it verbatim
+  instead of the mm:ss timer. `nil` during 1'–90' → widget falls back to the local clock. **Widget
+  render is device-verify PENDING build 26** (watcher half deployed; drive it via the fake-match harness
+  into a frozen-cap window + watch Apple's broadcast throttle — `1 sent` ≠ rendered).
+- Drift is corrected by a resync push at every real event, on the ~10-min floor (`LA_RESYNC_MS`), on a
+  **stoppage-label rollover**, AND — new 2026-07-11 — the instant the anchor (`clockStartEpoch`) jumps
+  **≥30 s** (`LA_DRIFT_RESYNC_SEC`). The anchor is stable during smooth play but lurches at each half's
+  late live-flip; without the drift trigger the card sat behind for up to 10 min at the start of BOTH
+  halves (owner-observed). Zero extra pushes during smooth play. Deployed; real-game verify pending.
 - Phase changes come from the watcher diffing the scoreboard each cron minute: kickoff / goals /
   halftime (`staticLabel: "HT"`) / full-time (`"FT"` + END push; no dismissal-date → ~4h linger).
 - ⚠️ **ESPN FREEZES `status.clock` at 45:00/90:00 through stoppage time** (observed live 7/4).
@@ -197,8 +209,9 @@ knowable on-device (lock screen) or via the app's own observation (`snapshot=N`,
   restart and absorbs the break (regression-locked in watcher `test/clock.test.ts`, watcher PR #20).
   NOTE: `replay.mjs`/`/test-activity` bypass `nextState` and re-anchor from the passed minute — a
   replay CANNOT reproduce this class of bug; only a real game (or the unit tests) exercises it.
-- End-to-end latency: cron floor 1 min + proxy live TTL 30s ⇒ an event reaches phones ≤ ~90s after
-  ESPN reflects it.
+- End-to-end latency: the cron floor is 1 min, but during a live window the tick **double-polls**
+  (poll → sleep 30 s → poll again cache-busted, shipped 2026-07-11), so with the proxy's 30s live TTL an
+  event reaches phones ≤ ~30–60s after ESPN reflects it (was ~90s).
 
 ## 5. ⚽ Soccer timing reality (stop "diagnosing" normal delays)
 
@@ -228,7 +241,8 @@ Channel headers (all V2): `apns-topic: <bundle>.push-type.liveactivity`,
   `clockStartEpoch?` `staticLabel?` (+ `lastScorer?`, `broadcast?`, and the per-side detail added
   2026-07-06: `homeScorers?`/`awayScorers?` [string[], chronological "C. Hutton 5'" lines, watcher-
   capped 4/side with a "+N more" 4th] + `homeRedCards?`/`awayRedCards?` [ints, REDS only, omitted at
-  0]). A mismatched/extra-typed key = silent decode drop on-device. `compact()` strips nulls so
+  0] + `stoppageDisplay?` [string "90'+2'", set 2026-07-11 ONLY in added time — the widget renders it
+  instead of the mm:ss timer; omitted during 1'–90']). A mismatched/extra-typed key = silent decode drop on-device. `compact()` strips nulls so
   optionals are OMITTED, never null. New keys are additive-optional BOTH ways: old app builds ignore
   unknown keys (synthesized Codable), and the Swift fields are Optional so old payloads decode —
   `lastScorer` stays as the old builds' fallback line.
@@ -331,7 +345,10 @@ reads need `--remote` (local KV is empty and lies); `wrangler tail` silently dro
 
 ## 8. Known limits & sharp edges (the can't-do list)
 
-- **No per-minute lock-screen clock pushes** (scale decision — widget mm:ss stands).
+- **No per-minute clock pushes DURING REGULAR PLAY** (widget mm:ss self-ticks, `showsHours:false`). The
+  ONE exception (build 26): **added time** DOES push a `stoppageDisplay` "90'+2'" each minute — bounded
+  ~2–8 min/match, ONE broadcast/channel (follower-independent), so it's cheap. Full-match per-minute
+  pushes are still out.
 - **Force-quit devices are unreachable** for token upload — Apple constraint, uncoverable.
 - iOS may throttle/budget push-to-start for spammy apps — space out test starts; don't hammer.
 - `stale-date` 8h on start (card grays if the match never goes live). END dismissal: the real cron
@@ -378,6 +395,17 @@ reads need `--remote` (local KV is empty and lies); `wrangler tail` silently dro
   7/5 A/B logs** (it was overfit to one moment + an ambiguous organic render): fully-silent start is
   FLAKY on real games → **buzz-once** (`sound: "default"`) shipped as the reliable design (arrival-buzz
   law §3), UPDATE/END stay silent. The "tests pass, weekends fail" lesson recorded in §6b.
+- **7/11 (night) — real games Spirit + Angel City:** V2 card **DEVICE-PROVEN CORRECT** end-to-end on
+  live games (both goals, NC goal + VAR no-goal disallow + revert, clean FT; push-to-start on time for
+  the 2nd game while the 1st was live). Two clock issues surfaced + fixed (device-verify PENDING build 26):
+  (a) widget rolled to `1:08` at the 60th min → `showsHours:false`; (b) card ran behind for ~10 min at
+  each half start (only re-anchored on the 10-min floor) → **drift-triggered resync** on a ≥30s anchor
+  jump (deployed). Also owner-approved: **stoppage `90'+N'` on the widget** via a per-minute broadcast in
+  added time (watcher deployed, widget build 26) — the old "never push per-minute" rule now yields for
+  stoppage only (Broadcast Channels made it cheap). SEPARATELY (NOT a V2 bug — the app's own screen): the
+  in-app clock/score stuck all game because **ESPN's full-season scoreboard query serves 25–47 min stale
+  live state** — fixed proxy-side (upstream `_cb` bust, deployed) + app windowed poll (build 26). The
+  in-app monotonic stoppage clock itself was proven CORRECT live (`90'+1'`→`90'+7'`→FT).
 
 ---
 *Update this file the moment a new V2 fact is device-proven — this manual exists because these facts

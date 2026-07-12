@@ -124,6 +124,8 @@ For each subsystem, walk it explicitly:
 - [ ] **Watcher subrequests per tick** — feed polls vs the 50-*external* cap. Note the 2026-02-11 split:
       proxy service-binding calls are now *internal* (1,000 budget), so ~16 feed polls no longer compete
       with APNs. Re-confirm Supabase REST (external) + APNs counts under worst-case simultaneous events.
+      NB (2026-07-11): during a live window the tick **double-polls** (30s cadence) → the scoreboard feed
+      fetches run twice; still internal (proxy binding), so no pressure on the external cap.
 - [ ] **ESPN / proxy rate limits & Cloudflare account-wide request cap** — free = 100k requests/day,
       account-wide (shared: watcher cron + proxy user traffic). At ~100k users the proxy's ordinary
       traffic is what pressures this, not the watcher. Verify current ESPN throttle behavior.
@@ -136,6 +138,8 @@ For each subsystem, walk it explicitly:
       per alerting team; re-verify at many multi-team follows.
 - [ ] **Live Activity update volume** — per-match push cadence × concurrent Activities. Broadcast
       channels make this flat per match; re-check Apple's (undocumented) broadcast throttle in practice.
+      ⚠️ Now especially relevant: the stoppage `+N` clock broadcasts EACH MINUTE in added time (2026-07-11)
+      — device-verify that iOS doesn't throttle a ~1/min broadcast cadence (build 26, fake-match harness).
 - [ ] (expand as subsystems are examined)
 
 ## 7. Status ledger
@@ -147,5 +151,19 @@ For each subsystem, walk it explicitly:
   spec + cost curve in `docs/push-fanout-scaling.md`. **BUILT + deployed 2026-07-09** (fan-out redesign +
   Part B USWNT V2).
 - **Watcher write-guard:** ✅ shipped/deployed (write-on-change).
+- **Proxy scoreboard upstream cache-bust (2026-07-11):** ✅ **no new load path.** On a `/scoreboard`
+  MISS the proxy appends `_cb` to the ESPN upstream so ESPN can't serve its 25–47-min-stale full-season
+  cache. Edge-cache key unchanged → ESPN hit COUNT is identical (still ≤2/min collapsed across all app
+  traffic); ESPN just recomputes instead of serving its cache. Zero added CPU. (The rejected alternative
+  — parse+overlay the 2 MB season in the proxy — measured ~9 ms on a laptop, over the free-plan **10 ms
+  CPU cap**; do not ship it.) Passes 1k trivially.
+- **Watcher 30s live double-poll (2026-07-11):** ✅ during a live window the cron tick polls twice (poll
+  → 30s → poll cache-busted). Orthogonal to nearly every axis — KV writes (write-on-change), push
+  fan-out (per-event, collapse-id), APNs are all UNCHANGED; the ONLY axis that ~doubles is ESPN
+  scoreboard hits, and only during the ~2h live window (one small windowed fetch/poll). Passes 1k.
+- **V2 stoppage `+N` broadcast (2026-07-11):** ✅ **decided in §5.** Per-minute broadcast ONLY in added
+  time (~2–8 min/match), ONE POST per channel = **follower-independent** → flat at 1k and 100k. The one
+  unknown = Apple's undocumented broadcast throttle at minute cadence (§6 open item) — **device-verify
+  pending build 26** on a real stoppage window before calling it done.
 - **Supabase sizing:** ⏳ not yet run through §5 (numbers to verify).
 - (append as items resolve)

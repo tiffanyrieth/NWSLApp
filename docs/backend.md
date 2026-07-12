@@ -14,12 +14,24 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
 - ESPN's headshots are null for every NWSL athlete; the app instead sources real photos via
   the proxy `/headshots` map (espnAthleteId→NWSL GUID → Cloudinary), monogram fallback on a miss.
 - Feed articles are legal-limited to headline + summary + link — never the article body.
+- ⚠️ **The full-season `dates=` scoreboard query serves STALE live state for 25–47 min during live
+  games** (ESPN's own CDN/app-tier cache — load-proven 2026-07-11: a match read `pre` 47 min after
+  kickoff, then stuck `HT`/`70'` while reality was 90'+). The **windowed** (`dates=yesterday-tomorrow`)
+  and default scoreboards stay fresh; only the whole-year query lags. A `_cb=<ts>` param forces ESPN to
+  recompute (the app-facing fix is the proxy busting the upstream on MISS, below; the app also moved its
+  live poll onto the windowed query, build 26). The app's stuck clock all game was THIS, not an app bug.
 - Endpoints can change shape, break, or rate-limit without notice. Fail gracefully.
 
 **Proxy (Cloudflare Worker `nwslapp-proxy`)** — sibling repo `~/Projects/nwslapp-proxy`
 (GitHub `tiffanyrieth/nwslapp-proxy`), live at `https://nwslapp-proxy.tiffany-rieth.workers.dev`.
 - **Pass-through caching:** `GET /scoreboard`, `GET /summary?event={id}` forward to ESPN
   and return bytes **unchanged** (app decoders untouched); match-state-aware TTL.
+  - ⚠️ **`/scoreboard` busts the ESPN UPSTREAM on every cache MISS** (`proxyAndCache(..., bustUpstream)`):
+    appends a `_cb=<ts>` to the ESPN fetch so ESPN can't serve its 25–47-min-stale full-season cache
+    (see quirks above). The proxy's OWN edge-cache key stays the clean incoming URL, so app traffic still
+    collapses to ≤2 ESPN hits/min — hit COUNT unchanged, just uncacheable ESPN-side. Zero added CPU
+    (device-proven fix, 2026-07-11). The abandoned alternative (parse+overlay the 2MB season) blew the
+    free-plan 10 ms CPU limit.
 - **Roster resilience:** `GET /roster?team={espnTeamId}` passes ESPN's roster through when it's a
   plausible squad (≥`ROSTER_GOOD_MIN`=16) and caches it as **last-known-good** in KV (`roster:{id}`,
   90d); when ESPN comes back implausibly small (the recurring "one player" gap, e.g. ACFC) or fails,
@@ -173,10 +185,18 @@ register after push-to-start), under a UIKit background-task assertion (`withBac
 updates ride APNs BROADCAST CHANNELS (SHIPPED 2026-07-09, `docs/push-fanout-scaling.md`):** the watcher
 creates a channel per MATCH, the iOS 18 `input-push-channel` in the start payload auto-subscribes each
 Activity, and every update/end is **ONE broadcast POST** (Apple fans out) — killing the old per-Activity-token
-lag. `syncLiveActivity` broadcasts on event / low-frequency clock resync, and ends + deletes the channel at
-FT; `startUpcomingActivities` (NOT folded into `detectEvents`) KV-dedups + creates the channel + sends the
-per-device `event:start` (via the Queues rail) ≤20 min pre-kickoff. **Clock:** the widget self-advances the
-minute locally from `clockStartEpoch` — no per-minute push. **Activation gate:**
+lag. `syncLiveActivity` broadcasts on an event, on **anchor drift** (`clockStartEpoch` jumps ≥30 s —
+each half's late live-flip, so the card snaps within a tick instead of coasting behind to the 10-min
+floor), on **stoppage rollover** (see Clock), or on the 10-min resync floor; and ends + deletes the
+channel at FT; `startUpcomingActivities` (NOT folded into `detectEvents`) KV-dedups + creates the channel + sends the
+per-device `event:start` (via the Queues rail) ≤20 min pre-kickoff. **Poll cadence:** the cron floor is
+1 min, but during a live window the tick **double-polls** (poll → sleep 30 s → poll again cache-busted)
+so goal/HT/FT latency is ~30 s (shipped 2026-07-11). **Clock:** the widget self-advances the minute
+locally from `clockStartEpoch` (mm:ss, `showsHours:false` so it never rolls to `1:08`) — no per-minute
+push during regular play; **BUT in added time the watcher broadcasts a `stoppageDisplay` string
+("90'+2'") each minute** (Apple's timer can't format football stoppage; the anchor is frozen so drift
+won't fire) — bounded ~2–8 min/match, one broadcast per channel. Widget render is build 26 —
+device-verify pending. **Activation gate:**
 `team_alert_preferences.alerts_enabled` AND the Tier-2 opt-in `notification_preferences.live_activities_enabled
 = true` (`startTokensForTeams`), NOT follow. **V2 requires iOS 18** (Broadcast Channels) — the app registers a
 start token only on iOS 18+; 17.x gets full V1 with an honest "Requires iOS 18" (graceful degradation). `POST /test-activity` (secret-gated) + `scripts/replay.mjs`

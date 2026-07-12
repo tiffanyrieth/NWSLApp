@@ -56,6 +56,14 @@ final class AppRouter {
             default: break
             }
         }
+        // DEBUG launch arg `-debugOpenMatch <espnEventID>` deep-links straight to a match detail at
+        // launch (via the same pendingMatch path a push tap uses), so in-sim screenshot verification
+        // of a specific Match Detail screen doesn't need taps — essential on Xcode 27, where idb HID
+        // is dead and there's no Simulator window to cliclick. A testing affordance like `-startTab`.
+        if let i = args.firstIndex(of: "-debugOpenMatch"), i + 1 < args.count {
+            pendingMatchEventID = args[i + 1]
+            selectedTab = .schedule
+        }
         #endif
     }
 

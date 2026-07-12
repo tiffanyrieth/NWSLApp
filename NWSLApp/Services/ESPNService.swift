@@ -49,14 +49,21 @@ struct ESPNService {
     // allowlist (nil = NWSL, the default — no param, identical to before). Other
     // women's slugs (fifa.shebelieves, fifa.friendly.w, concacaf.w.gold, …) route
     // through the same cached pass-through; the proxy maps the slug to ESPN's path.
-    func fetchScoreboard(year: Int? = nil, league: String? = nil) async throws -> Scoreboard {
+    // `dates` (e.g. "20260710-20260712") overrides the year-derived full-season range — used by the
+    // live poll to fetch a small yesterday→tomorrow WINDOW instead of re-downloading the ~2MB season
+    // every 30s (and the window stays fresh at ESPN, unlike the laggy full-season query). nil = the
+    // original year-based behavior, unchanged for every existing caller.
+    func fetchScoreboard(year: Int? = nil, league: String? = nil, dates: String? = nil) async throws -> Scoreboard {
         let endpoint = scoreboardBase.appendingPathComponent("scoreboard")
         guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
             throw ESPNServiceError.badURL
         }
         var items: [URLQueryItem] = []
         if let league { items.append(URLQueryItem(name: "league", value: league)) }
-        if let year {
+        if let dates {
+            items.append(URLQueryItem(name: "dates", value: dates))
+            items.append(URLQueryItem(name: "limit", value: "500"))
+        } else if let year {
             items.append(URLQueryItem(name: "dates", value: "\(year)0101-\(year)1231"))
             items.append(URLQueryItem(name: "limit", value: "500"))
         }

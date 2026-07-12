@@ -209,6 +209,9 @@ struct MatchDetailView: View {
                         .padding(.bottom, 16)
                 }
             }
+            // Same structural guard as futureLayout: clamp to the viewport width so no over-wide
+            // child (stat bars, long broadcast text, etc.) can make this vertical scroll pan sideways.
+            .containerRelativeFrame(.horizontal)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.dsBgPrimary)
@@ -584,6 +587,11 @@ struct MatchDetailView: View {
                 }
             }
             .padding(.bottom, 20)
+            // Structural guard: clamp the content to the scroll viewport's width so no single
+            // over-wide child can make this VERTICAL scroll view drift/pan horizontally (a recurring
+            // class — the kickoff-time text hit it once, then a future-game layout again, 2026-07-11).
+            // Flexible children fit; anything genuinely over-wide clips instead of enabling a 2D drag.
+            .containerRelativeFrame(.horizontal)
         }
     }
 

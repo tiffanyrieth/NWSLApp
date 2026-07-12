@@ -73,7 +73,7 @@ NWSLApp/
 │   ├── KnowHerService.swift           — Know Her Game client: pool(teams:)→/knowher; `throws` on failure OR empty pool (online-only; no seed)
 │   └── QuizResultsService.swift       — SHARED community-results client (NWSL Trivia + Know Her): upserts per-question answers to Supabase `quiz_answers`; reads the aggregate distribution from the proxy `/quiz-results` edge cache (never a live DB aggregation)
 ├── Stores/                            — @Observable shared state → UserDefaults, injected
-│   ├── AppRouter.swift                — tab selection (AppTab); `openMatch(eventID:)` live-push tap; `reselectNonce` (re-tap-active-tab → Schedule snaps to boundary); DEBUG `-startTab`
+│   ├── AppRouter.swift                — tab selection (AppTab); `openMatch(eventID:)` live-push tap; `reselectNonce` (re-tap-active-tab → Schedule snaps to boundary); DEBUG `-startTab`, `-debugOpenMatch <espnEventID>` (deep-link a match detail tap-free for in-sim verification)
 │   ├── AuthStore.swift                — @MainActor; Sign in with Apple → Supabase user; profile upsert + `hydrateProfile()` (reads display_name + name_is_custom on restore AND sign-in → survives reinstall); `displayName`/`displayNameIsCustom`/`profileHydrated`; `hasChosenName` (Fan Zone gate condition); deleteAccount
 │   ├── BracketStore.swift             — Bracket per-edition/round draft + one-way submit (only after server ack) + banked points + edition-summary gate (`bracket.v2.*`)
 │   ├── ClubStore.swift                — shared club directory; one fetch, many readers

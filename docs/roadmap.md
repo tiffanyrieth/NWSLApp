@@ -10,6 +10,19 @@
 > app source. The unit tests that reference `PostseasonSimulator.clinchTable` (`PlayoffClinchTests`) move
 > to inline fixtures at that point. Nothing auto-reminds — this note is the reminder.
 
+> ### ✅ SHIPPED (server) + ⏳ build 26 device-verify — live-clock / staleness / Match-Detail (2026-07-11)
+> **Root cause of the app "stuck clock/score all game":** ESPN's full-season `dates=` scoreboard serves
+> live state **25–47 min STALE** during live games (not an app bug — details `docs/backend.md`).
+> **DEPLOYED, no build (all live):** proxy busts the ESPN upstream on `/scoreboard` MISS (`_cb`, fixes
+> staleness for ALL installed builds); watcher **30s double-poll** in live windows (owner "much improved");
+> watcher **drift-triggered LA resync** (≥30s anchor jump → card snaps at each half start, not 10 min late);
+> watcher **stoppage `+N` broadcast** (per-minute in added time). Watcher PR #26, proxy PR #44.
+> **BUILT (app, build 26, sim-verified only — DEVICE-VERIFY PENDING):** widget `showsHours:false` (68:12
+> not 1:08); widget renders `stoppageDisplay` "90'+2'"; app live poll → windowed query merged over the
+> season (was ~2MB/30s); Match-Detail **horizontal-drift** fix (`.containerRelativeFrame(.horizontal)`).
+> **On the next TestFlight, verify on device:** Fix C past 60', Fix D stoppage `90'+N'` on the lock screen
+> (fake-match harness into a frozen-cap window; WATCH Apple's broadcast throttle at 1/min), Fix G no-pan.
+
 > ### ✅ RESOLVED — lineup-push crest showed the WRONG team for away-team fans
 > **Was (owner, 2026-07-05):** the "Lineups in" V1 push attached the **home** club's crest, so an
 > AWAY-team follower saw the HOME crest → read as the wrong team's lineup. Same latent issue on

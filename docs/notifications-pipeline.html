@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NWSL App — Notification Pipeline (V1 + V2)</title>
+<style>
+  :root{
+    --ground:#0c1210; --panel:#121a16; --panel-2:#0f1714; --line:#26332c; --line-2:#1c2620;
+    --ink:#eae8dc; --muted:#8b938a; --faint:#5f6a61;
+    --amber:#f4c15a; --amber-soft:rgba(244,193,90,.13); --amber-line:rgba(244,193,90,.42);
+    --teal:#54c1b0;  --teal-soft:rgba(84,193,176,.13);  --teal-line:rgba(84,193,176,.42);
+    --pitch:#4fa574; --pitch-soft:rgba(79,165,116,.14);
+    --glow:.5;
+    --shadow:0 1px 0 rgba(255,255,255,.03), 0 12px 34px rgba(0,0,0,.4);
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --ground:#ecebe1; --panel:#fbfaf3; --panel-2:#f3f1e6; --line:#dad7c7; --line-2:#e6e3d5;
+      --ink:#18201b; --muted:#5f6860; --faint:#93998f;
+      --amber:#a9721a; --amber-soft:rgba(169,114,26,.12); --amber-line:rgba(169,114,26,.4);
+      --teal:#177f6f;  --teal-soft:rgba(23,127,111,.11);  --teal-line:rgba(23,127,111,.38);
+      --pitch:#2f7d50; --pitch-soft:rgba(47,125,80,.12);
+      --glow:0;
+      --shadow:0 1px 0 rgba(255,255,255,.6), 0 12px 30px rgba(60,55,30,.1);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0c1210; --panel:#121a16; --panel-2:#0f1714; --line:#26332c; --line-2:#1c2620;
+    --ink:#eae8dc; --muted:#8b938a; --faint:#5f6a61;
+    --amber:#f4c15a; --amber-soft:rgba(244,193,90,.13); --amber-line:rgba(244,193,90,.42);
+    --teal:#54c1b0;  --teal-soft:rgba(84,193,176,.13);  --teal-line:rgba(84,193,176,.42);
+    --pitch:#4fa574; --pitch-soft:rgba(79,165,116,.14);
+    --glow:.5;
+    --shadow:0 1px 0 rgba(255,255,255,.03), 0 12px 34px rgba(0,0,0,.4);
+  }
+  :root[data-theme="light"]{
+    --ground:#ecebe1; --panel:#fbfaf3; --panel-2:#f3f1e6; --line:#dad7c7; --line-2:#e6e3d5;
+    --ink:#18201b; --muted:#5f6860; --faint:#93998f;
+    --amber:#a9721a; --amber-soft:rgba(169,114,26,.12); --amber-line:rgba(169,114,26,.4);
+    --teal:#177f6f;  --teal-soft:rgba(23,127,111,.11);  --teal-line:rgba(23,127,111,.38);
+    --pitch:#2f7d50; --pitch-soft:rgba(47,125,80,.12);
+    --glow:0;
+    --shadow:0 1px 0 rgba(255,255,255,.6), 0 12px 30px rgba(60,55,30,.1);
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    line-height:1.5;-webkit-font-smoothing:antialiased;}
+  .mono{font-family:ui-monospace,"SF Mono","Cascadia Code",Menlo,monospace;}
+  .wrap{max-width:760px;margin:0 auto;padding:46px 20px 80px;}
+
+  /* header */
+  .eyebrow{font-family:ui-monospace,Menlo,monospace;font-size:11px;font-weight:600;letter-spacing:.26em;text-transform:uppercase;color:var(--pitch);}
+  h1{margin:12px 0 8px;font-size:clamp(26px,5.4vw,40px);font-weight:800;letter-spacing:-.02em;line-height:1.05;text-wrap:balance;}
+  .lede{color:var(--muted);font-size:15px;max-width:60ch;margin:0;}
+  .lede b{color:var(--ink);font-weight:600;}
+
+  /* legend */
+  .legend{display:flex;flex-wrap:wrap;gap:10px 20px;margin:20px 0 4px;font-size:12.5px;color:var(--muted);}
+  .legend span{display:flex;align-items:center;gap:8px;}
+  .dot{width:11px;height:11px;border-radius:50%;flex:none;}
+  .dot.a{background:var(--amber);box-shadow:0 0 10px rgba(244,193,90,var(--glow));}
+  .dot.t{background:var(--teal);box-shadow:0 0 10px rgba(84,193,176,var(--glow));}
+  .dot.p{background:var(--pitch);}
+
+  /* pipeline */
+  .pipe{margin-top:26px;display:flex;flex-direction:column;align-items:stretch;}
+  .node{position:relative;border:1px solid var(--line);border-radius:15px;background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    padding:16px 18px;box-shadow:var(--shadow);}
+  .node .tag{font-family:ui-monospace,Menlo,monospace;font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .node h3{margin:5px 0 4px;font-size:17px;font-weight:750;letter-spacing:-.01em;font-family:ui-monospace,Menlo,monospace;}
+  .node p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.5;}
+  .node p b{color:var(--ink);font-weight:600;}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .chip{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--ink);background:var(--line-2);
+    border:1px solid var(--line);border-radius:6px;padding:2px 7px;white-space:nowrap;}
+  .node.src{border-left:3px solid var(--pitch);}
+  .node.src .tag{color:var(--pitch);}
+
+  /* connector between stacked nodes */
+  .link{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0;}
+  .link .stem{width:2px;height:16px;background:linear-gradient(var(--line),var(--faint));}
+  .link .hop{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--muted);text-align:center;max-width:52ch;padding:2px 10px;}
+  .link .hop b{color:var(--ink);font-weight:600;}
+  .link .chev{color:var(--faint);font-size:12px;line-height:1;margin-top:-2px;}
+
+  /* fork banner */
+  .forklabel{text-align:center;margin:8px 0 4px;}
+  .forklabel .k{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;letter-spacing:.02em;color:var(--ink);}
+  .forklabel .k b{color:var(--pitch);}
+
+  /* two rails */
+  .rails{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px;}
+  .rail{border:1px solid var(--line);border-radius:15px;padding:15px 15px 16px;background:var(--panel);position:relative;overflow:hidden;}
+  .rail::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;}
+  .rail.v1::before{background:var(--amber);box-shadow:0 0 16px rgba(244,193,90,var(--glow));}
+  .rail.v2::before{background:var(--teal);box-shadow:0 0 16px rgba(84,193,176,var(--glow));}
+  .rail{background-image:radial-gradient(120% 90% at 90% -20%,var(--railsoft),transparent 60%);}
+  .rail.v1{--railtint:var(--amber);--railsoft:var(--amber-soft);}
+  .rail.v2{--railtint:var(--teal);--railsoft:var(--teal-soft);}
+  .rail .rtag{font-family:ui-monospace,Menlo,monospace;font-size:10px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--railtint);}
+  .rail h4{margin:5px 0 2px;font-size:15px;font-weight:750;letter-spacing:-.01em;}
+  .rail .sub{font-size:12.5px;color:var(--muted);margin:0 0 11px;}
+  .steps{display:flex;flex-direction:column;gap:0;}
+  .step{position:relative;padding:6px 0 6px 20px;font-size:12.5px;color:var(--ink);line-height:1.4;}
+  .step::before{content:"";position:absolute;left:5px;top:12px;width:7px;height:7px;border-radius:50%;background:var(--railtint);}
+  .step:not(:last-child)::after{content:"";position:absolute;left:8px;top:18px;bottom:-2px;width:1.5px;background:var(--line);}
+  .step .lbl{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--ink);}
+  .step .d{color:var(--muted);font-size:11.5px;}
+  .rail .foot{margin-top:11px;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:9px;}
+
+  .merge{text-align:center;font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--muted);margin:14px 0 2px;}
+  .node.device{border-left:3px solid var(--ink);}
+
+  /* footer cards */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:34px;}
+  .info{border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:14px 15px;}
+  .info .t{font-size:12px;font-weight:700;letter-spacing:.02em;color:var(--ink);margin-bottom:6px;}
+  .info p{margin:0;font-size:12.5px;color:var(--muted);line-height:1.55;}
+  .info code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--ink);background:var(--line-2);border-radius:4px;padding:1px 5px;}
+  .footnote{margin-top:26px;color:var(--faint);font-size:11.5px;line-height:1.6;font-family:ui-monospace,Menlo,monospace;}
+  .footnote b{color:var(--muted);font-weight:600;}
+
+  a{color:var(--teal);}
+  :focus-visible{outline:2px solid var(--teal);outline-offset:3px;border-radius:4px;}
+
+  @media (max-width:600px){ .rails,.grid2{grid-template-columns:1fr;} }
+  @media (prefers-reduced-motion:no-preference){
+    .pipe>*{animation:rise .5s cubic-bezier(.2,.7,.2,1) both;}
+    .pipe>*:nth-child(1){animation-delay:.02s}.pipe>*:nth-child(2){animation-delay:.06s}
+    .pipe>*:nth-child(3){animation-delay:.10s}.pipe>*:nth-child(4){animation-delay:.14s}
+    .pipe>*:nth-child(5){animation-delay:.18s}.pipe>*:nth-child(6){animation-delay:.22s}
+    .pipe>*:nth-child(7){animation-delay:.26s}.pipe>*:nth-child(8){animation-delay:.30s}
+    .pipe>*:nth-child(9){animation-delay:.34s}.pipe>*:nth-child(10){animation-delay:.38s}
+    @keyframes rise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+  }
+
+  /* Save-as-PDF affordance */
+  .printbtn{position:fixed;top:15px;right:15px;z-index:9;
+    font:600 12.5px/1 ui-monospace,Menlo,monospace;color:var(--ink);
+    background:var(--panel);border:1px solid var(--line);border-radius:9px;
+    padding:9px 13px;cursor:pointer;box-shadow:var(--shadow);display:inline-flex;align-items:center;gap:7px;}
+  .printbtn:hover{border-color:var(--teal);color:var(--teal);}
+
+  /* ── PRINT / PDF: dark-on-white, ink-friendly, no glow/animation, no page-split boxes ── */
+  @media print{
+    :root, :root[data-theme="dark"], :root[data-theme="light"]{
+      --ground:#fff; --panel:#fff; --panel-2:#fff; --line:#c3c8bf; --line-2:#eef0ea;
+      --ink:#131a14; --muted:#3d453e; --faint:#7c837a;
+      --amber:#9a640f; --amber-soft:#fbf2db; --amber-line:#d3a349;
+      --teal:#0d6d5f;  --teal-soft:#e2f1ee;  --teal-line:#45b0a0;
+      --pitch:#256840; --pitch-soft:#e7f1eb; --glow:0; --shadow:none;
+    }
+    html,body{background:#fff;}
+    *{ -webkit-print-color-adjust:exact; print-color-adjust:exact;
+       box-shadow:none !important; text-shadow:none !important; animation:none !important; }
+    .wrap{max-width:100%;padding:6mm 0 0;}
+    .printbtn{display:none !important;}
+    .node,.rail,.info{border:1px solid var(--line);}
+    /* keep a box whole across page breaks */
+    .node,.rail,.rails,.info,.grid2,.link,.forklabel,.merge{break-inside:avoid;page-break-inside:avoid;}
+    h1{font-size:25px;}
+    .lede{max-width:100%;}
+    a{color:var(--teal);text-decoration:none;}
+    @page{ margin:13mm; }
+  }
+</style>
+</head>
+<body>
+
+<button class="printbtn" onclick="window.print()" aria-label="Print or save as PDF">⎙&nbsp;Save as PDF</button>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">NWSL App · signal flow</div>
+    <h1>How a goal becomes a notification</h1>
+    <p class="lede">The whole pipeline, end to end. One match event fans out down <b>two rails, fired together</b> —
+      <b style="color:var(--amber)">V1</b>, the interrupt (a buzz + a crest card), and <b style="color:var(--teal)">V2</b>,
+      the quiet Live Activity glance. Two Cloudflare Workers, APNs, and Supabase, across three repos.</p>
+    <div class="legend">
+      <span><i class="dot p"></i> source &amp; edge (ESPN · proxy · watcher)</span>
+      <span><i class="dot a"></i> V1 — the interrupt (buzz + card)</span>
+      <span><i class="dot t"></i> V2 — the quiet glance (Live Activity)</span>
+    </div>
+  </header>
+
+  <div class="pipe">
+
+    <div class="node src">
+      <div class="tag">Source · ESPN</div>
+      <h3>ESPN scoreboard</h3>
+      <p>Unofficial NWSL endpoints — the source of truth, but <b>~1 min behind live</b>, and the full-season query
+        goes <b>25–47 min stale</b> mid-game.</p>
+      <div class="chips"><span class="chip">app ESPNService = separate display path</span></div>
+    </div>
+
+    <div class="link"><div class="stem"></div><div class="hop">the <b>watcher</b> fetches it (cached)</div><div class="chev">▼</div></div>
+
+    <div class="node">
+      <div class="tag">Edge · Cloudflare Worker</div>
+      <h3>nwslapp-proxy</h3>
+      <p>Caches ESPN with a <b>match-state-aware TTL</b>, and on every scoreboard cache MISS <b>busts ESPN's upstream</b>
+        so it can't serve its stale copy.</p>
+      <div class="chips"><span class="chip">30s live / 300s idle</span><span class="chip">_cb upstream bust</span></div>
+    </div>
+
+    <div class="link"><div class="stem"></div><div class="hop"><b>service binding</b> — a public *.workers.dev fetch 404s (CF error 1042)</div><div class="chev">▼</div></div>
+
+    <div class="node">
+      <div class="tag">Cron · Cloudflare Worker</div>
+      <h3>nwslapp-match-watcher</h3>
+      <p>Runs <b>every minute</b> (+ a 30s double-poll during live windows). Diffs the scoreboard against KV
+        (write-on-change), then <b>detects the events</b>.</p>
+      <div class="chips"><span class="chip">* * * * *</span><span class="chip">+30s live</span><span class="chip">KV: MATCH_STATE</span></div>
+      <div class="chips"><span class="chip" style="border-color:var(--amber-line);color:var(--ink)">detectEvents → kickoff · goal · HT · FT · red · VAR · lineup</span></div>
+    </div>
+
+    <div class="link"><div class="stem"></div><div class="hop">sign an <b>ES256 .p8 APNs JWT</b> · look up <b>device_tokens</b> + prefs (Supabase, service_role)</div><div class="chev">▼</div></div>
+
+    <div class="forklabel"><span class="k">one event → <b>two rails, fired together</b></span></div>
+
+    <div class="rails">
+      <div class="rail v1">
+        <div class="rtag">V1 · the interrupt</div>
+        <h4>Buzz + rich card</h4>
+        <p class="sub">The thing that makes your phone go off.</p>
+        <div class="steps">
+          <div class="step"><span class="lbl">Cloudflare Queues</span> <span class="d">— chunked tokens, own subrequest budget, apns-collapse-id</span></div>
+          <div class="step"><span class="lbl">APNs</span> <span class="d">— production gateway (.p8 JWT)</span></div>
+          <div class="step"><span class="lbl">NotificationServiceExtension</span> <span class="d">— renders the crest card on <code style="all:unset;font-family:inherit;color:var(--ink)">mutable-content:1</code></span></div>
+        </div>
+        <div class="foot">card image ← nwslapp-card worker (satori+resvg)</div>
+      </div>
+
+      <div class="rail v2">
+        <div class="rtag">V2 · the quiet glance</div>
+        <h4>Live Activity</h4>
+        <p class="sub">Lock screen + Dynamic Island, silent.</p>
+        <div class="steps">
+          <div class="step"><span class="lbl">APNs Broadcast Channel</span> <span class="d">— one POST/event, Apple fans out (iOS 18+)</span></div>
+          <div class="step"><span class="lbl">APNs</span> <span class="d">— channel-per-match subscription</span></div>
+          <div class="step"><span class="lbl">LiveActivityManager → widget</span> <span class="d">— renders from the pushed content-state</span></div>
+        </div>
+        <div class="foot">iOS 17 = V1 only (graceful degradation)</div>
+      </div>
+    </div>
+
+    <div class="merge">both land on ▼</div>
+
+    <div class="node device">
+      <div class="tag">Device · the phone</div>
+      <h3>The phone</h3>
+      <p>Registers its token on <b>every open</b> → AppDelegate → <b>PushBridge</b> → device_tokens (per-device keying,
+        prune-on-410). A <b>tap</b> deep-links straight to <b>Match Detail</b>.</p>
+    </div>
+
+  </div>
+
+  <div class="grid2">
+    <div class="info">
+      <div class="t">Two tiers of alerts</div>
+      <p><b style="color:var(--ink)">Tier 1</b> — no account, scheduled locally on device: day-before reminder, Player
+        Spotlight (iOS caps 64 pending → windowed). <b style="color:var(--ink)">Tier 2</b> — watcher-triggered, so
+        sign-in gated: kickoff / goals / HT / FT / lineups / V2. All <b style="color:var(--ink)">opt-in</b>; the bell
+        tap cascades the full bundle the first time.</p>
+    </div>
+    <div class="info">
+      <div class="t">Which token goes where</div>
+      <p><code>device_tokens</code> → V1 sends. <code>live_activity_start_tokens</code> → V2 push-to-start
+        (remote-create ≤20 min pre-kickoff). Per-Activity tokens → direct updates (now largely superseded by the
+        broadcast channel). All keyed <code>(user_id, device_id)</code> on a Keychain-stable device id.</p>
+    </div>
+  </div>
+
+  <p class="footnote">Deep dives: <b>docs/live-activity-v2.md</b> (V2 render law + tokens + runbook) ·
+    <b>docs/push-fanout-scaling.md</b> (Queues + Broadcast Channels) · <b>docs/notifications.md</b> (this pipeline, in prose).
+    <br>Snapshot 2026-07-12 · “1 sent” ≠ rendered — only a real device (or the fake-match harness) proves V2.</p>
+</div>
+
+</body>
+</html>

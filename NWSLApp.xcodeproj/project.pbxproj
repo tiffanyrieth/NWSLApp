@@ -10,9 +10,11 @@
 		06F9BE455EC5489CB3734C8C /* NotificationServiceExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D45D23632D5E4BBE940AC393 /* NotificationServiceExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		985531582FDF54490039EF87 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 985531572FDF54480039EF87 /* StoreKit.framework */; };
 		98745F412FD842C700832FA4 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 98745F402FD842C700832FA4 /* Supabase */; };
+		98913BEE3005656D0087B763 /* LiveActivityContract in Frameworks */ = {isa = PBXBuildFile; productRef = 98913BED3005656D0087B763 /* LiveActivityContract */; };
+		98913BF0300565820087B763 /* LiveActivityContract in Frameworks */ = {isa = PBXBuildFile; productRef = 98913BEF300565820087B763 /* LiveActivityContract */; };
+		989144B130056B3A0087B763 /* MatchClockKit in Frameworks */ = {isa = PBXBuildFile; productRef = 989144B030056B3A0087B763 /* MatchClockKit */; };
+		98CAA74030055F8100A5E866 /* LiveActivityContract in Frameworks */ = {isa = PBXBuildFile; productRef = 98CAA73F30055F8100A5E866 /* LiveActivityContract */; };
 		AA010000000000000000A001 /* NWSLLiveActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AA010000000000000000A003 /* NWSLLiveActivity.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		AA010000000000000000B001 /* MatchActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA010000000000000000B003 /* MatchActivityAttributes.swift */; };
-		AA010000000000000000B002 /* MatchActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA010000000000000000B003 /* MatchActivityAttributes.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,7 +69,6 @@
 		98CF00D22FBD66B6008435E1 /* NWSLAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NWSLAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		98CF00DC2FBD66B6008435E1 /* NWSLAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NWSLAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA010000000000000000A003 /* NWSLLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NWSLLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		AA010000000000000000B003 /* MatchActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MatchActivityAttributes.swift; path = Shared/MatchActivityAttributes.swift; sourceTree = "<group>"; };
 		D45D23632D5E4BBE940AC393 /* NotificationServiceExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NotificationServiceExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -127,7 +128,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				98CAA74030055F8100A5E866 /* LiveActivityContract in Frameworks */,
 				98745F412FD842C700832FA4 /* Supabase in Frameworks */,
+				989144B130056B3A0087B763 /* MatchClockKit in Frameworks */,
 				985531582FDF54490039EF87 /* StoreKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -136,6 +139,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				98913BF0300565820087B763 /* LiveActivityContract in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -150,6 +154,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				98913BEE3005656D0087B763 /* LiveActivityContract in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -175,7 +180,6 @@
 			isa = PBXGroup;
 			children = (
 				98CF00C72FBD66B5008435E1 /* NWSLApp */,
-				AA010000000000000000B003 /* MatchActivityAttributes.swift */,
 				0DE1A328F40C4F0B8066B5A2 /* NotificationServiceExtension */,
 				AA010000000000000000A005 /* NWSLLiveActivity */,
 				98CF00D52FBD66B6008435E1 /* NWSLAppTests */,
@@ -221,6 +225,8 @@
 			name = NWSLApp;
 			packageProductDependencies = (
 				98745F402FD842C700832FA4 /* Supabase */,
+				98CAA73F30055F8100A5E866 /* LiveActivityContract */,
+				989144B030056B3A0087B763 /* MatchClockKit */,
 			);
 			productName = NWSLApp;
 			productReference = 98CF00C52FBD66B5008435E1 /* NWSLApp.app */;
@@ -244,6 +250,7 @@
 			);
 			name = NWSLAppTests;
 			packageProductDependencies = (
+				98913BEF300565820087B763 /* LiveActivityContract */,
 			);
 			productName = NWSLAppTests;
 			productReference = 98CF00D22FBD66B6008435E1 /* NWSLAppTests.xctest */;
@@ -289,6 +296,7 @@
 			);
 			name = NWSLLiveActivity;
 			packageProductDependencies = (
+				98913BED3005656D0087B763 /* LiveActivityContract */,
 			);
 			productName = NWSLLiveActivity;
 			productReference = AA010000000000000000A003 /* NWSLLiveActivity.appex */;
@@ -356,6 +364,8 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				98745F3E2FD842C700832FA4 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				98CAA73E30055F8100A5E866 /* XCLocalSwiftPackageReference "Packages/LiveActivityContract" */,
+				989144AF30056B3A0087B763 /* XCLocalSwiftPackageReference "Packages/MatchClockKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 98CF00C62FBD66B5008435E1 /* Products */;
@@ -414,7 +424,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AA010000000000000000B001 /* MatchActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -443,7 +452,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AA010000000000000000B002 /* MatchActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -917,6 +925,17 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		989144AF30056B3A0087B763 /* XCLocalSwiftPackageReference "Packages/MatchClockKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/MatchClockKit;
+		};
+		98CAA73E30055F8100A5E866 /* XCLocalSwiftPackageReference "Packages/LiveActivityContract" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/LiveActivityContract;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		98745F3E2FD842C700832FA4 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -933,6 +952,24 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 98745F3E2FD842C700832FA4 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
+		};
+		98913BED3005656D0087B763 /* LiveActivityContract */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 98CAA73E30055F8100A5E866 /* XCLocalSwiftPackageReference "Packages/LiveActivityContract" */;
+			productName = LiveActivityContract;
+		};
+		98913BEF300565820087B763 /* LiveActivityContract */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 98CAA73E30055F8100A5E866 /* XCLocalSwiftPackageReference "Packages/LiveActivityContract" */;
+			productName = LiveActivityContract;
+		};
+		989144B030056B3A0087B763 /* MatchClockKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MatchClockKit;
+		};
+		98CAA73F30055F8100A5E866 /* LiveActivityContract */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LiveActivityContract;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

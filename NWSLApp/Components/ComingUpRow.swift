@@ -14,6 +14,7 @@
 //  (scoreboard competitors carry none), resolved distinct + dark-legible.
 //
 
+import MatchClockKit
 import SwiftUI
 
 struct ComingUpRow: View {
@@ -93,11 +94,15 @@ struct ComingUpRow: View {
     /// we have the raw clock + anchor; otherwise the static `detailLine` string.
     @ViewBuilder
     private var detailLineView: some View {
-        if event.statusState == "in", !event.isHalftime, let anchor, let clock = event.status?.clock {
+        // Same live-clock guard as the other surfaces (MatchClockKit) — ticks only for a live,
+        // non-halftime match with a real anchor; anything else (pre/post/HT/no-anchor) shows the
+        // static detailLine. No halftime/fallback string here: detailLine already covers those.
+        let display = MatchClockDisplay.resolve(
+            statusState: event.statusState, isHalftime: event.isHalftime,
+            clockSeconds: event.status?.clock, period: event.status?.period, anchor: anchor)
+        if case .ticking = display {
             let suffix = scoreText.map { " · \($0)" } ?? ""
-            LiveMinuteText(clockSeconds: clock, period: event.status?.period, anchor: anchor) { label in
-                Text(label + suffix)
-            }
+            LiveMatchClockView(display: display, suffix: suffix) { Text($0) }
         } else {
             Text(detailLine)
         }

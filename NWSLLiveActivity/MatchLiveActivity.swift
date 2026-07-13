@@ -14,6 +14,7 @@
 //
 
 import ActivityKit
+import LiveActivityContract
 import SwiftUI
 import WidgetKit
 

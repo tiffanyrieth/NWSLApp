@@ -15,6 +15,14 @@
 //
 
 import Foundation
+import MatchClockKit
+
+/// The live-clock anchor engine reads matches through this minimal surface, so MatchClockKit stays a
+/// leaf and never imports the ESPN `Event` model. `id` + `statusState` already satisfy the protocol.
+extension Event: ClockTickSource {
+    var clockSeconds: Double? { status?.clock }
+    var period: Int? { status?.period }
+}
 
 @Observable
 final class MatchStore {
@@ -39,26 +47,10 @@ final class MatchStore {
 
     // MARK: Monotonic live-clock tick anchors
 
-    /// Per-live-match anchor for the local football-clock tick. ESPN FREEZES `status.clock` at
-    /// 45:00/90:00 through stoppage time, and re-anchoring to `lastLoadedAt` on every ~30s poll
-    /// wiped the local accumulation before it could ever cross a minute boundary — pinning the
-    /// display at 45'+1'/90'+1' for ALL of stoppage (observed live 2026-07-04). Rule: while a
-    /// match's (clock, period) hasn't advanced, KEEP the anchor from when that clock value was
-    /// FIRST seen, so `clock + (now − anchor)` keeps counting +2'…+11'. Re-anchor when the clock
-    /// advances or the period changes (the halftime pause breaks continuity legitimately).
-    struct TickAnchor: Equatable, Codable {
-        let clock: Double
-        let period: Int
-        let date: Date
-        /// True when this match was FIRST seen with its clock already frozen at the regulation
-        /// cap (45:00/90:00) — i.e. we joined mid-stoppage with no history. The true stoppage
-        /// minute is unknowable (ESPN doesn't transmit it), so ticking from "now" would fabricate
-        /// 45'+1' at the 7th minute of added time (owner hit this force-closing mid-stoppage,
-        /// 2026-07-05). `tickAnchor(for:)` returns nil for these → views fall back to ESPN's own
-        /// display string (honest) until the clock advances again and a real anchor forms.
-        var freshAtCap: Bool = false
-    }
-
+    /// Per-live-match anchor for the local football-clock tick (the stoppage-time freeze fix). The
+    /// `TickAnchor` value + the reconcile rule live in `MatchClockKit` now; MatchStore owns only the
+    /// live-state set + its durability (persist below), and delegates the invariant logic to the
+    /// package. See `MatchClockKit.TickAnchor` for the frozen-clock rule.
     private var tickAnchors: [String: TickAnchor] = [:] {
         didSet { Self.persistTickAnchors(tickAnchors) }
     }
@@ -85,30 +77,6 @@ final class MatchStore {
             return anchor.freshAtCap ? nil : anchor.date
         }
         return lastLoadedAt
-    }
-
-    /// Pure reconcile — nonisolated static so `MatchClockTests` exercises the frozen-clock rule directly.
-    nonisolated static func reconciledTickAnchors(
-        previous: [String: TickAnchor],
-        events: [Event],
-        at instant: Date
-    ) -> [String: TickAnchor] {
-        var next: [String: TickAnchor] = [:]
-        for event in events where event.statusState == "in" {
-            guard let clock = event.status?.clock else { continue }
-            let period = event.status?.period ?? 0
-            if let old = previous[event.id], old.period == period, clock <= old.clock {
-                next[event.id] = old // frozen/stalled server clock → keep accumulating locally
-            } else {
-                // First sighting AT the frozen regulation cap (e.g. cold start mid-stoppage):
-                // the true stoppage minute is unknowable — flag it so views fall back to ESPN's
-                // string instead of fabricating 45'+1'. Clears itself once the clock advances.
-                let cap = MatchClock.regulationCap(period: period).map { Double($0) * 60 }
-                let freshAtCap = previous[event.id] == nil && cap != nil && clock >= cap!
-                next[event.id] = TickAnchor(clock: clock, period: period, date: instant, freshAtCap: freshAtCap)
-            }
-        }
-        return next // non-live matches drop out
     }
 
     /// Per-competition load failures (keyed by house-style label), so the Schedule's
@@ -205,7 +173,7 @@ final class MatchStore {
             let deduped = dedupedByEventID(merged)
             let instant = now()
             lastLoadedAt = instant
-            tickAnchors = Self.reconciledTickAnchors(previous: tickAnchors, events: deduped.map(\.event), at: instant)
+            tickAnchors = TickAnchor.reconcile(previous: tickAnchors, sources: deduped.map(\.event), at: instant)
             state = .loaded(deduped)
         } catch {
             // A live-poll blip must NOT blank the tab — keep the last good schedule (state stays `.loaded`).
@@ -278,7 +246,7 @@ final class MatchStore {
             let instant = now()
             lastLoadedAt = instant
             let deduped = dedupedByEventID(matches)
-            tickAnchors = Self.reconciledTickAnchors(previous: tickAnchors, events: deduped.map(\.event), at: instant)
+            tickAnchors = TickAnchor.reconcile(previous: tickAnchors, sources: deduped.map(\.event), at: instant)
             state = .loaded(deduped)
         } catch {
             Diagnostics.shared.record(.apiFailure, "schedule \(silent ? "refresh" : "load"): \(error.localizedDescription)")

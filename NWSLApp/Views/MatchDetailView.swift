@@ -21,6 +21,7 @@
 //  back button is its back affordance.
 //
 
+import MatchClockKit
 import SwiftUI
 
 struct MatchDetailView: View {
@@ -875,24 +876,20 @@ struct MatchDetailView: View {
     private var liveClockLine: some View {
         let periodName = event.status?.type?.description
         let suffix = (periodName?.isEmpty == false) ? " — \(periodName!)" : ""
-        // Halftime: ESPN keeps state "in" with the clock frozen — a ticking 45'+n' through the
-        // break is wrong (the V2 widget shows a static HT; the app must match).
-        if event.isHalftime {
-            Text("Halftime")
+        // The halftime / anchor / fallback decision lives once in MatchClockKit (halftime shows a
+        // static "Halftime", never a ticking 45'+n' through the break — the V2 widget shows a static
+        // HT and the app must match; the period-name suffix rides only the ticking minute).
+        LiveMatchClockView(
+            display: .resolve(
+                statusState: event.statusState, isHalftime: event.isHalftime,
+                clockSeconds: event.status?.clock, period: event.status?.period,
+                anchor: matchStore.tickAnchor(for: event.id),
+                halftimeLabel: "Halftime", fallback: clockLine),
+            suffix: suffix
+        ) { label in
+            Text(label)
                 .dsFont(13, weight: .medium)
-                .foregroundStyle(Color.dsStateClock)
-                .multilineTextAlignment(.center)
-        } else if let anchor = matchStore.tickAnchor(for: event.id), let clock = event.status?.clock {
-            LiveMinuteText(clockSeconds: clock, period: event.status?.period, anchor: anchor) { label in
-                Text(label + suffix)
-                    .dsFont(13, weight: .medium)
-                    .foregroundStyle(Color.dsStateClock)   // orange live clock
-                    .multilineTextAlignment(.center)
-            }
-        } else if let clockLine {
-            Text(clockLine)
-                .dsFont(13, weight: .medium)
-                .foregroundStyle(Color.dsStateClock)
+                .foregroundStyle(Color.dsStateClock)   // orange live clock
                 .multilineTextAlignment(.center)
         }
     }

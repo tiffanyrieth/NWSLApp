@@ -15,6 +15,7 @@
 
 import ActivityKit
 import Foundation
+import LiveActivityContract
 import os
 import Supabase
 import UIKit

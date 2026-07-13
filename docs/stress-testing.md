@@ -166,4 +166,12 @@ For each subsystem, walk it explicitly:
   unknown = Apple's undocumented broadcast throttle at minute cadence (§6 open item) — **device-verify
   pending build 26** on a real stoppage window before calling it done.
 - **Supabase sizing:** ⏳ not yet run through §5 (numbers to verify).
+- **Know Her Game weekly automation (2026-07-13):** ✅ **passes 1k + 100k by construction — content is
+  LEAGUE-WIDE, not per-user,** so load is user-count-independent. New load paths, all once-weekly: the
+  routine's 16× `/knowher/todo` calls (each its OWN invocation ≈30 ESPN subrequests — under the 50/
+  invocation cap; results edge-cached 1h) + one `/knowher/ingest` POST (validate + 1 KV write + ledger
+  mark) + the `knowherStaleWeek` watchdog (one KV read per `/knowher` cache-miss ≈ every 5 min, diag
+  throttled to 1/day via KV). Weekly ESPN burst ≈480 requests — the watcher exceeds that every ~20 min
+  on game days. $0 at every tier; generation runs on the owner's subscription (Claude Routine), not the
+  metered API.
 - (append as items resolve)

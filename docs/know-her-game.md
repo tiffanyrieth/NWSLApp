@@ -219,6 +219,32 @@ API** = fallback. Owner-validated via independent research.
   + ≥2 distinct domains + resolves) makes PUBLISHED output trustworthy on ANY engine — we are ~90% there;
   the remainder is sourcing trial-and-error, not an app-build blocker.
 
+## 5d. ✅ SETTLED + BUILT (2026-07-13) — the automated weekly pipeline (supersedes the open items above)
+
+The engine question is CLOSED: **a weekly Claude Routine (owner's subscription, Sonnet, Monday 09:00 UTC
+≈ 5am ET)** runs the **FULL fine-tuned Rodman-WORKING query** — the owner declared that prompt final
+("generated the perfect questions"; the old MC-difficulty frontier is closed). This supersedes §5's
+"code-templated stat questions + Haiku fun facts" sketch: the tuned prompt writes ALL questions,
+including stat ones built from the verified numbers the proxy provides (no stat lookups, so the old
+web_search cost balloon doesn't apply — and the routine draws subscription quota, not API dollars).
+
+The built loop (proxy repo, branch → PR):
+1. **Assemble (code, not model judgment):** `scripts/assemble_knowher_prompt.mjs` fetches each club's
+   pick from `/knowher/todo` (now serving age/country + keeper cleanSheets/saves), computes the ISO
+   weekKey, and fills `scripts/knowher-weekly-TEMPLATE.md` (the Rodman-faithful template; wording is
+   owner-owned and immutable). Gaps warn loudly; offseason exits non-zero.
+2. **Generate:** the routine executes the assembled prompt verbatim (web search per its own guardrails).
+3. **Validate:** `load_knowher.mjs --dry-run` (server rules, no write).
+4. **Publish:** `POST /knowher/ingest` — dedicated `KNOWHER_INGEST_KEY` (never the master admin key,
+   never in the public repo), reusing the ONE validate→KV→markFeatured path so the once-per-season
+   rotation always advances. Every accept/reject emits a diag.
+5. **Watchdog:** `/knowher` serving emits `knowherStaleWeek` (throttled 1/day, in-season) whenever the
+   served pool's weekKey lags the current ISO week — a silent missed Monday is impossible.
+6. **Failure posture:** one retry per step then stop LOUD; last week's pool stays live (serving has no
+   week gate). The user-facing Monday nudge stays the existing Tier-1 LOCAL notification (Mon 10:00 AM,
+   `playerSpotlight` opt-in) — unchanged, works signed-out.
+Runbook = `scripts/knowher-weekly-routine.md` (the routine's committed instruction set).
+
 ## 6. The five-layer guardrail 🔒 — enforced at generation level (bake into the prompt verbatim)
 
 1. **Public** — not private life.

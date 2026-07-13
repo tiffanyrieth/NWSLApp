@@ -1,5 +1,18 @@
 # Roadmap / What's Next
 
+> ### ✅ BUILT (proxy) + ⏳ first-Monday verify — Know Her Game weekly automation (2026-07-13)
+> The full no-human weekly loop is BUILT (proxy branch `feature/knowher-weekly-automation`): deterministic
+> prompt assembly (`assemble_knowher_prompt.mjs` fills the Rodman-faithful `knowher-weekly-TEMPLATE.md`
+> from `/knowher/todo`, which now serves age/country + keeper stats), a dedicated-key
+> **`POST /knowher/ingest`** (validate → KV → markFeatured, diag on every outcome), a `knowherStaleWeek`
+> serving watchdog (in-season, 1/day), and the committed cloud-routine runbook
+> (`knowher-weekly-routine.md`). Proxy DEPLOYED + prod-probed; `node --test` 14/14. The scheduled Claude
+> Routine (Sonnet, Mon 09:00 UTC ≈ 5am ET) is configured but **pending the owner's one-time GitHub
+> connect** on claude.ai. Monday user nudge = the existing local 10 AM notification (unchanged). **Verify
+> on the first automated Monday:** routine report SUCCESS, new weekKey serves, ledger advanced, app shows
+> the new week. Engine question CLOSED (owner): the Rodman-WORKING prompt is final;
+> `knowher-generation-prompt.md` (untested self-audit variant) deleted. Detail: `docs/know-her-game.md` §5d.
+
 > ### 🧹 CLEANUP — remove the DEBUG postseason simulator's baked-in 2025 data (owner-parked)
 > **Kept ON PURPOSE (owner, 2026-07-07):** `PostseasonSimulator.swift` carries real 2025 bracket +
 > clinch data so the owner can exercise the Playoffs feature in-sim over the next few days before the

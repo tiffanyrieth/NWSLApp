@@ -1,15 +1,16 @@
 //
 //  MatchClockTests.swift
-//  NWSLAppTests
+//  MatchClockKitTests
 //
-//  The football-clock helper (Shared/MatchActivityAttributes.swift): whole-minute
-//  ticking with broadcast-style stoppage ("45'+2'", "90'+3'") off match-ELAPSED
-//  seconds + period. Pure logic, shared by the app cards + the Live Activity widget.
+//  The football-clock helper (whole-minute ticking with broadcast-style stoppage "45'+2'", "90'+3'"
+//  off match-ELAPSED seconds + period) and the monotonic tick-anchor reconcile rule. Pure logic — the
+//  anchor tests drive a lightweight `ClockTickSource` mock, so the package tests in isolation with no
+//  ESPN `Event` fixtures.
 //
 
 import Foundation
 import Testing
-@testable import NWSLApp
+@testable import MatchClockKit
 
 struct MatchClockTests {
 
@@ -58,26 +59,30 @@ struct MatchClockTests {
 
 // MARK: - Monotonic tick anchors (the stoppage-time freeze fix, 2026-07-05)
 
-/// ESPN FREEZES `status.clock` at 45:00/90:00 through stoppage time. These lock the MatchStore
-/// rule that keeps the FIRST-SEEN anchor while a match's clock is frozen — without it, the ~30s
-/// poll re-anchored the local tick and pinned the display at 45'+1' for all of stoppage.
+/// ESPN FREEZES `status.clock` at 45:00/90:00 through stoppage time. These lock the reconcile rule that
+/// keeps the FIRST-SEEN anchor while a match's clock is frozen — without it, the ~30s poll re-anchored
+/// the local tick and pinned the display at 45'+1' for all of stoppage.
 struct TickAnchorTests {
-    private func liveEvent(id: String = "e1", clock: Double, period: Int, state: String = "in") -> Event {
-        Event(id: id, name: nil, shortName: nil, date: nil,
-              status: EventStatus(period: period,
-                                  type: StatusType(state: state, description: nil, shortDetail: nil),
-                                  clock: clock),
-              competitions: nil)
+    /// Lightweight `ClockTickSource` — the package needs no ESPN `Event` to exercise the rule.
+    private struct MockSource: ClockTickSource {
+        var id: String = "e1"
+        var statusState: String?
+        var clockSeconds: Double?
+        var period: Int?
+    }
+
+    private func liveSource(id: String = "e1", clock: Double, period: Int, state: String = "in") -> MockSource {
+        MockSource(id: id, statusState: state, clockSeconds: clock, period: period)
     }
 
     @Test func frozenClockKeepsTheOriginalAnchor() {
         let t0 = Date(timeIntervalSince1970: 1_000_000)
-        let first = MatchStore.reconciledTickAnchors(previous: [:], events: [liveEvent(clock: 2700, period: 1)], at: t0)
+        let first = TickAnchor.reconcile(previous: [:], sources: [liveSource(clock: 2700, period: 1)], at: t0)
         #expect(first["e1"]?.date == t0)
 
         // 30s later ESPN still reports 2700 (stoppage): the anchor must NOT move, so
         // elapsed = 2700 + (now − anchor) keeps climbing into +2'…+11'.
-        let second = MatchStore.reconciledTickAnchors(previous: first, events: [liveEvent(clock: 2700, period: 1)], at: t0.addingTimeInterval(30))
+        let second = TickAnchor.reconcile(previous: first, sources: [liveSource(clock: 2700, period: 1)], at: t0.addingTimeInterval(30))
         #expect(second["e1"]?.date == t0)
 
         // Integration: 130s after t0 with the kept anchor → 45'+3' (was pinned at +1 before the fix).
@@ -87,9 +92,9 @@ struct TickAnchorTests {
 
     @Test func advancingClockReAnchors() {
         let t0 = Date(timeIntervalSince1970: 1_000_000)
-        let first = MatchStore.reconciledTickAnchors(previous: [:], events: [liveEvent(clock: 1500, period: 1)], at: t0)
+        let first = TickAnchor.reconcile(previous: [:], sources: [liveSource(clock: 1500, period: 1)], at: t0)
         let t1 = t0.addingTimeInterval(30)
-        let second = MatchStore.reconciledTickAnchors(previous: first, events: [liveEvent(clock: 1530, period: 1)], at: t1)
+        let second = TickAnchor.reconcile(previous: first, sources: [liveSource(clock: 1530, period: 1)], at: t1)
         #expect(second["e1"]?.date == t1)      // clock advanced → fresh anchor (drift correction)
         #expect(second["e1"]?.clock == 1530)
     }
@@ -97,34 +102,34 @@ struct TickAnchorTests {
     @Test func periodChangeReAnchors() {
         // The halftime pause legitimately breaks continuity: same clock value, new period → re-anchor.
         let t0 = Date(timeIntervalSince1970: 1_000_000)
-        let first = MatchStore.reconciledTickAnchors(previous: [:], events: [liveEvent(clock: 2700, period: 1)], at: t0)
+        let first = TickAnchor.reconcile(previous: [:], sources: [liveSource(clock: 2700, period: 1)], at: t0)
         let t1 = t0.addingTimeInterval(900)
-        let second = MatchStore.reconciledTickAnchors(previous: first, events: [liveEvent(clock: 2700, period: 2)], at: t1)
+        let second = TickAnchor.reconcile(previous: first, sources: [liveSource(clock: 2700, period: 2)], at: t1)
         #expect(second["e1"]?.date == t1)
         #expect(second["e1"]?.period == 2)
     }
 
     @Test func firstSightingAtTheCapIsFlaggedUnknowable() {
-        // Cold start mid-stoppage: clock already frozen at 45:00 with no history — the true
-        // stoppage minute is unknowable, so the anchor is flagged (views fall back to ESPN's
-        // string instead of fabricating 45'+1'). It clears once the clock advances (2nd half).
+        // Cold start mid-stoppage: clock already frozen at 45:00 with no history — the true stoppage
+        // minute is unknowable, so the anchor is flagged (consumers fall back to ESPN's string instead
+        // of fabricating 45'+1'). It clears once the clock advances (2nd half).
         let t0 = Date(timeIntervalSince1970: 1_000_000)
-        let fresh = MatchStore.reconciledTickAnchors(previous: [:], events: [liveEvent(clock: 2700, period: 1)], at: t0)
+        let fresh = TickAnchor.reconcile(previous: [:], sources: [liveSource(clock: 2700, period: 1)], at: t0)
         #expect(fresh["e1"]?.freshAtCap == true)
 
         // A mid-half first sighting is NOT flagged (normal join-in-progress, tick away).
-        let midHalf = MatchStore.reconciledTickAnchors(previous: [:], events: [liveEvent(clock: 1500, period: 1)], at: t0)
+        let midHalf = TickAnchor.reconcile(previous: [:], sources: [liveSource(clock: 1500, period: 1)], at: t0)
         #expect(midHalf["e1"]?.freshAtCap == false)
 
         // Clock advances (second half underway) → re-anchored, flag cleared.
-        let resumed = MatchStore.reconciledTickAnchors(previous: fresh, events: [liveEvent(clock: 2760, period: 2)], at: t0.addingTimeInterval(900))
+        let resumed = TickAnchor.reconcile(previous: fresh, sources: [liveSource(clock: 2760, period: 2)], at: t0.addingTimeInterval(900))
         #expect(resumed["e1"]?.freshAtCap == false)
     }
 
     @Test func nonLiveMatchesDropOut() {
         let t0 = Date(timeIntervalSince1970: 1_000_000)
-        let first = MatchStore.reconciledTickAnchors(previous: [:], events: [liveEvent(clock: 2700, period: 1)], at: t0)
-        let ended = MatchStore.reconciledTickAnchors(previous: first, events: [liveEvent(clock: 5400, period: 2, state: "post")], at: t0.addingTimeInterval(60))
+        let first = TickAnchor.reconcile(previous: [:], sources: [liveSource(clock: 2700, period: 1)], at: t0)
+        let ended = TickAnchor.reconcile(previous: first, sources: [liveSource(clock: 5400, period: 2, state: "post")], at: t0.addingTimeInterval(60))
         #expect(ended["e1"] == nil)
     }
 }

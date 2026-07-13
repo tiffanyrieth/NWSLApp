@@ -16,6 +16,7 @@
 //  (crest is the hero — 60pt, ring-free).
 //
 
+import MatchClockKit
 import SwiftUI
 
 struct MatchCard: View {
@@ -142,21 +143,16 @@ struct MatchCard: View {
                     .dsFont(11, weight: .bold)
                     .tracking(0.6)
                     .foregroundStyle(Color.dsStateLive)
-                // Halftime: static HT (ESPN keeps state "in" with a frozen clock — never tick
-                // through the break). Else the locally-ticking football minute ("51'", "45'+2'")
-                // when we know when the data was fetched; otherwise ESPN's displayClock string.
-                if event.isHalftime {
-                    Text("HT")
-                        .dsFont(11, weight: .bold, monospacedDigit: true)
-                        .foregroundStyle(Color.dsStateClock)
-                } else if let anchor, let clock = event.status?.clock {
-                    LiveMinuteText(clockSeconds: clock, period: event.status?.period, anchor: anchor) { label in
-                        Text(label)
-                            .dsFont(11, weight: .bold, monospacedDigit: true)
-                            .foregroundStyle(Color.dsStateClock)
-                    }
-                } else if let clock = event.status?.displayClock {
-                    Text(clock)
+                // The live-clock guard (halftime → static HT, never tick through the break; live →
+                // locally-ticking football minute "51'"/"45'+2'"; else ESPN's displayClock string)
+                // lives once in MatchClockKit so a layout edit here can't reintroduce a mid-match bug.
+                LiveMatchClockView(
+                    display: .resolve(
+                        statusState: event.statusState, isHalftime: event.isHalftime,
+                        clockSeconds: event.status?.clock, period: event.status?.period, anchor: anchor,
+                        halftimeLabel: "HT", fallback: event.status?.displayClock)
+                ) { label in
+                    Text(label)
                         .dsFont(11, weight: .bold, monospacedDigit: true)
                         .foregroundStyle(Color.dsStateClock)
                 }

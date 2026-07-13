@@ -321,8 +321,10 @@ NWSL players through men; this guardrail actively fights that. It's a brand valu
 ## 9. State machine 🔒
 
 `UNPLAYED → IN_PROGRESS → COMPLETED → (Monday reset) → UNPLAYED (new player)`. IN_PROGRESS quit =
-discard. COMPLETED = score + dimmed, points already banked, no replay. Weekly reset assigns new
-players per team, clears state. State keyed per `{week}-{team}-{player}` (mirror `PredictionStore`).
+discard. COMPLETED = points banked, no QUIZ replay — but the row stays **tappable → a read-only result
+recap** (your score + the live community results); it is NOT a dead end. Weekly reset assigns new players
+per team; the just-closed week is kept ONE week as a "Last week" section (final community results,
+regardless of whether you played it). State keyed per `{week}-{team}-{player}` (mirror `PredictionStore`).
 
 ## 10. Fan Zone unseen/new indicator — ✅ discussion addition (Fan-Zone-WIDE; separable)
 
@@ -399,9 +401,11 @@ The quiz-game *replacement* for a leaderboard — a NYT-style "how everyone did"
   - ✅ **Reveal timing — HYBRID BY CADENCE (owner):** **Know Her Game (weekly)** shows **live, growing
     honest counts DURING the week** (recompute on a timer → KV; % once N≥25) for in-week community energy;
     **NWSL Trivia (daily)** uses a **post-close (next-day) reveal** since its window is only 1 day. Both
-    feed a **past-editions archive** ("your completed games", cached). **N=1 state (owner):** when you're
-    the only result so far, say so honestly — "You're the first! Check back as more fans play" — never a
-    bare "100%". Counts grow → percentages at N≥25.
+    feed a **past-editions archive** ("your completed games", cached). **N=1 state — UPDATED 2026-07-13
+    (owner):** the "you're the first / check back later" GATE is REMOVED — the live board shows from the
+    first responder ("1 fan played" + honest counts). The honest count IS the live-stats hook, and the
+    old gate perversely hid it from the 1st player AND from a 2nd player who fetched a pre-write count.
+    Counts grow → percentages at N≥25.
   - **Cost at ~1k downloads ≈ $0 (verified tiers):** Supabase free = 500 MB DB / 5 GB egress-mo /
     unlimited API requests (answer rows ~hundreds of bytes → <<500 MB for ages); Cloudflare free = 100k
     Worker req/day + 100k KV reads/day (a few k views/day << that). A real spike (100k+ req/day) → CF paid
@@ -492,11 +496,13 @@ distinct from Daily Trivia's *daily* streak.
 
 ## 15. Verification (merges handoff checklist + discussion additions)
 
-1. Amber card in the row shows current player + team. 2. 1 team → intro directly; 2+ → cluster card →
-picker. 3. Question count ≥10, varies per player, shown on intro. 4. Every question passes all five
-guardrail layers (spot-check: no answer is another person's identity). 5. Immediate correct/incorrect
-+ ~1.2s auto-advance. 6. Result adds points to Superfan + reveals answers. 7. Picker done rows dim +
-show score; no replay. 8. Monday reset assigns new players. 9. Superfan breakdown includes spotlight.
+1. Amber card in the row shows current player + team. 2. 1 team (and no "Last week") → intro directly;
+2+ teams OR a last-week section exists → picker. 3. Question count ≥10, varies per player, shown on
+intro. 4. Every question passes all five guardrail layers (spot-check: no answer is another person's
+identity). 5. Immediate correct/incorrect + ~1.2s auto-advance. 6. Result adds points to Superfan + the
+community "how everyone did" (reveal facts fold into it; no separate answers list). 7. Picker done rows
+stay tappable → read-only result recap (score + "Results ›"); a "Last week" section shows the prior
+edition's final results. 8. Monday reset assigns new players. 9. Superfan breakdown includes spotlight.
 10. Old Spotlight section gone (pipeline/headshots retained). 11. **Roster-learning holds over weeks:
 different players surface, pure subs (0 starts) never appear, everyone with real minutes eventually
 features.** 12. **Unseen dot appears on new content, clears on open, returns next cycle.**

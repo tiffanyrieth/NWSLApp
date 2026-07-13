@@ -290,23 +290,18 @@ NWSL players through men; this guardrail actively fights that. It's a brand valu
   (`herStory`/`herWorld`/`trueOrFalse`) and **≤4 stat/identity** (`herGame`); 2–3 of the human ones are the
   delightful "fun facts," interleaved. The `9 stats + 1 human` line above is the floor, not the aim.
 - 📌 **Canonical generation prompt (single source of truth) — proxy repo
-  `scripts/knowher-generation-prompt.md`.** The runnable, Rodman-refined **MANUAL** prompt these §7 rules
-  came from: fill the player block with verified stats → run a web-search model → paste JSON into
-  `/knowher/admin` (`upsertPlayer`). It also carries the five-layer guardrail (§6), the GOLD-TIER source
-  allow-list (§5c's allow-list made concrete), and the output JSON schema — **keep it in sync with §6/§7.**
-  It is the MANUAL path, deliberately distinct from the automated Wikipedia+Haiku pipeline (§4); do NOT
-  wire its web search into an automated loop (that is the §4 ~$2/player cost trap). It supersedes the
-  deleted `knowher_prototype.mjs`.
-- **✅ RODMAN RUN = a major win (owner, 2026-07-03).** The biggest early worry — can we generate accurate,
-  guardrailed, source-*discriminating* content? — is essentially SOLVED. The Rodman generation got the info
-  right, interleaved stats with fun facts, and correctly identified + dropped sources below our standard.
-  That's the hard engine working; what remains is tuning, not rebuilding.
-- **🧪 MC difficulty self-audit (EXPERIMENTAL, 2026-07-03 — pending the ACFC + Jónsdóttir test runs).** The
-  one Rodman-run gap: 2 MC came out too easy (owner hand-edited them live). Added a self-audit step to the
-  canonical prompt requiring every MC (stat + fun) to have ≥2 genuinely-pickable distractors and no obvious
-  answer (stat distractors in-range; "which has she done" false options equally plausible). **UNTESTED** —
-  the pre-self-audit prompt is the proven BASELINE/fallback; if the next runs don't harden MC, revert.
-  Next data points: re-gen ACFC + generate Sveindís Jónsdóttir (planned 2026-07-04).
+  `scripts/knowher-weekly-TEMPLATE.md`** (UPDATED 2026-07-13; §5d): the Rodman-faithful weekly template
+  the automation fills via `scripts/assemble_knowher_prompt.mjs` and publishes via `/knowher/ingest`. It
+  carries these §7 rules, the five-layer guardrail (§6), the GOLD-TIER source allow-list, and the output
+  JSON schema — **keep it in sync with §6/§7, and never change its wording without an owner decision.**
+  The proven single-player run it derives from is `scripts/knowher-prompt-rodman-WORKING.md` (+ its
+  result JSON) — the untouched GOLD STANDARD, kept for comparison and future reuse. The §5 ~$2/player
+  cost trap doesn't apply: the routine runs on the owner's subscription, not the metered web_search API.
+- **✅ RODMAN PROMPT = FINAL (owner, 2026-07-13).** The biggest early worry — accurate, guardrailed,
+  source-*discriminating*, genuinely-hard content — is SOLVED; the owner declared the Rodman run's
+  questions "perfect" after multi-session tuning. The engine question is CLOSED. (The 2026-07-03
+  experimental "MC self-audit" variant, `knowher-generation-prompt.md`, never proved out and was DELETED
+  per the fallback discipline — the proven pre-self-audit wording is what the weekly template scales.)
 
 ## 8. Screen flow 🔒 (mockup `Player Spotlight Game.html`)
 
@@ -566,9 +561,11 @@ a unified `/admin` with per-game tabs (Know Her tab now; Bracket keeps its page;
 fast-follow, flagged not blocking).
 
 ### Deferred (ONLY these)
-1. The tuned AUTO content-generation script (sourcing fine-tuning — §5/§5b/§5c). Its pipe (KV pool, admin,
-   eligibility, auto-cron branch) is built now → flip `knowher:mode` to auto later.
-2. Fan-Zone-wide unseen indicator (§10) — separable follow-up; build the core game first.
+1. ~~The tuned AUTO content-generation script~~ ✅ **RESOLVED 2026-07-13 — the weekly automation is BUILT
+   (§5d):** template + deterministic assembly + `/knowher/ingest` + the scheduled Claude Routine (Mon
+   09:00 UTC). Flip `knowher:mode` to auto after the first successful automated publish.
+2. Fan-Zone-wide unseen indicator (§10) — separable follow-up; build the core game first. (Shipped
+   2026-07-02 per §10.)
 
 ### Sequencing / reality
 Large multi-surface build. Order: 0 doc → A proxy → B Supabase → C app → D admin. Branch

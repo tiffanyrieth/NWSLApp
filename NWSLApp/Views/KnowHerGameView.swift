@@ -16,8 +16,14 @@
 import SwiftUI
 
 struct KnowHerGameView: View {
+    /// How the screen was entered. `.play` = the normal intro→question→result flow. `.review` = a
+    /// read-only revisit opened from the picker (a completed current-week player, or ANY last-week
+    /// player) — never shows the intro/questions, and never writes (a closed edition can't be replayed).
+    enum Entry { case play, review }
+
     let player: KnowHerPlayer
     let weekKey: String
+    var entry: Entry = .play
     /// Supplied by the multi-team picker so the result can offer "Next player ›". Nil when
     /// pushed for a single followed team (the result then offers "Back to Fan Zone").
     var onPlayNext: ((KnowHerPlayer) -> Void)? = nil
@@ -29,12 +35,16 @@ struct KnowHerGameView: View {
     @State private var viewModel: KnowHerGameViewModel
     @State private var started = false
     @State private var gateRequested = false
+    /// The just-finished session's community answer-write, handed to CommunityResultsView so it waits
+    /// for the write before fetching (the player sees her own answers counted). nil in `.review`.
+    @State private var writeTask: Task<Void, Never>?
 
     private let accent = Color.dsGameSpotlight
 
-    init(player: KnowHerPlayer, weekKey: String, onPlayNext: ((KnowHerPlayer) -> Void)? = nil) {
+    init(player: KnowHerPlayer, weekKey: String, entry: Entry = .play, onPlayNext: ((KnowHerPlayer) -> Void)? = nil) {
         self.player = player
         self.weekKey = weekKey
+        self.entry = entry
         self.onPlayNext = onPlayNext
         _viewModel = State(initialValue: KnowHerGameViewModel(player: player, weekKey: weekKey))
     }
@@ -46,9 +56,13 @@ struct KnowHerGameView: View {
 
     var body: some View {
         Group {
-            if viewModel.isFinished {
+            if entry == .review {
+                // Read-only revisit (completed current player, or any last-week player) — straight to
+                // the result screen; no intro, no questions, no write.
+                resultView(showRecap: false)
+            } else if viewModel.isFinished {
                 resultView(showRecap: true)
-            } else if store.isPlayed(player) {
+            } else if store.isPlayed(editionKey: viewModel.editionKey) {
                 resultView(showRecap: false)
             } else if started {
                 questionView
@@ -217,28 +231,48 @@ struct KnowHerGameView: View {
     private func resultView(showRecap: Bool) -> some View {
         ScrollView {
             VStack(spacing: 24) {
-                scoreCircle.padding(.top, 12)
-                VStack(spacing: 8) {
-                    Text(feelGoodTitle).font(.title2.weight(.bold)).multilineTextAlignment(.center)
-                    if let missed = missedFact {
-                        Text(missed).font(.subheadline).foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center).padding(.horizontal)
+                if hasBankedScore {
+                    // You played this one → your score up top.
+                    scoreCircle.padding(.top, 12)
+                    VStack(spacing: 8) {
+                        Text(feelGoodTitle).font(.title2.weight(.bold)).multilineTextAlignment(.center)
+                        if let missed = missedFact {
+                            Text(missed).font(.subheadline).foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center).padding(.horizontal)
+                        }
                     }
-                }
-                if bankedScore > 0 {
-                    Text("+\(bankedScore) points")
-                        .font(.headline).foregroundStyle(accent)
-                        .padding(.horizontal, 16).padding(.vertical, 8)
-                        .background(accent.opacity(0.14)).clipShape(Capsule())
+                    if bankedScore > 0 {
+                        Text("+\(bankedScore) points")
+                            .font(.headline).foregroundStyle(accent)
+                            .padding(.horizontal, 16).padding(.vertical, 8)
+                            .background(accent.opacity(0.14)).clipShape(Capsule())
+                    }
+                } else {
+                    // A last-week player you never played → no personal score; lead with her identity,
+                    // then the community numbers (the whole reason you tapped in).
+                    unplayedHeader.padding(.top, 12)
                 }
 
                 CommunityResultsView(game: "knowher", editionKey: viewModel.editionKey,
-                                     questions: communityQuestions, accent: accent)
+                                     questions: communityQuestions, accent: accent,
+                                     pendingWrite: writeTask)
 
-                answerReveal
                 resultCTA
             }
             .padding(20)
+        }
+    }
+
+    /// Identity header for a last-week player the user never played (no score circle to show).
+    private var unplayedHeader: some View {
+        VStack(spacing: 10) {
+            KnowHerPlayerAvatar(player: player, ring: teamColor, size: 88)
+            Text(player.playerName).font(.title2.weight(.bold)).multilineTextAlignment(.center)
+            Text("\(player.position) · \(player.teamAbbreviation.uppercased())")
+                .font(.subheadline).foregroundStyle(.secondary)
+            Text("You didn't play this one — here's how everyone did.")
+                .font(.subheadline).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center).padding(.horizontal)
         }
     }
 
@@ -258,30 +292,15 @@ struct KnowHerGameView: View {
         }
     }
 
-    private var answerReveal: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("The answers").font(.headline)
-            ForEach(player.questions) { q in
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(accent)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(q.prompt).font(.subheadline.weight(.semibold))
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text(q.revealFact ?? "Answer: \(q.correctAnswer)")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(14)
-                .background(Color(.secondarySystemGroupedBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-        }
-    }
-
     @ViewBuilder
     private var resultCTA: some View {
-        if let next = nextUnplayed, let onPlayNext {
+        // A revisit (from the picker) dismisses back to the player list. A just-finished play offers the
+        // next unplayed player (multi-team) or a return to Fan Zone.
+        if entry == .review {
+            Button { dismiss() } label: {
+                ctaLabel("Back to your players", systemImage: nil)
+            }.buttonStyle(.plain)
+        } else if let next = nextUnplayed, let onPlayNext {
             Button { onPlayNext(next) } label: {
                 ctaLabel("Next player", systemImage: "arrow.right")
             }.buttonStyle(.plain)
@@ -327,7 +346,9 @@ struct KnowHerGameView: View {
         if let userID = auth.userID {
             let answers = viewModel.communityAnswers()
             let edition = viewModel.editionKey
-            Task {
+            // Hold the write Task so the result screen's community panel awaits it before fetching —
+            // the player then sees her own answers counted, not a pre-write "0 fans played".
+            writeTask = Task {
                 await QuizResultsService().upsert(game: "knowher", editionKey: edition,
                     answers: answers, userID: userID, season: String(AppConfig.currentSeasonYear))
             }
@@ -336,8 +357,12 @@ struct KnowHerGameView: View {
 
     // MARK: - Derived
 
+    /// Whether there's a personal score to show — the just-finished session, or a banked score for THIS
+    /// edition (keyed by the view's own weekKey, so a last-week revisit reads the right edition). False
+    /// for a last-week player the user never played → the result screen skips the score circle.
+    private var hasBankedScore: Bool { viewModel.isFinished || store.score(editionKey: viewModel.editionKey) != nil }
     /// Score to display: the just-played session score, or the banked score on a locked re-open.
-    private var bankedScore: Int { viewModel.isFinished ? viewModel.score : (store.score(for: player) ?? viewModel.score) }
+    private var bankedScore: Int { viewModel.isFinished ? viewModel.score : (store.score(editionKey: viewModel.editionKey) ?? viewModel.score) }
     private var scoreFraction: CGFloat {
         let total = player.questions.count
         return total > 0 ? CGFloat(bankedScore) / CGFloat(total) : 0
@@ -366,7 +391,10 @@ struct KnowHerGameView: View {
         store.unplayedPlayers.first { $0.id != player.id }
     }
     private var communityQuestions: [CommunityResultsView.QuestionInfo] {
-        player.questions.map { .init(id: $0.id, prompt: $0.prompt, options: $0.options, correctIndex: $0.correctIndex) }
+        // Carry the revealFact so the "learn about her" payoff rides each question's community breakdown
+        // (the standalone answer-recap list was removed as a duplicate).
+        player.questions.map { .init(id: $0.id, prompt: $0.prompt, options: $0.options,
+                                     correctIndex: $0.correctIndex, revealFact: $0.revealFact) }
     }
 
     private func letter(_ index: Int) -> String {

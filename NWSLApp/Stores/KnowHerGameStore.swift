@@ -36,6 +36,13 @@ final class KnowHerGameStore {
     private(set) var loadState: LoadState = .idle
     private(set) var pool: KnowHerPool?
 
+    /// The immediately-prior week's pool, kept so the picker's "Last week" section can show that
+    /// edition's FINAL community results (and your score, if you played). PERSISTED (unlike the current
+    /// pool) because the proxy only serves the CURRENT week — without a local copy we'd have no question
+    /// text to render last week's breakdown. Held only while it's exactly one ISO week behind the current
+    /// pool (see `loadIfNeeded`); a staler pool is dropped so "Last week" never lies.
+    private(set) var previousPool: KnowHerPool?
+
     private let defaults: UserDefaults
     private let service: KnowHerService
 
@@ -44,6 +51,7 @@ final class KnowHerGameStore {
         static let weeklyStreak = "knowher.v1.weeklyStreak"
         static let bestWeeklyStreak = "knowher.v1.bestWeeklyStreak"
         static let lastCompletedWeek = "knowher.v1.lastCompletedWeek"
+        static let previousPool = "knowher.v1.previousPool"
     }
 
     init(defaults: UserDefaults = .standard, service: KnowHerService = KnowHerService()) {
@@ -53,6 +61,7 @@ final class KnowHerGameStore {
         self.weeklyStreak = defaults.integer(forKey: Key.weeklyStreak)
         self.bestWeeklyStreak = defaults.integer(forKey: Key.bestWeeklyStreak)
         self.lastCompletedWeek = defaults.string(forKey: Key.lastCompletedWeek)
+        self.previousPool = Self.decode(KnowHerPool.self, defaults.data(forKey: Key.previousPool))
     }
 
     // MARK: - Loading (in-memory pool)
@@ -72,13 +81,31 @@ final class KnowHerGameStore {
         }
         loadState = .loading
         do {
-            pool = try await service.pool(teams: teams)
+            let fetched = try await service.pool(teams: teams)
+            rotatePreviousPool(oldPool: pool, newPool: fetched)
+            pool = fetched
             loadState = .loaded
         } catch {
             pool = nil
             loadState = .error("Couldn't load Know Her Game — tap to retry.")
             Diagnostics.shared.record(.apiFailure, "knowher load: \(error.localizedDescription)")
         }
+    }
+
+    /// Maintain the one-week "Last week" window. When a NEW week's pool arrives, the pool we were showing
+    /// becomes "last week" — but only if it's EXACTLY the prior ISO week (reusing the streak's
+    /// week-adjacency check); a 2-week-stale pool (app not opened in a while) is dropped so the section
+    /// never mislabels an old edition. Same-week reloads and the very first load don't rotate.
+    private func rotatePreviousPool(oldPool: KnowHerPool?, newPool: KnowHerPool) {
+        guard let oldPool, oldPool.weekKey != newPool.weekKey else { return } // same-week reload / first load
+        previousPool = Self.retainsPreviousWeek(old: oldPool.weekKey, new: newPool.weekKey) ? oldPool : nil
+        defaults.set(try? JSONEncoder().encode(previousPool), forKey: Key.previousPool)
+    }
+
+    /// Whether the outgoing week should be KEPT as "last week": a different week AND exactly the prior
+    /// ISO week (a 2-week gap — app not opened in a while — is dropped so the section never mislabels).
+    static func retainsPreviousWeek(old: String, new: String) -> Bool {
+        old != new && isConsecutiveWeek(previous: old, current: new)
     }
 
     // MARK: - Reads
@@ -94,13 +121,26 @@ final class KnowHerGameStore {
 
     func isPlayed(_ player: KnowHerPlayer) -> Bool {
         guard let weekKey else { return false }
-        return scores[player.editionKey(weekKey: weekKey)] != nil
+        return isPlayed(editionKey: player.editionKey(weekKey: weekKey))
     }
 
     func score(for player: KnowHerPlayer) -> Int? {
         guard let weekKey else { return nil }
-        return scores[player.editionKey(weekKey: weekKey)]
+        return score(editionKey: player.editionKey(weekKey: weekKey))
     }
+
+    /// Raw edition-key lookups — the week-agnostic core the convenience `…(for:)` reads delegate to.
+    /// Use these for a LAST-WEEK player, whose editionKey carries `previousWeekKey`, not the current one
+    /// (the `…(for:)` variants assume the current week and would read the wrong edition).
+    func isPlayed(editionKey: String) -> Bool { scores[editionKey] != nil }
+    func score(editionKey: String) -> Int? { scores[editionKey] }
+
+    // MARK: Last week (the picker's grace-window section)
+
+    /// Last week's featured players (empty when there's no retained prior week).
+    var previousPlayers: [KnowHerPlayer] { previousPool?.players ?? [] }
+    var previousWeekKey: String? { previousPool?.weekKey }
+    var hasPreviousWeek: Bool { !(previousPool?.players.isEmpty ?? true) }
 
     /// Players not yet completed this week — drives the "N of M played" card line + the
     /// picker's "Next player" flow.
@@ -168,6 +208,8 @@ final class KnowHerGameStore {
         weeklyStreak = 0
         bestWeeklyStreak = 0
         lastCompletedWeek = nil
+        previousPool = nil
+        defaults.removeObject(forKey: Key.previousPool)
         persist()
     }
 
@@ -185,6 +227,7 @@ final class KnowHerGameStore {
         defaults.set(0, forKey: Key.weeklyStreak)
         defaults.set(0, forKey: Key.bestWeeklyStreak)
         defaults.set("", forKey: Key.lastCompletedWeek)
+        defaults.set(Data(), forKey: Key.previousPool)
     }
     #endif
 }

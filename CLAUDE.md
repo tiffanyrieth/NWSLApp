@@ -230,6 +230,15 @@ as `invalid_client`; set via **stdin, never copy-paste** (`printf '%s' … | wra
   partial credit; a scaffold needing manual steps ≠ the feature). Don't reclassify work as "deferred."
 - **Prove it live.** Verify with evidence (curl the proxy/REST, screenshot the sim, trace the code
   path) — never reason from an unverified assumption.
+- **Debug bottom-up; pull logs before blaming a third party.** Start at the SIMPLEST/nearest causes
+  (our own code, config, a typo, stale creds, does-it-repro-elsewhere/other-device/other-account,
+  cache/DNS) and work outward — NEVER jump to an external culprit (Cloudflare/ISP/Apple/APNs/DNS/a
+  regional outage) before ruling those out. Track record: the root cause has been US every time (stale
+  APNs tokens; an `aps` field Apple rejected) and NEVER the third party. When a log would pinpoint it —
+  ESPECIALLY the in-app `Diagnostics`/telemetry, or `wrangler tail`/KV — but running it is GATED to the
+  owner, don't reason past the missing data toward a worst-case guess: say so plainly and hand the owner
+  the EXACT command to run (in the terminal) or step to check, and ask them to paste the output back.
+  Missing logs = ask for them, not a license to speculate.
 - **NO SILENT FAILURES (app-wide):** every unexpected condition (fallback/API-fail/stale/parse/retry/
   unexpected-empty) emits telemetry to the `Diagnostics` spine (os_log + `@Observable` ring, visible in
   dev/TestFlight). Fail LOUD to the engineer; fail HONESTLY to the user (degraded → subtle truthful

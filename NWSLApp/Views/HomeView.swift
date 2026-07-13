@@ -482,7 +482,10 @@ struct HomeView: View {
     @ViewBuilder
     private var knowHerDestination: some View {
         let players = knowHer.players
-        if players.count == 1 {
+        // Go straight to the game only for a single-team fan with NOTHING else to show. Route through
+        // the picker when there are multiple players OR a "Last week" section exists — otherwise a
+        // one-team fan would have no way to reach last week's results.
+        if players.count == 1 && !knowHer.hasPreviousWeek {
             KnowHerGameView(player: players[0], weekKey: knowHer.weekKey ?? "")
         } else {
             KnowHerPickerView(teams: viewModel.followedTeamAbbreviations(following: following))

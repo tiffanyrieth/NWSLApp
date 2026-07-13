@@ -6,8 +6,9 @@
 //  (docs §11b), the leaderboard REPLACEMENT for the quiz games. Shows the community
 //  average, per-question "% who got it right" (once enough fans have played), and what
 //  everyone picked. Honest at every N: truthful COUNTS always ("4 of 6 fans nailed this"),
-//  percentages layer in only at N ≥ 25; N ≤ 1 says so ("You're the first!") — never a bare
-//  "100%". Reveal timing is server-decided (Trivia post-close, Know Her live weekly).
+//  percentages layer in only at N ≥ 25. Shown from the FIRST responder — a live board that grows
+//  (no "you're the first" gate; the honest "1 fan played" IS the live-stats hook). Reveal timing is
+//  server-decided (Trivia post-close, Know Her live weekly) — the one thing still gated (`!revealed`).
 //
 //  The caller passes a flat list of its questions (prompt + options + correct index) so this
 //  one component renders both games' models. It fetches the aggregate from the proxy edge
@@ -23,12 +24,28 @@ struct CommunityResultsView: View {
         let prompt: String
         let options: [String]
         let correctIndex: Int
+        /// The one-line "learn" payoff shown under the breakdown (Know Her Game's revealFact). Optional
+        /// so Trivia can omit it (→ no extra line); this is where the fun-fact delight lives now that the
+        /// standalone answer-recap list is gone.
+        let revealFact: String?
+
+        init(id: String, prompt: String, options: [String], correctIndex: Int, revealFact: String? = nil) {
+            self.id = id
+            self.prompt = prompt
+            self.options = options
+            self.correctIndex = correctIndex
+            self.revealFact = revealFact
+        }
     }
 
     let game: String          // "trivia" | "knowher"
     let editionKey: String
     let questions: [QuestionInfo]
     var accent: Color = .dsGameSpotlight
+    /// The in-flight answer-write from a just-finished session. `load()` awaits it before fetching so the
+    /// player's own answers are counted in the community numbers they see (no "0 fans played" flash on the
+    /// screen they just earned). nil on re-entry / last-week review — fetch immediately.
+    var pendingWrite: Task<Void, Never>? = nil
 
     private let service = QuizResultsService()
     @State private var results: QuizResults?
@@ -70,10 +87,11 @@ struct CommunityResultsView: View {
         if !r.revealed {
             // Trivia, still-open day — the community breakdown reveals after it closes.
             honest("Results reveal after today's game closes — check back tomorrow.", retry: false)
-        } else if r.responders <= 1 {
-            // You're the first (or only) fan so far — say so honestly, never a bare 100%.
-            honest("You're the first to play this one! Check back as more fans join in.", retry: false)
         } else {
+            // Always show the live breakdown once revealed — even at a single responder. Honest counts
+            // ("1 fan played", "1 of 1 nailed this") ARE the payoff: the first player sees a real, live
+            // stats board that grows as more fans play. (No "you're the first" gate — it hid exactly the
+            // wow moment, and made the 2nd player who fetched a pre-write count also see the placeholder.)
             summaryRow(r)
             Divider()
             VStack(alignment: .leading, spacing: 16) {
@@ -117,6 +135,13 @@ struct CommunityResultsView: View {
             ForEach(q.options.indices, id: \.self) { i in
                 optionBar(label: q.options[i], count: data?.count(forOption: i) ?? 0,
                           total: total, isCorrect: i == q.correctIndex, showPercent: showPercent)
+            }
+            // The "learn about her" payoff, folded in here so it isn't a duplicate list at the bottom.
+            if let fact = q.revealFact, !fact.isEmpty {
+                Text(fact)
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -175,6 +200,9 @@ struct CommunityResultsView: View {
 
     private func load() async {
         loadState = .loading
+        // Let the just-finished session's answer-write land first, so the player is counted in the
+        // numbers she's about to see (no "0 fans played" flash). No-op on re-entry (pendingWrite == nil).
+        await pendingWrite?.value
         let r = await service.results(game: game, edition: editionKey)
         results = r
         loadState = r == nil ? .failed : .loaded

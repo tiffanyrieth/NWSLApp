@@ -71,6 +71,11 @@ state-enum `idle`/`loading`/`loaded`/`error`) · `Stores/` (`@Observable` shared
 injected via `.environment`, one-fetch-many-readers) · `Views/` (one screen per file, minimal logic) ·
 `Components/` (reusable) · `DesignSystem/` (`DSColor`/`DSMetrics`/`DSText` tokens, dark-only). Prefer
 `@Observable` over `ObservableObject`. Folders are created when their first real file lands.
+**`Packages/`** (repo root, outside every target's synced folder) — local SPM packages that make key
+seams **compiler-enforced** (risk-driven: isolate fragile/high-blast-radius code, not what's easiest):
+`LiveActivityContract` (the app↔widget ActivityKit data contract, linked by both targets) +
+`MatchClockKit` (live-clock engine + the consolidated display guard). ActivityKit code needs `#if
+os(iOS)` (unavailable off-iOS breaks host indexing). Add more only when a seam earns it.
 
 ## Data sources (essentials — full detail in `docs/backend.md`)
 
@@ -219,6 +224,15 @@ the **operation**: the watcher's `pruneDeadTokens` DELETEs `device_tokens`, so a
 strands dead tokens — grant `select, delete`. And any secret the proxy signs into a JWT **raw** (SIWA
 `APPLE_TEAM_ID`/`SIWA_KEY_ID`) must be whitespace-clean — a trailing newline signs a JWT Apple rejects
 as `invalid_client`; set via **stdin, never copy-paste** (`printf '%s' … | wrangler secret put`).
+**Know Her Game content = fully-automated weekly (2026-07-13, proxy):** a **Claude cloud Routine**
+(claude.ai/code/routines, on the OWNER's subscription — $0 metered API) runs `scripts/knowher-weekly-
+routine.md` every Mon overnight → assembles the Rodman-faithful prompt (`assemble_knowher_prompt.mjs`
+from `/knowher/todo`) → generates the 16-player pool → `POST /knowher/ingest` (dedicated
+`KNOWHER_INGEST_KEY`, validate→KV→featured-ledger). Prompt template wording is **owner-owned — never
+edit without an explicit decision.** ⚠️ **Cloud routines egress-allowlist by default ("Trusted") →
+`*.workers.dev` 403s `host_not_allowed`; the routine environment MUST be set to FULL network access**
+(the sourcing needs the open web anyway). Don't fan out per-player sub-agents (16× the session cost).
+Detail: `docs/know-her-game.md` §5d.
 
 ## Workflow & engineering practices (requirements — flag the trade-off before bypassing)
 

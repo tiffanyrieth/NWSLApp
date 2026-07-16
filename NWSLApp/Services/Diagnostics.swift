@@ -35,6 +35,10 @@ final class Diagnostics {
         case unexpectedEmpty            // a load succeeded but returned nothing where content was due
         case staleServe                 // served older-than-expected data
         case playoffFormatMismatch      // ESPN's published bracket ≠ the seed-derived tree (a format change) — owner should review PlayoffFormat
+        // Involuntary sign-out with Tier-2 alert intent still stored — the "opted in but structurally
+        // dead" desync (alerts can't deliver without an account). Emitted ONCE per detection by
+        // NotificationSyncCoordinator; the app also auto-presents the sign-in nudge (RootTabView).
+        case tier2SignedOutDesync
         // V2 Live Activity background-launch trail: non-failure breadcrumbs (observer primed, activity
         // seen, token received, session resolved/dropped, upsert ok/fail) so a push-to-start background
         // launch — un-observable in the sim — leaves a full trace in the remote sink. See LiveActivityManager.

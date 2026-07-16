@@ -2,9 +2,10 @@
 //  NotificationPreferencesTests.swift
 //  NWSLAppTests
 //
-//  `resetServerPushTypes()` — the sign-out teardown (QOL v2). Tier-2 alert types
-//  can't be delivered without an account, so signing out turns them off; the Tier-1
-//  locals (day-before, Player Spotlight) keep working signed-out and must survive.
+//  `resetServerPushTypes()` — the account-DELETE teardown (involuntary-sign-out fix: a plain
+//  sign-out now PRESERVES stored Tier-2 toggles, display-gated on auth, so re-sign-in restores
+//  them; only a deleted account wipes them). Tier-1 locals (day-before, Player Spotlight) keep
+//  working signed-out and must survive the wipe.
 //
 
 import Foundation

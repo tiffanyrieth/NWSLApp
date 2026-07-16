@@ -130,6 +130,14 @@ struct RootTabView: View {
     // TabBarRelayoutBridge at the bottom of this file).
     @State private var didRelayoutBar = false
 
+    // Involuntary-sign-out nudge (the 2026-07-15 field bug): app-level auto-present of the
+    // sign-in sheet when the session lapsed OUT FROM UNDER a user who had opted into Tier-2
+    // alerts. App-level (over ANY tab) because settings screens are rarely visited — the whole
+    // point is telling her without waiting for a missed push. One-shot per launch; a deliberate
+    // sign-out never triggers it (SignOutSentinels.deliberateSignOut suppresses).
+    @State private var showSignedOutAlertNudge = false
+    @State private var didPresentSignedOutNudge = false
+
     /// Brief launch state for a signed-in user whose follows are being restored from the server,
     /// shown instead of the onboarding picker (see the root gate). Honest + quiet, dark-theme.
     private var restoringView: some View {
@@ -256,7 +264,18 @@ struct RootTabView: View {
             // Restore any saved Supabase session, then start follow sync. Guard so
             // re-running .task (it can fire again on scene changes) doesn't build a
             // second coordinator.
+            #if DEBUG
+            // `-simulateLostSession`: drop the keychain session BEFORE restore (UserDefaults
+            // untouched) — the exact repro of "signed out involuntarily, toggles still stored".
+            if ProcessInfo.processInfo.arguments.contains("-simulateLostSession") {
+                await auth.debugSimulateLostSession()
+            }
+            #endif
             await auth.restoreSession()
+            // Mirror Supabase auth events for the app's lifetime (idempotent). Started AFTER
+            // restore so the initial state is settled; catches explicit terminations the
+            // running app would otherwise only notice at next launch.
+            auth.startAuthStateListener()
             #if DEBUG
             // `-resetOnboarding` simulates a brand-new install. Wiping the local
             // follows (App.init's debugResetState) isn't enough on its own: the
@@ -310,7 +329,8 @@ struct RootTabView: View {
                 notificationScheduler = scheduler
             }
             if notificationSyncCoordinator == nil {
-                let coordinator = NotificationSyncCoordinator(auth: auth, preferences: notifications)
+                let coordinator = NotificationSyncCoordinator(
+                    auth: auth, preferences: notifications, teamAlerts: teamAlerts)
                 coordinator.start()
                 notificationSyncCoordinator = coordinator
             }
@@ -336,6 +356,12 @@ struct RootTabView: View {
             // reconcileNotificationRegistration. Replaces the old "register only if already
             // authorized" gate, which left opt-in / reinstalled users with no token forever.
             await reconcileNotificationRegistration()
+            // Involuntary-sign-out nudge (launch check): if the session is gone but Tier-2
+            // alert intent is still stored — and the user didn't sign out on purpose — tell
+            // them NOW, over whatever tab they're on, instead of letting them discover it by
+            // a missed goal push. (The coordinator sets the persisted sentinel + telemetry;
+            // this recomputes the condition live so no ordering race can suppress the sheet.)
+            maybePresentSignedOutAlertNudge()
             // Out-of-band: refresh the bundled crest/flag artwork if the cadence is due
             // (>30 days, or forced once in March). Deferred to its own low-priority task and
             // best-effort, so it never competes with the launch network window — the bundled
@@ -403,6 +429,11 @@ struct RootTabView: View {
                 // authorized, re-requests permission for an opted-in user whose grant was reset
                 // (reinstall), retries a failed upload, and re-flushes the V2 push-to-start token.
                 Task { await reconcileNotificationRegistration() }
+                // Probe the session for the case the auth listener can't see: a refresh token
+                // that died while the app was away. Nil-s the user ONLY on a definitive
+                // termination (never a network blip) — the isSignedIn onChange below then
+                // surfaces the nudge if Tier-2 intent is stranded.
+                Task { await auth.revalidateSession() }
             }
             // Leaving the foreground flushes any pending no-silent-failure telemetry to the
             // remote sink (best-effort) so a field miss reaches the owner without a user report.
@@ -410,6 +441,38 @@ struct RootTabView: View {
                 Task { await Diagnostics.shared.flushRemote() }
             }
         }
+        // Mid-session involuntary sign-out (revalidateSession or the auth listener nil-ing the
+        // user while the app runs): surface the nudge the moment it happens — the most honest
+        // moment to tell her. Same one-shot guard as the launch check; a deliberate sign-out is
+        // suppressed by its sentinel inside the helper.
+        .onChange(of: auth.isSignedIn) { _, signedIn in
+            if !signedIn { maybePresentSignedOutAlertNudge() }
+        }
+        .sheet(isPresented: $showSignedOutAlertNudge) {
+            NotificationAuthPromptView(onSignedIn: {
+                // handleSignIn already cleared the sentinels and the coordinator re-pushes the
+                // preserved prefs snapshot; just re-register the device token right away rather
+                // than waiting for the next foreground.
+                Task { await reconcileNotificationRegistration() }
+            })
+            // Explicit: this .sheet sits OUTSIDE the .environment(...) wrappers above (modifier
+            // order), so the prompt does NOT inherit them — omitting this crashes on present
+            // (EnvironmentValues assertion; sim-caught 2026-07-16).
+            .environment(auth)
+        }
+    }
+
+    /// Present the involuntary-sign-out sign-in sheet if — right now — the user is signed out,
+    /// didn't choose to be, and still has Tier-2 alert intent stored (global types or any team
+    /// bell). Recomputed live (not read from the persisted sentinel) so it can't race the
+    /// coordinator's async reconcile; one-shot per launch; "Not now" re-presents next cold
+    /// launch while the state is still broken (still broken → still worth one honest mention).
+    private func maybePresentSignedOutAlertNudge() {
+        guard !didPresentSignedOutNudge, !auth.isSignedIn else { return }
+        guard !UserDefaults.standard.bool(forKey: SignOutSentinels.deliberateSignOut) else { return }
+        guard notifications.snapshot.anyServerPushEnabled || teamAlerts.enabledCount > 0 else { return }
+        didPresentSignedOutNudge = true
+        showSignedOutAlertNudge = true
     }
 
     /// Ensure this device has a registered APNs token whenever the app opens (cold launch + every

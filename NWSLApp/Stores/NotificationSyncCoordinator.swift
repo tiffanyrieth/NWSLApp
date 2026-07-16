@@ -39,6 +39,12 @@ final class NotificationSyncCoordinator {
     private let bridge: PushBridge
     private let tokenService: DeviceTokenService
     private let prefsService: NotificationPrefsSyncService
+    /// Per-team alert intent, for the signed-out desync check ("any team's bell on counts as
+    /// Tier-2 intent"). Optional so existing tests/previews that don't care keep constructing
+    /// the coordinator unchanged.
+    private let teamAlerts: TeamAlertStore?
+    /// Injectable for Tier2SentinelTests; production uses .standard.
+    private let defaults: UserDefaults
 
     /// Shadows of what we last sent the server, so we only push real deltas. Reset
     /// to nil on a sign-out / user switch so the next identity re-pushes from
@@ -50,15 +56,19 @@ final class NotificationSyncCoordinator {
     init(
         auth: AuthStore,
         preferences: NotificationPreferencesStore,
+        teamAlerts: TeamAlertStore? = nil,
         bridge: PushBridge = .shared,
         tokenService: DeviceTokenService = DeviceTokenService(),
-        prefsService: NotificationPrefsSyncService = NotificationPrefsSyncService()
+        prefsService: NotificationPrefsSyncService = NotificationPrefsSyncService(),
+        defaults: UserDefaults = .standard
     ) {
         self.auth = auth
         self.preferences = preferences
+        self.teamAlerts = teamAlerts
         self.bridge = bridge
         self.tokenService = tokenService
         self.prefsService = prefsService
+        self.defaults = defaults
     }
 
     /// Wire up sync. Call once, after `auth.restoreSession()`, from RootTabView.
@@ -103,9 +113,6 @@ final class NotificationSyncCoordinator {
 
         // Identity transition: a sign-out or a switch to a different user.
         if newID != lastUserID {
-            // A real sign-out (had a user, now none) — not the initial signed-out
-            // launch (lastUserID already nil).
-            let signedOut = newID == nil && lastUserID != nil
             if let oldID = lastUserID, let token = bridge.deviceToken {
                 // Detach this device's token from the account we're leaving, so a
                 // shared phone stops getting the previous user's alerts.
@@ -117,19 +124,19 @@ final class NotificationSyncCoordinator {
             lastUploadedToken = nil
             lastPushedSnapshot = nil
             lastUserID = newID
-            if signedOut {
-                // Tier-2 types can't be delivered without an account (the token is
-                // detached above), so don't leave them showing "on". Tier-1 locals
-                // stay. The user re-enables Tier-2 from the hub after signing back
-                // in — gate-free, since they're signed in. (This mutates the snapshot
-                // the observer watches; the re-fired sync() skips this branch — the
-                // ids now match — so there's no loop.)
-                preferences.resetServerPushTypes()
-            }
+            // NOTE (involuntary-sign-out fix): the old `preferences.resetServerPushTypes()` on
+            // sign-out is GONE — stored Tier-2 flags are now PRESERVED and merely display-gated
+            // on auth (NotificationsView), so a re-sign-in restores the user's exact prior
+            // selection with no server pull and no default-bundle re-cascade. The destructive
+            // reset survives only in account-delete teardown (deleteAccount → local wipe).
         }
 
-        // Tier 2 requires sign-in: nothing to mirror while signed out.
+        // Tier 2 requires sign-in: nothing to mirror while signed out — but a signed-out state
+        // with Tier-2 intent still stored is the involuntary-sign-out desync; reconcile the
+        // sentinel EVERY pass here (not just on the transition edge, which a cold
+        // launch-already-out never sees — that gap was half the original bug).
         guard let userID = newID else {
+            reconcileSignedOutDesync()
             NotifTrace.shared.log("sync", .skip, "no signed-in user")
             return
         }
@@ -164,5 +171,26 @@ final class NotificationSyncCoordinator {
                 }
             }
         }
+    }
+
+    // MARK: - Involuntary-sign-out desync sentinel
+
+    /// Runs on every signed-out `sync()` pass. If the user still has Tier-2 intent stored
+    /// (global types or any team's bell) and the sign-out wasn't deliberate, they're in the
+    /// banned "opted in but structurally dead" state: set the persisted sentinel (RootTabView
+    /// reads it for the auto-presented sign-in nudge) and emit telemetry — ONCE per detection,
+    /// gated on the sentinel itself, so a signed-out user relaunching daily doesn't spam the
+    /// Diagnostics sink. Sentinel lifecycle is documented on `SignOutSentinels`.
+    private func reconcileSignedOutDesync() {
+        guard !defaults.bool(forKey: SignOutSentinels.deliberateSignOut) else { return }
+        guard !defaults.bool(forKey: SignOutSentinels.tier2WasOnAtSignOut) else { return }
+        let snapshot = preferences.snapshot
+        let teamsOn = teamAlerts?.enabledCount ?? 0
+        guard snapshot.anyServerPushEnabled || teamsOn > 0 else { return }
+        defaults.set(true, forKey: SignOutSentinels.tier2WasOnAtSignOut)
+        Diagnostics.shared.record(.tier2SignedOutDesync,
+            "signed out with alert intent: kickoff=\(snapshot.kickoff) goals=\(snapshot.goals) "
+            + "ht=\(snapshot.halftime) ft=\(snapshot.fullTime) lineup=\(snapshot.lineupPosted) "
+            + "la=\(snapshot.liveActivitiesEnabled) teams=\(teamsOn)")
     }
 }

@@ -25,6 +25,18 @@ import SwiftUI
 import UIKit
 import UserNotifications
 
+/// The display half of the invariant **"Tier-2 shown ON ⟹ signed in."** Stored Tier-2 intent is
+/// PRESERVED across a sign-out (so re-sign-in restores the exact prior toggles), but it must never
+/// RENDER as on while signed out — Tier-2 alerts structurally can't deliver without an account, so
+/// a green toggle would be the banned silent-failure-that-looks-like-success (the 2026-07-15 field
+/// bug). Pure + tiny so the truth table is unit-testable (NotificationDisplayGateTests).
+enum NotificationDisplayGate {
+    /// What a Tier-2 toggle should DISPLAY: its stored value, gated on auth.
+    static func displayedTier2(_ stored: Bool, signedIn: Bool) -> Bool {
+        stored && signedIn
+    }
+}
+
 struct NotificationsView: View {
     @Environment(ClubStore.self) private var clubStore
     @Environment(FollowingStore.self) private var following
@@ -125,7 +137,9 @@ struct NotificationsView: View {
                 .foregroundStyle(Color.dsFgPrimary)
             Spacer(minLength: 8)
             Toggle("", isOn: Binding(
-                get: { teamAlerts.alertsEnabled(for: code) },
+                // Display-gated on auth: a signed-out device renders the bell OFF (never a lying
+                // green) while the stored intent survives for restore-on-sign-in.
+                get: { NotificationDisplayGate.displayedTier2(teamAlerts.alertsEnabled(for: code), signedIn: auth.isSignedIn) },
                 set: { newValue in
                     guard newValue else { teamAlerts.setAlertsEnabled(false, for: code); return }
                     if auth.isSignedIn {
@@ -153,7 +167,8 @@ struct NotificationsView: View {
                 .foregroundStyle(Color.dsFgPrimary)
             Spacer(minLength: 8)
             Toggle("", isOn: Binding(
-                get: { teamAlerts.alertsEnabled(for: club.id) },
+                // Display-gated on auth — same rule as the national-team row above.
+                get: { NotificationDisplayGate.displayedTier2(teamAlerts.alertsEnabled(for: club.id), signedIn: auth.isSignedIn) },
                 set: { newValue in
                     guard newValue else { teamAlerts.setAlertsEnabled(false, for: club.id); return }
                     // Turning a team ON now cascades the full alert bundle the first time (intent-driven
@@ -179,7 +194,9 @@ struct NotificationsView: View {
     // MARK: - Section 2: Alert types (global; dimmed when no team is on)
 
     private var alertTypesSection: some View {
-        let anyTeamOn = teamAlerts.enabledCount > 0
+        // Auth-gated like the rows themselves: while signed out every team bell DISPLAYS off,
+        // so this section dims consistently instead of reading enabled over off rows.
+        let anyTeamOn = auth.isSignedIn && teamAlerts.enabledCount > 0
         return SettingsGroup(
             title: "Alert types",
             subtitle: "What you'll be notified about, for the teams above"
@@ -255,7 +272,7 @@ struct NotificationsView: View {
     /// gate and does NOT flip the store — the toggle snaps back off until sign-in.
     private func tier2Binding(_ kp: ReferenceWritableKeyPath<NotificationPreferencesStore, Bool>) -> Binding<Bool> {
         Binding(
-            get: { notifications[keyPath: kp] },
+            get: { NotificationDisplayGate.displayedTier2(notifications[keyPath: kp], signedIn: auth.isSignedIn) },
             set: { newValue in
                 guard newValue else { notifications[keyPath: kp] = false; return }
                 if auth.isSignedIn {
@@ -274,7 +291,7 @@ struct NotificationsView: View {
     /// This is a UI grouping only — each column still gates its own event server-side (fully reversible).
     private func tier2GroupBinding(_ kps: [ReferenceWritableKeyPath<NotificationPreferencesStore, Bool>]) -> Binding<Bool> {
         Binding(
-            get: { kps.contains { notifications[keyPath: $0] } },
+            get: { NotificationDisplayGate.displayedTier2(kps.contains { notifications[keyPath: $0] }, signedIn: auth.isSignedIn) },
             set: { newValue in
                 guard newValue else { for kp in kps { notifications[keyPath: kp] = false }; return }
                 if auth.isSignedIn {

@@ -48,7 +48,7 @@ Per-user state (follows, alert preferences, Fan Zone submissions, leaderboard en
 - **Social feed** — reporters (Bluesky), player Instagram, club social, and news articles aggregated into a filterable feed with per-source toggle controls.
 - **Live match alerts** — opt-in pushes for kickoff, goals, halftime, full-time, red cards, lineups, and VAR corrections. Server-rendered notification thumbnails with team crests.
 - **Live Activities** — real-time scores on the lock screen and Dynamic Island via push-to-start (iOS 17.2) and broadcast channels (iOS 18).
-- **Tips, not ads** — monetized entirely through StoreKit tip jar (Corner Kick → Hat Trick). No ads, no paywalls, no tracking.
+- **Tips, not ads** — free, supported by an optional StoreKit tip jar (Corner Kick → Hat Trick). No ads. No third-party tracking, no data sold, ever — any measurement is first-party, anonymous, and aggregate (App Store label: *Data Not Linked to You*).
 
 ## Engineering highlights
 

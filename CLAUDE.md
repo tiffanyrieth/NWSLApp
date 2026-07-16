@@ -26,6 +26,12 @@ table stakes that must work but are **not** the differentiator.
   at small scale is disqualifying; prefer flat tiers over metered billing. Full method + the two
   stress tests (1k mandatory / 100k headroom) in **`docs/stress-testing.md`** — read before any
   scaling/sizing/publish-readiness work.
+- **Privacy/monetization stance (owner, 2026-07-16 — values vs mechanics):** VALUES are promises —
+  no ads, no data sold, no third-party/cross-app tracking, no dark patterns. MECHANICS stay flexible —
+  say "free, tip-supported," never vow "free forever"/"no paywalls ever" (Swift Alert precedent), and
+  anonymous FIRST-PARTY aggregate usage/diagnostics counters are ALLOWED (target App Store label: Data
+  Not Linked to You; the Diagnostics spine already ships this way). Don't write absolutist product
+  vows into public copy or docs; don't read the old "no tracking" line as banning anonymous counters.
 
 ## State
 
@@ -95,7 +101,13 @@ clock reset — so surfaces show a STATIC "HT" (never a
 ticking clock) when `Event.isHalftime`, and a first sighting already at the 45:00/90:00 cap is UNKNOWABLE
 (don't fabricate +1' — defer to ESPN's string; anchors persist to UserDefaults so a relaunch doesn't reset
 the stoppage count). The **watcher** fetches only a yesterday→tomorrow scoreboard window (not the full
-season) so a per-minute cron tick isn't parsing ~240 events (CPU). Most traffic routes through the **`nwslapp-proxy`
+season) so a per-minute cron tick isn't parsing ~240 events (CPU), and (2026-07-16) polls on a
+**FIXTURE WINDOW** (`src/fixtures.ts`): a ~6h discovery sweep indexes kickoffs in KV; the tick fetches
+ONLY feeds with a fixture in [KO−75m…KO+4h] (zero fixtures near ⇒ ZERO fetches — the old 16-feeds-every-
+minute burned ~23k proxy invocations/day at zero users, ~23% of the Workers-free 100k/day request cap;
+NOTE a proxy cache HIT still counts as a Worker request). App-side twin: the NT scoreboard fan-out is
+**CONFEDERATION-SCOPED** (`ConfederationMap.swift` — ZAM polls ~7 feeds not 15; unmapped code fails OPEN
+to all + diag; system doc `docs/national-teams.md`). Most traffic routes through the **`nwslapp-proxy`
 Cloudflare Worker** (sibling repo `~/Projects/nwslapp-proxy`); DEBUG `-useESPNDirect` bypasses it.
 **Roster** routes through the proxy's `/roster` too (last-known-good KV: ESPN intermittently serves an
 implausibly small squad — e.g. 1 player — so the proxy caches a plausible roster and serves it with a
@@ -193,8 +205,12 @@ Because the bundle is mostly Tier-2, a signed-out bell tap presents Sign in with
 (intercept: success → enable+cascade+toast, cancel → bell stays off). **Tier 1** = deliverable without
 an account (local: day-before, Player Spotlight — ⚠️ iOS caps PENDING local notifications at 64/app:
 day-before is WINDOWED to the next 2 fixtures per alerting team, never the whole season); **Tier 2** = watcher-triggered ⇒ needs an account ⇒
-sign-in-gated (`tier2Binding` / the bell intercept) + reset on sign-out (`resetServerPushTypes`:
-kickoff/goals/HT/FT + lineup-posted + V2 Live Activity). **Lineup-posted (Stage D, done):** the watcher polls
+sign-in-gated (`tier2Binding` / the bell intercept) + **display-gated on auth** (involuntary-sign-out fix
+2026-07-16: stored Tier-2 intent SURVIVES sign-out and merely READS off while signed out — exact prior
+toggles restore on re-sign-in; `resetServerPushTypes` = account-delete teardown ONLY; a LAPSED session
+with intent stored auto-presents the sign-in sheet app-wide + emits `tier2SignedOutDesync`, while a
+DELIBERATE sign-out never nags — `SignOutSentinels`, `AuthStore.startAuthStateListener` +
+`revalidateSession`; DEBUG repro `-simulateLostSession`). **Lineup-posted (Stage D, done):** the watcher polls
 `/summary` (cache-busted via the proxy binding) in a 75-min pre-kickoff window and pushes "Lineups in" the tick
 BOTH XIs are posted (≥11 starters/side, KV-deduped); the app shows the pre-match XI in `MatchDetailView`'s
 future layout. UI groups kickoff+HT+FT under one "Match updates" toggle (grouping only — each still gates its
@@ -204,7 +220,9 @@ the club-id `team_alert_preferences`); the watcher polls the women's-internation
 (friendlies + confederation championships + WC/Olympic qualifying — the SAME slug set kept in sync across
 app `NationalTeamFeed.all`, proxy `WOMENS_NT_FEEDS`+allowlist, and watcher `NT_LEAGUES`) + fans out by code.
 ⚠️ Display + alerts must stay aligned (the ESPN `all/teams/{id}/schedule` endpoint is HISTORY-only, so the
-schedule's UPCOMING fixtures come only from these per-competition scoreboards — add a slug to all three lists).
+schedule's UPCOMING fixtures come only from these per-competition scoreboards — a new competition = add the
+slug to all three lists AND tag its `scope` in `ConfederationMap.swift`; untagged defaults to global/polled-
+for-everyone, fail-open). Full NT system doc: `docs/national-teams.md`.
 Per-user state in **Supabase**, offline-first (UserDefaults cache). **Follows sync = RESTORE-ONLY launch
 reconcile:** launch `reconcile` NEVER deletes a server row — a wiped/un-onboarded device restores the full
 server set, and only local-only follows upload. **Unfollows propagate solely via the explicit per-toggle

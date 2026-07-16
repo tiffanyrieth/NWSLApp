@@ -126,9 +126,15 @@ For each subsystem, walk it explicitly:
       with APNs. Re-confirm Supabase REST (external) + APNs counts under worst-case simultaneous events.
       NB (2026-07-11): during a live window the tick **double-polls** (30s cadence) → the scoreboard feed
       fetches run twice; still internal (proxy binding), so no pressure on the external cap.
-- [ ] **ESPN / proxy rate limits & Cloudflare account-wide request cap** — free = 100k requests/day,
-      account-wide (shared: watcher cron + proxy user traffic). At ~100k users the proxy's ordinary
-      traffic is what pressures this, not the watcher. Verify current ESPN throttle behavior.
+- [x] **ESPN / proxy rate limits & Cloudflare account-wide request cap** — **EXAMINED + FIXED
+      2026-07-16 (the "requests cap" pass — APNs-class finding).** Free = 100k requests/day and **a
+      cache HIT still invokes the Worker** (caching is `caches.default` INSIDE the fetch handler), so
+      polling scales requests linearly regardless of hit rate. Found: watcher polled 16 feeds/min
+      24/7 (≈23k/day at ZERO users, ~23% of the cap — the owner's ~28k/day Observability graph); any
+      NT-follower app fanned to all 15 feeds/tick (~17 calls/30s live → cap-day at a few dozen
+      country-followers; club watchers ~700). Fixed: watcher fixture-window polling (§7) + app
+      confederation scoping (§7). Residual open item: model a FULL-SLATE matchday (6-7 NWSL games)
+      against the per-user costs in the §7 ledger before launch.
 - [ ] **Supabase** — DB size, monthly egress, auth MAU, connection limits, RLS query cost;
       `device_tokens` / `*_preferences` read volume per tick. Likely the *second* paid lever (~Pro tier)
       around ~30–50k users. **Verify current free-tier + Pro numbers against primary docs.**
@@ -174,4 +180,27 @@ For each subsystem, walk it explicitly:
   throttled to 1/day via KV). Weekly ESPN burst ≈480 requests — the watcher exceeds that every ~20 min
   on game days. $0 at every tier; generation runs on the owner's subscription (Claude Routine), not the
   metered API.
+- **Fixture-window polling + confederation scoping (2026-07-16):** ✅ **the requests-cap fix (§6),
+  both halves shipped.** (a) **Watcher** (`src/fixtures.ts`): a ~6h discovery sweep builds a KV
+  fixture index; the per-minute tick polls ONLY feeds with a fixture in `[KO−75m … KO+4h]` (window
+  closes at observed FT; partial discovery never replaces a good index; `/debug/fake-match` injects
+  outside the gate so the harness still works). Baseline 23,040 → ~64/day idle + ~1.5-3k/matchday.
+  (b) **App** (`ConfederationMap.swift`): NT fan-out scoped to globals + followed countries'
+  confederations (ZAM 15→7 feeds/tick; unmapped fails OPEN + diag). Live-verified via `wrangler
+  tail`: cold-cache ZAM launch requests exactly NWSL + caf.w.nations + 6 globals. **1k test:** one
+  live NWSL match, 150 concurrent club watchers ≈ 150 × 2-3 calls/30s ≈ ~1,100/min peak — bounded by
+  the ~2h window ≈ ~40-60k that day INCLUDING the fixed costs — passes; pre-fix the same day was
+  ~23k fixed + the same user load + NT waste. **100k lever:** Workers Paid ($5/mo, 10M req/mo) — the
+  documented ~10-15k-user slot — plus the app-side push-not-poll redesign (broadcast the in-app live
+  score the way the LA card already works) held as the architectural lever before ~100k.
+- **Per-feature proxy-request LEDGER (seed, 2026-07-16 — extend as features land):** the shared
+  100k/day budget each feature draws from. Fixed daily: watcher ~64 (discovery) + per-match windows
+  ~300-600/match (+ double-poll during live); bracket `*/5` cron 288; social-refresh + KHG crons <10.
+  Per-user-session: launch ~5-6 (config/season/feed/videos); live heartbeat 2-3 per 30s (club) /
+  ~7-8 (one-confed NT follower), foreground-only; Match Detail +1 per 30s while open; tap-driven
+  (roster/weather/game content) ~1 each. Fan Zone gameplay = Supabase (NOT this budget). ⚠️ Any NEW
+  proxy-backed feature adds a row here + re-checks the 1k matchday sum.
+- **Involuntary sign-out fix (2026-07-16):** ✅ load-neutral — no new load path (an auth-state
+  listener + one foreground `auth.session` revalidation per app-open, on Supabase's unlimited-API
+  free tier; no new polling/DB/cron). No §5 run required.
 - (append as items resolve)

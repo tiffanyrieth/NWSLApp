@@ -260,14 +260,22 @@ final class MatchStore {
         }
     }
 
-    /// Fetch every national-team feed in parallel, keeping only events that involve a
-    /// FOLLOWED national team (matched by FIFA code = ESPN's competitor abbreviation),
-    /// tagged with the feed's house-style label. Returns the matches + per-feed errors.
+    /// Fetch the RELEVANT national-team feeds in parallel — the globals + each followed
+    /// country's confederation feeds (`NationalTeamFeed.scopedFeeds`, the 2026-07-16 polling
+    /// fix: following ZAM polls ~7 feeds, not all 15 — a country can't appear in another
+    /// confederation's championship). Keeps only events that involve a FOLLOWED national team
+    /// (matched by FIFA code = ESPN's competitor abbreviation), tagged with the feed's
+    /// house-style label. Returns the matches + per-feed errors. An unmapped code fails OPEN
+    /// (all feeds, so no fixture is ever silently missed) + a Diagnostics breadcrumb.
     private func fetchNationalTeamMatches(
         year: Int, followedCodes: Set<String>, dates: String? = nil
     ) async -> (matches: [ScheduledMatch], errors: [String: String]) {
-        await withTaskGroup(of: (label: String, result: Result<[ScheduledMatch], Error>).self) { group in
-            for feed in NationalTeamFeed.all {
+        let scoped = NationalTeamFeed.scopedFeeds(forFollowedCodes: followedCodes)
+        for code in scoped.unmapped {
+            Diagnostics.shared.record(.unexpectedEmpty, "NT confederation map miss: \(code) — polling all feeds (fail-open)")
+        }
+        return await withTaskGroup(of: (label: String, result: Result<[ScheduledMatch], Error>).self) { group in
+            for feed in scoped.feeds {
                 group.addTask {
                     do {
                         let board = try await self.service.fetchScoreboard(year: year, league: feed.slug, dates: dates)

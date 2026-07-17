@@ -30,7 +30,7 @@ struct MDInfoCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(Color.dsBgCard)
-        .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
+        .background(Color.dsMdCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
     }
 }

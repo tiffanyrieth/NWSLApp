@@ -456,7 +456,7 @@ struct ScheduleView: View {
         }
         .padding(.horizontal, 32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgGrouped)
     }
 
     // A filter that resolves to no matches (e.g. all of a followed team's games
@@ -473,7 +473,7 @@ struct ScheduleView: View {
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgGrouped)
     }
 
     private func errorView(_ message: String, retry: @escaping () async -> Void) -> some View {

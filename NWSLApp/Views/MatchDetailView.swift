@@ -143,8 +143,8 @@ struct MatchDetailView: View {
     }
 
     // ALL-CAPS labels with a sliding colored underline on the active tab — no
-    // segmented-control chrome (matches the mockup). Underline is the home team's
-    // color, or red while live.
+    // segmented-control chrome (matches the mockup). Underline uses the match-state
+    // accent: cyan (dsStateKickoff) for a past recap, orange (dsStateClock) while live.
     private var tabBar: some View {
         HStack(spacing: 0) {
             ForEach(visibleTabs, id: \.self) { item in
@@ -301,9 +301,9 @@ struct MatchDetailView: View {
 
     // MARK: - Lineups tab (starters + substitutes)
     //
-    // Task #3 will add a FormationPitchView above the starters list for known
-    // formation strings; this list rendering stays as the permanent fallback for
-    // unknown formations (never a broken pitch).
+    // A FormationPitchView renders above the starters list for known formation
+    // strings; this list rendering is the permanent fallback for unknown formations
+    // (never a broken pitch).
 
     @ViewBuilder
     private func lineupsTab(_ summary: MatchSummary) -> some View {
@@ -442,7 +442,7 @@ struct MatchDetailView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Color(.tertiarySystemFill), in: Capsule())
+        .background(Color.dsBgTertiary, in: Capsule())
     }
 
     private func subLastName(_ player: MatchPlayer) -> String {

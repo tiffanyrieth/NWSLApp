@@ -33,7 +33,7 @@ struct PlayerDetailView: View {
                     ZStack {
                         Circle().fill(accent.fill)
                         Text(monogram)
-                            .font(.largeTitle.weight(.bold))
+                            .dsFont(34, weight: .bold)
                             .foregroundStyle(accent.on)
                             .minimumScaleFactor(0.5)
                             .lineLimit(1)
@@ -44,12 +44,13 @@ struct PlayerDetailView: View {
 
                 VStack(spacing: 4) {
                     Text(athlete.name)
-                        .font(.title2.weight(.bold))
+                        .dsFont(22, weight: .bold)
+                        .foregroundStyle(Color.dsFgPrimary)
                         .multilineTextAlignment(.center)
                     if let position = athlete.positionName {
                         Text(position)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .dsFont(15)
+                            .foregroundStyle(Color.dsFgSecondary)
                     }
                 }
 
@@ -57,18 +58,20 @@ struct PlayerDetailView: View {
                     VStack(spacing: 0) {
                         ForEach(Array(bioRows.enumerated()), id: \.offset) { index, row in
                             HStack {
-                                Text(row.label).foregroundStyle(.secondary)
+                                Text(row.label).foregroundStyle(Color.dsFgSecondary)
                                 Spacer()
-                                Text(row.value).fontWeight(.medium)
+                                Text(row.value).dsFont(15, weight: .medium).foregroundStyle(Color.dsFgPrimary)
                             }
-                            .font(.subheadline)
+                            .dsFont(15)
                             .padding(.vertical, 12)
                             .padding(.horizontal, 16)
-                            if index < bioRows.count - 1 { Divider() }
+                            if index < bioRows.count - 1 {
+                                Rectangle().fill(Color.dsSeparator).frame(height: 0.5)
+                            }
                         }
                     }
                     .background(Color.dsBgCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd))
                 }
 
                 if let stats {
@@ -101,24 +104,26 @@ struct PlayerDetailView: View {
     private func statsCard(_ stats: PlayerSeasonStats) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(seasonLabel)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .dsFont(12, weight: .semibold)
+                .foregroundStyle(Color.dsFgSecondary)
             VStack(spacing: 0) {
                 let rows = statRows(stats)
                 ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
                     HStack {
-                        Text(row.label).foregroundStyle(.secondary)
+                        Text(row.label).foregroundStyle(Color.dsFgSecondary)
                         Spacer()
-                        Text(row.value).fontWeight(.semibold).monospacedDigit()
+                        Text(row.value).dsFont(15, weight: .semibold, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
                     }
-                    .font(.subheadline)
+                    .dsFont(15)
                     .padding(.vertical, 12)
                     .padding(.horizontal, 16)
-                    if index < rows.count - 1 { Divider() }
+                    if index < rows.count - 1 {
+                        Rectangle().fill(Color.dsSeparator).frame(height: 0.5)
+                    }
                 }
             }
             .background(Color.dsBgCard)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

@@ -149,7 +149,7 @@ struct TeamLogo: View {
 
     private var placeholder: some View {
         RoundedRectangle(cornerRadius: 4, style: .continuous)
-            .fill(Color(.tertiarySystemFill))
+            .fill(Color.dsBgTertiary)
     }
 }
 

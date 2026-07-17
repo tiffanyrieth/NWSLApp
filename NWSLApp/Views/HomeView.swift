@@ -159,7 +159,7 @@ struct HomeView: View {
                     .foregroundStyle(Color.dsFgSecondary)
             }
             .frame(width: 32, height: 32)
-            .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
+            .overlay(Circle().stroke(Color.dsFgQuaternary, lineWidth: 1))
         }
         .accessibilityLabel("Profile")
     }
@@ -774,8 +774,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(title)
-                        .dsFont(20, weight: .bold)
-                        .foregroundStyle(Color.dsFgPrimary)
+                        .sectionTitle()
                     Spacer(minLength: 8)
                     accessory()
                 }

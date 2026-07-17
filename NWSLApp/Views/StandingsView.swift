@@ -216,7 +216,7 @@ struct StandingsView: View {
     private var playoffRule: some View {
         Rectangle()
             .fill(Color.dsStateKickoff.opacity(0.4))
-            .frame(height: 1)
+            .frame(height: DS.hairline)
             .frame(maxWidth: .infinity)
     }
 

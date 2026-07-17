@@ -128,10 +128,13 @@ struct ProfileView: View {
                 }
                 NavigationLink { NotificationsView() } label: { notificationsRow }
                     .buttonStyle(.plain)
+                #if DEBUG
+                // Diagnostics entry is DEBUG-only — never ships to TestFlight or the App Store
+                // (it surfaces device_id/token internals). Gated here + at the view + at diagnosticsRow.
                 rowDivider
-                // TEMP diagnostics entry — remove with NotifTrace once the token pipeline is proven.
                 NavigationLink { NotificationDiagnosticsView() } label: { diagnosticsRow }
                     .buttonStyle(.plain)
+                #endif
             }
             .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
@@ -518,7 +521,8 @@ struct ProfileView: View {
             .padding(.leading, 16)
     }
 
-    // TEMP diagnostics entry (remove with NotifTrace once the token pipeline is proven).
+    #if DEBUG
+    // Diagnostics entry row — DEBUG-only (see the gated NavigationLink in settingsSection).
     private var diagnosticsRow: some View {
         HStack(spacing: 12) {
             ZStack {
@@ -537,6 +541,7 @@ struct ProfileView: View {
         .padding(.vertical, 13)
         .contentShape(Rectangle())
     }
+    #endif
 
     private var versionLabel: some View {
         Text("NWSLApp \(appVersion)")

@@ -113,7 +113,9 @@ struct KnowHerGameView: View {
                 } label: {
                     Text("Start the challenge")
                         .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .background(accent).foregroundStyle(.white)
+                        // Dark ink on the light amber Spotlight accent — white here is ~1.9:1 (fails
+                        // the 3:1 large-text floor); black on #F5A623 is ~11:1. Keeps the amber identity.
+                        .background(accent).foregroundStyle(.black)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
@@ -317,7 +319,8 @@ struct KnowHerGameView: View {
             if let systemImage { Image(systemName: systemImage) }
         }
         .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
-        .background(accent).foregroundStyle(.white)
+        // Dark ink on the light amber Spotlight accent (see startChallenge button) — white fails contrast.
+        .background(accent).foregroundStyle(.black)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 

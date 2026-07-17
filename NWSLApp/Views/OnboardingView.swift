@@ -102,7 +102,6 @@ struct OnboardingView: View {
             }
 
             internationalSection
-            playerFollowingTeaser
         }
         .listStyle(.insetGrouped)
         // Persistent bottom bar: the running follow count + reassurance, always
@@ -216,36 +215,6 @@ struct OnboardingView: View {
                     Text("Following a national team?")
                         .foregroundStyle(.primary)
                     Text("Add national teams + the Champions Cup later in Teams → Follow competitions.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .accessibilityElement(children: .combine)
-        }
-    }
-
-    // A forward-looking teaser for the future player-following feature — purely
-    // informational (not tappable). Sits below the national-teams pointer, same styling.
-    private var playerFollowingTeaser: some View {
-        Section {
-            HStack(spacing: 12) {
-                Image(systemName: "person.fill")
-                    .foregroundStyle(Color.secondary)
-                    .frame(width: 32)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 8) {
-                        Text("Follow individual players")
-                            .foregroundStyle(.primary)
-                        Text("COMING SOON")
-                            .dsFont(10, weight: .bold)
-                            .tracking(0.5)
-                            .foregroundStyle(Color.dsAccent)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(Color.dsAccentMuted, in: Capsule())
-                    }
-                    Text("Keep tabs on your favorite players across the league — no matter what team they're on.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

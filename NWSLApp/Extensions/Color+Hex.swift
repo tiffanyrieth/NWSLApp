@@ -67,6 +67,34 @@ extension Color {
         )
     }
 
+    /// The ONE team-accent resolver: an abbreviation → its brand color, via the design
+    /// palette (`DesignTeamColors.displayHex`) lifted for the dark canvas
+    /// (`teamFillOnDark`). Replaces ~7 copy-pasted `displayHex → teamFillOnDark` helpers
+    /// that had drifted on their fallbacks (gray vs `.dsAccent`) and their lift behavior.
+    ///
+    /// - `liftOnDark`: apply the on-dark lift (default). Pass `false` for callers drawing on
+    ///   a LIGHT surface — lifting toward white there would *reduce* contrast (e.g. the
+    ///   Know Her Game rows on a grouped background).
+    /// - `fallback`: color when the abbreviation isn't in any palette. Defaults to the
+    ///   neutral `.dsFgSecondary` token (#8E8E93) — the same gray these sites hardcoded.
+    static func teamColor(
+        for abbreviation: String?,
+        liftOnDark: Bool = true,
+        fallback: Color = .dsFgSecondary
+    ) -> Color {
+        guard let hex = DesignTeamColors.displayHex(for: abbreviation) else { return fallback }
+        return liftOnDark ? Color.teamFillOnDark(hex: hex) : Color(hex: hex)
+    }
+
+    /// Convenience for scoreboard callers holding a `Competitor` (reads its team abbreviation).
+    static func teamColor(
+        for competitor: Competitor?,
+        liftOnDark: Bool = true,
+        fallback: Color = .dsFgSecondary
+    ) -> Color {
+        teamColor(for: competitor?.team?.abbreviation, liftOnDark: liftOnDark, fallback: fallback)
+    }
+
     // MARK: - Match color resolution
     //
     // The two teams in a match show their colors side-by-side everywhere (formation

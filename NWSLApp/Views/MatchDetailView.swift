@@ -1046,10 +1046,7 @@ struct MatchDetailView: View {
     /// women's national team, or known Champions Cup foreign club), else neutral gray
     /// (mirrors MatchCard.teamColor).
     private func sideColor(_ competitor: Competitor?) -> ResolvedTeamColor {
-        guard let hex = DesignTeamColors.displayHex(for: competitor?.team?.abbreviation) else {
-            return ResolvedTeamColor(fill: Color(hex: "8E8E93"), onText: .white)
-        }
-        return ResolvedTeamColor(fill: Color.teamFillOnDark(hex: hex), onText: .white)
+        ResolvedTeamColor(fill: Color.teamColor(for: competitor), onText: .white)
     }
 
     /// Header wash respects "no tint until the summary's colors arrive" (the resolver

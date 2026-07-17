@@ -216,10 +216,11 @@ struct PlayoffPathView: View {
 
     private var followedAbbrs: Set<String> { Set(followedTeams) }
 
-    /// Team color per the match-surface convention (DesignTeamColors, dark-adjusted).
+    /// Team color per the match-surface convention (the shared `Color.teamColor` resolver:
+    /// DesignTeamColors, dark-adjusted, neutral-gray fallback — was `.dsAccent`, now aligned
+    /// with the other match surfaces).
     private func color(_ abbr: String) -> Color {
-        guard let hex = DesignTeamColors.displayHex(for: abbr) else { return .dsAccent }
-        return Color.teamFillOnDark(hex: hex)
+        Color.teamColor(for: abbr)
     }
 
     private func humanize(_ phrase: String) -> String {

@@ -402,9 +402,9 @@ struct RootTabView: View {
         }
         // Live scoreboard poll: while the app is foregrounded, silently refresh the shared
         // season store so live cards (Schedule/Home) AND the Match Detail header advance
-        // without a relaunch — the core fix for "live scores never update in-app." Fast
-        // (~30s, matching the "Updates every ~30 seconds" copy) while a game is in progress,
-        // slow (~5min) otherwise, aligning with the proxy scoreboard TTL. The loop suspends
+        // without a relaunch — the core fix for "live scores never update in-app." 60s while a
+        // game is in progress (the ≤30s-fresh surface is the V2 card, not the in-app screens —
+        // see the .task below), slow (~5min) otherwise. The loop suspends
         // in the background (Task.sleep) and resumes on foreground; scenePhase == .active also
         // kicks an immediate refresh so returning to the app is instant.
         .task {

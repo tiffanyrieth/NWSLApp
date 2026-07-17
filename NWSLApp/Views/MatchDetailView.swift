@@ -9,7 +9,8 @@
 //             subs), STATS (head-to-head comparison bars). All from one ESPN
 //             `/summary` fetch.
 //   • Live  — the same tabs (labelled EVENTS) with a pulsing LIVE indicator +
-//             running clock; the data refreshes on a 30s poll.
+//             running clock; the data refreshes on a 60s poll (+ instantly when a
+//             foreground V1 push arrives — see RootTabView's foregroundPushNonce).
 //   • Future— a single-scroll preview: kickoff, venue/broadcast, a season
 //             comparison, and recent form — derived from the shared MatchStore,
 //             not the summary endpoint (which is empty before a match).
@@ -204,7 +205,7 @@ struct MatchDetailView: View {
                 }
 
                 if temporalState == .live {
-                    Text("Updates every ~30 seconds")
+                    Text("Updates every ~60 seconds")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -872,7 +873,7 @@ struct MatchDetailView: View {
     }
 
     /// The live clock: a locally-ticking football minute ("51' — Second Half") anchored to
-    /// the last fetch, so it advances smoothly between the ~30s polls. Falls back to ESPN's
+    /// the last fetch, so it advances smoothly between the ~60s polls. Falls back to ESPN's
     /// static `clockLine` when the raw clock/anchor aren't available.
     @ViewBuilder
     private var liveClockLine: some View {

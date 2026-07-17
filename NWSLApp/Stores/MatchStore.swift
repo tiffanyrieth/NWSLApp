@@ -41,8 +41,9 @@ final class MatchStore {
 
     /// Wall-clock time of the last successful load/refresh — the anchor for the in-app
     /// football clock: a live event's `status.clock` (elapsed seconds) was current AS OF
-    /// this instant, so the tick shows `clock + (now − lastLoadedAt)`. Updated every ~30s
-    /// by the live poll, which re-syncs the clock to reality. nil until the first success.
+    /// this instant, so the tick shows `clock + (now − lastLoadedAt)`. Updated every ~60s
+    /// by the live poll (+ on any foreground V1 push), which re-syncs the clock to reality;
+    /// the local football-minute tick fills the gap between refreshes. nil until first success.
     private(set) var lastLoadedAt: Date?
 
     // MARK: Monotonic live-clock tick anchors

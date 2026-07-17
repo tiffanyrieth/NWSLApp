@@ -130,7 +130,7 @@ struct OnboardingView: View {
             // toggle on each followed row (below) teaches the alerts distinction visually,
             // so the old "following isn't notifications" footnote is no longer needed.
             Text("Your feed starts here. Tap any clubs you're interested in — their news, videos, and social posts will show up on your Home tab.")
-                .font(.subheadline)
+                .dsFont(15)
                 .foregroundStyle(.secondary)
                 // Guarantee full wrapping (never truncate) on the smallest screens (SE/mini).
                 .fixedSize(horizontal: false, vertical: true)
@@ -310,7 +310,7 @@ struct OnboardingView: View {
             followButton
 
             Text("You can always change this later")
-                .font(.caption)
+                .dsFont(12)
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal)

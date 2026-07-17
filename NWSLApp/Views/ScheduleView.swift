@@ -447,10 +447,10 @@ struct ScheduleView: View {
                 .dsFont(40)
                 .foregroundStyle(.secondary)
             Text("Follow your teams to see their matches here")
-                .font(.headline)
+                .dsFont(17, weight: .semibold)
                 .multilineTextAlignment(.center)
             Text("Tap the star on any club in the Teams tab.")
-                .font(.subheadline)
+                .dsFont(15)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
@@ -469,7 +469,7 @@ struct ScheduleView: View {
             // Honest + contextual: a followed team (incl. a sparse national team) with no fixtures
             // in the season feed reads as a real "no matches" state, never a blank screen.
             Text(selectedFilter == .myTeams ? "No matches for your teams yet" : "No matches to show")
-                .font(.headline)
+                .dsFont(17, weight: .semibold)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

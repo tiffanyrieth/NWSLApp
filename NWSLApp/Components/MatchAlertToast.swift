@@ -61,8 +61,8 @@ private struct MatchAlertToastModifier: ViewModifier {
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.dsBgCard, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.dsSeparator, lineWidth: 1))
+            .background(Color.dsBgCard, in: RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous).stroke(Color.dsSeparator, lineWidth: 1))
         }
         .buttonStyle(.plain)
     }

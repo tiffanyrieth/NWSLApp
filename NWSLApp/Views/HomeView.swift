@@ -322,7 +322,7 @@ struct HomeView: View {
                 .dsFont(32)
                 .foregroundStyle(Color.dsFgSecondary)
             Text("Follow your teams to fill your home feed with their latest content.")
-                .font(.subheadline)
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
             Button("Choose your teams") { showTeamPicker = true }

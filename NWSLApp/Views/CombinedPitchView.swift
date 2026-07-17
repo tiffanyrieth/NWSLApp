@@ -66,7 +66,7 @@ struct CombinedPitchView: View {
         (Text(label(home)).foregroundColor(home.accent.fill)
          + Text("  ·  ").foregroundColor(.dsFgQuaternary)
          + Text(label(away)).foregroundColor(away.accent.fill))
-            .font(.system(size: 11, weight: .semibold))
+            .dsFont(11, weight: .semibold)
             .tracking(0.5)
             .frame(maxWidth: .infinity)
     }
@@ -93,7 +93,7 @@ struct CombinedPitchView: View {
     // Full pitch with both penalty boxes, halfway line, and center circle.
     private var pitch: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: DS.radiusMd)
                 .fill(LinearGradient(colors: [.dsPitch, .dsPitchBottom],
                                      startPoint: .top, endPoint: .bottom))
             GeometryReader { geo in
@@ -111,6 +111,6 @@ struct CombinedPitchView: View {
                     .position(x: w / 2, y: h / 2)
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(line, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: DS.radiusMd).stroke(line, lineWidth: 1))
     }
 }

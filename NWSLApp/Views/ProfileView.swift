@@ -66,7 +66,7 @@ struct ProfileView: View {
                 // propagate as the back-button label on pushed children (SupportView) —
                 // those get a bare ‹ chevron + their own centered title. Same centered look.
                 ToolbarItem(placement: .principal) {
-                    Text("Profile").font(.headline).foregroundStyle(Color.dsFgPrimary)
+                    Text("Profile").dsFont(17, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
@@ -318,7 +318,7 @@ struct ProfileView: View {
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
             if let signInError {
                 Text(signInError)
-                    .font(.footnote)
+                    .dsFont(13)
                     .foregroundStyle(Color.dsError)
                     .multilineTextAlignment(.center)
             }

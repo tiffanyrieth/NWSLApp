@@ -131,7 +131,7 @@ struct FeedView: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(Color.dsAccent, in: RoundedRectangle(cornerRadius: 10))
+                .background(Color.dsAccent, in: RoundedRectangle(cornerRadius: DS.radiusSm))
         }
         .onTapGesture { dismissGearTooltip() }
         .accessibilityLabel("Customize your feed. Tap the gear to choose which sources you see.")
@@ -230,7 +230,7 @@ struct FeedView: View {
                 .dsFont(40)
                 .foregroundStyle(.secondary)
             Text(emptyMessage)
-                .font(.subheadline)
+                .dsFont(15)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }

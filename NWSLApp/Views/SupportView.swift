@@ -137,9 +137,9 @@ struct SupportView: View {
             .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
             .padding(14)
             .background(isSelected ? pink.opacity(0.12) : Color.dsBgCard)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous)
                     .stroke(isSelected ? pink : Color.clear, lineWidth: 1.5)
             )
         }

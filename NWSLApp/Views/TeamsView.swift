@@ -212,7 +212,7 @@ struct TeamsView: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(Color.dsAccent, in: RoundedRectangle(cornerRadius: 10))
+                .background(Color.dsAccent, in: RoundedRectangle(cornerRadius: DS.radiusSm))
         }
         .onTapGesture { dismissAlertTooltip() }
         .accessibilityLabel("Manage your match alerts here. Tap the bell to open notification settings.")

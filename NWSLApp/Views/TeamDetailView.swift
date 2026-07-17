@@ -302,13 +302,9 @@ struct TeamDetailView: View {
     }
 
     private func sectionError(_ message: String) -> some View {
-        VStack(spacing: 8) {
-            Text(message)
-                .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            Button("Try again") { Task { await viewModel.load(clubID: club.id) } }
-                .buttonStyle(.bordered)
+        RetryStateView(message: message, style: .inline) {
+            await viewModel.load(clubID: club.id)
         }
-        .frame(maxWidth: .infinity).padding(.top, 40).padding(.horizontal, 32)
     }
 
     // MARK: - Squad (grouped player cards)

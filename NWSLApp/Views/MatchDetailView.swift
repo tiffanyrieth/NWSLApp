@@ -968,19 +968,9 @@ struct MatchDetailView: View {
     // MARK: - Small shared pieces
 
     private func summaryError(_ message: String) -> some View {
-        VStack(spacing: 8) {
-            Text(message)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Button("Try again") {
-                Task { await viewModel.loadSummary() }
-            }
-            .buttonStyle(.bordered)
+        RetryStateView(message: message, style: .inline) {
+            await viewModel.loadSummary()
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 40)
-        .padding(.horizontal, 32)
     }
 
     private func emptyState(_ message: String) -> some View {

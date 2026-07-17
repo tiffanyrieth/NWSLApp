@@ -209,15 +209,9 @@ struct CompetitionsView: View {
     }
 
     private var retryView: some View {
-        VStack(spacing: 10) {
-            Text("Couldn't load teams — tap to retry")
-                .dsFont(13)
-                .foregroundStyle(Color.dsFgSecondary)
-            Button("Try again") { Task { await store.load() } }
-                .buttonStyle(.borderedProminent)
+        RetryStateView(message: "Couldn't load teams — tap to retry", style: .inline) {
+            await store.load()
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 32)
     }
 
     private func filter(_ teams: [NationalTeam]) -> [NationalTeam] {

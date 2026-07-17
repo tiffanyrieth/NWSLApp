@@ -477,17 +477,9 @@ struct ScheduleView: View {
     }
 
     private func errorView(_ message: String, retry: @escaping () async -> Void) -> some View {
-        VStack(spacing: 12) {
-            Text(message)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal)
-            Button("Try again") {
-                Task { await retry() }
-            }
-            .buttonStyle(.borderedProminent)
+        RetryStateView(message: message) {
+            await retry()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
 }

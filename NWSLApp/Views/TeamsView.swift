@@ -442,17 +442,9 @@ struct TeamsView: View {
     }
 
     private func errorView(_ message: String) -> some View {
-        VStack(spacing: 12) {
-            Text(message)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal)
-            Button("Try again") {
-                Task { await viewModel.load() }
-            }
-            .buttonStyle(.borderedProminent)
+        RetryStateView(message: message) {
+            await viewModel.load()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

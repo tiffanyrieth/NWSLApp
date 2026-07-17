@@ -232,7 +232,7 @@ struct TeamDetailView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: socialGlyphSize, height: socialGlyphSize)
-                    .foregroundStyle(platformColor(link.platform))
+                    .foregroundStyle(platformStyle(link.platform))
                 Text(link.platform.label)
                     .dsFont(13, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
@@ -247,14 +247,15 @@ struct TeamDetailView: View {
     }
 
     // Per-platform brand tint, used ONLY for the link-pill glyphs above (recognizable
-    // destinations). Nowhere else — in-app chrome uses the club accent.
-    private func platformColor(_ platform: SocialPlatform) -> Color {
+    // destinations). Nowhere else — in-app chrome uses the club accent. Resolves through
+    // the single `PlatformBrand` source (so Instagram tints with its real gradient).
+    private func platformStyle(_ platform: SocialPlatform) -> AnyShapeStyle {
         switch platform {
-        case .instagram: return Color(hex: "E1306C")
-        case .bluesky:   return Color(hex: "1185FE")
-        case .youtube:   return Color(hex: "FF3B30")
-        case .tiktok:    return Color(hex: "25C9D6")
-        case .reddit:    return Color(hex: "FF4500")
+        case .instagram: return PlatformBrand.instagram
+        case .bluesky:   return PlatformBrand.bluesky
+        case .youtube:   return PlatformBrand.youtube
+        case .tiktok:    return PlatformBrand.tiktok
+        case .reddit:    return PlatformBrand.reddit
         }
     }
 

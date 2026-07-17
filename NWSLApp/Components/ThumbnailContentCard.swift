@@ -147,7 +147,7 @@ struct ThumbnailContentCard: View {
                         PlatformBadge(platform: .reddit, size: 13)
                         Text("r/\(sub)")
                             .dsFont(12, weight: .semibold)
-                            .foregroundStyle(Color(hex: "#FF4500"))
+                            .foregroundStyle(PlatformBrand.reddit)
                             .lineLimit(1)
                     }
                     Text("· \(card.timestamp.relativeAgo)")

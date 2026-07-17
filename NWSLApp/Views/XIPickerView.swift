@@ -59,7 +59,7 @@ struct XIPickerView: View {
                     content
                 }
             }
-            .background(Color(.systemGroupedBackground))
+            .background(Color.dsBgPrimary)
             .navigationTitle("\(picker.fixture.teamAbbreviation) XI")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -117,7 +117,7 @@ struct XIPickerView: View {
                                 .font(.subheadline.weight(.semibold))
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
-                                .background(selected ? accent : Color(.secondarySystemGroupedBackground))
+                                .background(selected ? accent : Color.dsMdCard)
                                 .foregroundStyle(selected ? .white : .primary)
                                 .clipShape(Capsule())
                         }
@@ -214,7 +214,7 @@ struct XIPickerView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.dsMdCard)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -238,7 +238,7 @@ struct XIPickerView: View {
                 .font(.body.weight(.bold))
                 .foregroundStyle(picker.readOnly ? .secondary : accent)
                 .frame(width: 34, height: 34)
-                .background(Color(.tertiarySystemGroupedBackground))
+                .background(Color.dsMdPanelBottom)
                 .clipShape(Circle())
         }
         .disabled(picker.readOnly)
@@ -264,7 +264,7 @@ struct XIPickerView: View {
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(picker.isComplete ? accent : Color(.tertiarySystemGroupedBackground))
+                    .background(picker.isComplete ? accent : Color.dsMdPanelBottom)
                     .foregroundStyle(picker.isComplete ? .white : .secondary)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }

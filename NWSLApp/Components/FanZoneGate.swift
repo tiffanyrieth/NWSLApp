@@ -148,6 +148,8 @@ struct FanZoneGateSheet: View {
     enum Step: String, Identifiable { case signIn, name; var id: String { rawValue } }
 
     let gameName: String
+    /// The tapped game's accent, so the gate tints to that game (not a hardcoded teal).
+    let accent: Color
     /// Called when the user finishes (signed in + named) — the modifier flips its
     /// `completed` flag; the sheet then dismisses itself and the modifier runs the action.
     let onComplete: () -> Void
@@ -159,8 +161,9 @@ struct FanZoneGateSheet: View {
     @State private var errorMessage: String?
     @State private var saving = false
 
-    init(gameName: String, startAt: Step, prefilledName: String, onComplete: @escaping () -> Void) {
+    init(gameName: String, accent: Color, startAt: Step, prefilledName: String, onComplete: @escaping () -> Void) {
         self.gameName = gameName
+        self.accent = accent
         self.onComplete = onComplete
         _step = State(initialValue: startAt)
         _draftName = State(initialValue: prefilledName)
@@ -185,12 +188,12 @@ struct FanZoneGateSheet: View {
         VStack(spacing: 20) {
             Image(systemName: "trophy.fill")
                 .dsFont(44)
-                .foregroundStyle(Color.dsGameBracket)
+                .foregroundStyle(accent)
             VStack(spacing: 10) {
                 Text("Sign in to play")
                     .dsFont(24, weight: .bold)
                     .multilineTextAlignment(.center)
-                Text("\(gameName) is a ranked game — your picks are scored against the league. Sign in so your points count on the leaderboard.")
+                Text("\(gameName) is scored. Sign in so your results count — on the leaderboards and in the community stats.")
                     .dsFont(15)
                     .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
@@ -198,20 +201,20 @@ struct FanZoneGateSheet: View {
             HStack(spacing: 12) {
                 Image(systemName: "chart.bar.fill")
                     .dsFont(20)
-                    .foregroundStyle(Color.dsGameBracket)
+                    .foregroundStyle(accent)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Your score. Your rank. Real competition.")
-                        .dsFont(13, weight: .semibold).foregroundStyle(.white)
-                    Text("See how you stack up against every fan in the league.")
+                    Text("Your results count.")
+                        .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
+                    Text("Your points on the leaderboards, your answers in the community stats — see how you compare across the league.")
                         .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
             }
             .padding(14)
-            .background(Color.dsGameBracket.opacity(0.12),
+            .background(accent.opacity(0.12),
                         in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.dsGameBracket.opacity(0.25)))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.25)))
 
             if let errorMessage {
                 Text(errorMessage)
@@ -245,17 +248,17 @@ struct FanZoneGateSheet: View {
                 Text("You're in! Pick a username.")
                     .dsFont(22, weight: .bold)
                     .multilineTextAlignment(.center)
-                Text("This is how you'll appear on the leaderboard. Make it good — other fans will see this.")
+                Text("This is how you'll appear across Fan Zone — leaderboards and community stats. Make it good — other fans will see this.")
                     .dsFont(15)
                     .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
             }
             DisplayNameEntry(draft: $draftName,
                              cta: saving ? "Saving…" : "Let's go",
-                             accent: Color.dsGameBracket) {
+                             accent: accent) {
                 Task { await saveName() }
             }
-            Text("A username is required to play ranked games")
+            Text("A username is required to play Fan Zone games")
                 .dsFont(11)
                 .foregroundStyle(Color.dsFgTertiary)
         }
@@ -290,16 +293,18 @@ extension View {
     /// Gate a Fan Zone action behind mandatory sign-in + a chosen display name. Flip
     /// `isRequested` true when the user acts; `onAuthorized` runs once they're signed in
     /// AND named (immediately, no sheet, if they already are). Backing out cancels.
-    func fanZoneGate(isRequested: Binding<Bool>, gameName: String,
+    /// `accent` tints the gate to the tapped game (defaults to the app accent).
+    func fanZoneGate(isRequested: Binding<Bool>, gameName: String, accent: Color = .dsAccent,
                      onAuthorized: @escaping () -> Void) -> some View {
         modifier(FanZoneGateModifier(isRequested: isRequested, gameName: gameName,
-                                     onAuthorized: onAuthorized))
+                                     accent: accent, onAuthorized: onAuthorized))
     }
 }
 
 private struct FanZoneGateModifier: ViewModifier {
     @Binding var isRequested: Bool
     let gameName: String
+    let accent: Color
     let onAuthorized: () -> Void
 
     @Environment(AuthStore.self) private var auth
@@ -327,7 +332,7 @@ private struct FanZoneGateModifier: ViewModifier {
                 isRequested = false
                 if completed { completed = false; onAuthorized() }
             }) { startAt in
-                FanZoneGateSheet(gameName: gameName, startAt: startAt,
+                FanZoneGateSheet(gameName: gameName, accent: accent, startAt: startAt,
                                  prefilledName: auth.displayName ?? "") {
                     completed = true
                 }

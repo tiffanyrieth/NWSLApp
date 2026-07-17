@@ -65,7 +65,7 @@ struct CommunityResultsView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .task(id: editionKey) { await load() }
     }
@@ -146,7 +146,7 @@ struct CommunityResultsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(Color(.tertiarySystemGroupedBackground))
+        .background(Color.dsBgTertiary)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
@@ -164,15 +164,15 @@ struct CommunityResultsView: View {
         return HStack(spacing: 10) {
             Image(systemName: isCorrect ? "checkmark.circle.fill" : "circle")
                 .font(.caption)
-                .foregroundStyle(isCorrect ? Color.green : Color.dsFgTertiary)
+                .foregroundStyle(isCorrect ? Color.dsSuccess : Color.dsFgTertiary)
             Text(label)
                 .font(.caption)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color(.systemGray5))
-                    Capsule().fill(isCorrect ? Color.green.opacity(0.7) : accent.opacity(0.5))
+                    Capsule().fill(Color.dsBgTertiary)
+                    Capsule().fill(isCorrect ? Color.dsSuccess.opacity(0.7) : accent.opacity(0.5))
                         .frame(width: max(2, geo.size.width * fraction))
                 }
             }

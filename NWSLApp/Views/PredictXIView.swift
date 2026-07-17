@@ -69,7 +69,7 @@ struct PredictXIView: View {
         }
         // Mandatory sign-in + display name to play — gated at the open-fixture tap, so the
         // picker's submit is always signed in. "Go back" cancels (returns to the slate).
-        .fanZoneGate(isRequested: $gateRequested, gameName: "Predict the XI") {
+        .fanZoneGate(isRequested: $gateRequested, gameName: "Predict the XI", accent: accent) {
             activeFixture = pendingFixture
         }
     }

@@ -51,7 +51,7 @@ struct DailyTriviaView: View {
         .background(Color.dsBgGrouped)
         // Mandatory sign-in + display name to play — gated at the first "Submit Answer", so
         // a finished game's streak always reaches the leaderboard. "Go back" cancels.
-        .fanZoneGate(isRequested: $gateRequested, gameName: "NWSL Trivia") {
+        .fanZoneGate(isRequested: $gateRequested, gameName: "NWSL Trivia", accent: accent) {
             viewModel.submit()
         }
         .task {

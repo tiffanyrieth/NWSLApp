@@ -60,7 +60,7 @@ struct BracketBattleView: View {
         }
         // Mandatory sign-in + display name to PLAY — gated at "Make your picks" (entry to
         // voting), so the submit downstream is always signed in. "Go back" cancels.
-        .fanZoneGate(isRequested: $gateRequested, gameName: "Bracket Battle") { stage = .voting }
+        .fanZoneGate(isRequested: $gateRequested, gameName: "Bracket Battle", accent: accent) { stage = .voting }
     }
 
     // MARK: - Routing by round phase

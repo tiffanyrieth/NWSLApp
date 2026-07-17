@@ -78,7 +78,7 @@ struct KnowHerPickerView: View {
                 }
             }
         }
-        .fanZoneGate(isRequested: $gateRequested, gameName: "Know Her Game") {
+        .fanZoneGate(isRequested: $gateRequested, gameName: "Know Her Game", accent: accent) {
             if let pendingPlayer { activeEntry = .current(pendingPlayer) }
         }
     }

@@ -76,7 +76,7 @@ struct KnowHerGameView: View {
         .task { GameCenterManager.shared.authenticate() }
         // Gate sign-in + display name at "Start the challenge", so the completion write is
         // always signed in. "Go back" cancels.
-        .fanZoneGate(isRequested: $gateRequested, gameName: "Know Her Game") {
+        .fanZoneGate(isRequested: $gateRequested, gameName: "Know Her Game", accent: accent) {
             started = true
         }
     }

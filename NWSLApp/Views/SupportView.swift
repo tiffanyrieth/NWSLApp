@@ -150,25 +150,12 @@ struct SupportView: View {
         let enabled = selected != nil
         let busy = store.purchasing != nil
         return VStack(spacing: 10) {
-            Button {
+            DSButton(ctaLabel,
+                     style: .gradient(AnyShapeStyle(pinkGradient)),
+                     isEnabled: enabled,
+                     isLoading: busy) {
                 if let tier = selected { Task { await store.purchase(tier, monthly: monthly) } }
-            } label: {
-                Group {
-                    if busy {
-                        ProgressView().tint(.white)
-                    } else {
-                        Text(ctaLabel)
-                            .dsFont(16, weight: .semibold)
-                            .foregroundStyle(enabled ? .white : Color.dsFgTertiary)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 15)
-                .background(enabled ? AnyShapeStyle(pinkGradient) : AnyShapeStyle(Color.dsBgCard))
-                .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
             }
-            .buttonStyle(.plain)
-            .disabled(!enabled || busy)
 
             // Honest outcome for a failed/unverified/pending purchase or a restore error —
             // so a non-success NEVER silently looks like nothing happened (or a fake success).

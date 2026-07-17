@@ -32,15 +32,8 @@ struct ForceUpdateView: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Button {
+                DSButton("Update") {
                     openURL(AppConfig.updateURL)
-                } label: {
-                    Text("Update")
-                        .dsFont(17, weight: .semibold)
-                        .foregroundStyle(Color.dsFgPrimary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.dsAccent, in: RoundedRectangle(cornerRadius: 14))
                 }
                 .padding(.top, 8)
             }

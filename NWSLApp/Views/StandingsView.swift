@@ -48,7 +48,7 @@ struct StandingsView: View {
         static let gp: CGFloat = 22
         static let wdl: CGFloat = 19     // W · D · L
         static let gd: CGFloat = 26      // signed goal difference: "+12" / "-3"
-        static let form: CGFloat = 58    // five 11pt badges + 1pt gaps
+        static let form: CGFloat = 69    // five 13pt badges + 1pt gaps
         static let gap: CGFloat = 5
     }
     // Row content insets (inside the card) and the card's own side margin. The
@@ -163,7 +163,7 @@ struct StandingsView: View {
             Text("GD").frame(width: Col.gd, alignment: .trailing)
             Text("Last 5").frame(width: Col.form, alignment: .trailing)
         }
-        .trackedCaps(size: 11, tracking: 0.4, weight: .semibold, color: .dsFgTertiary)
+        .trackedCaps(size: 11, tracking: 0.4, weight: .semibold, color: .dsFgSecondary)
         // Keep the tight column headers on one line at larger text (else "GP" stacks
         // to "G/P"); they share the rows' fixed widths so they scale down to match.
         .lineLimit(1)
@@ -319,7 +319,7 @@ struct StandingsView: View {
     private func formCell(_ recent: [MatchResult]) -> some View {
         HStack(spacing: 1) {
             ForEach(Array(recent.enumerated()), id: \.offset) { _, result in
-                FormBadge(result, size: 11, fontSize: 7)
+                FormBadge(result, size: 13, fontSize: 9)
             }
         }
         .frame(width: Col.form, alignment: .trailing)

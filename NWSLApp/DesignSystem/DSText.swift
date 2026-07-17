@@ -101,9 +101,10 @@ extension View {
     /// duplicated. Tab roots keep their custom large left-aligned headers; this is only
     /// for drilled-in screens. (Matches the MLS / The Athletic back-button treatment.)
     ///
-    /// `.toolbarRole(.editor)` is what strips the inherited parent back-title down to a
-    /// bare chevron WITHOUT breaking the swipe gesture (hiding the bar is the thing that
-    /// breaks it) — so the title floats free of the back button as a real nav title.
+    /// The bare chevron comes for free from the PARENT carrying no nav title: tab roots
+    /// hide the bar and set none, so iOS's default back button has no parent-title text to
+    /// draw beside the chevron. We deliberately do NOT use `.toolbarRole(.editor)` to force
+    /// this — CLAUDE.md bans it because it breaks the edge-swipe-back gesture.
     func nativeBackButton(title: String? = nil) -> some View {
         self
             .navigationBarTitleDisplayMode(.inline)

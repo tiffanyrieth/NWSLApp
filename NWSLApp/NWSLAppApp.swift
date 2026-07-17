@@ -109,6 +109,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // that Activity's per-update push token to register with the watcher). Independent of sign-in.
         Task { @MainActor in LiveActivityManager.shared.startObserving() }
 
+        // MetricKit crash/hang reporting (Apple framework, device-only delivery) — subscribed at
+        // launch so a prior run's crash payload, delivered early, is never missed.
+        MetricKitCollector.shared.start()
+
+        // NOTE: the anonymous session counters do NOT fire here. didFinishLaunching also runs for
+        // background launches (push-to-start wakes) AND iOS prewarming — both report state
+        // .background and neither is a user session, while a PREWARMED app that later foregrounds
+        // never re-runs this method (an app-state guard here would undercount real sessions).
+        // Sessions are counted where the UI actually mounts: RootTabView's launch task.
+
         return true
     }
 

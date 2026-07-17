@@ -138,6 +138,13 @@ struct RootTabView: View {
     @State private var showSignedOutAlertNudge = false
     @State private var didPresentSignedOutNudge = false
 
+    // One-shot guard for the anonymous session counters (the root .task can re-fire on scene
+    // changes; a session must count once). Lives HERE, not in didFinishLaunching: background
+    // launches (push-to-start) and iOS prewarming run that method with no user present, while a
+    // prewarmed app that later foregrounds never re-runs it — the UI mounting is the honest
+    // "a person opened the app" signal.
+    @State private var didCountSession = false
+
     /// Brief launch state for a signed-in user whose follows are being restored from the server,
     /// shown instead of the onboarding picker (see the root gate). Honest + quiet, dark-theme.
     private var restoringView: some View {
@@ -163,6 +170,9 @@ struct RootTabView: View {
                 if newTab == router.selectedTab {
                     router.tabReselected(newTab)
                 } else {
+                    // Anonymous counter: a REAL tab switch (the re-tap branch above deliberately
+                    // doesn't count — it's a pop-to-root gesture, not a destination choice).
+                    Analytics.shared.log(.tabOpened(newTab))
                     router.selectedTab = newTab
                 }
             }
@@ -245,6 +255,13 @@ struct RootTabView: View {
         .environment(notifications)
         .environment(teamAlerts)
         .task {
+            // Anonymous session counters — the UI is mounting, so a person is here (see
+            // didCountSession above for why this is NOT in didFinishLaunching).
+            if !didCountSession {
+                didCountSession = true
+                Analytics.shared.log(.sessionStart)
+                Analytics.shared.log(.sessionOS)
+            }
             // Hand the shared season store the follow lens (so load() fetches NWSL +
             // the user's followed national-team feeds) and refetch the schedule when a
             // competition/national-team follow changes. Set synchronously, before any
@@ -447,9 +464,11 @@ struct RootTabView: View {
                 Task { await auth.revalidateSession() }
             }
             // Leaving the foreground flushes any pending no-silent-failure telemetry to the
-            // remote sink (best-effort) so a field miss reaches the owner without a user report.
+            // remote sink (best-effort) so a field miss reaches the owner without a user report —
+            // and the session's anonymous usage counters as ONE pre-summed batch (Analytics).
             if phase == .background {
                 Task { await Diagnostics.shared.flushRemote() }
+                Task { await Analytics.shared.flushRemote() }
             }
         }
         // Mid-session involuntary sign-out (revalidateSession or the auth listener nil-ing the

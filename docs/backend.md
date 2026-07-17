@@ -71,7 +71,15 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
 - **Content routes** (build + normalize to `[ContentCard]`/models): `/team-videos` (Home: YouTube +
   club OG news + club IG), `/feed` (Feed: Bluesky reporters/clubs + news RSS + player IG), `/spotlight`,
   `/trivia` (KV pool), `/national-teams` (data-driven NT Browse-all, deduped by FIFA, 24h), `/telemetry`
-  (POST sink → KV). Server-side Haiku (`claude-haiku-4-5`, KV-cached) gates relevance + team-tags the
+  (POST sink → KV), `/analytics` (POST sink, 2026-07-17: ANONYMOUS Level-3 usage counters — whitelisted
+  `{event,param,n}` batches, one per app session, NO IDs/IP → `increment_counters` RPC → Supabase
+  `analytics_counters` daily rollups; unknown event names dropped; RPC failure emits `analyticsRpcFail`).
+  **Ops alerting (2026-07-17):** the `*/5` cron also runs an error-spike check over recent `diag:` keys
+  (age from the reverse-time KEY = zero reads on quiet ticks) → **Resend** email at ≥8 error events/15min,
+  1/hr throttle (`RESEND_API_KEY`+`ALERT_EMAIL` secrets; unset = no-op); the WATCHER pings a
+  **healthchecks.io** check per tick (`HEALTHCHECK_URL` secret) so a dead cron gets reported by an
+  outside observer; app-side **MetricKit** crash/hang payloads land as `metricKitDiagnostic` crumbs in
+  this same telemetry sink (device-only delivery). Server-side Haiku (`claude-haiku-4-5`, KV-cached) gates relevance + team-tags the
   third-party buckets (reporter/league Bluesky + news RSS: isNWSL strict; fail-DROP for social /
   fail-open for news); club + player accounts are trusted fast paths. Every card carries a `sourceType`
   (club·reporter·player·league·news) for Feed chips. Plus a flood cap + dedupe.

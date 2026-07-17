@@ -1,5 +1,34 @@
 # Roadmap / What's Next
 
+> ### ⏳ OWNER SETUP — analytics + alerting go-live steps (2026-07-17, ~15 min total)
+> The anonymous-analytics + ops-alerting code is MERGED + deployed but four one-time owner steps
+> arm it (each is a silent no-op until done — nothing breaks meanwhile):
+> 1. **Supabase migration** (required for counters to record): paste
+>    `supabase/migration_analytics_counters.sql` into the SQL editor + Run. Verify: use the app,
+>    background it, then `select * from analytics_counters;` shows session rows. (Until then every
+>    flush logs `analyticsRpcFail: increment_counters 404` in /telemetry/recent — expected.)
+> 2. **Resend** (error-spike email): create a free account at resend.com → API key →
+>    `wrangler secret put RESEND_API_KEY` + `wrangler secret put ALERT_EMAIL` (your address) in
+>    ~/Projects/nwslapp-proxy. Threshold ≥8 error events/15min, max 1 email/hour.
+> 3. **healthchecks.io** (dead-cron watchdog): free account → new check, period 2 min / grace
+>    3 min → copy the ping URL → `wrangler secret put HEALTHCHECK_URL` in
+>    ~/Projects/nwslapp-match-watcher. If the watcher cron ever stops, THEY email you.
+> 4. **UptimeRobot** (route uptime): free account → HTTP monitors on the proxy `/config` and the
+>    watcher `/` root. No code involved.
+
+> ### 📋 PRE-PUBLISH — privacy package (needed BEFORE App Store submission; target mid-Aug)
+> Lower priority than ALIVE work but MUST exist at submission (owner 2026-07-16 — track it here so
+> it isn't lost):
+> - **App Store privacy label** (filled in App Store Connect): Data Linked to You = Contact Info
+>   (Sign in with Apple email/account). Data Not Linked to You = Diagnostics + Usage Data (the
+>   anonymous telemetry + counters). Data Used to Track You = **None** (no ATT prompt).
+> - **Privacy policy page** (Apple requires a URL at submission): write from the 2026-07-16
+>   honest-language work — values as promises (no ads; no data sold; no third-party/cross-app
+>   tracking), what IS collected (account basics; anonymous aggregate diagnostics/usage, never
+>   linked), retention, delete-account. Host it (GitHub Pages is $0) + paste the URL in ASC.
+> - README/showcase copy already reframed to match (PR #152); CLAUDE.md carries the
+>   values-vs-mechanics stance so future copy stays consistent.
+
 > ### ✅ BUILT (proxy) + ⏳ first-Monday verify — Know Her Game weekly automation (2026-07-13)
 > The full no-human weekly loop is BUILT (proxy branch `feature/knowher-weekly-automation`): deterministic
 > prompt assembly (`assemble_knowher_prompt.mjs` fills the Rodman-faithful `knowher-weekly-TEMPLATE.md`
@@ -23,43 +52,17 @@
 > app source. The unit tests that reference `PostseasonSimulator.clinchTable` (`PlayoffClinchTests`) move
 > to inline fixtures at that point. Nothing auto-reminds — this note is the reminder.
 
-> ### ✅ SHIPPED (server) + ⏳ build 26 device-verify — live-clock / staleness / Match-Detail (2026-07-11)
-> **Root cause of the app "stuck clock/score all game":** ESPN's full-season `dates=` scoreboard serves
-> live state **25–47 min STALE** during live games (not an app bug — details `docs/backend.md`).
-> **DEPLOYED, no build (all live):** proxy busts the ESPN upstream on `/scoreboard` MISS (`_cb`, fixes
-> staleness for ALL installed builds); watcher **30s double-poll** in live windows (owner "much improved");
-> watcher **drift-triggered LA resync** (≥30s anchor jump → card snaps at each half start, not 10 min late);
-> watcher **stoppage `+N` broadcast** (per-minute in added time). Watcher PR #26, proxy PR #44.
-> **BUILT (app, build 26, sim-verified only — DEVICE-VERIFY PENDING):** widget `showsHours:false` (68:12
-> not 1:08); widget renders `stoppageDisplay` "90'+2'"; app live poll → windowed query merged over the
-> season (was ~2MB/30s); Match-Detail **horizontal-drift** fix (`.containerRelativeFrame(.horizontal)`).
-> **On the next TestFlight, verify on device:** Fix C past 60', Fix D stoppage `90'+N'` on the lock screen
-> (fake-match harness into a frozen-cap window; WATCH Apple's broadcast throttle at 1/min), Fix G no-pan.
-
-> ### ✅ RESOLVED — lineup-push crest showed the WRONG team for away-team fans
-> **Was (owner, 2026-07-05):** the "Lineups in" V1 push attached the **home** club's crest, so an
-> AWAY-team follower saw the HOME crest → read as the wrong team's lineup. Same latent issue on
-> kickoff/HT/FT (a single crest on a both-teams moment).
-> **Fixed 2026-07-10 (owner rule — a THIRD option, simpler than the A/B originally weighed):** a crest
-> attaches **ONLY to a team-attributable event — a GOAL (scorer's club) or a RED CARD (carded club)**.
-> Every match-level moment (kickoff, lineup, halftime, full-time) and VAR corrections are **NEUTRAL** —
-> no image, no `mutable-content` (the NSE stays asleep), clean title+subtitle text; the tap still
-> deep-links. Watcher `events.ts` (`eventCarriesCrest` + conditional `toPayload`); pure-logic tested,
-> `tsc` clean, **deployed** (version `e11ae04f`). **DEVICE-VERIFIED 2026-07-10, 7:12pm** on the exact bug
-> case: BAY (AWAY follow) received the LOUvBAY "Lineups in" push — delivered, tap deep-links correctly,
-> no crest issue. Still to observe (not failures, just not yet posted): KC away lineup (ORLvKC) + the
-> crest-KEPT path (a GOAL should still carry the scorer's crest).
-
-> ### ⚠️ OPEN — follows restore fix: MERGED, device-verify pending on build 25
-> **Status:** MERGED to main (app PR #97), headless-verified (clean build, green tests, destructive
-> launch-prune removed structurally); **device-verification pending on build 25.**
-> **Why pending:** the reinstall-restore path hasn't been confirmed on real hardware yet — verify on the
-> build 25 TestFlight cut.
-> **Test fixture already in place — DO NOT DELETE:** the owner's account has 3 server follows
-> (Bay `22187`, `131562`, `131563`); these ARE the reinstall test fixture.
-> **Pass criteria (run on the next TestFlight build, for any reason):** clean reinstall → the TEMP trace
-> reads `local=0[] remote=3[…] onboarded=false → authoritative=remote`, all 3 follows restore, **zero
-> prune lines**, and `select count(*) from follows` stays at 3.
+> ### ✅ CLOSED 2026-07-13/16 (kept as one-liners; detail in git/memories)
+> - **Live-clock / staleness / Match-Detail (build 26):** DEVICE-VERIFIED 2026-07-13 — count-up past
+>   60', stoppage `45+7`/`90+6`, HT/FT, no pan; two display-only wording follow-ups remain (Match
+>   Detail live-label form + V2 HT dedupe — see the wording-followups memory/session notes).
+> - **Lineup-crest wrong-team:** resolved + device-verified 2026-07-10 (crest only on GOAL/RED CARD).
+> - **Follows restore:** closed 2026-07-13 (owner) — restore-on-reinstall behaving across real uses.
+> - **Polling efficiency (2026-07-16):** watcher fixture-window + app confederation scoping + 60s
+>   in-app cadence + push-triggered refresh — merged (app #152/#153, watcher #27) + deployed; watch
+>   the Cloudflare graph fall from ~23-28k/day as the visible proof. `docs/national-teams.md`.
+> - **Involuntary sign-out fix (2026-07-16):** merged (app #152). On-device check on the next
+>   TestFlight: exact toggles restore on re-sign-in; Notifications rows read OFF signed-out.
 > **TEMP instrumentation stays on purpose:** the `Diagnostics.debugTrace` case + the reconcile trace in
 > `FollowSyncCoordinator` remain in the code until this test passes — then remove them (Step C) and mark
 > this done.

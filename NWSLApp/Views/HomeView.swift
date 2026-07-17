@@ -429,9 +429,11 @@ struct HomeView: View {
                     }
                     .buttonStyle(.plain)
                     .frame(width: 152)
-                    // Opening a game marks its current cycle SEEN → the "new" dot clears (docs §10).
+                    // Opening a game marks its current cycle SEEN → the "new" dot clears (docs §10)
+                    // — and bumps the anonymous which-games-get-played counter (same stable key).
                     .simultaneousGesture(TapGesture().onEnded {
                         seen.markSeen(game: Self.seenKey(game), cycleKey: cycleKey(for: game))
+                        Analytics.shared.log(.fanzoneGameOpened(Self.seenKey(game)))
                     })
                 }
                 // Trailing Superfan card — display-only (computed locally / synced to Game

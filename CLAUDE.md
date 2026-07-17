@@ -26,6 +26,12 @@ table stakes that must work but are **not** the differentiator.
   at small scale is disqualifying; prefer flat tiers over metered billing. Full method + the two
   stress tests (1k mandatory / 100k headroom) in **`docs/stress-testing.md`** — read before any
   scaling/sizing/publish-readiness work.
+  **⚠️ THE BANNED LENS:** never reason from CURRENT usage ("only 2 users → plenty of headroom /
+  that can wait until launch") — every load/reliability question is asked **as if the app ships
+  tomorrow** (hundreds of one-club fans from one subreddit post). It produced the APNs 50-device
+  near-miss AND two wrong calls on 2026-07-16 (watcher polling burned 23% of the request cap at
+  zero users; error alerting misjudged as deferrable). Defer only when the 1k test PASSES or the
+  lever is a flip-anytime config — never because today's traffic is small (stress-testing.md §0).
 - **Privacy/monetization stance (owner, 2026-07-16 — values vs mechanics):** VALUES are promises —
   no ads, no data sold, no third-party/cross-app tracking, no dark patterns. MECHANICS stay flexible —
   say "free, tip-supported," never vow "free forever"/"no paywalls ever" (Swift Alert precedent), and
@@ -278,7 +284,13 @@ Detail: `docs/know-her-game.md` §5d.
   dev/TestFlight). Fail LOUD to the engineer; fail HONESTLY to the user (degraded → subtle truthful
   indicator; blocked → clear message + retry). Banned: blank screens, infinite spinners, silent
   fallbacks indistinguishable from success — a failure must never look like success. Spans the proxy
-  (`emitDiag` + a deploy-time health check that exits non-zero on any gap).
+  (`emitDiag` + a deploy-time health check that exits non-zero on any gap). The spine also carries
+  **MetricKit** crash/hang crumbs (`metricKitDiagnostic`, device-only delivery) and is watched by PUSH
+  alerting (2026-07-17): proxy error-spike → **Resend** email (≥8 error events/15min, 1/hr throttle);
+  watcher tick → **healthchecks.io** heartbeat (dead cron ⇒ external email) — both no-op until the
+  owner's secrets are set (roadmap). SEPARATE quiet channel: **anonymous Level-3 usage counters**
+  (`Analytics.swift` → proxy `/analytics` → Supabase `analytics_counters` daily rollups; six events,
+  NO ids/IP ever, one batch per session — measures the product, never the person).
 - **Plan for scope:** a change touching 3+ files or a new pattern → present a plan + get approval first.
   No new dependency without explaining why the built-in won't work + approval.
 - **No force-unwraps (`!`)** unless a comment explains why it's safe. Temp architecture-bending code

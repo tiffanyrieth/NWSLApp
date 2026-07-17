@@ -82,17 +82,21 @@ struct DSButton: View {
     private var verticalPadding: CGFloat { size == .regular ? 14 : 10 }
 
     private var foreground: Color {
-        guard isEnabled else { return .dsFgTertiary }
         switch style {
-        case .filled, .gradient: return .dsFgPrimary
-        case .outline:           return .dsAccent
+        // Filled stays WHITE even when disabled — the disabled fill is a muted accent (below),
+        // so white text keeps the label legible (a dim gray label was unreadable + made the
+        // button read as a search field). Only the fill intensity signals "not yet active".
+        case .filled:            return .dsFgPrimary
+        case .gradient:          return isEnabled ? .dsFgPrimary : .dsFgTertiary
+        case .outline:           return isEnabled ? .dsAccent : .dsFgTertiary
         }
     }
 
     @ViewBuilder private var background: some View {
         switch style {
         case .filled:
-            isEnabled ? Color.dsAccent : Color.dsBgCard
+            // Disabled = a muted-but-clearly-blue CTA-in-waiting (not a dark gray field).
+            isEnabled ? Color.dsAccent : Color.dsAccent.opacity(0.35)
         case .gradient(let fill):
             if isEnabled { Rectangle().fill(fill) } else { Color.dsBgCard }
         case .outline:

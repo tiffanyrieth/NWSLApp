@@ -237,47 +237,18 @@ struct OnboardingView: View {
         .background(.bar)
     }
 
-    // The follow CTA progresses outline → filled as teams are picked. The empty
-    // state uses an explicit accent *outline* (visible border, no fill) so it
-    // reads as a not-yet-active button — the old disabled `.borderedProminent`
-    // gray capsule with muted centered text looked like a search bar. We draw the
-    // border ourselves rather than leaning on `.bordered` + `.disabled`, whose
-    // system dimming washes the tint back to gray. Filled blue once ≥1 team is
-    // selected; the empty action is a no-op so onboarding still needs a pick.
-    // `.controlSize(.regular)` keeps it tappable without eating a full row.
-    @ViewBuilder
+    // One shared filled CTA (DSButton): dimmed/disabled until ≥1 club is picked, then
+    // lights up — no outline→filled swap, and it's the SAME button+size as the "Let's go"
+    // CTA on the next (Thesis) screen, so the primary action never jumps between screens.
     private var followButton: some View {
         let title = followCount == 0
             ? "Add clubs to get started"
             : "Continue with \(followCount) club\(followCount == 1 ? "" : "s")"
-
-        if followCount == 0 {
-            Button {} label: {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(Color.accentColor)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color.accentColor, lineWidth: 1.5)
-                    )
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Select at least one team to continue")
-        } else {
-            Button {
-                // Frame the app on a thesis screen before Home; "Let's go" there
-                // completes onboarding.
-                showThesis = true
-            } label: {
-                Text(title)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
+        return DSButton(title, isEnabled: followCount > 0) {
+            // Frame the app on a thesis screen before Home; "Let's go" there completes onboarding.
+            showThesis = true
         }
+        .accessibilityHint(followCount == 0 ? "Select at least one team to continue" : "")
     }
 
     private func errorView(_ message: String) -> some View {

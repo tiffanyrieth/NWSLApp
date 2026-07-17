@@ -57,7 +57,7 @@ struct KnowHerPickerView: View {
         }
         .nativeBackButton(title: "Know Her Game")
         .toolbar { ToolbarItem(placement: .topBarTrailing) { PlayingAsBadge(accent: accent) } }
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgGrouped)
         .task {
             GameCenterManager.shared.authenticate()
             await store.loadIfNeeded(teams: teams)
@@ -137,7 +137,7 @@ struct KnowHerPickerView: View {
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)   // completed rows stay tappable → revisit results (no replay; the game
@@ -162,11 +162,11 @@ struct KnowHerPickerView: View {
     private var lastWeekSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                Rectangle().fill(Color(.separator)).frame(height: 1)
+                Rectangle().fill(Color.dsSeparator).frame(height: 1)
                 Text("LAST WEEK")
                     .font(.caption2.weight(.bold)).tracking(0.8).foregroundStyle(.secondary)
                     .fixedSize()
-                Rectangle().fill(Color(.separator)).frame(height: 1)
+                Rectangle().fill(Color.dsSeparator).frame(height: 1)
             }
             .padding(.top, 4)
 
@@ -208,7 +208,7 @@ struct KnowHerPickerView: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)

@@ -28,7 +28,7 @@ struct DailyTriviaView: View {
     @Environment(AuthStore.self) private var auth
 
     /// The game's signature accent (per the approved indigo theme).
-    private let accent = Color.indigo
+    private let accent = Color.dsGameTrivia
 
     /// Presents the sign-in invite when a signed-out user finishes a game (their result
     /// needs an account to reach the Supabase leaderboard). Skippable; local stats persist.
@@ -48,7 +48,7 @@ struct DailyTriviaView: View {
         }
         .nativeBackButton(title: "NWSL Trivia")
         .toolbar { ToolbarItem(placement: .topBarTrailing) { PlayingAsBadge(accent: Color.dsGameTrivia) } }
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgGrouped)
         // Mandatory sign-in + display name to play — gated at the first "Submit Answer", so
         // a finished game's streak always reaches the leaderboard. "Go back" cancels.
         .fanZoneGate(isRequested: $gateRequested, gameName: "NWSL Trivia") {
@@ -120,7 +120,7 @@ struct DailyTriviaView: View {
             // Progress bar: indigo fill over a track, one segment per question.
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color(.systemGray5))
+                    Capsule().fill(Color.dsBgTertiary)
                     Capsule()
                         .fill(accent)
                         .frame(width: geo.size.width * progressFraction)
@@ -229,7 +229,7 @@ struct DailyTriviaView: View {
             .font(.headline)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(viewModel.selectedIndex == nil && !viewModel.isRevealed ? Color(.systemGray4) : accent)
+            .background(viewModel.selectedIndex == nil && !viewModel.isRevealed ? Color.dsBgTertiary : accent)
             .foregroundStyle(.white)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .padding(.horizontal, 20)
@@ -306,53 +306,10 @@ struct DailyTriviaView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    // Real league-wide best-streak standings (you highlighted). Always has at least
-    // your row on this screen, so it never renders empty.
-    private var leaderboardCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: "flame.fill").foregroundStyle(.orange)
-                Text("Streak leaders").font(.headline)
-                Spacer()
-                Text("League-wide").font(.caption).foregroundStyle(.secondary)
-            }
-            ForEach(viewModel.leaderboard) { row in
-                HStack(spacing: 12) {
-                    Text("\(row.rank)")
-                        .font(.subheadline.weight(.bold).monospacedDigit())
-                        .foregroundStyle(row.isYou ? accent : .secondary)
-                        .frame(width: 28, alignment: .trailing)
-                    Text(row.name)
-                        .font(.subheadline.weight(row.isYou ? .bold : .regular))
-                        .foregroundStyle(row.isYou ? accent : .primary)
-                        .lineLimit(1)
-                    Spacer()
-                    HStack(spacing: 4) {
-                        Text("\(row.streak)").font(.subheadline.weight(.semibold))
-                        Image(systemName: "flame.fill").font(.caption2).foregroundStyle(.orange)
-                    }
-                    .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 8)
-                .padding(.horizontal, 10)
-                .background(row.isYou ? accent.opacity(0.12) : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            }
-            if viewModel.leaderboard.count == 1 {
-                Text("You're on the board — leaders fill in as more fans play daily.")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .padding(.horizontal, 10).padding(.top, 2)
-            }
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
 
     private func statItem(value: String, label: String, icon: String, tint: Color) -> some View {
         VStack(spacing: 4) {
@@ -378,7 +335,7 @@ struct DailyTriviaView: View {
                 let gotItRight = pick == question.correctIndex
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: gotItRight ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundStyle(gotItRight ? .green : .red)
+                        .foregroundStyle(gotItRight ? Color.dsSuccess : Color.dsError)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(question.question)
                             .font(.subheadline.weight(.semibold))
@@ -390,7 +347,7 @@ struct DailyTriviaView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(14)
-                .background(Color(.secondarySystemGroupedBackground))
+                .background(Color.dsBgCard)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
         }
@@ -422,7 +379,7 @@ struct DailyTriviaView: View {
     }
 
     private func optionStyle(question: TriviaQuestion, index: Int) -> OptionStyle {
-        let base = Color(.secondarySystemGroupedBackground)
+        let base = Color.dsBgCard
         let isSelected = viewModel.selectedIndex == index
         let isCorrect = index == question.correctIndex
 
@@ -430,9 +387,9 @@ struct DailyTriviaView: View {
             // Pre-submit: only the current selection is highlighted (indigo).
             return OptionStyle(
                 fill: isSelected ? accent.opacity(0.12) : base,
-                borderColor: isSelected ? accent : Color(.systemGray4),
+                borderColor: isSelected ? accent : Color.dsBgTertiary,
                 borderWidth: isSelected ? 2 : 1,
-                badgeFill: isSelected ? accent : Color(.systemGray5),
+                badgeFill: isSelected ? accent : Color.dsBgTertiary,
                 badgeText: isSelected ? .white : .secondary,
                 trailingIcon: nil
             )
@@ -440,29 +397,29 @@ struct DailyTriviaView: View {
         // Post-submit reveal: correct = green, your wrong pick = red, rest dim.
         if isCorrect {
             return OptionStyle(
-                fill: Color.green.opacity(0.14),
-                borderColor: .green,
+                fill: Color.dsSuccess.opacity(0.14),
+                borderColor: Color.dsSuccess,
                 borderWidth: 2,
-                badgeFill: .green,
+                badgeFill: Color.dsSuccess,
                 badgeText: .white,
                 trailingIcon: "checkmark"
             )
         }
         if isSelected {
             return OptionStyle(
-                fill: Color.red.opacity(0.12),
-                borderColor: .red,
+                fill: Color.dsError.opacity(0.12),
+                borderColor: Color.dsError,
                 borderWidth: 2,
-                badgeFill: .red,
+                badgeFill: Color.dsError,
                 badgeText: .white,
                 trailingIcon: "xmark"
             )
         }
         return OptionStyle(
             fill: base,
-            borderColor: Color(.systemGray5),
+            borderColor: Color.dsBgTertiary,
             borderWidth: 1,
-            badgeFill: Color(.systemGray5),
+            badgeFill: Color.dsBgTertiary,
             badgeText: .secondary,
             trailingIcon: nil
         )

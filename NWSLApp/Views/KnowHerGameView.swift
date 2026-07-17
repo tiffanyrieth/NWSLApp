@@ -72,7 +72,7 @@ struct KnowHerGameView: View {
         }
         .nativeBackButton(title: "Know Her Game")
         .toolbar { ToolbarItem(placement: .topBarTrailing) { PlayingAsBadge(accent: accent) } }
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgGrouped)
         .task { GameCenterManager.shared.authenticate() }
         // Gate sign-in + display name at "Start the challenge", so the completion write is
         // always signed in. "Go back" cancels.
@@ -138,7 +138,7 @@ struct KnowHerGameView: View {
         }
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
@@ -191,7 +191,7 @@ struct KnowHerGameView: View {
             HStack(spacing: 6) {
                 ForEach(0..<viewModel.questionCount, id: \.self) { i in
                     Circle()
-                        .fill(i < viewModel.questionNumber ? accent : Color(.systemGray5))
+                        .fill(i < viewModel.questionNumber ? accent : Color.dsBgTertiary)
                         .frame(width: 7, height: 7)
                 }
             }
@@ -405,7 +405,7 @@ struct KnowHerGameView: View {
         return index < letters.count ? letters[index] : ""
     }
 
-    // MARK: - Option styling (correct=green, wrong pick=red — mirrors DailyTriviaView)
+    // MARK: - Option styling (correct=dsSuccess, wrong pick=dsError — mirrors DailyTriviaView)
 
     private struct OptionStyle {
         var fill: Color; var borderColor: Color; var borderWidth: CGFloat
@@ -413,24 +413,24 @@ struct KnowHerGameView: View {
     }
 
     private func optionStyle(question: KnowHerQuestion, index: Int) -> OptionStyle {
-        let base = Color(.secondarySystemGroupedBackground)
+        let base = Color.dsBgCard
         let isSelected = viewModel.selectedIndex == index
         let isCorrect = index == question.correctIndex
 
         if !viewModel.isRevealed {
-            return OptionStyle(fill: base, borderColor: Color(.systemGray4), borderWidth: 1,
-                               badgeFill: Color(.systemGray5), badgeText: .secondary, trailingIcon: nil)
+            return OptionStyle(fill: base, borderColor: Color.dsBgTertiary, borderWidth: 1,
+                               badgeFill: Color.dsBgTertiary, badgeText: .secondary, trailingIcon: nil)
         }
         if isCorrect {
-            return OptionStyle(fill: Color.green.opacity(0.14), borderColor: .green, borderWidth: 2,
-                               badgeFill: .green, badgeText: .white, trailingIcon: "checkmark")
+            return OptionStyle(fill: Color.dsSuccess.opacity(0.14), borderColor: Color.dsSuccess, borderWidth: 2,
+                               badgeFill: Color.dsSuccess, badgeText: .white, trailingIcon: "checkmark")
         }
         if isSelected {
-            return OptionStyle(fill: Color.red.opacity(0.12), borderColor: .red, borderWidth: 2,
-                               badgeFill: .red, badgeText: .white, trailingIcon: "xmark")
+            return OptionStyle(fill: Color.dsError.opacity(0.12), borderColor: Color.dsError, borderWidth: 2,
+                               badgeFill: Color.dsError, badgeText: .white, trailingIcon: "xmark")
         }
-        return OptionStyle(fill: base, borderColor: Color(.systemGray5), borderWidth: 1,
-                           badgeFill: Color(.systemGray5), badgeText: .secondary, trailingIcon: nil)
+        return OptionStyle(fill: base, borderColor: Color.dsBgTertiary, borderWidth: 1,
+                           badgeFill: Color.dsBgTertiary, badgeText: .secondary, trailingIcon: nil)
     }
 }
 

@@ -90,6 +90,7 @@ final class TeamAlertSyncCoordinator {
                     }
                 } catch {
                     Diagnostics.shared.record(.apiFailure, "alert push \(teamID): \(error.localizedDescription)")
+                    await self.auth.revalidateIfUnauthorizedWrite(error)
                 }
             }
         }

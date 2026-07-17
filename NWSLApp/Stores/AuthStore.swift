@@ -210,6 +210,24 @@ final class AuthStore {
         return deadSessionCodes.contains(authError.errorCode)
     }
 
+    /// A Tier-2 write (alert toggle / unfollow) came back Postgres 42501 while `userID` was still
+    /// cached ⇒ the request hit the DB as `anon` — the session had silently lapsed (dead token, no
+    /// valid JWT attached) even though offline-first keeps `currentUser` set. Nudge a revalidation
+    /// so a GENUINELY dead session is caught here (→ nils `currentUser` → the involuntary-sign-out
+    /// nudge) instead of the write just failing quietly; a still-live session (transient anon
+    /// window) makes `revalidateSession` a no-op. Cheap: guards on 42501 before touching the SDK.
+    func revalidateIfUnauthorizedWrite(_ error: any Error) async {
+        guard Self.isUnauthorizedWrite(error) else { return }
+        await revalidateSession()
+    }
+
+    /// True when a PostgREST write was denied at the PRIVILEGE level (Postgres 42501,
+    /// `insufficient_privilege`) — the tell that the request ran as `anon` (no valid session token),
+    /// distinct from an RLS-policy denial (which returns rows/empty, not this error).
+    nonisolated static func isUnauthorizedWrite(_ error: any Error) -> Bool {
+        (error as? PostgrestError)?.code == "42501"
+    }
+
     #if DEBUG
     /// `-simulateLostSession`: drop ONLY the local keychain session (before `restoreSession()`
     /// runs), leaving every UserDefaults toggle intact — reproduces exactly the field bug

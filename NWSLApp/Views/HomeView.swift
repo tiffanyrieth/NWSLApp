@@ -159,7 +159,7 @@ struct HomeView: View {
                     .foregroundStyle(Color.dsFgSecondary)
             }
             .frame(width: 32, height: 32)
-            .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
+            .overlay(Circle().stroke(Color.dsFgQuaternary, lineWidth: 1))
         }
         .accessibilityLabel("Profile")
     }
@@ -322,7 +322,7 @@ struct HomeView: View {
                 .dsFont(32)
                 .foregroundStyle(Color.dsFgSecondary)
             Text("Follow your teams to fill your home feed with their latest content.")
-                .font(.subheadline)
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
             Button("Choose your teams") { showTeamPicker = true }
@@ -338,21 +338,10 @@ struct HomeView: View {
     /// state. Distinct from `followPrompt` (which is only for genuinely-zero follows) so we never
     /// tell someone who already follows a team to "follow your teams."
     private func emptyFollowedContent(retry: @escaping () async -> Void) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: "tray")
-                .dsFont(28)
-                .foregroundStyle(Color.dsFgSecondary)
-            Text("No fresh posts from your teams right now.")
-                .font(.subheadline)
-                .foregroundStyle(Color.dsFgSecondary)
-                .multilineTextAlignment(.center)
-            Button("Retry") { Task { await retry() } }
-                .buttonStyle(.bordered)
+        RetryStateView(message: "No fresh posts from your teams right now.",
+                       retryLabel: "Retry", icon: "tray", style: .card) {
+            await retry()
         }
-        .padding(28)
-        .frame(maxWidth: .infinity)
-        .background(Color.dsBgCard)
-        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
     }
 
     /// Shown while Module-1 content is still fetching (after the hub's full-screen spinner
@@ -785,8 +774,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(title)
-                        .dsFont(20, weight: .bold)
-                        .foregroundStyle(Color.dsFgPrimary)
+                        .sectionTitle()
                     Spacer(minLength: 8)
                     accessory()
                 }
@@ -805,22 +793,9 @@ struct HomeView: View {
     /// content/spotlight fetch failure degrades that module alone — never the whole
     /// hub, and never to stale/seed content.
     private func moduleError(_ message: String, retry: @escaping () async -> Void) -> some View {
-        Button { Task { await retry() } } label: {
-            VStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle")
-                    .dsFont(22)
-                    .foregroundStyle(Color.dsFgSecondary)
-                Text(message)
-                    .dsFont(14, weight: .medium)
-                    .foregroundStyle(Color.dsFgSecondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 28)
-            .background(Color.dsBgCard)
-            .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
-            .contentShape(Rectangle())
+        RetryStateView(message: message, icon: "exclamationmark.triangle", style: .cardTappable) {
+            await retry()
         }
-        .buttonStyle(.plain)
     }
 
     // MARK: - State plumbing
@@ -845,15 +820,9 @@ struct HomeView: View {
     }
 
     private func errorView(_ message: String) -> some View {
-        VStack(spacing: 12) {
-            Text(message)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal)
-            Button("Try again") { Task { await reload() } }
-                .buttonStyle(.borderedProminent)
+        RetryStateView(message: message) {
+            await reload()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

@@ -212,7 +212,7 @@ struct TeamsView: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(Color.dsAccent, in: RoundedRectangle(cornerRadius: 10))
+                .background(Color.dsAccent, in: RoundedRectangle(cornerRadius: DS.radiusSm))
         }
         .onTapGesture { dismissAlertTooltip() }
         .accessibilityLabel("Manage your match alerts here. Tap the bell to open notification settings.")
@@ -231,7 +231,7 @@ struct TeamsView: View {
             // Only the crest + name open the club; the controls below are siblings.
             Button { path.append(club) } label: {
                 VStack(spacing: 9) {
-                    crest(for: club)
+                    TeamCrestGlow(club: club, size: 58)
                     Text(club.displayName)
                         .dsFont(14, weight: .semibold)
                         .foregroundStyle(Color.dsFgPrimary)
@@ -253,41 +253,9 @@ struct TeamsView: View {
         }
         .padding(EdgeInsets(top: 18, leading: 12, bottom: 13, trailing: 12))
         .frame(maxWidth: .infinity)
-        .background(cardBackground(for: club, isFollowing: isFollowing))
-        .overlay(
-            RoundedRectangle(cornerRadius: DS.radiusXl)
-                .stroke(isFollowing ? club.accentColor.opacity(0.4) : .clear, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl))
+        .teamTileSurface(club: club, isFollowing: isFollowing)
     }
 
-    // Ring-free crest with a soft team-color halo (a blurred color behind it — NOT a
-    // drop shadow, keeping the app's no-shadow rule). Real crest via TeamLogo.
-    private func crest(for club: Club) -> some View {
-        TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 58)
-            .background(
-                Circle()
-                    .fill(club.accentColor.opacity(0.22))
-                    .blur(radius: 14)
-            )
-    }
-
-    @ViewBuilder
-    private func cardBackground(for club: Club, isFollowing: Bool) -> some View {
-        if isFollowing {
-            // Team-color wash blooming from behind the crest, over the base card.
-            ZStack {
-                Color.dsBgCard
-                RadialGradient(
-                    colors: [club.accentColor.opacity(0.17), .clear],
-                    center: UnitPoint(x: 0.5, y: 0.32),
-                    startRadius: 0, endRadius: 115
-                )
-            }
-        } else {
-            Color.dsBgCard
-        }
-    }
 
     // The Follow/Following pill (flexes to fill) + a square match-alert bell that
     // only appears once the club is followed (alerts require following).
@@ -442,17 +410,9 @@ struct TeamsView: View {
     }
 
     private func errorView(_ message: String) -> some View {
-        VStack(spacing: 12) {
-            Text(message)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal)
-            Button("Try again") {
-                Task { await viewModel.load() }
-            }
-            .buttonStyle(.borderedProminent)
+        RetryStateView(message: message) {
+            await viewModel.load()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

@@ -64,6 +64,18 @@ extension Color {
     /// NOT red — red is reserved for live/error — a bright cyan "new" cue that clears on open.
     static let dsUnseen = Color(hex: "#32D6FF")
 
+    // MARK: Content voice categories (the CategoryPill on content cards)
+    /// The "what kind of voice" pill colors — NEWS / LEAGUE / REPORTER / PLAYER / CLUB
+    /// (from the Feed design mock). Their OWN semantic tokens: some values coincide with
+    /// other tokens (news == the success/final green, reporter == the accent blue) but they
+    /// are deliberately independent — a category color must never move because an unrelated
+    /// token (e.g. the fragile match-clock color) changed.
+    static let dsCategoryNews     = Color(hex: "#30D158")  // green
+    static let dsCategoryLeague   = Color(hex: "#32ADE6")  // cyan
+    static let dsCategoryReporter = Color(hex: "#0A84FF")  // blue
+    static let dsCategoryPlayer   = Color(hex: "#FF9F0A")  // orange
+    static let dsCategoryClub     = Color(hex: "#BF5AF2")  // purple
+
     // MARK: Dividers
     /// Hairline separator used inside cards/rows (`rgba(84,84,88,0.35)`).
     static let dsSeparator = Color(red: 84/255, green: 84/255, blue: 88/255, opacity: 0.35)

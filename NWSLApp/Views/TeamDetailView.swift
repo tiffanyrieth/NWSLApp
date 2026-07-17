@@ -184,7 +184,7 @@ struct TeamDetailView: View {
             VStack(alignment: .leading, spacing: 9) {
                 Text("OFFICIAL")
                     .dsFont(11, weight: .semibold).tracking(0.5)
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
                     .padding(.horizontal, 16)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -205,7 +205,7 @@ struct TeamDetailView: View {
                     Spacer()
                     Text("FAN-RUN · UNOFFICIAL")
                         .dsFont(10, weight: .semibold).tracking(0.4)
-                        .foregroundStyle(Color.dsFgTertiary)
+                        .foregroundStyle(Color.dsFgSecondary)
                 }
                 HStack(spacing: 8) {
                     ForEach(community) { linkChip($0) }
@@ -232,7 +232,7 @@ struct TeamDetailView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: socialGlyphSize, height: socialGlyphSize)
-                    .foregroundStyle(platformColor(link.platform))
+                    .foregroundStyle(platformStyle(link.platform))
                 Text(link.platform.label)
                     .dsFont(13, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
@@ -247,14 +247,15 @@ struct TeamDetailView: View {
     }
 
     // Per-platform brand tint, used ONLY for the link-pill glyphs above (recognizable
-    // destinations). Nowhere else — in-app chrome uses the club accent.
-    private func platformColor(_ platform: SocialPlatform) -> Color {
+    // destinations). Nowhere else — in-app chrome uses the club accent. Resolves through
+    // the single `PlatformBrand` source (so Instagram tints with its real gradient).
+    private func platformStyle(_ platform: SocialPlatform) -> AnyShapeStyle {
         switch platform {
-        case .instagram: return Color(hex: "E1306C")
-        case .bluesky:   return Color(hex: "1185FE")
-        case .youtube:   return Color(hex: "FF3B30")
-        case .tiktok:    return Color(hex: "25C9D6")
-        case .reddit:    return Color(hex: "FF4500")
+        case .instagram: return PlatformBrand.instagram
+        case .bluesky:   return PlatformBrand.bluesky
+        case .youtube:   return PlatformBrand.youtube
+        case .tiktok:    return PlatformBrand.tiktok
+        case .reddit:    return PlatformBrand.reddit
         }
     }
 
@@ -267,7 +268,7 @@ struct TeamDetailView: View {
                     VStack(spacing: 8) {
                         Text(sec.rawValue.uppercased())
                             .dsFont(12, weight: .semibold).tracking(1)
-                            .foregroundStyle(section == sec ? Color.dsFgPrimary : Color.dsFgTertiary)
+                            .foregroundStyle(section == sec ? Color.dsFgPrimary : Color.dsFgSecondary)
                         Rectangle()
                             .fill(section == sec ? accent : .clear)
                             .frame(height: 2)
@@ -302,13 +303,9 @@ struct TeamDetailView: View {
     }
 
     private func sectionError(_ message: String) -> some View {
-        VStack(spacing: 8) {
-            Text(message)
-                .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            Button("Try again") { Task { await viewModel.load(clubID: club.id) } }
-                .buttonStyle(.bordered)
+        RetryStateView(message: message, style: .inline) {
+            await viewModel.load(clubID: club.id)
         }
-        .frame(maxWidth: .infinity).padding(.top, 40).padding(.horizontal, 32)
     }
 
     // MARK: - Squad (grouped player cards)

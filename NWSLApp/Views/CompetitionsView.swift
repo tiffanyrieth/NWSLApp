@@ -197,7 +197,7 @@ struct CompetitionsView: View {
     private func subSection<Content: View>(_ title: String,
                                            @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).trackedCaps(size: 11, tracking: 0.6, weight: .semibold, color: .dsFgTertiary)
+            Text(title).trackedCaps(size: 11, tracking: 0.6, weight: .semibold, color: .dsFgSecondary)
             content()
         }
     }
@@ -209,15 +209,9 @@ struct CompetitionsView: View {
     }
 
     private var retryView: some View {
-        VStack(spacing: 10) {
-            Text("Couldn't load teams — tap to retry")
-                .dsFont(13)
-                .foregroundStyle(Color.dsFgSecondary)
-            Button("Try again") { Task { await store.load() } }
-                .buttonStyle(.borderedProminent)
+        RetryStateView(message: "Couldn't load teams — tap to retry", style: .inline) {
+            await store.load()
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 32)
     }
 
     private func filter(_ teams: [NationalTeam]) -> [NationalTeam] {
@@ -235,7 +229,7 @@ struct CompetitionsView: View {
     private func section<Content: View>(_ title: String,
                                         @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).trackedCaps(size: 11, tracking: 0.6, weight: .semibold, color: .dsFgTertiary)
+            Text(title).trackedCaps(size: 11, tracking: 0.6, weight: .semibold, color: .dsFgSecondary)
             content()
         }
     }

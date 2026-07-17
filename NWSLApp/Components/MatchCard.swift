@@ -37,7 +37,7 @@ struct MatchCard: View {
                 Text(label.uppercased())
                     .dsFont(10, weight: .bold)
                     .tracking(0.6)
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack(alignment: .center, spacing: 0) {
@@ -209,17 +209,10 @@ struct MatchCard: View {
     // Team colors resolved by abbreviation via the design palette — the same
     // authoritative source as Standings (the scoreboard competitor carries no
     // color of its own).
-    private var homeColor: Color { teamColor(event.homeCompetitor) }
-    private var awayColor: Color { teamColor(event.awayCompetitor) }
-
-    private func teamColor(_ competitor: Competitor?) -> Color {
-        // NWSL clubs, women's national teams, and known Champions Cup foreign clubs get
-        // their brand color; anything still unknown renders NEUTRAL gray.
-        guard let hex = DesignTeamColors.displayHex(for: competitor?.team?.abbreviation) else {
-            return Color(hex: "8E8E93")
-        }
-        return Color.teamFillOnDark(hex: hex)
-    }
+    // NWSL clubs, women's national teams, and known Champions Cup foreign clubs get
+    // their brand color; anything still unknown renders NEUTRAL gray (Color.teamColor).
+    private var homeColor: Color { Color.teamColor(for: event.homeCompetitor) }
+    private var awayColor: Color { Color.teamColor(for: event.awayCompetitor) }
 
     private var kickoffTimeText: String {
         guard let kickoff = event.kickoff else { return "—" }

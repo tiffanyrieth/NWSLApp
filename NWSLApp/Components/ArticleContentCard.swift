@@ -95,9 +95,11 @@ struct ArticleContentCard: View {
     /// Home: one meta row — the green NEWS pill + timestamp, no source/club name (the team
     /// is already carried by the color bar + abbr chip + "Read on …" link). The team code
     /// rides bottom-left: on the media when there's an image, else on the CTA footer row.
+    /// Home article cards are always news articles, so the pill is always `.news` — rendered
+    /// through the shared CategoryPill (was a hand-coded duplicate).
     private var legacyHeader: some View {
         HStack(spacing: 8) {
-            newsPill
+            CategoryPill(sourceType: .news)
             Spacer(minLength: 8)
             Text(card.timestamp.relativeAgo)
                 .dsFont(11)
@@ -105,25 +107,6 @@ struct ArticleContentCard: View {
         }
     }
 
-    private var newsPill: some View {
-        Text("NEWS")
-            .dsFont(9.5, weight: .bold)
-            .tracking(0.4)
-            .foregroundStyle(Color.dsStateFinal)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 1)
-            .background(Color.dsStateFinal.opacity(0.16), in: Capsule())
-    }
-
-    private func teamPill(_ abbr: String) -> some View {
-        Text(abbr)
-            .dsFont(10.5, weight: .bold)
-            .tracking(0.3)
-            .foregroundStyle(teamColor)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 2)
-            .background(teamColor.opacity(0.13), in: Capsule())
-    }
 
     // MARK: - Full-width article image (matches the card's inner radius)
 
@@ -162,7 +145,7 @@ struct ArticleContentCard: View {
     private var footerRow: some View {
         HStack(spacing: 10) {
             if !hideTeamIdentity, !hasImage, let abbr = card.teamAbbreviation {
-                teamPill(abbr)
+                TeamAbbrPill(abbr: abbr, color: teamColor)
             }
             readOnOutlet
             Spacer(minLength: 0)

@@ -84,9 +84,9 @@ struct FeedSourcesView: View {
         return Toggle(isOn: shown) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(source.name)
-                    .font(.subheadline.weight(.semibold))
+                    .dsFont(15, weight: .semibold)
                 Text(source.detail)
-                    .font(.caption)
+                    .dsFont(12)
                     .foregroundStyle(.secondary)
             }
         }

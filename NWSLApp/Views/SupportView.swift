@@ -137,9 +137,9 @@ struct SupportView: View {
             .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
             .padding(14)
             .background(isSelected ? pink.opacity(0.12) : Color.dsBgCard)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous)
                     .stroke(isSelected ? pink : Color.clear, lineWidth: 1.5)
             )
         }
@@ -150,25 +150,12 @@ struct SupportView: View {
         let enabled = selected != nil
         let busy = store.purchasing != nil
         return VStack(spacing: 10) {
-            Button {
+            DSButton(ctaLabel,
+                     style: .gradient(AnyShapeStyle(pinkGradient)),
+                     isEnabled: enabled,
+                     isLoading: busy) {
                 if let tier = selected { Task { await store.purchase(tier, monthly: monthly) } }
-            } label: {
-                Group {
-                    if busy {
-                        ProgressView().tint(.white)
-                    } else {
-                        Text(ctaLabel)
-                            .dsFont(16, weight: .semibold)
-                            .foregroundStyle(enabled ? .white : Color.dsFgTertiary)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 15)
-                .background(enabled ? AnyShapeStyle(pinkGradient) : AnyShapeStyle(Color.dsBgCard))
-                .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
             }
-            .buttonStyle(.plain)
-            .disabled(!enabled || busy)
 
             // Honest outcome for a failed/unverified/pending purchase or a restore error —
             // so a non-success NEVER silently looks like nothing happened (or a fake success).
@@ -235,7 +222,7 @@ struct SupportView: View {
     private var footer: some View {
         Text("NWSLApp will always be free. Supporters get no extra features — just the knowledge that you're helping grow women's soccer.")
             .dsFont(11)
-            .foregroundStyle(Color.dsFgQuaternary)
+            .foregroundStyle(Color.dsFgSecondary)
             .multilineTextAlignment(.center)
             .padding(.horizontal, 8)
     }

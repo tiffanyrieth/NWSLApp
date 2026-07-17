@@ -40,9 +40,9 @@ struct PlayoffMatchupRow: View {
     var body: some View {
         VStack(spacing: 13) {
             HStack(alignment: .center, spacing: 0) {
-                side(matchup.home, club: homeClub, color: teamColor(matchup.home.abbreviation))
+                side(matchup.home, club: homeClub, color: Color.teamColor(for: matchup.home.abbreviation))
                 centerColumn
-                side(matchup.away, club: awayClub, color: teamColor(matchup.away.abbreviation))
+                side(matchup.away, club: awayClub, color: Color.teamColor(for: matchup.away.abbreviation))
             }
             if hasRail { rail }
         }
@@ -69,7 +69,7 @@ struct PlayoffMatchupRow: View {
         .overlay {
             if let yours = yoursAbbr {
                 RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous)
-                    .strokeBorder(teamColor(yours).opacity(0.45), lineWidth: 1)
+                    .strokeBorder(Color.teamColor(for: yours).opacity(0.45), lineWidth: 1)
             }
         }
         .onAppear { if matchup.state == .live { pulse = true } }
@@ -243,17 +243,7 @@ struct PlayoffMatchupRow: View {
         return formatter.string(from: kickoff)
     }
 
-    /// Team color per MatchCard's convention: DesignTeamColors by abbreviation, adjusted for
-    /// dark backgrounds; unknown → neutral gray. (NOT club.accentColor — this is the match-
-    /// surface source of truth.)
-    private func teamColor(_ abbreviation: String?) -> Color {
-        guard let hex = DesignTeamColors.displayHex(for: abbreviation) else {
-            return Color(hex: "8E8E93")
-        }
-        return Color.teamFillOnDark(hex: hex)
-    }
-
     private func washColor(_ bside: BracketSide) -> Color {
-        bside.isTBD ? Color(hex: "8E8E93") : teamColor(bside.abbreviation)
+        bside.isTBD ? .dsFgSecondary : Color.teamColor(for: bside.abbreviation)
     }
 }

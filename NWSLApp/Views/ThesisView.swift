@@ -46,21 +46,17 @@ struct ThesisView: View {
                     systemImage: "bell.fill"
                 )
                 .dsFont(14)
-                .foregroundStyle(Color.dsFgTertiary)
+                .foregroundStyle(Color.dsFgSecondary)
                 .padding(.top, 18)
             }
 
             Spacer(minLength: 0)
 
-            Button(action: onContinue) {
-                Text("Let's go →")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .padding(.horizontal, 24)
-            .padding(.bottom, 24)
+            // Same DSButton (filled, .regular) as the onboarding CTA — so the primary
+            // action doesn't change style or size across the picker → thesis transition.
+            DSButton("Let's go →", action: onContinue)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.dsBgGrouped.ignoresSafeArea())
@@ -77,7 +73,6 @@ struct ThesisView: View {
                 TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 56)
                     .padding(5)
                     .background(Color.dsBgCard, in: Circle())
-                    .overlay(Circle().stroke(club.accentColor, lineWidth: 2))
             }
             if extra > 0 {
                 Text("+\(extra)")
@@ -85,7 +80,6 @@ struct ThesisView: View {
                     .foregroundStyle(Color.dsFgSecondary)
                     .frame(width: 56, height: 56)
                     .background(Color.dsBgCard, in: Circle())
-                    .overlay(Circle().stroke(Color.dsFgQuaternary, lineWidth: 2))
             }
         }
     }

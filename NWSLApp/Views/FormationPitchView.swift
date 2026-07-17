@@ -64,7 +64,7 @@ struct FormationPitchView: View {
 
     private var pitch: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: DS.radiusMd)
                 .fill(
                     LinearGradient(
                         colors: [.dsPitch, .dsPitchBottom],
@@ -89,7 +89,7 @@ struct FormationPitchView: View {
                     .position(x: w / 2, y: h / 2)
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(line, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: DS.radiusMd).stroke(line, lineWidth: 1))
     }
 
     // MARK: - Layout

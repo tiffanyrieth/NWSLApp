@@ -83,7 +83,7 @@ struct ComingUpRow: View {
         HStack(spacing: 5) {
             Circle().fill(Color.dsLive).frame(width: 7, height: 7)
             Text("LIVE")
-                .font(.caption.weight(.bold))
+                .dsFont(12, weight: .bold)
                 .foregroundStyle(Color.dsLive)
         }
     }

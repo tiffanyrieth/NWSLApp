@@ -18,7 +18,7 @@ struct MDInfoCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(label)
-                .trackedCaps(size: 10, tracking: 0.6, color: .dsFgTertiary)
+                .trackedCaps(size: 10, tracking: 0.6, color: .dsFgSecondary)
             Text(value)
                 .dsFont(13, weight: .semibold)
                 .foregroundStyle(Color.dsFgPrimary)
@@ -30,7 +30,7 @@ struct MDInfoCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(Color.dsBgCard)
-        .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
+        .background(Color.dsMdCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
     }
 }

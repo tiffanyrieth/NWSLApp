@@ -66,7 +66,7 @@ struct ProfileView: View {
                 // propagate as the back-button label on pushed children (SupportView) —
                 // those get a bare ‹ chevron + their own centered title. Same centered look.
                 ToolbarItem(placement: .principal) {
-                    Text("Profile").font(.headline).foregroundStyle(Color.dsFgPrimary)
+                    Text("Profile").dsFont(17, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
@@ -128,16 +128,19 @@ struct ProfileView: View {
                 }
                 NavigationLink { NotificationsView() } label: { notificationsRow }
                     .buttonStyle(.plain)
+                #if DEBUG
+                // Diagnostics entry is DEBUG-only — never ships to TestFlight or the App Store
+                // (it surfaces device_id/token internals). Gated here + at the view + at diagnosticsRow.
                 rowDivider
-                // TEMP diagnostics entry — remove with NotifTrace once the token pipeline is proven.
                 NavigationLink { NotificationDiagnosticsView() } label: { diagnosticsRow }
                     .buttonStyle(.plain)
+                #endif
             }
             .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
             Text("Match alerts, alert types, and activity — all in one place.")
                 .dsFont(11)
-                .foregroundStyle(Color.dsFgQuaternary)
+                .foregroundStyle(Color.dsFgSecondary)
                 .padding(.horizontal, 4)
         }
     }
@@ -159,7 +162,7 @@ struct ProfileView: View {
                     .foregroundStyle(Color.dsFgPrimary)
                 Text("Shown on leaderboards")
                     .dsFont(11)
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
             Spacer(minLength: 8)
             Text(auth.displayName ?? "Set username")
@@ -315,7 +318,7 @@ struct ProfileView: View {
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
             if let signInError {
                 Text(signInError)
-                    .font(.footnote)
+                    .dsFont(13)
                     .foregroundStyle(Color.dsError)
                     .multilineTextAlignment(.center)
             }
@@ -475,7 +478,7 @@ struct ProfileView: View {
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
             Text("Signing out keeps your follows on this device. Your Fan Zone points and rank stay with your account.")
                 .dsFont(11)
-                .foregroundStyle(Color.dsFgQuaternary)
+                .foregroundStyle(Color.dsFgSecondary)
                 .padding(.horizontal, 4)
         }
     }
@@ -518,7 +521,8 @@ struct ProfileView: View {
             .padding(.leading, 16)
     }
 
-    // TEMP diagnostics entry (remove with NotifTrace once the token pipeline is proven).
+    #if DEBUG
+    // Diagnostics entry row — DEBUG-only (see the gated NavigationLink in settingsSection).
     private var diagnosticsRow: some View {
         HStack(spacing: 12) {
             ZStack {
@@ -537,11 +541,12 @@ struct ProfileView: View {
         .padding(.vertical, 13)
         .contentShape(Rectangle())
     }
+    #endif
 
     private var versionLabel: some View {
         Text("NWSLApp \(appVersion)")
             .dsFont(11)
-            .foregroundStyle(Color.dsFgQuaternary)
+            .foregroundStyle(Color.dsFgTertiary)
             .frame(maxWidth: .infinity)
     }
 

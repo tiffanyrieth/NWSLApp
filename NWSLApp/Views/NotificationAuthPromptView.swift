@@ -43,10 +43,10 @@ struct NotificationAuthPromptView: View {
 
             VStack(spacing: 10) {
                 Text("Live alerts need a sign-in")
-                    .font(.title2.weight(.bold))
+                    .dsFont(22, weight: .bold)
                     .multilineTextAlignment(.center)
                 Text("These run through Apple's notification system, which needs a signed-in account to know where to send them.")
-                    .font(.subheadline)
+                    .dsFont(15)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
@@ -54,7 +54,7 @@ struct NotificationAuthPromptView: View {
 
             if let errorMessage {
                 Text(errorMessage)
-                    .font(.footnote)
+                    .dsFont(13)
                     .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
             }
@@ -69,10 +69,10 @@ struct NotificationAuthPromptView: View {
                 }
                 .signInWithAppleButtonStyle(.white)
                 .frame(height: 50)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
 
                 Button("Not now") { dismiss() }
-                    .font(.subheadline.weight(.semibold))
+                    .dsFont(15, weight: .semibold)
                     .foregroundStyle(.secondary)
             }
         }

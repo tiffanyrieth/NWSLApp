@@ -35,7 +35,8 @@ enum DS {
     static let sectionGap: CGFloat = 28
     /// Gap between cards in a list.
     static let cardGap: CGFloat = 12
-    /// MatchCard internal padding (h == v here at 16).
+    /// Standard card interior padding. (MatchCard/PlayoffMatchupRow deliberately run a
+    /// tighter 14 — DS.space7 — for their denser two-team layout.)
     static let cardPadding: CGFloat = 16
     static let chipPaddingH: CGFloat = 14
     static let chipPaddingV: CGFloat = 8

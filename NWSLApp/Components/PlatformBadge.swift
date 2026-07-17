@@ -25,30 +25,17 @@ struct PlatformBadge: View {
             .fill(fill)
             .frame(width: size, height: size)
             .overlay { glyph }
-            .overlay {
-                // TikTok's badge is black — a hairline keeps it from vanishing on
-                // the dark card.
-                if platform == .tiktok {
-                    RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)
-                        .stroke(Color(hex: "#333333"), lineWidth: 1)
-                }
-            }
     }
 
+    /// Brand fill from the single `PlatformBrand` source (Instagram is a gradient).
     private var fill: AnyShapeStyle {
         switch platform {
-        case .instagram:
-            // Instagram's 45° brand gradient (purple → magenta → amber).
-            return AnyShapeStyle(LinearGradient(
-                colors: [Color(hex: "#515BD4"), Color(hex: "#8134AF"),
-                         Color(hex: "#DD2A7B"), Color(hex: "#FEDA77")],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            ))
-        case .youtube:   return AnyShapeStyle(Color(hex: "#FF0000"))
-        case .bluesky:   return AnyShapeStyle(Color(hex: "#0085FF"))
-        case .tiktok:    return AnyShapeStyle(Color(hex: "#000000"))
-        case .article:   return AnyShapeStyle(Color(hex: "#636366"))
-        case .reddit:    return AnyShapeStyle(Color(hex: "#FF4500"))
+        case .instagram: return PlatformBrand.instagram
+        case .youtube:   return PlatformBrand.youtube
+        case .bluesky:   return PlatformBrand.bluesky
+        case .tiktok:    return PlatformBrand.tiktok
+        case .article:   return PlatformBrand.article
+        case .reddit:    return PlatformBrand.reddit
         }
     }
 

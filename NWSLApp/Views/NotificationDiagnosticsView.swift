@@ -12,6 +12,7 @@
 import SwiftUI
 import UserNotifications
 
+#if DEBUG
 struct NotificationDiagnosticsView: View {
     @Environment(AuthStore.self) private var auth
     @State private var trace = NotifTrace.shared
@@ -97,3 +98,4 @@ struct NotificationDiagnosticsView: View {
         .padding(.horizontal, 16)
     }
 }
+#endif

@@ -143,8 +143,8 @@ struct MatchDetailView: View {
     }
 
     // ALL-CAPS labels with a sliding colored underline on the active tab — no
-    // segmented-control chrome (matches the mockup). Underline is the home team's
-    // color, or red while live.
+    // segmented-control chrome (matches the mockup). Underline uses the match-state
+    // accent: cyan (dsStateKickoff) for a past recap, orange (dsStateClock) while live.
     private var tabBar: some View {
         HStack(spacing: 0) {
             ForEach(visibleTabs, id: \.self) { item in
@@ -153,7 +153,7 @@ struct MatchDetailView: View {
                         Text(tabLabel(item).uppercased())
                             .dsFont(12, weight: .semibold)
                             .tracking(1)
-                            .foregroundStyle(effectiveTab == item ? Color.dsFgPrimary : Color.dsFgTertiary)
+                            .foregroundStyle(effectiveTab == item ? Color.dsFgPrimary : Color.dsFgSecondary)
                         ZStack {
                             Rectangle().fill(.clear).frame(height: 2)
                             if effectiveTab == item {
@@ -206,7 +206,7 @@ struct MatchDetailView: View {
 
                 if temporalState == .live {
                     Text("Updates every ~60 seconds")
-                        .font(.caption2)
+                        .dsFont(11)
                         .foregroundStyle(.tertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 8)
@@ -263,12 +263,12 @@ struct MatchDetailView: View {
                 .padding(.horizontal, 14)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.dsBgCard)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
             }
 
             if let officials = officialsText(summary) {
                 Text(officials)
-                    .font(.caption2)
+                    .dsFont(11)
                     .foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -301,9 +301,9 @@ struct MatchDetailView: View {
 
     // MARK: - Lineups tab (starters + substitutes)
     //
-    // Task #3 will add a FormationPitchView above the starters list for known
-    // formation strings; this list rendering stays as the permanent fallback for
-    // unknown formations (never a broken pitch).
+    // A FormationPitchView renders above the starters list for known formation
+    // strings; this list rendering is the permanent fallback for unknown formations
+    // (never a broken pitch).
 
     @ViewBuilder
     private func lineupsTab(_ summary: MatchSummary) -> some View {
@@ -349,7 +349,7 @@ struct MatchDetailView: View {
             .padding()
             .frame(maxWidth: .infinity)
             .background(Color.dsBgCard)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
     }
 
     private func substitutesCard(_ roster: MatchRoster) -> some View {
@@ -357,7 +357,7 @@ struct MatchDetailView: View {
             // "BENCH" — the unused/used substitutes. ("Substitutes" was a mislabel for
             // a finished match: it's the bench, not who came on.)
             Text("\((roster.team?.displayName ?? roster.team?.abbreviation ?? "—").uppercased()) BENCH")
-                .font(.caption.weight(.semibold))
+                .dsFont(12, weight: .semibold)
                 .tracking(0.5)
                 .foregroundStyle(.secondary)
             FlowLayout(spacing: 6) {
@@ -369,7 +369,7 @@ struct MatchDetailView: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.dsBgCard)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
     }
 
     private func rosterBlock(_ roster: MatchRoster) -> some View {
@@ -377,7 +377,7 @@ struct MatchDetailView: View {
         return VStack(alignment: .leading, spacing: 12) {
             // One centered, uppercased line: "WASHINGTON SPIRIT — 4-2-3-1".
             Text(formationHeader(roster))
-                .font(.caption.weight(.semibold))
+                .dsFont(12, weight: .semibold)
                 .tracking(0.5)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -401,7 +401,7 @@ struct MatchDetailView: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.dsBgCard)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
     }
 
     private func formationHeader(_ roster: MatchRoster) -> String {
@@ -415,7 +415,7 @@ struct MatchDetailView: View {
     private func substituteChips(_ subs: [MatchPlayer]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("BENCH")
-                .font(.caption.weight(.semibold))
+                .dsFont(12, weight: .semibold)
                 .tracking(0.5)
                 .foregroundStyle(.secondary)
             FlowLayout(spacing: 6) {
@@ -429,11 +429,11 @@ struct MatchDetailView: View {
     private func substituteChip(_ player: MatchPlayer) -> some View {
         HStack(spacing: 4) {
             Text(player.jersey ?? "–")
-                .font(.caption2.weight(.bold))
+                .dsFont(11, weight: .bold)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
             Text(subLastName(player))
-                .font(.caption2)
+                .dsFont(11)
             if player.didSubIn {
                 Image(systemName: "arrow.up.circle.fill")
                     .dsFont(9)
@@ -442,7 +442,7 @@ struct MatchDetailView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Color(.tertiarySystemFill), in: Capsule())
+        .background(Color.dsBgTertiary, in: Capsule())
     }
 
     private func subLastName(_ player: MatchPlayer) -> String {
@@ -456,32 +456,32 @@ struct MatchDetailView: View {
     private func lineupList(_ title: String, players: [MatchPlayer]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title.uppercased())
-                .font(.caption.weight(.semibold))
+                .dsFont(12, weight: .semibold)
                 .tracking(0.5)
                 .foregroundStyle(.secondary)
             ForEach(Array(players.enumerated()), id: \.offset) { _, player in
                 HStack(spacing: 10) {
                     Text(player.jersey ?? "–")
-                        .font(.caption.weight(.bold))
+                        .dsFont(12, weight: .bold)
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                         .frame(width: 24, alignment: .trailing)
                     Text(player.athlete?.displayName ?? "—")
-                        .font(.subheadline)
+                        .dsFont(15)
                     if player.didSubOut {
                         Image(systemName: "arrow.down.circle.fill")
-                            .font(.caption2)
+                            .dsFont(11)
                             .foregroundStyle(.red.opacity(0.7))
                     }
                     if player.didSubIn {
                         Image(systemName: "arrow.up.circle.fill")
-                            .font(.caption2)
+                            .dsFont(11)
                             .foregroundStyle(.green.opacity(0.7))
                     }
                     Spacer(minLength: 0)
                     if let pos = player.position?.abbreviation {
                         Text(pos)
-                            .font(.caption2)
+                            .dsFont(11)
                             .foregroundStyle(.tertiary)
                     }
                 }
@@ -506,7 +506,7 @@ struct MatchDetailView: View {
                     Text(summary.awayBoxscore?.team?.abbreviation ?? "—")
                         .foregroundStyle(matchColors.away.fill)
                 }
-                .font(.caption.weight(.bold))
+                .dsFont(12, weight: .bold)
 
                 VStack(spacing: 18) {
                     ForEach(rows) { row in
@@ -522,7 +522,7 @@ struct MatchDetailView: View {
             .padding()
             .frame(maxWidth: .infinity)
             .background(Color.dsBgCard)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
             .padding()
         }
     }
@@ -654,7 +654,7 @@ struct MatchDetailView: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.dsBgCard)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
         .padding(.horizontal, 20)
     }
 
@@ -690,7 +690,7 @@ struct MatchDetailView: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.dsBgCard)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
         .padding(.horizontal, 20)
     }
 
@@ -700,7 +700,7 @@ struct MatchDetailView: View {
             Spacer(minLength: 8)
             if form.recent.isEmpty {
                 Text("No matches yet")
-                    .font(.caption)
+                    .dsFont(12)
                     .foregroundStyle(.secondary)
             } else {
                 HStack(spacing: 5) {
@@ -857,7 +857,7 @@ struct MatchDetailView: View {
                 .opacity(pulse ? 0.3 : 1)
                 .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: pulse)
             Text("LIVE")
-                .font(.caption.weight(.bold))
+                .dsFont(12, weight: .bold)
                 .foregroundStyle(Color.dsStateLive)
         }
         .onAppear { pulse = true }
@@ -955,7 +955,7 @@ struct MatchDetailView: View {
                     .minimumScaleFactor(0.5)
                 if let date = dateHeadline {
                     Text(date)
-                        .font(.caption)
+                        .dsFont(12)
                         .foregroundStyle(Color.dsFgSecondary)
                         .multilineTextAlignment(.center)
                 }
@@ -968,24 +968,14 @@ struct MatchDetailView: View {
     // MARK: - Small shared pieces
 
     private func summaryError(_ message: String) -> some View {
-        VStack(spacing: 8) {
-            Text(message)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Button("Try again") {
-                Task { await viewModel.loadSummary() }
-            }
-            .buttonStyle(.bordered)
+        RetryStateView(message: message, style: .inline) {
+            await viewModel.loadSummary()
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 40)
-        .padding(.horizontal, 32)
     }
 
     private func emptyState(_ message: String) -> some View {
         Text(message)
-            .font(.callout)
+            .dsFont(16)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity)
             .padding(.top, 40)
@@ -1046,10 +1036,7 @@ struct MatchDetailView: View {
     /// women's national team, or known Champions Cup foreign club), else neutral gray
     /// (mirrors MatchCard.teamColor).
     private func sideColor(_ competitor: Competitor?) -> ResolvedTeamColor {
-        guard let hex = DesignTeamColors.displayHex(for: competitor?.team?.abbreviation) else {
-            return ResolvedTeamColor(fill: Color(hex: "8E8E93"), onText: .white)
-        }
-        return ResolvedTeamColor(fill: Color.teamFillOnDark(hex: hex), onText: .white)
+        ResolvedTeamColor(fill: Color.teamColor(for: competitor), onText: .white)
     }
 
     /// Header wash respects "no tint until the summary's colors arrive" (the resolver

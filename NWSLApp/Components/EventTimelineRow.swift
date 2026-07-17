@@ -82,7 +82,7 @@ struct EventTimelineRow: View {
                     ],
                     startPoint: .leading, endPoint: .trailing
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DS.radiusSm, style: .continuous))
             }
         }
     }

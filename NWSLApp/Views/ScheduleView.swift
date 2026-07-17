@@ -447,16 +447,16 @@ struct ScheduleView: View {
                 .dsFont(40)
                 .foregroundStyle(.secondary)
             Text("Follow your teams to see their matches here")
-                .font(.headline)
+                .dsFont(17, weight: .semibold)
                 .multilineTextAlignment(.center)
             Text("Tap the star on any club in the Teams tab.")
-                .font(.subheadline)
+                .dsFont(15)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
         .padding(.horizontal, 32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgGrouped)
     }
 
     // A filter that resolves to no matches (e.g. all of a followed team's games
@@ -469,25 +469,17 @@ struct ScheduleView: View {
             // Honest + contextual: a followed team (incl. a sparse national team) with no fixtures
             // in the season feed reads as a real "no matches" state, never a blank screen.
             Text(selectedFilter == .myTeams ? "No matches for your teams yet" : "No matches to show")
-                .font(.headline)
+                .dsFont(17, weight: .semibold)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgGrouped)
     }
 
     private func errorView(_ message: String, retry: @escaping () async -> Void) -> some View {
-        VStack(spacing: 12) {
-            Text(message)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal)
-            Button("Try again") {
-                Task { await retry() }
-            }
-            .buttonStyle(.borderedProminent)
+        RetryStateView(message: message) {
+            await retry()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
 }
@@ -612,7 +604,7 @@ private struct ClinchStatusCard: View {
                 .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
         case .eliminated:
             Text("Out of the playoff race")
-                .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
+                .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
         }
     }
 }

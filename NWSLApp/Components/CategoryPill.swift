@@ -42,11 +42,11 @@ struct CategoryPill: View {
 
     private var color: Color {
         switch sourceType {
-        case .news:     return Color(hex: "#30D158")   // green
-        case .league:   return Color(hex: "#32ADE6")   // cyan
-        case .reporter: return Color(hex: "#0A84FF")   // blue
-        case .player:   return Color(hex: "#FF9F0A")   // orange
-        case .club:     return Color(hex: "#BF5AF2")   // purple
+        case .news:     return .dsCategoryNews
+        case .league:   return .dsCategoryLeague
+        case .reporter: return .dsCategoryReporter
+        case .player:   return .dsCategoryPlayer
+        case .club:     return .dsCategoryClub
         }
     }
 }

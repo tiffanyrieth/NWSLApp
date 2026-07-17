@@ -108,6 +108,17 @@ final class XIPickerViewModel {
         slots[slotIndex] = athlete
     }
 
+    /// Beginner-friendly quick-fill: a RANDOM formation + a distinct random player in every
+    /// slot. Truly random by design — position-blind, so a keeper can land up top; it's a
+    /// starting point to tweak, not a suggestion. Leaves the predicted scoreline untouched.
+    func autoPick() {
+        guard !readOnly, !roster.isEmpty else { return }
+        formation = Formation.common.randomElement() ?? formation
+        let indices = formation.slots.map(\.index)
+        let picks = roster.shuffled().prefix(indices.count)
+        slots = Dictionary(uniqueKeysWithValues: zip(indices, picks))
+    }
+
     func clear(_ slotIndex: Int) {
         guard !readOnly else { return }
         slots[slotIndex] = nil

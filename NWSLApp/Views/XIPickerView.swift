@@ -107,7 +107,25 @@ struct XIPickerView: View {
 
     private var formationSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("FORMATION").dsFont(12, weight: .bold).foregroundStyle(.secondary)
+            HStack {
+                Text("FORMATION").dsFont(12, weight: .bold).foregroundStyle(.secondary)
+                Spacer()
+                if !picker.readOnly {
+                    // Quick-fill helper: random formation + random XI (score untouched). Re-tap
+                    // to re-roll. Placed here because it also sets the formation.
+                    Button {
+                        withAnimation(.snappy) { picker.autoPick() }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "wand.and.stars")
+                            Text("Auto-pick")
+                        }
+                        .dsFont(13, weight: .semibold)
+                        .foregroundStyle(accent)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(Formation.common) { formation in

@@ -200,7 +200,9 @@ the user turns on exactly what they want. **Nuance (owner, match-alerts):** an E
 bell tap IS the opt-in, so it CASCADES the full default bundle the first time (day-before + kickoff +
 goals + halftime + full-time + lineups + Live Activities via `applyMatchAlertDefaultsIfFirstTime`) — a complete
 feature makes the best first impression; a bell-on-nothing-fires state is the banned "silent failure
-that looks like success." First-time only (a sentinel respects later manual edits; reset on sign-out).
+that looks like success." First-time only (a sentinel respects later manual edits; the sentinel resets
+on account-delete only — since 2026-07-16 a plain sign-out PRESERVES prefs + this sentinel and restores
+the exact prior toggles on re-sign-in, so no re-cascade).
 Because the bundle is mostly Tier-2, a signed-out bell tap presents Sign in with Apple FIRST
 (intercept: success → enable+cascade+toast, cancel → bell stays off). **Tier 1** = deliverable without
 an account (local: day-before, Player Spotlight — ⚠️ iOS caps PENDING local notifications at 64/app:

@@ -108,7 +108,7 @@ struct KnowHerPickerView: View {
 
     private func playerRow(_ player: KnowHerPlayer) -> some View {
         let played = store.isPlayed(player)
-        let teamColor = DesignTeamColors.displayHex(for: player.teamAbbreviation).map { Color(hex: $0) } ?? accent
+        let teamColor = Color.teamColor(for: player.teamAbbreviation, liftOnDark: false, fallback: accent)
         return Button {
             if played {
                 activeEntry = .current(player)   // straight to the result recap (already signed in)
@@ -182,7 +182,7 @@ struct KnowHerPickerView: View {
     private func lastWeekRow(_ player: KnowHerPlayer) -> some View {
         let editionKey = player.editionKey(weekKey: store.previousWeekKey ?? "")
         let score = store.score(editionKey: editionKey)
-        let teamColor = DesignTeamColors.displayHex(for: player.teamAbbreviation).map { Color(hex: $0) } ?? accent
+        let teamColor = Color.teamColor(for: player.teamAbbreviation, liftOnDark: false, fallback: accent)
         return Button {
             activeEntry = .lastWeek(player)
         } label: {
@@ -215,11 +215,6 @@ struct KnowHerPickerView: View {
     }
 
     private func errorView(_ message: String) -> some View {
-        VStack(spacing: 12) {
-            Text(message).multilineTextAlignment(.center).foregroundStyle(.secondary).padding(.horizontal)
-            Button("Try again") { Task { await store.loadIfNeeded(teams: teams, force: true) } }
-                .buttonStyle(.borderedProminent).tint(accent)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        RetryStateView(message: message) { await store.loadIfNeeded(teams: teams, force: true) }
     }
 }

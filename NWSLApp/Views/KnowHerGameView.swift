@@ -49,9 +49,10 @@ struct KnowHerGameView: View {
         _viewModel = State(initialValue: KnowHerGameViewModel(player: player, weekKey: weekKey))
     }
 
-    /// The player's team color, tinting the photo ring + team tag (docs §12).
+    /// The player's team color, tinting the photo ring + team tag (docs §12). `liftOnDark:false`
+    /// because the bright NWSL palette needs no lift here; falls back to the amber game accent.
     private var teamColor: Color {
-        DesignTeamColors.displayHex(for: player.teamAbbreviation).map { Color(hex: $0) } ?? accent
+        Color.teamColor(for: player.teamAbbreviation, liftOnDark: false, fallback: accent)
     }
 
     var body: some View {

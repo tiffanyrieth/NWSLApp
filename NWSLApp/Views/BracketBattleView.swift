@@ -885,12 +885,9 @@ struct BracketBattleView: View {
     }
 
     private func errorView(_ message: String) -> some View {
-        VStack(spacing: 12) {
-            Text("Couldn't load the bracket").dsFont(17, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
-            Text(message).dsFont(15).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center)
-            Button("Retry") { Task { await viewModel.load(store: store) } }.tint(accent)
+        RetryStateView(title: "Couldn't load the bracket", message: message) {
+            await viewModel.load(store: store)
         }
-        .padding().frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Helpers

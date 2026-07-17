@@ -349,18 +349,8 @@ struct XIPickerView: View {
     }
 
     private var emptyRoster: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "person.3.sequence")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-            Text("Couldn't load the squad")
-                .font(.headline)
-            Text("Check your connection and try again.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Button("Retry") { Task { await picker.load() } }
-                .buttonStyle(.borderedProminent)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        RetryStateView(title: "Couldn't load the squad",
+                       message: "Check your connection and try again.",
+                       icon: "person.3.sequence") { await picker.load() }
     }
 }

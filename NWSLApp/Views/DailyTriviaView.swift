@@ -356,15 +356,7 @@ struct DailyTriviaView: View {
     // MARK: - Error
 
     private func errorView(_ message: String) -> some View {
-        VStack(spacing: 12) {
-            Text(message)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal)
-            Button("Try again") { Task { await viewModel.loadDaily() } }
-                .buttonStyle(.borderedProminent)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        RetryStateView(message: message) { await viewModel.loadDaily() }
     }
 
     // MARK: - Option styling

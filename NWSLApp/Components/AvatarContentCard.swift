@@ -98,15 +98,6 @@ struct AvatarContentCard: View {
         return "\(name) · \(platformName)"
     }
 
-    private func teamPill(_ abbr: String) -> some View {
-        Text(abbr)
-            .dsFont(10.5, weight: .bold)
-            .tracking(0.3)
-            .foregroundStyle(teamColor)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 2)
-            .background(teamColor.opacity(0.13), in: Capsule())
-    }
 
     private var platformName: String {
         switch card.platform {
@@ -212,7 +203,7 @@ struct AvatarContentCard: View {
     private var bottomRow: some View {
         HStack(spacing: 10) {
             if !hideTeamIdentity, !hasMediaImage, let abbr = card.teamAbbreviation {
-                teamPill(abbr)
+                TeamAbbrPill(abbr: abbr, color: teamColor)
             }
             if card.layout == .instagramFallback {
                 CTARow(label: card.ctaLabel)

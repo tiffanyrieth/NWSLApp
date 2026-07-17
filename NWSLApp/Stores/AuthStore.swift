@@ -21,6 +21,7 @@
 //  they correspond, binding the identity token to this sign-in.
 //
 
+import Auth   // explicit: the app's own `AuthError` below SHADOWS the SDK's — Auth.AuthError disambiguates
 import AuthenticationServices
 import CryptoKit
 import Foundation
@@ -91,6 +92,10 @@ final class AuthStore {
     private let client = SupabaseManager.client
     private let deletionService = AccountDeletionService()
 
+    /// The long-lived auth-event listener (see `startAuthStateListener`). Held so a re-fired
+    /// `.task` can't spawn a second listener.
+    private var authListenerTask: Task<Void, Never>?
+
     /// Raw nonce stashed between request-config and completion (the request
     /// carries its SHA256; Supabase needs the raw value to verify).
     private var currentNonce: String?
@@ -117,6 +122,103 @@ final class AuthStore {
         // reinstall, so the local cache can't be trusted as the source — the server is.
         await hydrateProfile()
     }
+
+    // MARK: - Session integrity (involuntary sign-out detection)
+
+    /// Mirror Supabase auth events into `currentUser` for the app's lifetime. Parity +
+    /// defense-in-depth for the involuntary-sign-out fix: an explicit `signOut()` on another
+    /// code path, a `userDeleted`, or an expired `initialSession` all land here, so the UI can
+    /// never keep showing a signed-in state the SDK has abandoned.
+    ///
+    /// ⚠️ Scope (verified against supabase-swift 2.47.0): `authStateChanges` emits `.signedOut`
+    /// ONLY from an explicit `signOut()` call — a failed token refresh mid-run throws internally
+    /// and emits NO event. So this listener alone cannot catch expiry-while-running; that case is
+    /// `revalidateSession()`'s job (the foreground probe). Upside: the listener can't false-fire
+    /// on a network blip — it only ever sees genuine terminations.
+    ///
+    /// Started once from RootTabView, AFTER `restoreSession()` (so the initial state is settled);
+    /// idempotent via `authListenerTask`. The reduce step only assigns on a real identity change,
+    /// so it never fights `restoreSession()`/`handleSignIn()`/`signOut()` writing the same value.
+    func startAuthStateListener() {
+        guard authListenerTask == nil else { return }
+        authListenerTask = Task { [weak self] in
+            guard let self else { return }
+            for await (event, session) in self.client.auth.authStateChanges {
+                let reduced = Self.reduceUser(event: event, session: session, current: self.currentUser)
+                if self.currentUser?.id != reduced?.id {
+                    NotifTrace.shared.log("auth-event", .ok,
+                        "\(event.rawValue) → \(reduced != nil ? "signed in" : "signed out")")
+                    self.currentUser = reduced
+                }
+            }
+        }
+    }
+
+    /// Pure event → user reduction (unit-tested). Conservative by design: events that should
+    /// carry a session but don't keep the CURRENT user rather than signing out — only an
+    /// explicit termination (or an expired initial session) yields nil.
+    nonisolated static func reduceUser(event: AuthChangeEvent, session: Session?, current: User?) -> User? {
+        switch event {
+        case .signedIn, .tokenRefreshed, .userUpdated:
+            return session?.user ?? current
+        case .initialSession:
+            // A stored session that is already expired (and couldn't refresh) is signed-out —
+            // trusting it would recreate the exact stale-currentUser bug this fix removes.
+            if let session, !session.isExpired { return session.user }
+            return nil
+        case .signedOut, .userDeleted:
+            return nil
+        case .passwordRecovery, .mfaChallengeVerified:
+            return current   // not part of the SIWA flow; never a sign-out signal
+        }
+    }
+
+    /// The foreground probe for the case the listener can't see: the session died while the app
+    /// was running/backgrounded (refresh token expired or revoked). Called from RootTabView's
+    /// `scenePhase == .active` handler. Asks the SDK for a valid session (it refreshes if needed)
+    /// and nils `currentUser` ONLY on a definitive termination — a transient/offline failure
+    /// leaves the session intact (it retries next foreground), so being in a tunnel never reads
+    /// as "signed out".
+    func revalidateSession() async {
+        guard currentUser != nil else { return }
+        do {
+            _ = try await client.auth.session
+        } catch {
+            guard Self.isDefinitiveSignOut(error) else { return }
+            // Fail LOUD: this is the involuntary sign-out moment. Nil-ing currentUser cascades —
+            // NotificationSyncCoordinator observes it, sets the desync sentinel + telemetry, and
+            // RootTabView presents the sign-in nudge.
+            Diagnostics.shared.record(.apiFailure,
+                "session revalidate: definitive termination — \(error.localizedDescription)")
+            currentUser = nil
+        }
+    }
+
+    /// Pure error classifier (unit-tested): does this error PROVE the session is dead?
+    /// True only for the SDK's explicit dead-session signals; anything else (URLError, transport,
+    /// decode, rate-limit) is treated as transient and must NOT sign the user out.
+    /// Uses the SDK's own `AuthError.errorCode` accessor (it maps `.sessionMissing` →
+    /// `.sessionNotFound`), so one code check covers both the thrown-enum and API shapes.
+    /// ⚠️ `Auth.AuthError`, fully qualified: the app's local `AuthError` (top of this file)
+    /// shadows the SDK's — an unqualified cast would match the WRONG type and never fire.
+    nonisolated static func isDefinitiveSignOut(_ error: any Error) -> Bool {
+        guard let authError = error as? Auth.AuthError else { return false }
+        let deadSessionCodes: [Auth.ErrorCode] = [
+            .sessionExpired, .sessionNotFound, .refreshTokenNotFound,
+            .refreshTokenAlreadyUsed, .userNotFound, .userBanned,
+        ]
+        return deadSessionCodes.contains(authError.errorCode)
+    }
+
+    #if DEBUG
+    /// `-simulateLostSession`: drop ONLY the local keychain session (before `restoreSession()`
+    /// runs), leaving every UserDefaults toggle intact — reproduces exactly the field bug
+    /// "signed out involuntarily, Tier-2 flags still stored". The deliberate-sign-out sentinel is
+    /// NOT set (this simulates an involuntary lapse), so the nudge fires.
+    func debugSimulateLostSession() async {
+        try? await client.auth.signOut(scope: .local)
+    }
+    #endif
 
     /// Configure the Apple ID request — called from SignInWithAppleButton's
     /// `onRequest`. Generates a fresh nonce, stashes the raw value, and sends its
@@ -161,6 +263,11 @@ final class AuthStore {
             )
             currentNonce = nil
             currentUser = session.user
+
+            // Signed in — both involuntary-sign-out sentinels are moot now: the desync (if any)
+            // is healed, and a prior deliberate sign-out no longer suppresses future detection.
+            UserDefaults.standard.removeObject(forKey: SignOutSentinels.tier2WasOnAtSignOut)
+            UserDefaults.standard.removeObject(forKey: SignOutSentinels.deliberateSignOut)
 
             // SIWA revocation (App Store guideline 5.1.1(v)): trade Apple's short-lived
             // authorizationCode (~5-min TTL) for a refresh_token, stored server-side via the
@@ -209,6 +316,11 @@ final class AuthStore {
     /// Sign out of Supabase. Leaves local follows (UserDefaults) intact — the app
     /// stays personalized while signed out; only server sync stops.
     func signOut() async {
+        // Mark this sign-out DELIBERATE *before* the session drops, so the desync reconcile
+        // (which fires the moment currentUser goes nil) knows not to nag — the user chose this,
+        // they already know. Also clear any earlier desync flag: it's been acknowledged by intent.
+        UserDefaults.standard.set(true, forKey: SignOutSentinels.deliberateSignOut)
+        UserDefaults.standard.removeObject(forKey: SignOutSentinels.tier2WasOnAtSignOut)
         try? await client.auth.signOut()
         currentUser = nil
     }
@@ -235,7 +347,10 @@ final class AuthStore {
             Diagnostics.shared.record(.apiFailure, "account delete: \(error.localizedDescription)")
             throw error
         }
-        // Server-side data is gone — now drop the local identity + session.
+        // Server-side data is gone — now drop the local identity + session. A delete is as
+        // deliberate as a sign-out gets: suppress the desync nudge the same way.
+        UserDefaults.standard.set(true, forKey: SignOutSentinels.deliberateSignOut)
+        UserDefaults.standard.removeObject(forKey: SignOutSentinels.tier2WasOnAtSignOut)
         try? await client.auth.signOut()
         currentUser = nil
         displayName = nil

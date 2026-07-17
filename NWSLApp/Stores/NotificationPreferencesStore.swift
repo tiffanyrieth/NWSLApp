@@ -37,6 +37,32 @@ struct NotificationPreferencesSnapshot: Equatable {
         dayBefore || lineupPosted || kickoff || goals || halftime || fullTime
             || substitutions || fanZoneRounds || playerSpotlight || liveActivitiesEnabled
     }
+
+    /// Any Tier-2 (server-push) type on — the "opted into live alerts" predicate. These are the
+    /// types that structurally CANNOT deliver without a signed-in account (the watcher keys them
+    /// to a Supabase user), so "signed out + anyServerPushEnabled" is the involuntary-sign-out
+    /// desync both NotificationSyncCoordinator (sentinel + telemetry) and RootTabView (the
+    /// auto-presented sign-in nudge) test for. Tier-1 locals (dayBefore, playerSpotlight) and
+    /// deferred intents are deliberately excluded — they work signed-out.
+    var anyServerPushEnabled: Bool {
+        kickoff || goals || halftime || fullTime || lineupPosted || liveActivitiesEnabled
+    }
+}
+
+/// Persisted cross-store sentinels for surfacing an INVOLUNTARY sign-out (a lapsed/lost Supabase
+/// session) to a user who had opted into Tier-2 alerts. Two flags because "signed out with alert
+/// intent stored" alone can't distinguish *chose this* from *happened to them* — and only the
+/// second may nag (owner rule: a deliberate sign-out means you already know).
+///
+/// Lifecycle:
+///  - `deliberateSignOut` — set by AuthStore BEFORE an explicit Sign Out / account delete drops the
+///    session; cleared on the next successful sign-in. While set, the desync reconcile stays quiet.
+///  - `tier2WasOnAtSignOut` — set (once, with telemetry) by NotificationSyncCoordinator when it
+///    observes signed-out + Tier-2 intent stored + not deliberate; cleared by AuthStore on sign-in
+///    success, explicit sign-out, and account delete.
+enum SignOutSentinels {
+    static let tier2WasOnAtSignOut = "notif.tier2WasOnAtSignOut"
+    static let deliberateSignOut = "auth.deliberateSignOut"
 }
 
 @Observable
@@ -58,7 +84,8 @@ final class NotificationPreferencesStore {
     /// The V2 Live Activity glance layer (lock screen + Dynamic Island live score). A Tier-2 OPT-IN
     /// (default OFF, sign-in-gated like Kickoff/Goals): the watcher push-to-starts it, which needs an
     /// account. Server-read (the watcher gates on this AND team_alert_preferences); the app uploads the
-    /// push-to-start token regardless (cheap/idempotent). Reset off on sign-out (`resetServerPushTypes`).
+    /// push-to-start token regardless (cheap/idempotent). Preserved (display-gated) across sign-out;
+    /// reset only on account delete (`resetServerPushTypes`).
     var liveActivitiesEnabled: Bool { didSet { persist(liveActivitiesEnabled, "liveActivitiesEnabled"); onPreferenceChanged?() } }
 
     /// All toggles as a value snapshot. Reading it touches every flag, so it
@@ -95,8 +122,10 @@ final class NotificationPreferencesStore {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         // `object(forKey:)` so an unset pref takes the default, not `bool(forKey:)`'s false.
-        // Invariant (still holds): **Tier 2 ON ⟹ signed in** — Tier-2 types can only be turned on via
-        // the sign-in-gated `tier2Binding`, and sign-out resets them (`resetServerPushTypes`).
+        // Invariant: **Tier 2 DISPLAYED-ON ⟹ signed in.** Turning a type on is sign-in-gated
+        // (`tier2Binding`), and while signed out the STORED value is display-gated to read off
+        // (NotificationsView + the desync sentinel) rather than destructively reset — so a
+        // re-sign-in restores the exact prior selection. Only account delete wipes them.
         func load(_ key: String, default value: Bool) -> Bool {
             defaults.object(forKey: Self.prefix + key) as? Bool ?? value
         }
@@ -120,9 +149,10 @@ final class NotificationPreferencesStore {
     }
 
     /// Turn off every Tier-2 (server-push) type — kickoff, goals, halftime, full-time, AND the V2 Live
-    /// Activity. Called on sign-out: these can't be delivered without an account (the APNs token is
-    /// detached too), so leaving them "on" would be a lie. The Tier-1 locals stay — they work signed-out.
-    /// On sign-in the user re-enables them from the hub (they're signed in now). Each setter persists +
+    /// Activity. Called ONLY from account-delete teardown (ProfileView.runDeleteAccount): a deleted
+    /// account starts truly fresh. A plain sign-out no longer calls this (involuntary-sign-out fix) —
+    /// stored toggles are preserved and display-gated on auth instead, so a re-sign-in restores the
+    /// exact prior selection. The Tier-1 locals stay — they work signed-out. Each setter persists +
     /// fires `onPreferenceChanged`.
     func resetServerPushTypes() {
         kickoff = false

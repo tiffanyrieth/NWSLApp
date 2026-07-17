@@ -191,7 +191,13 @@ floor), on **stoppage rollover** (see Clock), or on the 10-min resync floor; and
 channel at FT; `startUpcomingActivities` (NOT folded into `detectEvents`) KV-dedups + creates the channel + sends the
 per-device `event:start` (via the Queues rail) ≤20 min pre-kickoff. **Poll cadence:** the cron floor is
 1 min, but during a live window the tick **double-polls** (poll → sleep 30 s → poll again cache-busted)
-so goal/HT/FT latency is ~30 s (shipped 2026-07-11). **Clock:** the widget self-advances the minute
+so goal/HT/FT latency is ~30 s (shipped 2026-07-11). **Fixture-window polling (2026-07-16,
+`src/fixtures.ts`):** the tick no longer fetches every feed every minute — a ~6h discovery sweep builds
+a KV fixture index and the tick polls ONLY feeds with a fixture in `[KO−75m … KO+4h]` (closed at
+observed FT; zero fixtures near ⇒ zero proxy fetches; was 16 feeds/min ≈ 23k invocations/day at zero
+users). A partial sweep never replaces a good index; a live match discovery didn't know logs a
+`DIAG missed-window` line. App-side twin: NT scoreboard fan-out is **confederation-scoped**
+(`ConfederationMap.swift` — ZAM polls ~7 feeds not 15). Full system doc: `docs/national-teams.md`. **Clock:** the widget self-advances the minute
 locally from `clockStartEpoch` (mm:ss, `showsHours:false` so it never rolls to `1:08`) — no per-minute
 push during regular play; **BUT in added time the watcher broadcasts a `stoppageDisplay` string
 ("90'+2'") each minute** (Apple's timer can't format football stoppage; the anchor is frozen so drift
@@ -206,5 +212,8 @@ push-to-start + the Dynamic Island don't work/composite in the sim — surface r
 **Notification model = PURE OPT-IN.** Every `notification_preferences` toggle defaults OFF; nothing
 auto-enables (there is no hub-visit auto-enable — removed). **Tier 1** (local, no account: day-before, Player
 Spotlight) and **Tier 2** (watcher-triggered ⇒ account: kickoff/goals/HT/FT + the V2 Live Activity) are all
-opt-in; Tier-2 toggles are sign-in-gated (`tier2Binding`) and reset on sign-out (`resetServerPushTypes`). The
-watcher gates each V1 event on its per-event column (`tokensForEvent`) and V2 on `live_activities_enabled`.
+opt-in; Tier-2 toggles are sign-in-gated (`tier2Binding`) and **display-gated on auth** (2026-07-16
+involuntary-sign-out fix: stored intent is PRESERVED across sign-out and reads OFF while signed out —
+restored exactly on re-sign-in; `resetServerPushTypes` survives only in account-delete teardown; an
+involuntary sign-out with intent stored auto-presents the sign-in sheet + emits `tier2SignedOutDesync`).
+The watcher gates each V1 event on its per-event column (`tokensForEvent`) and V2 on `live_activities_enabled`.

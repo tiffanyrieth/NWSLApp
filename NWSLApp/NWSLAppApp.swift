@@ -154,7 +154,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .list, .sound]
+        // A live-match push (every V1 push carries an `eventID`) arriving while the user is IN
+        // the app = the freshest possible signal a score just changed — nudge an immediate
+        // scoreboard refresh (PushBridge → RootTabView) instead of waiting for the 60s heartbeat.
+        // Non-match payloads (no eventID) don't trigger anything.
+        if notification.request.content.userInfo["eventID"] is String {
+            await PushBridge.shared.didReceiveLiveForegroundPush()
+        }
+        return [.banner, .list, .sound]
     }
 
     /// A tapped push that carries an `eventID` deep-links into that match. We only

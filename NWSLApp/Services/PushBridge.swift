@@ -40,7 +40,16 @@ final class PushBridge {
     /// Cleared by the consumer after it routes.
     var tappedEventID: String?
 
+    /// Bumped when a live-match push ARRIVES while the app is foregrounded (banner shown, not
+    /// tapped) — AppDelegate's `willPresent` forwards any payload carrying an `eventID`. Observed
+    /// by RootTabView, which fires an immediate `matches.refresh()`: event-driven in-app freshness
+    /// for alert-opted-in users (a goal reaches the open app at push latency, faster than the 60s
+    /// heartbeat), costing one windowed refresh per real match event — bounded by events, not time.
+    private(set) var foregroundPushNonce = 0
+
     func didRegister(token: String) { deviceToken = token }
 
     func didTapNotification(eventID: String) { tappedEventID = eventID }
+
+    func didReceiveLiveForegroundPush() { foregroundPushNonce += 1 }
 }

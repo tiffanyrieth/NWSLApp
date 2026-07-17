@@ -150,18 +150,23 @@ final class MatchStore {
         let dates = Self.scoreboardWindow(now: now())
         let year = calendar.component(.year, from: now())
         let followedCodes = following?.followedNationalTeams ?? []
+        // AUX-FEED GATE (2026-07-16 polling fix, the app-side fixture window): the live tick
+        // re-fetches an auxiliary feed ONLY when the loaded season shows one of ITS fixtures near
+        // now — the Challenge Cup is one match a YEAR, yet it was fetched every 30s tick all
+        // season. The NWSL board stays unconditional (the spine: live-flip detection + freshness).
+        let aux = Self.auxFeedsWorthPolling(loaded: existing, now: now())
         do {
             var fresh = try await service.fetchScoreboard(dates: dates).events
                 .map { ScheduledMatch(event: $0, competition: .nwsl) }
-            if !followedCodes.isEmpty {
+            if !followedCodes.isEmpty, aux.nt {
                 let (nt, _) = await fetchNationalTeamMatches(year: year, followedCodes: followedCodes, dates: dates)
                 fresh += nt
             }
-            if following?.isConcacafFollowed == true {
+            if following?.isConcacafFollowed == true, aux.championsCup {
                 let (cc, _) = await fetchChampionsCupMatches(year: year, dates: dates)
                 fresh += cc
             }
-            if !(following?.followedIDs.isEmpty ?? true) {
+            if !(following?.followedIDs.isEmpty ?? true), aux.challengeCup {
                 let (ch, _) = await fetchChallengeCupMatches(year: year, dates: dates)
                 fresh += ch
             }
@@ -182,8 +187,38 @@ final class MatchStore {
     }
 
     /// Whether any loaded match is currently in progress — lets the live poll run
-    /// fast (~30s) while a game is on and slow otherwise, and gates the detail poll.
+    /// fast (~60s) while a game is on and slow otherwise, and gates the detail poll.
     var hasLiveMatch: Bool { events.contains { $0.statusState == "in" } }
+
+    /// How far around "now" an auxiliary competition's fixture must sit for the live tick to keep
+    /// re-fetching its feed. ±36h comfortably covers the fetch window (`scoreboardWindow` =
+    /// UTC yesterday→tomorrow) so a gated feed can never miss a fixture the fetch would have seen.
+    private static let auxFeedWindow: TimeInterval = 36 * 3600
+    /// Which AUXILIARY feeds are worth re-fetching on a windowed (live) refresh: each counts only
+    /// if the LOADED season carries one of its fixtures with a kickoff within ±36h of now — or a
+    /// fixture with an unparseable kickoff (fail OPEN: a date we can't read must not silently
+    /// starve its feed). Pure + unit-tested (MatchStoreAuxGateTests). The full-season `load()` is
+    /// deliberately ungated — it's how aux fixtures are discovered in the first place; the rare
+    /// mid-session brand-new aux fixture waits for the next full load (launch/foreground/follow
+    /// change), the same accepted class as the watcher's discovery gap.
+    nonisolated static func auxFeedsWorthPolling(
+        loaded: [ScheduledMatch], now: Date
+    ) -> (nt: Bool, championsCup: Bool, challengeCup: Bool) {
+        var nt = false, championsCup = false, challengeCup = false
+        for match in loaded {
+            // Fail open on a missing/unparseable date; otherwise require kickoff near now.
+            let near = match.event.kickoff.map { abs($0.timeIntervalSince(now)) <= auxFeedWindow } ?? true
+            guard near else { continue }
+            switch match.competition {
+            case .international: nt = true
+            case .concacafChampionsCup: championsCup = true
+            case .challengeCup: challengeCup = true
+            case .nwsl: break   // the NWSL board is always fetched — no gate to feed
+            }
+            if nt && championsCup && challengeCup { break }
+        }
+        return (nt, championsCup, challengeCup)
+    }
 
     /// A new calendar year's feed must carry at least this many NWSL fixtures before the app
     /// rolls over to it — guards the Dec→fixtures-release gap (a stray placeholder event must not
@@ -260,14 +295,22 @@ final class MatchStore {
         }
     }
 
-    /// Fetch every national-team feed in parallel, keeping only events that involve a
-    /// FOLLOWED national team (matched by FIFA code = ESPN's competitor abbreviation),
-    /// tagged with the feed's house-style label. Returns the matches + per-feed errors.
+    /// Fetch the RELEVANT national-team feeds in parallel — the globals + each followed
+    /// country's confederation feeds (`NationalTeamFeed.scopedFeeds`, the 2026-07-16 polling
+    /// fix: following ZAM polls ~7 feeds, not all 15 — a country can't appear in another
+    /// confederation's championship). Keeps only events that involve a FOLLOWED national team
+    /// (matched by FIFA code = ESPN's competitor abbreviation), tagged with the feed's
+    /// house-style label. Returns the matches + per-feed errors. An unmapped code fails OPEN
+    /// (all feeds, so no fixture is ever silently missed) + a Diagnostics breadcrumb.
     private func fetchNationalTeamMatches(
         year: Int, followedCodes: Set<String>, dates: String? = nil
     ) async -> (matches: [ScheduledMatch], errors: [String: String]) {
-        await withTaskGroup(of: (label: String, result: Result<[ScheduledMatch], Error>).self) { group in
-            for feed in NationalTeamFeed.all {
+        let scoped = NationalTeamFeed.scopedFeeds(forFollowedCodes: followedCodes)
+        for code in scoped.unmapped {
+            Diagnostics.shared.record(.unexpectedEmpty, "NT confederation map miss: \(code) — polling all feeds (fail-open)")
+        }
+        return await withTaskGroup(of: (label: String, result: Result<[ScheduledMatch], Error>).self) { group in
+            for feed in scoped.feeds {
                 group.addTask {
                     do {
                         let board = try await self.service.fetchScoreboard(year: year, league: feed.slug, dates: dates)

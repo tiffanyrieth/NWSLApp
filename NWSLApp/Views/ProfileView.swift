@@ -29,6 +29,7 @@ struct ProfileView: View {
     @Environment(KnowHerGameStore.self) private var knowHer
     // Per-team alert state — drives the Notifications row's "{N} teams" detail.
     @Environment(TeamAlertStore.self) private var alerts
+    @Environment(NotificationPreferencesStore.self) private var notifications
     @Environment(AppRouter.self) private var router
 
     @State private var signInError: String?
@@ -437,6 +438,11 @@ struct ProfileView: View {
             following.replace(ids: [])
             following.replaceCompetitionFollowKeys([])
             alerts.replaceEnabled([])
+            // Tier-2 prefs teardown moved HERE from the coordinator's sign-out transition
+            // (involuntary-sign-out fix): a plain sign-out now PRESERVES stored toggles
+            // (display-gated), but a deleted account starts truly fresh — no stale alert
+            // intent to resurrect onto a future new account.
+            notifications.resetServerPushTypes()
             trivia.resetForAccountDeletion()
             bracket.resetForAccountDeletion()
             predict.resetForAccountDeletion()

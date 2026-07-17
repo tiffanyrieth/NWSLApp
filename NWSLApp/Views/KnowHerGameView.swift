@@ -445,38 +445,27 @@ struct KnowHerPlayerAvatar: View {
     let ring: Color
     var size: CGFloat = 72
 
-    @State private var image: UIImage?
-
-    private var photoURL: URL? {
-        guard let guid = HeadshotStore.shared.guid(forAthleteID: player.espnAthleteId) else { return nil }
-        return AppConfig.headshotImageURL(guid: guid, size: size >= 96 ? .detail : .card)
-    }
-
     var body: some View {
-        ZStack {
-            Circle().fill(ring.opacity(0.18))
-            if let image {
-                Image(uiImage: image).resizable().scaledToFill()
-                    .frame(width: size, height: size).clipShape(Circle())
-            } else {
-                Text(monogram).font(.system(size: size * 0.4, weight: .bold, design: .rounded))
+        // Routes through the shared PlayerHeadshot (same HeadshotStore → Cloudinary →
+        // ImageCache path it used to hand-roll); this view keeps only its ring-tinted
+        // initials-monogram fallback + team ring overlay. Visually identical.
+        PlayerHeadshot(athleteID: player.espnAthleteId, size: size,
+                       kind: size >= 96 ? .detail : .card) {
+            ZStack {
+                Circle().fill(ring.opacity(0.18))
+                Text(monogram)
+                    .font(.system(size: size * 0.4, weight: .bold, design: .rounded))
                     .foregroundStyle(ring)
             }
+            .frame(width: size, height: size)
         }
         .frame(width: size, height: size)
         .overlay(Circle().stroke(ring, lineWidth: 2))
-        .task(id: photoURL) { await resolve() }
     }
 
     private var monogram: String {
         let parts = player.playerName.split(separator: " ")
         let initials = parts.prefix(2).compactMap { $0.first }.map(String.init).joined()
         return initials.isEmpty ? "?" : initials.uppercased()
-    }
-
-    private func resolve() async {
-        guard let url = photoURL else { image = nil; return }
-        if let hit = ImageCache.shared.cached(url) { image = hit; return }
-        image = await ImageCache.shared.image(for: url)
     }
 }

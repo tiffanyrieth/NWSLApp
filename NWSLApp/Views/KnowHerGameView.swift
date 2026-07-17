@@ -49,9 +49,10 @@ struct KnowHerGameView: View {
         _viewModel = State(initialValue: KnowHerGameViewModel(player: player, weekKey: weekKey))
     }
 
-    /// The player's team color, tinting the photo ring + team tag (docs §12).
+    /// The player's team color, tinting the photo ring + team tag (docs §12). `liftOnDark:false`
+    /// because the bright NWSL palette needs no lift here; falls back to the amber game accent.
     private var teamColor: Color {
-        DesignTeamColors.displayHex(for: player.teamAbbreviation).map { Color(hex: $0) } ?? accent
+        Color.teamColor(for: player.teamAbbreviation, liftOnDark: false, fallback: accent)
     }
 
     var body: some View {
@@ -72,11 +73,11 @@ struct KnowHerGameView: View {
         }
         .nativeBackButton(title: "Know Her Game")
         .toolbar { ToolbarItem(placement: .topBarTrailing) { PlayingAsBadge(accent: accent) } }
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgGrouped)
         .task { GameCenterManager.shared.authenticate() }
         // Gate sign-in + display name at "Start the challenge", so the completion write is
         // always signed in. "Go back" cancels.
-        .fanZoneGate(isRequested: $gateRequested, gameName: "Know Her Game") {
+        .fanZoneGate(isRequested: $gateRequested, gameName: "Know Her Game", accent: accent) {
             started = true
         }
     }
@@ -89,18 +90,18 @@ struct KnowHerGameView: View {
                 KnowHerPlayerAvatar(player: player, ring: teamColor, size: 108)
                     .padding(.top, 8)
                 Text(player.teamAbbreviation.uppercased())
-                    .font(.caption.weight(.bold))
+                    .dsFont(12, weight: .bold)
                     .padding(.horizontal, 10).padding(.vertical, 4)
                     .background(teamColor.opacity(0.18))
                     .foregroundStyle(teamColor)
                     .clipShape(Capsule())
                 VStack(spacing: 4) {
-                    Text(player.playerName).font(.title.weight(.bold)).multilineTextAlignment(.center)
+                    Text(player.playerName).dsFont(28, weight: .bold).multilineTextAlignment(.center)
                     Text("\(player.position) · #\(player.jerseyNumber)")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        .dsFont(15).foregroundStyle(.secondary)
                 }
                 Text(player.tagline)
-                    .font(.body).foregroundStyle(.secondary)
+                    .dsFont(17).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal)
@@ -112,7 +113,7 @@ struct KnowHerGameView: View {
                     gateRequested = true
                 } label: {
                     Text("Start the challenge")
-                        .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
+                        .dsFont(17, weight: .semibold).frame(maxWidth: .infinity).padding(.vertical, 14)
                         // Dark ink on the light amber Spotlight accent — white here is ~1.9:1 (fails
                         // the 3:1 large-text floor); black on #F5A623 is ~11:1. Keeps the amber identity.
                         .background(accent).foregroundStyle(.black)
@@ -121,7 +122,7 @@ struct KnowHerGameView: View {
                 .buttonStyle(.plain)
 
                 Text("A fresh player each week — one of your followed teams. Points add to your Superfan total.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .dsFont(12).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center).padding(.horizontal)
             }
             .padding(20)
@@ -138,14 +139,14 @@ struct KnowHerGameView: View {
         }
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private func metaItem(_ value: String, _ label: String) -> some View {
         VStack(spacing: 3) {
-            Text(value).font(.headline).foregroundStyle(accent)
-            Text(label).font(.caption2).foregroundStyle(.secondary)
+            Text(value).dsFont(17, weight: .semibold).foregroundStyle(accent)
+            Text(label).dsFont(11).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -161,7 +162,7 @@ struct KnowHerGameView: View {
                     HStack(spacing: 12) {
                         KnowHerPlayerAvatar(player: player, ring: teamColor, size: 56)
                         Text(question.prompt)
-                            .font(.title3.weight(.bold))
+                            .dsFont(20, weight: .bold)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     VStack(spacing: 12) {
@@ -179,10 +180,10 @@ struct KnowHerGameView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Question \(viewModel.questionNumber) of \(viewModel.questionCount)")
-                    .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    .dsFont(12, weight: .semibold).foregroundStyle(.secondary)
                 Spacer()
                 Text(question.category.label.uppercased())
-                    .font(.caption2.weight(.bold))
+                    .dsFont(11, weight: .bold)
                     .padding(.horizontal, 9).padding(.vertical, 4)
                     .background(accent.opacity(0.14)).foregroundStyle(accent)
                     .clipShape(Capsule())
@@ -191,7 +192,7 @@ struct KnowHerGameView: View {
             HStack(spacing: 6) {
                 ForEach(0..<viewModel.questionCount, id: \.self) { i in
                     Circle()
-                        .fill(i < viewModel.questionNumber ? accent : Color(.systemGray5))
+                        .fill(i < viewModel.questionNumber ? accent : Color.dsBgTertiary)
                         .frame(width: 7, height: 7)
                 }
             }
@@ -210,7 +211,7 @@ struct KnowHerGameView: View {
                     .background(style.badgeFill).foregroundStyle(style.badgeText)
                     .clipShape(Circle())
                 Text(question.options[index])
-                    .font(.body).foregroundStyle(.primary)
+                    .dsFont(17).foregroundStyle(.primary)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
@@ -237,15 +238,15 @@ struct KnowHerGameView: View {
                     // You played this one → your score up top.
                     scoreCircle.padding(.top, 12)
                     VStack(spacing: 8) {
-                        Text(feelGoodTitle).font(.title2.weight(.bold)).multilineTextAlignment(.center)
+                        Text(feelGoodTitle).dsFont(22, weight: .bold).multilineTextAlignment(.center)
                         if let missed = missedFact {
-                            Text(missed).font(.subheadline).foregroundStyle(.secondary)
+                            Text(missed).dsFont(15).foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center).padding(.horizontal)
                         }
                     }
                     if bankedScore > 0 {
                         Text("+\(bankedScore) points")
-                            .font(.headline).foregroundStyle(accent)
+                            .dsFont(17, weight: .semibold).foregroundStyle(accent)
                             .padding(.horizontal, 16).padding(.vertical, 8)
                             .background(accent.opacity(0.14)).clipShape(Capsule())
                     }
@@ -269,11 +270,11 @@ struct KnowHerGameView: View {
     private var unplayedHeader: some View {
         VStack(spacing: 10) {
             KnowHerPlayerAvatar(player: player, ring: teamColor, size: 88)
-            Text(player.playerName).font(.title2.weight(.bold)).multilineTextAlignment(.center)
+            Text(player.playerName).dsFont(22, weight: .bold).multilineTextAlignment(.center)
             Text("\(player.position) · \(player.teamAbbreviation.uppercased())")
-                .font(.subheadline).foregroundStyle(.secondary)
+                .dsFont(15).foregroundStyle(.secondary)
             Text("You didn't play this one — here's how everyone did.")
-                .font(.subheadline).foregroundStyle(.secondary)
+                .dsFont(15).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center).padding(.horizontal)
         }
     }
@@ -289,7 +290,7 @@ struct KnowHerGameView: View {
             VStack(spacing: 2) {
                 Text("\(bankedScore)/\(player.questions.count)")
                     .dsFont(34, weight: .heavy, design: .rounded).foregroundStyle(accent)
-                Text("correct").font(.caption).foregroundStyle(.secondary)
+                Text("correct").dsFont(12).foregroundStyle(.secondary)
             }
         }
     }
@@ -318,7 +319,7 @@ struct KnowHerGameView: View {
             Text(text)
             if let systemImage { Image(systemName: systemImage) }
         }
-        .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
+        .dsFont(17, weight: .semibold).frame(maxWidth: .infinity).padding(.vertical, 14)
         // Dark ink on the light amber Spotlight accent (see startChallenge button) — white fails contrast.
         .background(accent).foregroundStyle(.black)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -405,7 +406,7 @@ struct KnowHerGameView: View {
         return index < letters.count ? letters[index] : ""
     }
 
-    // MARK: - Option styling (correct=green, wrong pick=red — mirrors DailyTriviaView)
+    // MARK: - Option styling (correct=dsSuccess, wrong pick=dsError — mirrors DailyTriviaView)
 
     private struct OptionStyle {
         var fill: Color; var borderColor: Color; var borderWidth: CGFloat
@@ -413,24 +414,24 @@ struct KnowHerGameView: View {
     }
 
     private func optionStyle(question: KnowHerQuestion, index: Int) -> OptionStyle {
-        let base = Color(.secondarySystemGroupedBackground)
+        let base = Color.dsBgCard
         let isSelected = viewModel.selectedIndex == index
         let isCorrect = index == question.correctIndex
 
         if !viewModel.isRevealed {
-            return OptionStyle(fill: base, borderColor: Color(.systemGray4), borderWidth: 1,
-                               badgeFill: Color(.systemGray5), badgeText: .secondary, trailingIcon: nil)
+            return OptionStyle(fill: base, borderColor: Color.dsBgTertiary, borderWidth: 1,
+                               badgeFill: Color.dsBgTertiary, badgeText: .secondary, trailingIcon: nil)
         }
         if isCorrect {
-            return OptionStyle(fill: Color.green.opacity(0.14), borderColor: .green, borderWidth: 2,
-                               badgeFill: .green, badgeText: .white, trailingIcon: "checkmark")
+            return OptionStyle(fill: Color.dsSuccess.opacity(0.14), borderColor: Color.dsSuccess, borderWidth: 2,
+                               badgeFill: Color.dsSuccess, badgeText: .white, trailingIcon: "checkmark")
         }
         if isSelected {
-            return OptionStyle(fill: Color.red.opacity(0.12), borderColor: .red, borderWidth: 2,
-                               badgeFill: .red, badgeText: .white, trailingIcon: "xmark")
+            return OptionStyle(fill: Color.dsError.opacity(0.12), borderColor: Color.dsError, borderWidth: 2,
+                               badgeFill: Color.dsError, badgeText: .white, trailingIcon: "xmark")
         }
-        return OptionStyle(fill: base, borderColor: Color(.systemGray5), borderWidth: 1,
-                           badgeFill: Color(.systemGray5), badgeText: .secondary, trailingIcon: nil)
+        return OptionStyle(fill: base, borderColor: Color.dsBgTertiary, borderWidth: 1,
+                           badgeFill: Color.dsBgTertiary, badgeText: .secondary, trailingIcon: nil)
     }
 }
 
@@ -444,38 +445,27 @@ struct KnowHerPlayerAvatar: View {
     let ring: Color
     var size: CGFloat = 72
 
-    @State private var image: UIImage?
-
-    private var photoURL: URL? {
-        guard let guid = HeadshotStore.shared.guid(forAthleteID: player.espnAthleteId) else { return nil }
-        return AppConfig.headshotImageURL(guid: guid, size: size >= 96 ? .detail : .card)
-    }
-
     var body: some View {
-        ZStack {
-            Circle().fill(ring.opacity(0.18))
-            if let image {
-                Image(uiImage: image).resizable().scaledToFill()
-                    .frame(width: size, height: size).clipShape(Circle())
-            } else {
-                Text(monogram).font(.system(size: size * 0.4, weight: .bold, design: .rounded))
+        // Routes through the shared PlayerHeadshot (same HeadshotStore → Cloudinary →
+        // ImageCache path it used to hand-roll); this view keeps only its ring-tinted
+        // initials-monogram fallback + team ring overlay. Visually identical.
+        PlayerHeadshot(athleteID: player.espnAthleteId, size: size,
+                       kind: size >= 96 ? .detail : .card) {
+            ZStack {
+                Circle().fill(ring.opacity(0.18))
+                Text(monogram)
+                    .font(.system(size: size * 0.4, weight: .bold, design: .rounded))
                     .foregroundStyle(ring)
             }
+            .frame(width: size, height: size)
         }
         .frame(width: size, height: size)
         .overlay(Circle().stroke(ring, lineWidth: 2))
-        .task(id: photoURL) { await resolve() }
     }
 
     private var monogram: String {
         let parts = player.playerName.split(separator: " ")
         let initials = parts.prefix(2).compactMap { $0.first }.map(String.init).joined()
         return initials.isEmpty ? "?" : initials.uppercased()
-    }
-
-    private func resolve() async {
-        guard let url = photoURL else { image = nil; return }
-        if let hit = ImageCache.shared.cached(url) { image = hit; return }
-        image = await ImageCache.shared.image(for: url)
     }
 }

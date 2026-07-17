@@ -57,7 +57,7 @@ struct KnowHerPickerView: View {
         }
         .nativeBackButton(title: "Know Her Game")
         .toolbar { ToolbarItem(placement: .topBarTrailing) { PlayingAsBadge(accent: accent) } }
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgGrouped)
         .task {
             GameCenterManager.shared.authenticate()
             await store.loadIfNeeded(teams: teams)
@@ -78,7 +78,7 @@ struct KnowHerPickerView: View {
                 }
             }
         }
-        .fanZoneGate(isRequested: $gateRequested, gameName: "Know Her Game") {
+        .fanZoneGate(isRequested: $gateRequested, gameName: "Know Her Game", accent: accent) {
             if let pendingPlayer { activeEntry = .current(pendingPlayer) }
         }
     }
@@ -90,7 +90,7 @@ struct KnowHerPickerView: View {
                 // played" count — it reads oddly at "1 of 1", and misleads once this screen also hosts
                 // last week's finished games below.
                 Text(store.players.count == 1 ? "Your player this week" : "Your players this week")
-                    .font(.title2.weight(.bold))
+                    .dsFont(22, weight: .bold)
 
                 ForEach(store.players) { player in
                     playerRow(player)
@@ -108,7 +108,7 @@ struct KnowHerPickerView: View {
 
     private func playerRow(_ player: KnowHerPlayer) -> some View {
         let played = store.isPlayed(player)
-        let teamColor = DesignTeamColors.displayHex(for: player.teamAbbreviation).map { Color(hex: $0) } ?? accent
+        let teamColor = Color.teamColor(for: player.teamAbbreviation, liftOnDark: false, fallback: accent)
         return Button {
             if played {
                 activeEntry = .current(player)   // straight to the result recap (already signed in)
@@ -120,24 +120,24 @@ struct KnowHerPickerView: View {
             HStack(spacing: 14) {
                 KnowHerPlayerAvatar(player: player, ring: teamColor, size: 52)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(player.playerName).font(.headline).foregroundStyle(.primary)
+                    Text(player.playerName).dsFont(17, weight: .semibold).foregroundStyle(.primary)
                     Text("\(player.position) · \(player.teamAbbreviation.uppercased())")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        .dsFont(15).foregroundStyle(.secondary)
                 }
                 Spacer()
                 if played, let score = store.score(for: player) {
                     resultsBadge(score: score, total: player.questions.count)
                 } else {
                     HStack(spacing: 3) {
-                        Text("Play").font(.subheadline.weight(.semibold))
-                        Image(systemName: "chevron.right").font(.caption2.weight(.bold))
+                        Text("Play").dsFont(15, weight: .semibold)
+                        Image(systemName: "chevron.right").dsFont(11, weight: .bold)
                     }
                     .foregroundStyle(accent)
                 }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)   // completed rows stay tappable → revisit results (no replay; the game
@@ -148,9 +148,9 @@ struct KnowHerPickerView: View {
     /// green "done" checkmark — a completed row is a doorway to the live community results, not a dead end).
     private func resultsBadge(score: Int, total: Int) -> some View {
         VStack(alignment: .trailing, spacing: 3) {
-            Text("\(score)/\(total)").font(.subheadline.weight(.bold)).foregroundStyle(accent)
+            Text("\(score)/\(total)").dsFont(15, weight: .bold).foregroundStyle(accent)
             HStack(spacing: 2) {
-                Text("Results").font(.caption2.weight(.semibold))
+                Text("Results").dsFont(11, weight: .semibold)
                 Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
             }
             .foregroundStyle(.secondary)
@@ -162,11 +162,11 @@ struct KnowHerPickerView: View {
     private var lastWeekSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                Rectangle().fill(Color(.separator)).frame(height: 1)
+                Rectangle().fill(Color.dsSeparator).frame(height: 1)
                 Text("LAST WEEK")
-                    .font(.caption2.weight(.bold)).tracking(0.8).foregroundStyle(.secondary)
+                    .dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
                     .fixedSize()
-                Rectangle().fill(Color(.separator)).frame(height: 1)
+                Rectangle().fill(Color.dsSeparator).frame(height: 1)
             }
             .padding(.top, 4)
 
@@ -175,32 +175,32 @@ struct KnowHerPickerView: View {
             }
 
             Text("Community results stay for one week after each edition closes.")
-                .font(.caption2).foregroundStyle(.tertiary)
+                .dsFont(11).foregroundStyle(.tertiary)
         }
     }
 
     private func lastWeekRow(_ player: KnowHerPlayer) -> some View {
         let editionKey = player.editionKey(weekKey: store.previousWeekKey ?? "")
         let score = store.score(editionKey: editionKey)
-        let teamColor = DesignTeamColors.displayHex(for: player.teamAbbreviation).map { Color(hex: $0) } ?? accent
+        let teamColor = Color.teamColor(for: player.teamAbbreviation, liftOnDark: false, fallback: accent)
         return Button {
             activeEntry = .lastWeek(player)
         } label: {
             HStack(spacing: 12) {
                 KnowHerPlayerAvatar(player: player, ring: teamColor.opacity(0.6), size: 40)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(player.playerName).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                    Text(player.playerName).dsFont(15, weight: .semibold).foregroundStyle(.secondary)
                     Text("\(player.position) · \(player.teamAbbreviation.uppercased())")
-                        .font(.caption).foregroundStyle(.tertiary)
+                        .dsFont(12).foregroundStyle(.tertiary)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     if let score {
                         Text("\(score)/\(player.questions.count)")
-                            .font(.caption.weight(.bold)).foregroundStyle(accent.opacity(0.75))
+                            .dsFont(12, weight: .bold).foregroundStyle(accent.opacity(0.75))
                     }
                     HStack(spacing: 2) {
-                        Text("Results").font(.caption2.weight(.semibold))
+                        Text("Results").dsFont(11, weight: .semibold)
                         Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
                     }
                     .foregroundStyle(.tertiary)
@@ -208,18 +208,13 @@ struct KnowHerPickerView: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
     }
 
     private func errorView(_ message: String) -> some View {
-        VStack(spacing: 12) {
-            Text(message).multilineTextAlignment(.center).foregroundStyle(.secondary).padding(.horizontal)
-            Button("Try again") { Task { await store.loadIfNeeded(teams: teams, force: true) } }
-                .buttonStyle(.borderedProminent).tint(accent)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        RetryStateView(message: message) { await store.loadIfNeeded(teams: teams, force: true) }
     }
 }

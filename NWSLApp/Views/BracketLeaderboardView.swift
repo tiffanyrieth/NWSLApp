@@ -101,7 +101,7 @@ struct BracketLeaderboardView: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 1) {
-                Text("\(you.points)").dsFont(22, weight: .heavy, monospacedDigit: true).foregroundStyle(.white)
+                Text("\(you.points)").dsFont(22, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
                 Text("pts").dsFont(11).foregroundStyle(Color.dsFgTertiary)
             }
         }
@@ -139,14 +139,14 @@ struct BracketLeaderboardView: View {
     private func podiumColumn(_ s: BracketStanding, height: CGFloat, maxPts: Int) -> some View {
         let frac = CGFloat(s.points) / CGFloat(maxPts)
         return VStack(spacing: 6) {
-            Text(s.name).dsFont(11, weight: .semibold).foregroundStyle(s.isYou ? accent : .white)
+            Text(s.name).dsFont(11, weight: .semibold).foregroundStyle(s.isYou ? accent : .dsFgPrimary)
                 .lineLimit(2).minimumScaleFactor(0.7).frame(maxWidth: 84)
             Text("\(s.points)").dsFont(13, weight: .heavy, monospacedDigit: true).foregroundStyle(s.isYou ? accent : Color.dsFgSecondary)
             RoundedRectangle(cornerRadius: 6)
                 .fill(s.isYou ? accent : accent.opacity(0.45))
                 .frame(width: 64, height: max(14, height * max(frac, 0.2)))
                 .overlay(alignment: .top) {
-                    Text("\(s.rank)").dsFont(13, weight: .heavy).foregroundStyle(.white).padding(.top, 4)
+                    Text("\(s.rank)").dsFont(13, weight: .heavy).foregroundStyle(Color.dsFgPrimary).padding(.top, 4)
                 }
         }
     }
@@ -156,12 +156,12 @@ struct BracketLeaderboardView: View {
             Text("\(s.rank)").dsFont(13, weight: .bold, monospacedDigit: true)
                 .foregroundStyle(s.isYou ? accent : Color.dsFgTertiary).frame(width: 30, alignment: .trailing)
             Text(s.name).dsFont(14, weight: s.isYou ? .bold : .medium)
-                .foregroundStyle(s.isYou ? accent : .white).lineLimit(1).minimumScaleFactor(0.8)
+                .foregroundStyle(s.isYou ? accent : .dsFgPrimary).lineLimit(1).minimumScaleFactor(0.8)
             Spacer(minLength: 8)
             Text(s.accuracy.map(pct) ?? "—").dsFont(12, monospacedDigit: true)
                 .foregroundStyle(Color.dsFgSecondary).frame(width: 48, alignment: .trailing)
             Text("\(s.points)").dsFont(13, weight: .semibold, monospacedDigit: true)
-                .foregroundStyle(s.isYou ? accent : .white).frame(width: 44, alignment: .trailing)
+                .foregroundStyle(s.isYou ? accent : .dsFgPrimary).frame(width: 44, alignment: .trailing)
         }
         .padding(.vertical, 9).padding(.horizontal, 12)
         .background(s.isYou ? accent.opacity(0.10) : .clear)
@@ -190,7 +190,7 @@ struct BracketLeaderboardView: View {
             let currentStreak = history.first(where: { !$0.isComplete })?.currentStreak ?? 0
 
             VStack(spacing: 4) {
-                Text("\(totalPts)").dsFont(42, weight: .heavy, monospacedDigit: true).foregroundStyle(.white)
+                Text("\(totalPts)").dsFont(42, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
                 Text("total points · across \(history.count) edition\(history.count == 1 ? "" : "s")")
                     .dsFont(12).foregroundStyle(Color.dsFgSecondary)
             }
@@ -219,7 +219,7 @@ struct BracketLeaderboardView: View {
 
     private func statTile(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(value).dsFont(28, weight: .heavy, monospacedDigit: true).foregroundStyle(.white)
+            Text(value).dsFont(28, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
                 .lineLimit(1).minimumScaleFactor(0.6)
             Text(label).dsFont(11).foregroundStyle(Color.dsFgSecondary)
         }
@@ -233,7 +233,7 @@ struct BracketLeaderboardView: View {
             HStack {
                 Text("Your best round").trackedCaps(color: accent)
                 Spacer()
-                Text("\(label) · \(pct(accuracy))").dsFont(13, weight: .bold).foregroundStyle(.white)
+                Text("\(label) · \(pct(accuracy))").dsFont(13, weight: .bold).foregroundStyle(Color.dsFgPrimary)
             }
             statBar(fraction: accuracy)
         }
@@ -247,7 +247,7 @@ struct BracketLeaderboardView: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(e.themeLabel).trackedCaps(size: 10, color: accent)
-                    Text(e.title).dsFont(14, weight: .semibold).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.85)
+                    Text(e.title).dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgPrimary).lineLimit(1).minimumScaleFactor(0.85)
                 }
                 Spacer(minLength: 8)
                 Text(e.isComplete ? "Final" : "In progress")
@@ -274,7 +274,7 @@ struct BracketLeaderboardView: View {
             HStack(spacing: 12) {
                 Image(systemName: "rosette").dsFont(18).foregroundStyle(accent)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Game Center").dsFont(14, weight: .semibold).foregroundStyle(.white)
+                    Text("Game Center").dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
                     Text("Compare with players everywhere").dsFont(11).foregroundStyle(Color.dsFgSecondary)
                 }
                 Spacer(minLength: 8)
@@ -289,7 +289,7 @@ struct BracketLeaderboardView: View {
 
     private func emptyCard(_ title: String, _ subtitle: String) -> some View {
         VStack(spacing: 8) {
-            Text(title).dsFont(16, weight: .bold).foregroundStyle(.white)
+            Text(title).dsFont(16, weight: .bold).foregroundStyle(Color.dsFgPrimary)
             Text(subtitle).dsFont(13).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 36).padding(.horizontal, 20)

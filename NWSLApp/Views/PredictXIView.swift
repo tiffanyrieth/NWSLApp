@@ -49,7 +49,7 @@ struct PredictXIView: View {
             }
         }
         .nativeBackButton(title: "Predict the XI")
-        .background(Color(.systemGroupedBackground))
+        .background(Color.dsBgPrimary)
         .task {
             // Start Game Center auth here (a game screen) rather than at launch, so
             // the GC banner only shows when the user is about to play. Idempotent.
@@ -69,7 +69,7 @@ struct PredictXIView: View {
         }
         // Mandatory sign-in + display name to play — gated at the open-fixture tap, so the
         // picker's submit is always signed in. "Go back" cancels (returns to the slate).
-        .fanZoneGate(isRequested: $gateRequested, gameName: "Predict the XI") {
+        .fanZoneGate(isRequested: $gateRequested, gameName: "Predict the XI", accent: accent) {
             activeFixture = pendingFixture
         }
     }
@@ -89,6 +89,7 @@ struct PredictXIView: View {
         ScrollView {
             VStack(spacing: 18) {
                 headerCard
+                rankedCallout
 
                 let open = viewModel.openItems(store: store)
                 let results = viewModel.resultItems(store: store)
@@ -120,47 +121,70 @@ struct PredictXIView: View {
     // MARK: - Header
 
     private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 10) {
-                Image(systemName: "sportscourt.fill")
-                    .font(.title2)
-                    .foregroundStyle(accent)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("PREDICT THE XI")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(accent)
-                    Text("Call the lineup")
-                        .font(.title2.weight(.bold))
-                }
-                Spacer(minLength: 0)
-            }
-
+        VStack(spacing: 12) {
+            Image(systemName: "sportscourt.fill")
+                .dsFont(28, weight: .bold)
+                .foregroundStyle(accent)
+            Text("PREDICT THE XI")
+                .dsFont(12, weight: .bold)
+                .tracking(1.5)
+                .foregroundStyle(accent)
+            Text("Call the lineup.")
+                .dsFont(26, weight: .heavy)
+                .foregroundStyle(Color.dsFgPrimary)
+                .multilineTextAlignment(.center)
             Text("Pick your team's starting XI, formation, and final score before kickoff. Save a draft, tweak it on team news, then submit to lock it in — submissions close 2 hours before kickoff.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .dsFont(14)
+                .foregroundStyle(Color.dsFgSecondary)
+                .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: 12) {
-                headerStat(value: "\(store.seasonPoints)", label: "season points")
-            }
+            Text("\(store.seasonPoints) season points")
+                .dsFont(13, weight: .semibold)
+                .foregroundStyle(accent)
+                .padding(.top, 2)
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .background(
+            LinearGradient(colors: [accent.opacity(0.10), .clear], startPoint: .top, endPoint: .bottom),
+            in: RoundedRectangle(cornerRadius: DS.radiusXxl, style: .continuous)
+        )
+        .background(Color.dsMdCard, in: RoundedRectangle(cornerRadius: DS.radiusXxl, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DS.radiusXxl, style: .continuous)
+                .strokeBorder(accent.opacity(0.22), lineWidth: 1)
+        )
     }
 
-    private func headerStat(value: String, label: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value).font(.title3.weight(.bold)).foregroundStyle(accent)
-            Text(label).font(.caption).foregroundStyle(.secondary)
+    // The competitive signal: this is a ranked, per-club leaderboard game (like Bracket's).
+    private var rankedCallout: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "trophy.fill")
+                .dsFont(20)
+                .foregroundStyle(accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Ranked game")
+                    .dsFont(15, weight: .bold)
+                    .foregroundStyle(Color.dsFgPrimary)
+                Text("Score your picks against every fan of your club. Track your accuracy in Your Stats.")
+                    .dsFont(13)
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
         }
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsMdCard, in: RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous)
+                .strokeBorder(accent.opacity(0.16), lineWidth: 1)
+        )
     }
 
     private func sectionLabel(_ text: String) -> some View {
         HStack {
-            Text(text).font(.subheadline.weight(.bold)).foregroundStyle(.secondary)
+            Text(text).dsFont(15, weight: .bold).foregroundStyle(.secondary)
             Spacer()
         }
         .padding(.top, 4)
@@ -169,12 +193,12 @@ struct PredictXIView: View {
     private var emptyState: some View {
         VStack(spacing: 10) {
             Image(systemName: "calendar.badge.clock")
-                .font(.largeTitle)
+                .dsFont(34)
                 .foregroundStyle(.secondary)
             Text("No upcoming matches to predict")
-                .font(.headline)
+                .dsFont(17, weight: .semibold)
             Text("Follow a team with a fixture coming up and it'll appear here to predict.")
-                .font(.subheadline)
+                .dsFont(15)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
@@ -197,7 +221,7 @@ struct PredictXIView: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(Color.dsMdCard)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -238,11 +262,11 @@ struct PredictXIView: View {
         HStack(spacing: 10) {
             Image(systemName: icon).foregroundStyle(tint)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.subheadline.weight(.semibold))
-                Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                Text(title).dsFont(15, weight: .semibold)
+                Text(subtitle).dsFont(12).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
-            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            Image(systemName: "chevron.right").dsFont(12).foregroundStyle(.tertiary)
         }
     }
 
@@ -259,9 +283,9 @@ struct PredictXIView: View {
             matchHeader(item.fixture, finalScore: item.finalScore)
 
             HStack {
-                Text("You scored").font(.caption).foregroundStyle(.secondary)
+                Text("You scored").dsFont(12).foregroundStyle(.secondary)
                 Spacer()
-                Text("\(score.total) pts").font(.headline.weight(.bold)).foregroundStyle(accent)
+                Text("\(score.total) pts").dsFont(17, weight: .bold).foregroundStyle(accent)
             }
 
             VStack(spacing: 8) {
@@ -277,7 +301,7 @@ struct PredictXIView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.dsMdCard)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -285,9 +309,9 @@ struct PredictXIView: View {
         HStack(spacing: 10) {
             Image(systemName: earned ? "checkmark.circle.fill" : "minus.circle")
                 .foregroundStyle(earned ? .green : .secondary)
-            Text(title).font(.subheadline.weight(.semibold))
+            Text(title).dsFont(15, weight: .semibold)
             Spacer()
-            Text(detail).font(.caption).foregroundStyle(.secondary)
+            Text(detail).dsFont(12).foregroundStyle(.secondary)
             Text(earned ? "+\(points)" : "+0")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(earned ? accent : .secondary)
@@ -295,8 +319,8 @@ struct PredictXIView: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.tertiarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.dsMdPanelBottom)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
     }
 
     // MARK: - Shared match header
@@ -308,12 +332,12 @@ struct PredictXIView: View {
             teamColumn(homeAbbr)
             VStack(spacing: 4) {
                 if let final = finalScore {
-                    Text("\(final.home)–\(final.away)").font(.title3.weight(.heavy))
-                    Text("FT").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+                    Text("\(final.home)–\(final.away)").dsFont(20, weight: .heavy)
+                    Text("FT").dsFont(11, weight: .bold).foregroundStyle(.secondary)
                 } else {
-                    Text("VS").font(.caption.weight(.bold)).foregroundStyle(.secondary)
+                    Text("VS").dsFont(12, weight: .bold).foregroundStyle(.secondary)
                     Text(Self.kickoffLabel(fixture.kickoff))
-                        .font(.caption2.weight(.semibold))
+                        .dsFont(11, weight: .semibold)
                         .foregroundStyle(accent)
                 }
             }
@@ -326,7 +350,7 @@ struct PredictXIView: View {
     private func teamColumn(_ abbreviation: String) -> some View {
         VStack(spacing: 6) {
             TeamLogo(urlString: viewModel.club(forAbbreviation: abbreviation)?.logoURL, teamAbbreviation: abbreviation, size: 38)
-            Text(abbreviation).font(.caption.weight(.bold))
+            Text(abbreviation).dsFont(12, weight: .bold)
         }
         .frame(maxWidth: .infinity)
     }
@@ -347,9 +371,9 @@ struct PredictXIView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 TeamLogo(urlString: viewModel.club(forAbbreviation: team)?.logoURL, teamAbbreviation: team, size: 22)
-                Text(viewModel.teamLabel(team)).font(.headline)
+                Text(viewModel.teamLabel(team)).dsFont(17, weight: .semibold)
                 Spacer()
-                Text("Predictors").font(.caption).foregroundStyle(.secondary)
+                Text("Predictors").dsFont(12).foregroundStyle(.secondary)
             }
             ForEach(rows) { row in
                 HStack(spacing: 12) {
@@ -358,12 +382,12 @@ struct PredictXIView: View {
                         .foregroundStyle(row.isYou ? accent : .secondary)
                         .frame(width: 28, alignment: .trailing)
                     Text(row.name)
-                        .font(.subheadline.weight(row.isYou ? .bold : .regular))
+                        .dsFont(15, weight: row.isYou ? .bold : .regular)
                         .foregroundStyle(row.isYou ? accent : .primary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                     Spacer()
-                    Text("\(row.points) pts").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                    Text("\(row.points) pts").dsFont(15, weight: .semibold).foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 8)
                 .padding(.horizontal, 10)
@@ -373,13 +397,13 @@ struct PredictXIView: View {
             // Honest sparse state: the board is real, just new. (You're always a row.)
             if rows.count == 1 {
                 Text("You're first in line — standings grow as more fans play.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .dsFont(12).foregroundStyle(.secondary)
                     .padding(.horizontal, 10).padding(.top, 2)
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.dsMdCard)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -388,7 +412,7 @@ struct PredictXIView: View {
             withAnimation { viewModel.reset(store: store) }
         } label: {
             Text("Reset predictions")
-                .font(.headline)
+                .dsFont(17, weight: .semibold)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
                 .foregroundStyle(accent)
@@ -402,15 +426,7 @@ struct PredictXIView: View {
     // MARK: - Error
 
     private func errorView(_ message: String) -> some View {
-        VStack(spacing: 12) {
-            Text(message)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal)
-            Button("Try again") { Task { await reload() } }
-                .buttonStyle(.borderedProminent)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        RetryStateView(message: message) { await reload() }
     }
 
     // MARK: - Date labels

@@ -36,7 +36,15 @@ struct OnboardingView: View {
     // followed (OFF by default) so the follow-vs-alerts distinction is taught visually.
     @Environment(TeamAlertStore.self) private var teamAlerts
     @Environment(NotificationPreferencesStore.self) private var notifications
+    @Environment(AuthStore.self) private var auth
     @Environment(\.dismiss) private var dismiss
+
+    // Shared bell logic (same as the Teams tab): a signed-out match-alert tap presents Sign in
+    // with Apple, then on success enables + cascades the full Tier-2 bundle (match updates, goals,
+    // lineups, day-before, Live Activity — Fan Zone left off). NO confirmation toast here: onboarding
+    // can't navigate to the notifications hub mid-flow (the toast's "Customize" action), and the
+    // Teams-tab coach mark already nudges customization the moment onboarding finishes.
+    @State private var alertPresenter = MatchAlertPresenter()
 
     // After the picker, a one-screen thesis statement frames what the app is before
     // dropping the user into Home. "Let's go" there completes onboarding.
@@ -61,6 +69,13 @@ struct OnboardingView: View {
                     dismiss()
                 }
             }
+            // Tier-2 sign-in intercept for the alert bells: signed-out ON presents this first;
+            // success runs the deferred enable+cascade, cancel leaves the bell off. (No toast —
+            // see the alertPresenter comment above.)
+            .sheet(isPresented: $alertPresenter.showAuthPrompt,
+                   onDismiss: { alertPresenter.cancelPending() }) {
+                NotificationAuthPromptView(onSignedIn: { alertPresenter.onSignedIn() })
+            }
     }
 
     // Followed clubs in the same alphabetical order the picker shows them — feeds the
@@ -83,27 +98,26 @@ struct OnboardingView: View {
     }
 
     private var picker: some View {
-        List {
-            // The intro rides a BORDERLESS row (not a section header): List headers
-            // render with reduced/vibrant prominence that compounds on `.secondary`
-            // and pushes it below readable contrast, so we keep it as normal row
-            // content where `.secondary` renders at its true secondaryLabel tone.
-            // Hierarchy is bold nav title → readable subtitle → smaller caption,
-            // established by SIZE + spacing (not by dimming the caption).
-            Section {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
                 introBlock
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 10, trailing: 20))
-            }
+                    .padding(.horizontal, 20)
 
-            Section {
-                ForEach(viewModel.clubs) { row(for: $0) }
-            }
+                // Crest-forward 2-up grid: the club crest leads (the fandom identity),
+                // selection rings the tile in the club's color + a check, and the bell
+                // toggle appears in-tile once followed.
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10),
+                                    GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                    ForEach(viewModel.clubs) { clubTile(for: $0) }
+                }
+                .padding(.horizontal, 16)
 
-            internationalSection
+                internationalPointerCard
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+            }
+            .padding(.top, 8)
         }
-        .listStyle(.insetGrouped)
         // Persistent bottom bar: the running follow count + reassurance, always
         // visible above the list (and above the tab bar).
         .safeAreaInset(edge: .bottom) { bottomBar }
@@ -115,7 +129,7 @@ struct OnboardingView: View {
             // declaring allegiance + alerts — the #1 first-time-user misread. The bell
             // toggle on each followed row (below) teaches the alerts distinction visually,
             // so the old "following isn't notifications" footnote is no longer needed.
-            Text("Your feed starts here. Add any clubs you're interested in — their news, videos, and social posts will show up on your Home tab.")
+            Text("Your feed starts here. Tap any clubs you're interested in — their news, videos, and social posts will show up on your Home tab.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 // Guarantee full wrapping (never truncate) on the smallest screens (SE/mini).
@@ -205,23 +219,90 @@ struct OnboardingView: View {
     // + the Champions Cup) are followed in their own hub (Teams → Follow competitions),
     // which is the designed flow. Onboarding stays focused on picking clubs; this just
     // tells a new fan the rest exists. (The old inert competition toggles lived here.)
-    private var internationalSection: some View {
-        Section {
-            HStack(spacing: 12) {
-                Image(systemName: "globe")
-                    .foregroundStyle(Color.secondary)
-                    .frame(width: 32)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Following a national team?")
-                        .foregroundStyle(.primary)
-                    Text("Add national teams + the Champions Cup later in Teams → Follow competitions.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+    private var internationalPointerCard: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "globe")
+                .dsFont(17)
+                .foregroundStyle(Color.dsFgSecondary)
+                .frame(width: 32)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Following a national team?")
+                    .dsFont(15)
+                    .foregroundStyle(Color.dsFgPrimary)
+                Text("Add national teams + the Champions Cup later in Teams → Follow competitions.")
+                    .dsFont(12)
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.dsBgCard, in: RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - Direction B: crest-grid tile
+
+    private func clubTile(for club: Club) -> some View {
+        let isFollowing = following.isFollowing(club)
+        // Compact tile: crest + name only when unselected (so all 16 clubs come into view
+        // fast — the point of onboarding); the bell drops in below the name once followed.
+        // Shared crest + card surface with the Teams tab (TeamTile) so they can't drift.
+        return Button { toggleFollow(club) } label: {
+            VStack(spacing: 9) {
+                TeamCrestGlow(club: club, size: 52)
+                Text(club.displayName)
+                    .dsFont(13, weight: .semibold)
+                    .foregroundStyle(Color.dsFgPrimary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(minHeight: 35, alignment: .center)   // reserve 2 lines so names align
+            }
+            .frame(maxWidth: .infinity)
+            .padding(EdgeInsets(top: 16, leading: 12, bottom: 14, trailing: 12))
+            .teamTileSurface(club: club, isFollowing: isFollowing)
+            // The bell + follow-check sit TOGETHER in the top-right (as an overlay, so selecting
+            // never changes the tile's height — grid stays compact AND uniform). Grouped, not
+            // split across corners, so the related controls read as a pair (like the list row).
+            .overlay(alignment: .topTrailing) {
+                if isFollowing {
+                    VStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .dsFont(20)
+                            .foregroundStyle(club.accentColor)
+                        tileBell(for: club)
+                    }
+                    .padding(9)
                 }
             }
-            .accessibilityElement(children: .combine)
+            .contentShape(RoundedRectangle(cornerRadius: DS.radiusXl))
         }
+        .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.2), value: isFollowing)
+        .accessibilityLabel(isFollowing ? "Unfollow \(club.displayName)" : "Follow \(club.displayName)")
+    }
+
+    // In-tile match-alert bell (labeled, so it reads as an alerts toggle at grid size).
+    // Same on/off behavior as the Teams-tab bell and the old list-row bell.
+    private func tileBell(for club: Club) -> some View {
+        let on = teamAlerts.alertsEnabled(for: club.id)
+        return Button {
+            // Same path as every other bell: signed-out ON presents Sign in with Apple first
+            // (bell stays off until sign-in), then enables + cascades the full match-alert bundle.
+            alertPresenter.requestToggle(key: club.id, turnOn: !on, isSignedIn: auth.isSignedIn,
+                                         alerts: teamAlerts, prefs: notifications)
+        } label: {
+            Image(systemName: on ? "bell.fill" : "bell")
+                .dsFont(12, weight: .medium)
+                .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
+                .frame(width: 30, height: 30)
+                .background(on ? Color.dsAccentMuted : Color.dsBgTertiary, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            on ? "Turn off match alerts for \(club.displayName)"
+               : "Turn on match alerts for \(club.displayName)"
+        )
     }
 
     private var bottomBar: some View {

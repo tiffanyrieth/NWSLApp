@@ -73,7 +73,6 @@ struct ThesisView: View {
                 TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 56)
                     .padding(5)
                     .background(Color.dsBgCard, in: Circle())
-                    .overlay(Circle().stroke(club.accentColor, lineWidth: 2))
             }
             if extra > 0 {
                 Text("+\(extra)")
@@ -81,7 +80,6 @@ struct ThesisView: View {
                     .foregroundStyle(Color.dsFgSecondary)
                     .frame(width: 56, height: 56)
                     .background(Color.dsBgCard, in: Circle())
-                    .overlay(Circle().stroke(Color.dsFgQuaternary, lineWidth: 2))
             }
         }
     }

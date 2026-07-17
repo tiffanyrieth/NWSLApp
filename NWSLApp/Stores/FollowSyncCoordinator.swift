@@ -195,11 +195,17 @@ final class FollowSyncCoordinator {
         Task {
             for id in added {
                 do { try await service.addFollow(id, userID: userID) }
-                catch { Diagnostics.shared.record(.apiFailure, "follows addFollow \(id): \(error.localizedDescription)") }
+                catch {
+                    Diagnostics.shared.record(.apiFailure, "follows addFollow \(id): \(error.localizedDescription)")
+                    await auth.revalidateIfUnauthorizedWrite(error)
+                }
             }
             for id in removed {
                 do { try await service.removeFollow(id, userID: userID) }
-                catch { Diagnostics.shared.record(.apiFailure, "follows removeFollow \(id): \(error.localizedDescription)") }
+                catch {
+                    Diagnostics.shared.record(.apiFailure, "follows removeFollow \(id): \(error.localizedDescription)")
+                    await auth.revalidateIfUnauthorizedWrite(error)
+                }
             }
         }
     }
@@ -218,11 +224,17 @@ final class FollowSyncCoordinator {
         Task {
             for key in added {
                 do { try await compService.addFollow(key, userID: userID) }
-                catch { Diagnostics.shared.record(.apiFailure, "competition addFollow \(key): \(error.localizedDescription)") }
+                catch {
+                    Diagnostics.shared.record(.apiFailure, "competition addFollow \(key): \(error.localizedDescription)")
+                    await auth.revalidateIfUnauthorizedWrite(error)
+                }
             }
             for key in removed {
                 do { try await compService.removeFollow(key, userID: userID) }
-                catch { Diagnostics.shared.record(.apiFailure, "competition removeFollow \(key): \(error.localizedDescription)") }
+                catch {
+                    Diagnostics.shared.record(.apiFailure, "competition removeFollow \(key): \(error.localizedDescription)")
+                    await auth.revalidateIfUnauthorizedWrite(error)
+                }
             }
         }
     }

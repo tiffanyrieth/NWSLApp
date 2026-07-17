@@ -103,7 +103,7 @@ struct DisplayNameEditorSheet: View {
             .background(Color.dsBgGrouped)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text("Username").font(.headline).foregroundStyle(Color.dsFgPrimary)
+                    Text("Username").dsFont(17, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

@@ -57,9 +57,9 @@ struct CommunityResultsView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Image(systemName: "person.3.fill").foregroundStyle(accent)
-                Text("How everyone did").font(.headline)
+                Text("How everyone did").dsFont(17, weight: .semibold)
                 Spacer()
-                Text("Community").font(.caption).foregroundStyle(.secondary)
+                Text("Community").dsFont(12).foregroundStyle(.secondary)
             }
             content
         }
@@ -113,8 +113,8 @@ struct CommunityResultsView: View {
 
     private func statBlock(value: String, label: String) -> some View {
         VStack(spacing: 4) {
-            Text(value).font(.title3.weight(.bold)).foregroundStyle(accent)
-            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(value).dsFont(20, weight: .bold).foregroundStyle(accent)
+            Text(label).dsFont(12).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -127,10 +127,10 @@ struct CommunityResultsView: View {
         let correct = data?.correctCount ?? 0
         VStack(alignment: .leading, spacing: 8) {
             Text(q.prompt)
-                .font(.subheadline.weight(.semibold))
+                .dsFont(15, weight: .semibold)
                 .fixedSize(horizontal: false, vertical: true)
             Text(gotItRightLine(correct: correct, total: total, showPercent: showPercent))
-                .font(.caption.weight(.semibold))
+                .dsFont(12, weight: .semibold)
                 .foregroundStyle(accent)
             ForEach(q.options.indices, id: \.self) { i in
                 optionBar(label: q.options[i], count: data?.count(forOption: i) ?? 0,
@@ -139,7 +139,7 @@ struct CommunityResultsView: View {
             // The "learn about her" payoff, folded in here so it isn't a duplicate list at the bottom.
             if let fact = q.revealFact, !fact.isEmpty {
                 Text(fact)
-                    .font(.caption).foregroundStyle(.secondary)
+                    .dsFont(12).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
             }
@@ -163,10 +163,10 @@ struct CommunityResultsView: View {
         let fraction = total > 0 ? Double(count) / Double(total) : 0
         return HStack(spacing: 10) {
             Image(systemName: isCorrect ? "checkmark.circle.fill" : "circle")
-                .font(.caption)
+                .dsFont(12)
                 .foregroundStyle(isCorrect ? Color.dsSuccess : Color.dsFgTertiary)
             Text(label)
-                .font(.caption)
+                .dsFont(12)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             GeometryReader { geo in
@@ -187,11 +187,11 @@ struct CommunityResultsView: View {
     @ViewBuilder
     private func honest(_ message: String, retry: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(message).font(.subheadline).foregroundStyle(.secondary)
+            Text(message).dsFont(15).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if retry {
                 Button("Try again") { Task { await load() } }
-                    .font(.caption.weight(.semibold))
+                    .dsFont(12, weight: .semibold)
                     .foregroundStyle(accent)
             }
         }

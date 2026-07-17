@@ -94,7 +94,7 @@ struct XIPickerView: View {
         HStack(spacing: 10) {
             Image(systemName: "checkmark.seal.fill").foregroundStyle(accent)
             Text("Submitted — locked in. Awaiting the result.")
-                .font(.subheadline.weight(.semibold))
+                .dsFont(15, weight: .semibold)
             Spacer(minLength: 0)
         }
         .padding(12)
@@ -107,14 +107,14 @@ struct XIPickerView: View {
 
     private var formationSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("FORMATION").font(.caption.weight(.bold)).foregroundStyle(.secondary)
+            Text("FORMATION").dsFont(12, weight: .bold).foregroundStyle(.secondary)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(Formation.common) { formation in
                         let selected = formation == picker.formation
                         Button { picker.selectFormation(formation) } label: {
                             Text(formation.raw)
-                                .font(.subheadline.weight(.semibold))
+                                .dsFont(15, weight: .semibold)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
                                 .background(selected ? accent : Color.dsMdCard)
@@ -202,11 +202,11 @@ struct XIPickerView: View {
 
     private var scorelineSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("FINAL SCORE").font(.caption.weight(.bold)).foregroundStyle(.secondary)
+            Text("FINAL SCORE").dsFont(12, weight: .bold).foregroundStyle(.secondary)
             HStack(spacing: 12) {
                 scoreStepper(abbr: homeAbbr, value: picker.homeScore,
                              onDec: picker.decrementHome, onInc: picker.incrementHome)
-                Text("–").font(.title2.weight(.bold)).foregroundStyle(.secondary)
+                Text("–").dsFont(22, weight: .bold).foregroundStyle(.secondary)
                 scoreStepper(abbr: awayAbbr, value: picker.awayScore,
                              onDec: picker.decrementAway, onInc: picker.incrementAway)
             }
@@ -220,11 +220,11 @@ struct XIPickerView: View {
 
     private func scoreStepper(abbr: String, value: Int, onDec: @escaping () -> Void, onInc: @escaping () -> Void) -> some View {
         VStack(spacing: 6) {
-            Text(abbr).font(.caption.weight(.bold))
+            Text(abbr).dsFont(12, weight: .bold)
             HStack(spacing: 14) {
                 stepButton("minus", action: onDec)
                 Text("\(value)")
-                    .font(.title.weight(.heavy).monospacedDigit())
+                    .dsFont(28, weight: .heavy, monospacedDigit: true)
                     .frame(minWidth: 28)
                 stepButton("plus", action: onInc)
             }
@@ -261,7 +261,7 @@ struct XIPickerView: View {
                 dismiss()
             } label: {
                 Text(picker.isComplete ? "Submit & lock in" : "Pick all 11 to submit (\(picker.assignedCount)/11)")
-                    .font(.headline)
+                    .dsFont(17, weight: .semibold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .background(picker.isComplete ? accent : Color.dsMdPanelBottom)
@@ -275,7 +275,7 @@ struct XIPickerView: View {
                 dismiss()
             } label: {
                 Text("Save draft")
-                    .font(.headline)
+                    .dsFont(17, weight: .semibold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .foregroundStyle(accent)
@@ -332,9 +332,9 @@ struct XIPickerView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 1) {
-                Text(athlete.name).font(.subheadline.weight(.semibold))
+                Text(athlete.name).dsFont(15, weight: .semibold)
                 if let position = athlete.positionName {
-                    Text(position).font(.caption2).foregroundStyle(.secondary)
+                    Text(position).dsFont(11).foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 0)

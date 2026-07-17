@@ -90,18 +90,18 @@ struct KnowHerGameView: View {
                 KnowHerPlayerAvatar(player: player, ring: teamColor, size: 108)
                     .padding(.top, 8)
                 Text(player.teamAbbreviation.uppercased())
-                    .font(.caption.weight(.bold))
+                    .dsFont(12, weight: .bold)
                     .padding(.horizontal, 10).padding(.vertical, 4)
                     .background(teamColor.opacity(0.18))
                     .foregroundStyle(teamColor)
                     .clipShape(Capsule())
                 VStack(spacing: 4) {
-                    Text(player.playerName).font(.title.weight(.bold)).multilineTextAlignment(.center)
+                    Text(player.playerName).dsFont(28, weight: .bold).multilineTextAlignment(.center)
                     Text("\(player.position) · #\(player.jerseyNumber)")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        .dsFont(15).foregroundStyle(.secondary)
                 }
                 Text(player.tagline)
-                    .font(.body).foregroundStyle(.secondary)
+                    .dsFont(17).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal)
@@ -113,7 +113,7 @@ struct KnowHerGameView: View {
                     gateRequested = true
                 } label: {
                     Text("Start the challenge")
-                        .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
+                        .dsFont(17, weight: .semibold).frame(maxWidth: .infinity).padding(.vertical, 14)
                         // Dark ink on the light amber Spotlight accent — white here is ~1.9:1 (fails
                         // the 3:1 large-text floor); black on #F5A623 is ~11:1. Keeps the amber identity.
                         .background(accent).foregroundStyle(.black)
@@ -122,7 +122,7 @@ struct KnowHerGameView: View {
                 .buttonStyle(.plain)
 
                 Text("A fresh player each week — one of your followed teams. Points add to your Superfan total.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .dsFont(12).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center).padding(.horizontal)
             }
             .padding(20)
@@ -145,8 +145,8 @@ struct KnowHerGameView: View {
 
     private func metaItem(_ value: String, _ label: String) -> some View {
         VStack(spacing: 3) {
-            Text(value).font(.headline).foregroundStyle(accent)
-            Text(label).font(.caption2).foregroundStyle(.secondary)
+            Text(value).dsFont(17, weight: .semibold).foregroundStyle(accent)
+            Text(label).dsFont(11).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -162,7 +162,7 @@ struct KnowHerGameView: View {
                     HStack(spacing: 12) {
                         KnowHerPlayerAvatar(player: player, ring: teamColor, size: 56)
                         Text(question.prompt)
-                            .font(.title3.weight(.bold))
+                            .dsFont(20, weight: .bold)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     VStack(spacing: 12) {
@@ -180,10 +180,10 @@ struct KnowHerGameView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Question \(viewModel.questionNumber) of \(viewModel.questionCount)")
-                    .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    .dsFont(12, weight: .semibold).foregroundStyle(.secondary)
                 Spacer()
                 Text(question.category.label.uppercased())
-                    .font(.caption2.weight(.bold))
+                    .dsFont(11, weight: .bold)
                     .padding(.horizontal, 9).padding(.vertical, 4)
                     .background(accent.opacity(0.14)).foregroundStyle(accent)
                     .clipShape(Capsule())
@@ -211,7 +211,7 @@ struct KnowHerGameView: View {
                     .background(style.badgeFill).foregroundStyle(style.badgeText)
                     .clipShape(Circle())
                 Text(question.options[index])
-                    .font(.body).foregroundStyle(.primary)
+                    .dsFont(17).foregroundStyle(.primary)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
@@ -238,15 +238,15 @@ struct KnowHerGameView: View {
                     // You played this one → your score up top.
                     scoreCircle.padding(.top, 12)
                     VStack(spacing: 8) {
-                        Text(feelGoodTitle).font(.title2.weight(.bold)).multilineTextAlignment(.center)
+                        Text(feelGoodTitle).dsFont(22, weight: .bold).multilineTextAlignment(.center)
                         if let missed = missedFact {
-                            Text(missed).font(.subheadline).foregroundStyle(.secondary)
+                            Text(missed).dsFont(15).foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center).padding(.horizontal)
                         }
                     }
                     if bankedScore > 0 {
                         Text("+\(bankedScore) points")
-                            .font(.headline).foregroundStyle(accent)
+                            .dsFont(17, weight: .semibold).foregroundStyle(accent)
                             .padding(.horizontal, 16).padding(.vertical, 8)
                             .background(accent.opacity(0.14)).clipShape(Capsule())
                     }
@@ -270,11 +270,11 @@ struct KnowHerGameView: View {
     private var unplayedHeader: some View {
         VStack(spacing: 10) {
             KnowHerPlayerAvatar(player: player, ring: teamColor, size: 88)
-            Text(player.playerName).font(.title2.weight(.bold)).multilineTextAlignment(.center)
+            Text(player.playerName).dsFont(22, weight: .bold).multilineTextAlignment(.center)
             Text("\(player.position) · \(player.teamAbbreviation.uppercased())")
-                .font(.subheadline).foregroundStyle(.secondary)
+                .dsFont(15).foregroundStyle(.secondary)
             Text("You didn't play this one — here's how everyone did.")
-                .font(.subheadline).foregroundStyle(.secondary)
+                .dsFont(15).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center).padding(.horizontal)
         }
     }
@@ -290,7 +290,7 @@ struct KnowHerGameView: View {
             VStack(spacing: 2) {
                 Text("\(bankedScore)/\(player.questions.count)")
                     .dsFont(34, weight: .heavy, design: .rounded).foregroundStyle(accent)
-                Text("correct").font(.caption).foregroundStyle(.secondary)
+                Text("correct").dsFont(12).foregroundStyle(.secondary)
             }
         }
     }
@@ -319,7 +319,7 @@ struct KnowHerGameView: View {
             Text(text)
             if let systemImage { Image(systemName: systemImage) }
         }
-        .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
+        .dsFont(17, weight: .semibold).frame(maxWidth: .infinity).padding(.vertical, 14)
         // Dark ink on the light amber Spotlight accent (see startChallenge button) — white fails contrast.
         .background(accent).foregroundStyle(.black)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))

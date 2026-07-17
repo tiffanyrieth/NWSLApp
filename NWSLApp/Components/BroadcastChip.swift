@@ -39,21 +39,9 @@ struct BroadcastChip: View {
         .background(color.opacity(0.14), in: Capsule())
     }
 
-    /// The handoff's broadcast palette, matched by substring against ESPN's
-    /// free-text channel name (e.g. "ESPN", "Prime Video", "Paramount+").
-    static func color(for name: String) -> Color {
-        let n = name.lowercased()
-        switch true {
-        case n.contains("prime"), n.contains("amazon"): return Color(hex: "#00A8E1")
-        case n.contains("espn"), n.contains("abc"):     return Color(hex: "#E0203B")
-        case n.contains("paramount"):                   return Color(hex: "#0064FF")
-        case n.contains("cbs"):                         return Color(hex: "#1FA0E0")
-        case n.contains("ion"):                         return Color(hex: "#E4322B")
-        case n.contains("victory"):                     return Color(hex: "#15B7B0")
-        case n.contains("nwsl"):                        return Color(hex: "#FF6B9D")
-        default:                                        return .dsFgSecondary
-        }
-    }
+    /// Broadcast partner color — resolves through the single `BroadcastBrand` source
+    /// (kept as a static accessor here for the existing callers: HowToWatchCard, ComingUpRow).
+    static func color(for name: String) -> Color { BroadcastBrand.color(for: name) }
 }
 
 #Preview {

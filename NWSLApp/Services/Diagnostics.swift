@@ -39,6 +39,10 @@ final class Diagnostics {
         // dead" desync (alerts can't deliver without an account). Emitted ONCE per detection by
         // NotificationSyncCoordinator; the app also auto-presents the sign-in nudge (RootTabView).
         case tier2SignedOutDesync
+        // A MetricKit diagnostic payload arrived (crash/hang/CPU/disk-write counts + a coarse first-
+        // crash signal) — Apple's on-device crash reporting surfaced into the owner's own telemetry
+        // sink instead of only ASC's delayed dashboard. See MetricKitCollector.
+        case metricKitDiagnostic
         // V2 Live Activity background-launch trail: non-failure breadcrumbs (observer primed, activity
         // seen, token received, session resolved/dropped, upsert ok/fail) so a push-to-start background
         // launch — un-observable in the sim — leaves a full trace in the remote sink. See LiveActivityManager.

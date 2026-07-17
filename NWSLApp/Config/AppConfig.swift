@@ -232,6 +232,13 @@ enum AppConfig {
         scoreboardProxyBase.appendingPathComponent("telemetry")
     }
 
+    /// The proxy route that collects the ANONYMOUS usage counters: `POST /analytics`.
+    /// Analytics flushes one pre-summed batch per session (no identifiers — see Analytics.swift).
+    /// Proxy-only, like telemetry: no `-useESPNDirect` bypass makes sense for a proxy-native route.
+    static func analyticsURL() -> URL? {
+        scoreboardProxyBase.appendingPathComponent("analytics")
+    }
+
     // MARK: - Forced-update version gate
 
     /// The proxy route the app checks at launch: `GET /config` → `{ minVersion, minBuild }`. If this

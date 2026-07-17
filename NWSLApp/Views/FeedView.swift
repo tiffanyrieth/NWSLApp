@@ -177,6 +177,7 @@ struct FeedView: View {
                 ForEach(viewModel.chips, id: \.self) { filter in
                     Chip(label: filter.label, isActive: viewModel.selectedFilter == filter) {
                         viewModel.selectedFilter = filter
+                        Analytics.shared.log(.feedChipTapped(filter))   // anonymous which-filters counter
                     }
                 }
             }
@@ -200,6 +201,12 @@ struct FeedView: View {
                     ForEach(items) { card in
                         ContentCardView(card: card, club: club(for: card),
                                         hideTeamIdentity: hideTeamIdentity, unified: true)
+                            // Anonymous engagement counter — attached HERE (not in the shared
+                            // card components, which Home also renders) so it counts FEED taps
+                            // only; same simultaneousGesture idiom as HomeView's markSeen.
+                            .simultaneousGesture(TapGesture().onEnded {
+                                Analytics.shared.log(.feedItemTapped)
+                            })
                     }
                 }
                 .padding(16)

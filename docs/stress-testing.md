@@ -19,6 +19,15 @@ make are *both* wrong, and both are expensive:
 - **"Toy" failure** — sizing for *current* usage (owner + one tester) because the app isn't published
   yet. At launch this is **not** a 10-download app. It should be sized for **~1k active users within
   the first few months** and architected to reach **100k over years**.
+  **⚠️ THE BANNED LENS (made explicit 2026-07-16 after it produced two wrong calls in one day):**
+  never reason from "we only have N users right now, so…" — not to defer, not to skip, not to
+  soft-pedal. EVERY load/reliability question is asked **as if the app ships to the App Store
+  tomorrow** (the launch scenario: hundreds of one-club fans arriving from a single subreddit post).
+  "Only 2 users → plenty of headroom" and "only 2 users → alerting can wait until launch" are the
+  SAME mistake; both were made and both reversed on the publish-tomorrow test (the watcher was
+  burning 23% of the request cap at zero users; error alerting turned out launch-gated because every
+  existing channel is pull and the 7/15 CPU burst was found a day late). The ONLY valid reasons to
+  defer are: the 1k test PASSES, or the lever is a reversible config knob — never today's user count.
 - The owner is the **decision-maker on product/cost trade-offs.** Present the menu + real numbers with
   a recommendation; never silently pick the enterprise option or quietly under-size.
 
@@ -224,4 +233,19 @@ For each subsystem, walk it explicitly:
   score). Watcher cron CPU is user-count-INDEPENDENT (median 9.56ms vs the 10ms free cap — the
   2026-07-15 exceededCpu burst was the live double-poll parsing 16 feeds ×2; B1 removes most of
   that parsing; Workers Paid $5/mo = the 30s-CPU backstop if live ticks still spike).
+- **Anonymous Level-3 usage analytics (2026-07-17):** ✅ **passes 1k + 100k by construction.** New
+  load path = ONE pre-summed batch POST per app session (`Analytics.swift` aggregates in memory,
+  flushes on background) → proxy `POST /analytics` (whitelist, no IP/IDs) → one Supabase RPC
+  (`increment_counters`, atomic daily rollups; table grows ~40-60 rows/day ≈ ~2MB/yr). 1k (~500
+  DAU): ~1k req/day ≈ 1% of the request budget. 100k: ~60k req+RPC/day — on Workers Paid by then;
+  trivial for Postgres. No identifiers ⇒ no GDPR/consent surface; label = Usage Data, Not Linked.
+- **Ops alerting (2026-07-17):** ✅ **scales with INCIDENTS, not users — flat $0 at every tier.**
+  (a) Error-spike email: the proxy's existing `*/5` cron scans recent `diag:` keys (age filtered
+  from the reverse-time KEY, so a quiet tick = 1 KV list + 0 reads) → Resend email at ≥8
+  error-kind events/15min, throttled 1/hr. (b) Dead-cron watchdog: the watcher pings a
+  healthchecks.io check each tick; missed pings ⇒ THEY email (the failure class a dead worker
+  can't self-report). (c) MetricKit → Diagnostics: Apple's on-device crash/hang payloads surface
+  as `metricKitDiagnostic` crumbs in the same telemetry sink (device-only delivery; TestFlight ✓).
+  Both (a)+(b) no-op until the owner sets the secrets (RESEND_API_KEY + ALERT_EMAIL;
+  HEALTHCHECK_URL).
 - (append as items resolve)

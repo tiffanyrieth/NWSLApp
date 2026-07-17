@@ -197,7 +197,7 @@ struct CompetitionsView: View {
     private func subSection<Content: View>(_ title: String,
                                            @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).trackedCaps(size: 11, tracking: 0.6, weight: .semibold, color: .dsFgTertiary)
+            Text(title).trackedCaps(size: 11, tracking: 0.6, weight: .semibold, color: .dsFgSecondary)
             content()
         }
     }
@@ -229,7 +229,7 @@ struct CompetitionsView: View {
     private func section<Content: View>(_ title: String,
                                         @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).trackedCaps(size: 11, tracking: 0.6, weight: .semibold, color: .dsFgTertiary)
+            Text(title).trackedCaps(size: 11, tracking: 0.6, weight: .semibold, color: .dsFgSecondary)
             content()
         }
     }

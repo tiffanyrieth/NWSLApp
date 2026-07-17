@@ -184,7 +184,7 @@ struct TeamDetailView: View {
             VStack(alignment: .leading, spacing: 9) {
                 Text("OFFICIAL")
                     .dsFont(11, weight: .semibold).tracking(0.5)
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
                     .padding(.horizontal, 16)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -205,7 +205,7 @@ struct TeamDetailView: View {
                     Spacer()
                     Text("FAN-RUN · UNOFFICIAL")
                         .dsFont(10, weight: .semibold).tracking(0.4)
-                        .foregroundStyle(Color.dsFgTertiary)
+                        .foregroundStyle(Color.dsFgSecondary)
                 }
                 HStack(spacing: 8) {
                     ForEach(community) { linkChip($0) }
@@ -268,7 +268,7 @@ struct TeamDetailView: View {
                     VStack(spacing: 8) {
                         Text(sec.rawValue.uppercased())
                             .dsFont(12, weight: .semibold).tracking(1)
-                            .foregroundStyle(section == sec ? Color.dsFgPrimary : Color.dsFgTertiary)
+                            .foregroundStyle(section == sec ? Color.dsFgPrimary : Color.dsFgSecondary)
                         Rectangle()
                             .fill(section == sec ? accent : .clear)
                             .frame(height: 2)

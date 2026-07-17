@@ -153,7 +153,7 @@ struct MatchDetailView: View {
                         Text(tabLabel(item).uppercased())
                             .dsFont(12, weight: .semibold)
                             .tracking(1)
-                            .foregroundStyle(effectiveTab == item ? Color.dsFgPrimary : Color.dsFgTertiary)
+                            .foregroundStyle(effectiveTab == item ? Color.dsFgPrimary : Color.dsFgSecondary)
                         ZStack {
                             Rectangle().fill(.clear).frame(height: 2)
                             if effectiveTab == item {

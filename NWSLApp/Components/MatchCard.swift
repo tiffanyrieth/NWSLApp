@@ -37,7 +37,7 @@ struct MatchCard: View {
                 Text(label.uppercased())
                     .dsFont(10, weight: .bold)
                     .tracking(0.6)
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack(alignment: .center, spacing: 0) {

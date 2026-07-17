@@ -140,7 +140,7 @@ struct ProfileView: View {
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
             Text("Match alerts, alert types, and activity — all in one place.")
                 .dsFont(11)
-                .foregroundStyle(Color.dsFgQuaternary)
+                .foregroundStyle(Color.dsFgSecondary)
                 .padding(.horizontal, 4)
         }
     }
@@ -162,7 +162,7 @@ struct ProfileView: View {
                     .foregroundStyle(Color.dsFgPrimary)
                 Text("Shown on leaderboards")
                     .dsFont(11)
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
             Spacer(minLength: 8)
             Text(auth.displayName ?? "Set username")
@@ -478,7 +478,7 @@ struct ProfileView: View {
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
             Text("Signing out keeps your follows on this device. Your Fan Zone points and rank stay with your account.")
                 .dsFont(11)
-                .foregroundStyle(Color.dsFgQuaternary)
+                .foregroundStyle(Color.dsFgSecondary)
                 .padding(.horizontal, 4)
         }
     }
@@ -546,7 +546,7 @@ struct ProfileView: View {
     private var versionLabel: some View {
         Text("NWSLApp \(appVersion)")
             .dsFont(11)
-            .foregroundStyle(Color.dsFgQuaternary)
+            .foregroundStyle(Color.dsFgTertiary)
             .frame(maxWidth: .infinity)
     }
 

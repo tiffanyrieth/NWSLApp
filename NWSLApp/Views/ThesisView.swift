@@ -46,7 +46,7 @@ struct ThesisView: View {
                     systemImage: "bell.fill"
                 )
                 .dsFont(14)
-                .foregroundStyle(Color.dsFgTertiary)
+                .foregroundStyle(Color.dsFgSecondary)
                 .padding(.top, 18)
             }
 

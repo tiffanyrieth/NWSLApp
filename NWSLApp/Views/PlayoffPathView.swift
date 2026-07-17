@@ -165,7 +165,7 @@ struct PlayoffPathView: View {
                     .dsFont(12, weight: .bold).tracking(0.4)
                     .foregroundStyle(color(championAbbr))
             } else {
-                Text("NWSL CHAMPION").trackedCaps(size: 12, tracking: 0.8, color: .dsFgTertiary)
+                Text("NWSL CHAMPION").trackedCaps(size: 12, tracking: 0.8, color: .dsFgSecondary)
             }
             Spacer(minLength: 0)
         }

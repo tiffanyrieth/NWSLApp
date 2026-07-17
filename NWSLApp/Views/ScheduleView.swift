@@ -604,7 +604,7 @@ private struct ClinchStatusCard: View {
                 .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
         case .eliminated:
             Text("Out of the playoff race")
-                .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
+                .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
         }
     }
 }

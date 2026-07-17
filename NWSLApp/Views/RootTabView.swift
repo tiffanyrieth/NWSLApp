@@ -409,11 +409,22 @@ struct RootTabView: View {
         // kicks an immediate refresh so returning to the app is instant.
         .task {
             while !Task.isCancelled {
-                let interval: Duration = matches.hasLiveMatch ? .seconds(30) : .seconds(300)
+                // 60s live (owner call 2026-07-16): the ≤30s-fresh surface is the V2 lock-screen
+                // card, which rides the WATCHER's poll + one broadcast POST (user-count-free) —
+                // the in-app screens don't need to match it. 60s halves the per-watcher proxy
+                // cost (the 100k/day requests cap scales with concurrent open apps), and the
+                // foreground-push refresh below beats any poll for alert-opted-in users anyway.
+                let interval: Duration = matches.hasLiveMatch ? .seconds(60) : .seconds(300)
                 try? await Task.sleep(for: interval)
                 if Task.isCancelled { break }
                 await matches.refresh()
             }
+        }
+        // A V1 match push ARRIVING while the app is open (banner, not tap) means the score just
+        // changed — refresh now instead of waiting out the heartbeat. Event-driven: costs one
+        // windowed refresh per real match event, and reaches opted-in users at push latency.
+        .onChange(of: PushBridge.shared.foregroundPushNonce) { _, _ in
+            Task { await matches.refresh() }
         }
         // Returning to the foreground re-syncs (covers scores earned while offline).
         .onChange(of: scenePhase) { _, phase in

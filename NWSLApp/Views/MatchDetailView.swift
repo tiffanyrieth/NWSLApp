@@ -89,14 +89,16 @@ struct MatchDetailView: View {
             // First load (shows a spinner), then poll the /summary tabs until the match
             // is final. We loop while NOT past (re-reading the LIVE temporal state each
             // tick) rather than only-while-live, so a screen opened before kickoff still
-            // starts refreshing once the store flips it live — 30s live, slower pre-match.
+            // starts refreshing once the store flips it live — 60s live (owner call
+            // 2026-07-16: the ≤30s surface is the V2 card; per-user polling scales against
+            // the proxy request cap), slower pre-match.
             // The header score/clock advance separately via `event` (the refreshing store).
             if case .idle = viewModel.summaryState { await viewModel.loadSummary() }
             // Historical kickoff weather for the header stamp — fire alongside the summary,
             // not gated on it (additive; loadWeather no-ops unless the match is already past).
             await viewModel.loadWeather()
             while !Task.isCancelled && temporalState != .past {
-                let interval: Duration = temporalState == .live ? .seconds(30) : .seconds(120)
+                let interval: Duration = temporalState == .live ? .seconds(60) : .seconds(120)
                 try? await Task.sleep(for: interval)
                 if Task.isCancelled { break }
                 await viewModel.refresh()

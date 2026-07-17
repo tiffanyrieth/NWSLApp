@@ -196,11 +196,32 @@ For each subsystem, walk it explicitly:
 - **Per-feature proxy-request LEDGER (seed, 2026-07-16 — extend as features land):** the shared
   100k/day budget each feature draws from. Fixed daily: watcher ~64 (discovery) + per-match windows
   ~300-600/match (+ double-poll during live); bracket `*/5` cron 288; social-refresh + KHG crons <10.
-  Per-user-session: launch ~5-6 (config/season/feed/videos); live heartbeat 2-3 per 30s (club) /
-  ~7-8 (one-confed NT follower), foreground-only; Match Detail +1 per 30s while open; tap-driven
-  (roster/weather/game content) ~1 each. Fan Zone gameplay = Supabase (NOT this budget). ⚠️ Any NEW
-  proxy-backed feature adds a row here + re-checks the 1k matchday sum.
+  Per-user-session (post-Part-D): launch ~5-6 (config/season/feed/videos); live heartbeat ~1 per
+  60s (aux feeds join only when their own fixture is within ±36h; NT adds its scoped feeds only in
+  international windows), foreground-only; Match Detail +1 per 60s while open; +1 per foreground
+  V1 push received (event-driven refresh); tap-driven (roster/weather/game content) ~1 each. Fan
+  Zone gameplay = Supabase (NOT this budget). ⚠️ Any NEW proxy-backed feature adds a row here +
+  re-checks the 1k matchday sum.
 - **Involuntary sign-out fix (2026-07-16):** ✅ load-neutral — no new load path (an auth-state
   listener + one foreground `auth.session` revalidation per app-open, on Supabase's unlimited-API
   free tier; no new polling/DB/cron). No §5 run required.
+- **In-app live-poll efficiency, Part D (2026-07-16):** ✅ owner decision: the ≤30s-fresh surface is
+  the **V2 card** (watcher-driven, one broadcast POST per event, user-count-FREE — untouched); the
+  in-app screens don't need to match it. Shipped: (a) aux-feed gate — the live tick re-fetches
+  NT/Champions-Cup/Challenge-Cup feeds only when the loaded season has one of THEIR fixtures within
+  ±36h (fail-open on unparseable dates; the Challenge Cup was fetched every 30s all season for one
+  match/year); (b) live cadence 60s (heartbeat + Match Detail; idle/pre unchanged); (c) a V1 push
+  arriving FOREGROUND triggers an instant `matches.refresh()` (event-driven — opted-in users see
+  goals at push latency, FASTER than the old 30s poll). **New per-watcher cost ≈ 1 call/60s ≈ 120
+  req per full match (was ~600) → ~750 concurrent full-match watchers** (~1,500 at typical ~1h
+  sessions) on Workers Free. Passes 1k with real margin.
+- **In-app pub/sub (Supabase Realtime vs Durable Object sockets) — evaluated 2026-07-16, DEFERRED
+  to the ~5-10k-user lever.** With Part D it is no longer a 1k necessity. Decision recorded:
+  Realtime free tier ≈200 concurrent (verify vs current docs) with a $25/mo Pro wall (disqualified
+  at launch scale per §1); a Durable-Object WebSocket layer rides the SAME $5/mo Workers Paid plan
+  the watcher's CPU ceiling already points at → **DO-on-$5 is the presumptive rail when built**,
+  with today's polling as the permanent fallback (a dropped socket degrades to poll, never a frozen
+  score). Watcher cron CPU is user-count-INDEPENDENT (median 9.56ms vs the 10ms free cap — the
+  2026-07-15 exceededCpu burst was the live double-poll parsing 16 feeds ×2; B1 removes most of
+  that parsing; Workers Paid $5/mo = the 30s-CPU backstop if live ticks still spike).
 - (append as items resolve)

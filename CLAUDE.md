@@ -7,7 +7,7 @@ feature-specific context lives in `docs/` + `.claude/rules/` and loads **on dema
 ## ⚠️ What this app is — read first
 
 A women's soccer (NWSL) **fandom** app: follow your clubs, keep up with soccer voices (reporters,
-club + player social), play/share Fan Zone games (Bracket Battle, Predict the XI, Daily Trivia),
+club + player social), play/share Fan Zone games (Bracket Battle, Predict the XI, Know Her Game, NWSL Trivia),
 and check scores/schedule/standings. The **fandom** — community, the games, social sharing,
 live/"alive" content, personal connection — **is the product.** Scores/schedule/standings are
 table stakes that must work but are **not** the differentiator.
@@ -286,7 +286,8 @@ Detail: `docs/know-her-game.md` §5d.
   fallbacks indistinguishable from success — a failure must never look like success. Spans the proxy
   (`emitDiag` + a deploy-time health check that exits non-zero on any gap). The spine also carries
   **MetricKit** crash/hang crumbs (`metricKitDiagnostic`, device-only delivery) and is watched by PUSH
-  alerting (2026-07-17): proxy error-spike → **Resend** email (≥8 error events/15min, 1/hr throttle);
+  alerting (2026-07-17): proxy error-spike → **Resend** email (≥8 error events/15min, 1/hr throttle;
+  EXCLUDES `image fetch …` apiFailures — expected IG-CDN/thumbnail flakiness, still in Diagnostics but doesn't page);
   watcher tick → **healthchecks.io** heartbeat (dead cron ⇒ external email) — both no-op until the
   owner's secrets are set (roadmap). SEPARATE quiet channel: **anonymous Level-3 usage counters**
   (`Analytics.swift` → proxy `/analytics` → Supabase `analytics_counters` daily rollups; six events,
@@ -332,6 +333,14 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
 ## UI rules
 
 - **Dark appearance app-wide**, no toggle (page `#1C1C1E`, cards `#2C2C2E`).
+- **Reuse the shared component library — don't re-roll** (pre-launch design pass, 2026-07-17): buttons →
+  `DSButton`; error/empty → `RetryStateView`; team colors → `Color.teamColor(…)`; player avatars →
+  `PlayerHeadshot`; voice pills → `CategoryPill`; broadcast/platform colors → `BroadcastBrand`/`PlatformBrand`.
+  Style via `ds*` tokens ONLY — no UIKit `Color(.systemGray*/.systemGroupedBackground/.separator)`, no raw
+  `.white` (→ `dsFgPrimary`), no raw `.font` for readable text (→ `.dsFont`; fixed-size monograms/badges/
+  numeric columns exempt), correct/wrong = `dsSuccess`/`dsError`. **Fan Zone = two visual families**
+  (competitive arena vs community cards) — the full contract auto-loads from `.claude/rules/fan-zone.md`
+  (Design consistency §). Build future games (Superfan, the Trivia rebuild) WITH this, not around it.
 - Persistent UI (tab/nav bars) never obscures scrollable content (respect safe areas); every drilled-in
   view has an explicit back affordance (don't rely on edge-swipe alone). Tabs keep their OWN nav stack
   across switches (**The Athletic model, owner-confirmed 2026-07**); re-tapping the ALREADY-active tab

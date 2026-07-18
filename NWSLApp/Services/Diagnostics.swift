@@ -47,10 +47,6 @@ final class Diagnostics {
         // seen, token received, session resolved/dropped, upsert ok/fail) so a push-to-start background
         // launch — un-observable in the sim — leaves a full trace in the remote sink. See LiveActivityManager.
         case liveActivityTrace
-        // TEMP (reinstall-restore verification — remove after the follows-restore fix is verified):
-        // a non-error diagnostic trace, used to confirm reconcile restores the full server set and
-        // never prunes on launch. Distinct kind so it reads as a trace, not a failure.
-        case debugTrace                 // TEMP verification trace (not a failure)
     }
 
     struct Event: Identifiable {

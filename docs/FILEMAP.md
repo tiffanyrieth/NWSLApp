@@ -7,7 +7,7 @@ NWSLApp/
 ├── NWSLAppApp.swift                   — app entry; launches RootTabView; forces dark; DEBUG `-resetOnboarding`; AppDelegate (APNs token + foreground/tap → PushBridge)
 ├── NWSLApp.entitlements               — Sign in with Apple + aps-environment (push) + usernotifications.time-sensitive (live-match rich alerts) + game-center (Game Center)
 ├── Config/
-│   ├── AppConfig.swift                — base URLs; scoreboard/summary/roster/weather → proxy; DEBUG `-useESPNDirect`; content route URLs (teamVideos/feed/spotlight/trivia)
+│   ├── AppConfig.swift                — base URLs; scoreboard/summary/roster/weather → proxy; DEBUG `-useESPNDirect`; content route URLs (teamVideos/feed/trivia)
 │   ├── Secrets.swift                  — 🔒 GITIGNORED Supabase URL + anon key
 │   └── Secrets.example                — checked-in template (non-.swift so it never compiles)
 ├── DesignSystem/
@@ -26,7 +26,7 @@ NWSLApp/
 │   ├── AthleteStatistics.swift        — ESPN Core API /statistics → PlayerSeasonStats
 │   ├── MatchSummary.swift             — ESPN /summary: lineups+formation, boxscore, key-events timeline
 │   ├── MatchWeather.swift             — past match's historical kickoff weather (proxy `/weather`, Open-Meteo); WMO code → night-aware SF Symbol + temp for the MatchDetail header stamp
-│   ├── PlayerSpotlight.swift          — (legacy) player-of-week model; the Home Spotlight section was retired for Know Her Game; model retained for the `/spotlight` decode path
+│   ├── PlayerSpotlight.swift          — (legacy) player-of-week model; the Home Spotlight section + its `/spotlight` fetch were retired for Know Her Game; model retained only as a legacy seed shape
 │   ├── KnowHerGame.swift              — Know Her Game content: `KnowHerPool`/`KnowHerPlayer`/`KnowHerQuestion` (Codable, mirrors proxy `src/knowher.ts`); category labels; `editionKey(weekKey:)`
 │   ├── PlayerStats.swift              — per-player season stats + team-leaders (real ESPN data)
 │   ├── Roster.swift                   — squad + team profile from one roster fetch; `ClubSquad.cachedAsOf` from the proxy's `proxyCachedAsOf` marker (last-known-good fallback)
@@ -42,7 +42,7 @@ NWSLApp/
 │   ├── ContentRoundRobin.swift        — pure COUNT-BASED fair-share (Home M1 + Social): `balanced` = EQUAL per-club slots, volume-blind + age-agnostic, strict recency within a club (round-robin across CLUBS, no type-interleave) + `home/feedSlotsPerClub` + `advancedOffsets` (pull-refresh rotation) + optional `ArticlePriority` (Home FIRST-LOAD only: prefer ≤quota=3 club-site articles TOTAL across clubs (global cap, round-robined) + float to top, then normal recency mix; staleness-gated 4×/14d relative — no time window). Unit-tested
 │   ├── BracketService.swift           — Bracket Supabase client: currentEdition/results/leaderboard(top-100+rank)/submit + standings→BracketStandingsResult(rows+you+true total via count:.exact)/myEditionStats; throw or honest-empty (online-only)
 │   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats
-│   ├── ContentService.swift           — ALIVE content client: homeCards→/team-videos · feedCards→/feed · spotlightCards→/spotlight; all `throws` (online-only; no seed)
+│   ├── ContentService.swift           — ALIVE content client: homeCards→/team-videos · feedCards→/feed; all `throws` (online-only; no seed)
 │   ├── ESPNService.swift              — async fetch: scoreboard + summary + weather + roster (proxy)/teams/standings + seasonStats (Core API)
 │   ├── FollowSyncService.swift        — Supabase `follows` client (fetch/push/add/remove); RLS-scoped
 │   ├── CompetitionFollowSyncService.swift — Supabase `competition_follows` client (NT + Champions Cup keys: "nt:USA"/"concacaf"); competition twin of FollowSyncService; RLS-scoped

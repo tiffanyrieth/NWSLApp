@@ -72,7 +72,8 @@ final class BracketViewModel {
         ))
         await scoreSettledRounds(edition: edition, store: store)
         leaderboard = await service.leaderboard(myPoints: store.points,
-                                                myName: displayName ?? "You", editionID: edition.id)
+                                                myName: displayName ?? "You", editionID: edition.id,
+                                                myUserID: userID)
         state = .loaded
     }
 
@@ -152,6 +153,14 @@ final class BracketViewModel {
     /// and the view offers "tap to retry"; we never fake the lock-in ahead of the ack.
     func submit(store: BracketStore, userID: UUID?) async {
         guard let edition, allPicksMade(store: store) else { return }
+        // In-flight guard: a fast double-tap enqueues two Tasks; on the MainActor the first runs its
+        // synchronous prefix (this guard + `submitState = .submitting`) to completion before it suspends
+        // at the await, so the second sees `.submitting` and bails — no duplicate server write.
+        guard submitState != .submitting else { return }
+        // Deadline guard: refuse a vote for a round whose close time has already passed. In auto/timed
+        // mode a just-closed round can still route to the voting screen before the cron advances it; the
+        // write must not land after close. Manual mode (launch default) has no close time (nil) → allowed.
+        if let closes = edition.roundClosesAt, closes.timeIntervalSinceNow <= 0 { submitState = .failed; return }
         guard let userID else { submitState = .failed; return }
         let round = edition.currentRound
         submitState = .submitting

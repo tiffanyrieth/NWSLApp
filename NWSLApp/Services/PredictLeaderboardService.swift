@@ -37,9 +37,18 @@ struct PredictLeaderboardService {
     /// caller guards on `userID`).
     func upsertScore(teamAbbreviation: String, points: Int,
                      displayName: String?, userID: UUID, season: String) async {
-        let row = ScoreUpsert(user_id: userID, team_abbreviation: teamAbbreviation,
-                              season: season, display_name: displayName, points: points)
         do {
+            // Guard against a DOWNWARD clobber. A season total is monotonic (Σ of scored fixtures, and
+            // a scored fixture never re-scores lower), but the local store is UserDefaults-only and
+            // resets to ~0 on a reinstall. A plain overwrite upsert would then replace the server's
+            // accumulated total (e.g. 300) with the small post-reinstall local value (e.g. 40) —
+            // silent, permanent standing loss. So read the user's current server total first and push
+            // the GREATER of the two: the server can only ever go UP. Also improves the two-device case
+            // (max-writer-wins instead of last-writer-wins). If the READ fails we skip the push (throws
+            // → caught → retried next load) rather than risk a clobber.
+            let serverPoints = try await currentPoints(teamAbbreviation: teamAbbreviation, userID: userID, season: season)
+            let row = ScoreUpsert(user_id: userID, team_abbreviation: teamAbbreviation,
+                                  season: season, display_name: displayName, points: max(points, serverPoints))
             try await client
                 .from("prediction_scores")
                 .upsert(row, onConflict: "user_id,team_abbreviation,season")
@@ -51,8 +60,26 @@ struct PredictLeaderboardService {
         }
     }
 
-    /// Everyone ranked for a team this season (raw — the caller filters out the
-    /// signed-in user and splices their fresher local total). Empty on any failure.
+    /// The signed-in user's OWN current server total for a team this season (0 if no row yet). Used to
+    /// clamp `upsertScore` to a non-decreasing value. Throws on a read failure so the caller skips the
+    /// push and retries next load — never worse than the old unconditional overwrite.
+    private func currentPoints(teamAbbreviation: String, userID: UUID, season: String) async throws -> Int {
+        let rows: [ScoreRow] = try await client
+            .from("prediction_scores")
+            .select("user_id, display_name, points")
+            .eq("user_id", value: userID)
+            .eq("team_abbreviation", value: teamAbbreviation)
+            .eq("season", value: season)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.points ?? 0
+    }
+
+    /// The TOP of a team's board this season — capped at `visibleLimit` so a giant
+    /// board never pulls every row just to draw a short list (the caller filters out
+    /// the signed-in user and splices their fresher local total + true rank). Empty on
+    /// any failure.
     func standings(teamAbbreviation: String, season: String) async -> [Standing] {
         do {
             let rows: [ScoreRow] = try await client
@@ -61,6 +88,7 @@ struct PredictLeaderboardService {
                 .eq("team_abbreviation", value: teamAbbreviation)
                 .eq("season", value: season)
                 .order("points", ascending: false)
+                .limit(LeaderboardRanking.visibleLimit)
                 .execute()
                 .value
             return rows.map { Standing(userID: $0.user_id, name: $0.display_name ?? "Fan", points: $0.points) }
@@ -69,6 +97,26 @@ struct PredictLeaderboardService {
             // failure so a down board isn't silently invisible to the owner.
             await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict standings \(teamAbbreviation): \(error.localizedDescription)") }
             return []
+        }
+    }
+
+    /// The signed-in user's TRUE 1-based rank on a team's board, computed with a COUNT
+    /// (rows scoring strictly higher, +1) — no rows transferred. `nil` on failure, so
+    /// the caller falls back to an inline splice rather than a wrong number. Ties break
+    /// in the user's favour (strictly-greater only), matching the on-device sort.
+    func rank(teamAbbreviation: String, season: String, points: Int) async -> Int? {
+        do {
+            let response = try await client
+                .from("prediction_scores")
+                .select("user_id", head: true, count: .exact)
+                .eq("team_abbreviation", value: teamAbbreviation)
+                .eq("season", value: season)
+                .gt("points", value: points)
+                .execute()
+            return (response.count ?? 0) + 1
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict rank \(teamAbbreviation): \(error.localizedDescription)") }
+            return nil
         }
     }
 }

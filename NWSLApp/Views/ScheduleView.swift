@@ -516,18 +516,21 @@ private struct DayHeader: View {
         .background(Color.dsBgGrouped)
     }
 
+    // Cached formatters — DayHeader is a PINNED section header re-rendered during scroll, and a fresh
+    // DateFormatter per render (locale/calendar parse) is a scroll-hot alloc. Static = one instance, reused.
+    private static let keyParser: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = .current
+        f.dateFormat = "yyyy-MM-dd"; return f
+    }()
+    private static let dayDisplay: DateFormatter = {
+        let f = DateFormatter(); f.locale = .current; f.timeZone = .current
+        f.dateFormat = "EEE '·' MMM d"; return f
+    }()
+
     // "SAT · MAR 14" from the yyyy-MM-dd section key.
     private var formatted: String {
-        let parser = DateFormatter()
-        parser.locale = Locale(identifier: "en_US_POSIX")
-        parser.timeZone = .current
-        parser.dateFormat = "yyyy-MM-dd"
-        guard let date = parser.date(from: dayKey) else { return dayKey }
-        let out = DateFormatter()
-        out.locale = .current
-        out.timeZone = .current
-        out.dateFormat = "EEE '·' MMM d"
-        return out.string(from: date).uppercased()
+        guard let date = Self.keyParser.date(from: dayKey) else { return dayKey }
+        return Self.dayDisplay.string(from: date).uppercased()
     }
 }
 

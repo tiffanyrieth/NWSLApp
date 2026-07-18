@@ -45,8 +45,14 @@ struct TriviaLeaderboardService {
         }
     }
 
-    /// Everyone ranked this season (raw — the caller filters out the signed-in user
-    /// and splices their fresher local streak). Empty on any failure.
+    /// The TOP of the league-wide streak board this season, capped at `visibleLimit`
+    /// (guardrail so a global board never full-scans). Empty on any failure.
+    ///
+    /// NOTE: this board is currently DORMANT — the community "how everyone did" screen
+    /// replaced the streak leaderboard (docs §11), so `refreshLeaderboard` has no live
+    /// caller. If it's ever revived, adopt the `LeaderboardRanking` top-100 + true-rank
+    /// splice used by Predict/Bracket (a plain cap alone would show a below-cap player a
+    /// flattering ~101 rank — a silent lie).
     func standings(season: String) async -> [Standing] {
         do {
             let rows: [ScoreRow] = try await client
@@ -54,6 +60,7 @@ struct TriviaLeaderboardService {
                 .select("user_id, display_name, best_streak")
                 .eq("season", value: season)
                 .order("best_streak", ascending: false)
+                .limit(LeaderboardRanking.visibleLimit)
                 .execute()
                 .value
             return rows.map { Standing(userID: $0.user_id, name: $0.display_name ?? "Fan", bestStreak: $0.best_streak) }

@@ -129,11 +129,6 @@ final class FollowSyncCoordinator {
                 // onboarding-tap timing (the old `local.isEmpty ? …` latched onto a partial set
                 // mid-onboarding and pruned the rest — the reinstall data-loss bug).
                 let authoritative = (following.hasOnboarded && !local.isEmpty) ? local : remote
-                // TEMP (reinstall-restore verification — remove after verified): prove the branch
-                // restores the full server set and that no prune runs. Readable via the proxy's
-                // GET /telemetry/recent.
-                Diagnostics.shared.record(.debugTrace,
-                    "reconcile local=\(local.count)\(local.sorted()) remote=\(remote.count)\(remote.sorted()) onboarded=\(following.hasOnboarded) → authoritative=\(authoritative == local ? "local" : "remote")(\(authoritative.count))")
                 following.replace(ids: authoritative)   // sync-down / restore (no-op when device wins)
                 knownFollows = authoritative
                 for id in authoritative.subtracting(remote) {   // upload local-only adds (never deletes)
@@ -149,6 +144,12 @@ final class FollowSyncCoordinator {
                 // a missing RLS GRANT) surfaces instead of follows quietly never syncing.
                 Diagnostics.shared.record(.apiFailure, "follows reconcile: \(error.localizedDescription)")
                 knownFollows = following.followedIDs
+                // A signed-in user IS a returning user (onboarding precedes sign-in; a reinstall keeps the
+                // Keychain session but wipes local `hasOnboarded`). When the restore FAILS (offline) we
+                // can't read their server follows — but we must NOT drop them into the onboarding picker.
+                // Complete onboarding so they enter the app; the next successful reconcile restores their
+                // follows (local is still empty here, so the device-authoritative branch can't prune).
+                following.completeOnboarding()
             }
         }
         reconcileCompetitions(userID: userID)

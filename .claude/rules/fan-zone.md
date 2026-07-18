@@ -18,6 +18,39 @@ The Fan Zone leads Home (**top module**, above Club News) — the four games (Pr
 Battle, Know Her Game, NWSL Trivia) plus a cross-game Superfan summary. (Bracket Battle's own engine/ops
 live in `.claude/rules/bracket-battle.md`.)
 
+## ⚠️ Building or CHANGING a game — the LOGIC GATE (run BEFORE "done")
+
+Fan Zone games are **bespoke stateful logic** (scoring rules, submission lifecycle, leaderboards, per-user
+state synced across reinstall/offline). Security + crash-safety are checklist-able and stay good on their
+own; **game logic is not** — every new game, and every change to scoring / points / state / a leaderboard,
+is a fresh chance to reintroduce a whole-feature bug that a happy-path build won't reveal. So whenever you
+BUILD a game OR change its scoring/points/state/leaderboard, trace these six and confirm EACH before
+calling it done. This is the game-logic twin of the load stress-test gate (`docs/stress-testing.md §5`);
+run it at BUILD time, not a review months later. Every item maps to a real bug this codebase shipped:
+
+1. **Scoring idempotency** — can scoring run TWICE (retry / re-entry / double-tap) and double-count or go
+   negative? Additive server writes must be guarded (a marker/flag) so a re-run is a no-op. *(the bracket
+   tally re-scored every 5 min on a mid-write failure; Predict clobbered the season total downward.)*
+2. **Double-action guard** — a fast double-tap must not enqueue two submits/writes (a SYNCHRONOUS in-flight
+   flag flipped before the first await, not one set inside the async Task).
+3. **Deadline / lifecycle** — can a user act after the window closes? submit after the deadline, answer
+   after the reveal, play twice per cycle? Gate the ACTION (server-adjacent), not just the entry UI.
+4. **List / leaderboard scale** — EVERY leaderboard/list query is `.limit`-ed and rendered LAZILY
+   (`LazyVStack`, never `ScrollView{VStack}`). Never fetch or eagerly render an unbounded set. Cap it (top-N
+   + the user's own row) at DESIGN time — an uncapped board is a launch-blocking hang at 1k, per the BANNED
+   LENS (CLAUDE.md: size as if publishing TOMORROW), not a "someday" problem. **When the owner asks for a
+   leaderboard, PROPOSE the cap** (e.g. top-100 + your row) as part of the design, don't wait to be asked.
+5. **Reinstall / offline** — does per-user state (scores, streaks, picks) survive a reinstall, or clobber
+   the server downward / drop to a wrong state? Monotonic totals use `max`/`GREATEST`, never plain overwrite;
+   local-only state the user would "own" is either server-backed or a documented, accepted trade-off.
+6. **Partial-failure atomicity** — if a multi-step write dies BETWEEN steps, does the retry double-apply or
+   wedge? Make the retriable step idempotent (upsert-on-conflict) and gate the non-idempotent (scoring) step.
+
+Plus the standing hard rule: **ZERO fabricated data** — honest empty/loading, never fake rivals or padded
+counts. NOTE: this gate catches the "should never have shipped" 80%; the subtlest failure-TIMING bugs
+(a write dying between two specific steps) sometimes still need an adversarial logic review as the backstop
+— the gate is the build-time net, a periodic review is the safety net, not one or the other.
+
 ## Home layout (`HomeView.swift` + `Components/FanZoneCard.swift`)
 
 A **single horizontal row** of uniform, compact game cards (`FanZoneCarouselCard`) under a **bold white
@@ -121,7 +154,7 @@ auto alias); editable in Profile via the same `DisplayNameEntry`. ZERO fabricate
 empty/loading states, never fake rivals or padded counts; a read failure shows only the user's real local
 value. Game Center (`GameCenterManager`) is additive on top of the Supabase boards.
 
-## Design consistency — two families + shared components (established 2026-07-17, `docs/design-audit.md`)
+## Design consistency — two families + shared components (established 2026-07-17, `docs/old/design-audit.md`)
 
 The whole Fan Zone was moved onto the DesignSystem tokens + a shared component library (pre-launch design
 audit). **Build every FUTURE game — a Superfan zone, the NWSL Trivia rebuild, anything new — WITH this,

@@ -22,7 +22,6 @@ struct KnowHerPickerView: View {
     let teams: [String]
 
     @Environment(KnowHerGameStore.self) private var store
-    @Environment(AuthStore.self) private var auth
 
     /// Which player the result sheet is showing + from which week. `.current` opens the game (or its
     /// result recap if already played); `.lastWeek` always opens a read-only review of a closed edition.

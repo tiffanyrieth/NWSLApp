@@ -147,6 +147,11 @@ For each subsystem, walk it explicitly:
 - [ ] **Supabase** — DB size, monthly egress, auth MAU, connection limits, RLS query cost;
       `device_tokens` / `*_preferences` read volume per tick. Likely the *second* paid lever (~Pro tier)
       around ~30–50k users. **Verify current free-tier + Pro numbers against primary docs.**
+      - **[x] Fan Zone leaderboard reads — FIXED.** Bracket/Predict/Trivia boards fetched the whole scored
+        set (no `.limit()`) and rendered eagerly — a 1k-scale global board = thousands of rows → hang +
+        multi-MB fetch. Now capped at `LeaderboardRanking.visibleLimit` (top-100) + a COUNT-based true rank,
+        so a board is O(100) regardless of scale. Passes the 1k gate. (Open headroom, not a 1k blocker:
+        `quiz_answers` grows unbounded — materialize each closed edition's aggregate + prune when it matters.)
 - [ ] **APNs pacing / connection reuse** — HTTP/2 throughput of raw sends at hundreds/batch (relevant to
       the Queues consumer's per-invocation batch size).
 - [ ] **iOS local-notification 64 pending cap** — day-before is already windowed to the next 2 fixtures

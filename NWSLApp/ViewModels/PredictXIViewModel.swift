@@ -65,9 +65,9 @@ final class PredictXIViewModel {
     private let leaderboardService: PredictLeaderboardService
     private let now: () -> Date
 
-    /// The leaderboard season key (matches the Supabase column default). Dynamic
-    /// season detection is the same follow-up as `currentSeasonYear` elsewhere (#6).
-    private static let currentSeason = "2026"
+    /// The leaderboard season key (matches the Supabase column default). Single source of truth =
+    /// `AppConfig.currentSeasonYear` (offseason-aware), so a new year advances everywhere at once.
+    private static var currentSeason: String { String(AppConfig.currentSeasonYear) }
 
     init(service: ESPNService = ESPNService(),
          leaderboardService: PredictLeaderboardService = PredictLeaderboardService(),
@@ -226,6 +226,10 @@ final class PredictXIViewModel {
         let name: String
         let points: Int
         let isYou: Bool
+        /// True for the "You" row shown UNDER a divider because you rank past the
+        /// visible top (`rank` is then your real position, e.g. 412). The view draws
+        /// the separator; a normal in-window "You" row keeps this false.
+        var isBelowFold: Bool = false
     }
 
     /// Fetch the real per-team standings and build a board for each team the user is
@@ -253,23 +257,50 @@ final class PredictXIViewModel {
         var boards: [(team: String, rows: [LeaderboardRow])] = []
         for team in teams {
             let standings = await leaderboardService.standings(teamAbbreviation: team, season: season)
-            boards.append((team: team, rows: rankedRows(team: team, standings: standings, store: store, auth: auth)))
+            // Only the signed-in user gets a "You" row — and only they need a rank lookup.
+            var trueRank: Int?
+            if auth.userID != nil {
+                trueRank = await leaderboardService.rank(
+                    teamAbbreviation: team, season: season, points: store.points(forTeam: team))
+            }
+            boards.append((team: team, rows: rankedRows(
+                team: team, standings: standings, trueRank: trueRank, store: store, auth: auth)))
         }
         leaderboards = boards
     }
 
-    /// Rank a team's rivals + the user. Drops the user's OWN server row (we splice
-    /// their live local total instead) and ties break in the user's favour.
+    /// Build a team's display board: the fetched top-`visibleLimit` rivals with the
+    /// signed-in user spliced in at their TRUE position — inline when they're within
+    /// the window, or as a below-fold "You" row (honest real rank) when they aren't.
+    /// The user's own server row is dropped; we show their fresher local total instead.
     private func rankedRows(team: String, standings: [PredictLeaderboardService.Standing],
-                            store: PredictionStore, auth: AuthStore) -> [LeaderboardRow] {
+                            trueRank: Int?, store: PredictionStore, auth: AuthStore) -> [LeaderboardRow] {
         let myID = auth.userID?.uuidString
-        var entries = standings
-            .filter { $0.userID != myID }
-            .map { (name: $0.name, points: $0.points, isYou: false) }
-        entries.append((name: auth.displayName ?? "You", points: store.points(forTeam: team), isYou: true))
-        entries.sort { $0.points != $1.points ? $0.points > $1.points : ($0.isYou && !$1.isYou) }
-        return entries.enumerated().map { i, e in
-            LeaderboardRow(rank: i + 1, name: e.name, points: e.points, isYou: e.isYou)
+        let myName = auth.displayName ?? "You"
+        let myPoints = store.points(forTeam: team)
+        let rivals = standings.filter { $0.userID != myID }
+
+        switch LeaderboardRanking.placement(trueRank: trueRank, cappedRivalCount: rivals.count) {
+        case .none:
+            // Signed out: just the top rivals, no "You" row.
+            return rivals.enumerated().map {
+                LeaderboardRow(rank: $0 + 1, name: $1.name, points: $1.points, isYou: false)
+            }
+        case .inline(let slot):
+            // Insert "You" at your slot, then number sequentially and cap to the window.
+            var names = rivals.map { (name: $0.name, points: $0.points, isYou: false) }
+            names.insert((name: myName, points: myPoints, isYou: true), at: min(slot, names.count))
+            return names.prefix(LeaderboardRanking.visibleLimit).enumerated().map {
+                LeaderboardRow(rank: $0 + 1, name: $1.name, points: $1.points, isYou: $1.isYou)
+            }
+        case .belowFold(let realRank):
+            // Top of the board, then a separated "You" row at your real rank.
+            var rows = rivals.prefix(LeaderboardRanking.visibleLimit).enumerated().map {
+                LeaderboardRow(rank: $0 + 1, name: $1.name, points: $1.points, isYou: false)
+            }
+            rows.append(LeaderboardRow(rank: realRank, name: myName, points: myPoints,
+                                       isYou: true, isBelowFold: true))
+            return rows
         }
     }
 

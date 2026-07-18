@@ -163,12 +163,6 @@ final class PlayoffStore {
     /// Resolve a matchup's `eventID` to the underlying Event (for MatchDetailView navigation).
     func event(forID id: String) -> Event? { sourceEvents.first { $0.id == id } }
 
-    /// Followed abbreviations that are IN the bracket.
-    func followedInBracket(_ followedAbbreviations: [String]) -> [String] {
-        guard let bracket else { return [] }
-        return followedAbbreviations.filter { bracket.seeds[$0] != nil }
-    }
-
     // MARK: DEBUG simulate harness
 
     #if DEBUG

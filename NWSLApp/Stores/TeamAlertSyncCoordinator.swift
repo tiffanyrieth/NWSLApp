@@ -153,9 +153,10 @@ final class TeamAlertSyncCoordinator {
     /// A fully-empty local state (no alerts AND no follows — a not-yet-populated restore)
     /// bails without touching the server, so sign-in can never wipe an account.
     /// Pure set-logic for the reconcile (extracted so it's unit-testable without the
-    /// network). `restoreSource` is the server's enabled set, used ONLY when the device
-    /// has no local ON set (empty-local guardrail → restore). Otherwise the device wins.
-    /// Always intersected with `followed` so alerts ⊆ follows (drops ghost alerts).
+    /// network). This is the DEVICE-AUTHORITATIVE path (a non-empty local ON set); the empty-local
+    /// RESTORE path is handled restore-only in `reconcileIfSignedIn` (pull down, never prune), so
+    /// `restoreSource` is retained here only for the pure-logic unit tests. Always intersected with
+    /// `followed` so alerts ⊆ follows (drops ghost alerts).
     nonisolated static func authoritativeOnSet(
         localOn: Set<String>, followed: Set<String>, restoreSource: Set<String>
     ) -> Set<String> {
@@ -174,15 +175,30 @@ final class TeamAlertSyncCoordinator {
             let localOn = alerts.teamsWithAlerts()
             guard !(localOn.isEmpty && followed.isEmpty) else { return }
             do {
-                // Empty-local restore pulls BOTH tables (club ids + NT codes from "nt:CODE" keys).
-                var restoreSource: Set<String> = []
+                // ── RESTORE branch (empty local ON set: reinstall / new device). ─────────────────
+                // RESTORE-ONLY, mirroring the follows contract: pull the full server set DOWN and
+                // NEVER prune. `followed` here can be only PARTIALLY restored — club follows and NT
+                // follows come back on two INDEPENDENT async Tasks (FollowSyncCoordinator), and this
+                // reconcile snapshots `followed` synchronously above. Intersecting a legit alert with a
+                // partial `followed` would drop it, and the prune loops below would then DELETE its
+                // server row (the reinstall data-loss race). So restore ALL server alerts locally,
+                // UNINTERSECTED; a genuine ghost alert (no matching follow) is swept by a later
+                // device-authoritative reconcile once follows are stable — not here. No push, no delete.
                 if localOn.isEmpty {
                     async let clubRestore = service.fetchAll(userID: userID)
                     async let ntRestore = competition.fetchAll(userID: userID)
-                    restoreSource = try await clubRestore.union((try await ntRestore).map(Self.code(fromKey:)))
+                    let restoreSource = try await clubRestore.union((try await ntRestore).map(Self.code(fromKey:)))
+                    alerts.replaceEnabled(restoreSource)
+                    return
                 }
+
+                // ── DEVICE-AUTHORITATIVE branch (local ON set exists). ──────────────────────────
+                // The device wins: converge each server table to the local set (∩ follows drops
+                // ghosts, then prune). Safe from the restore race because a non-empty local ON set
+                // implies the follows CACHE is populated too (alerts ⊆ follows), so `followed` is
+                // already complete here — it isn't waiting on an async server restore.
                 let authoritative = Self.authoritativeOnSet(
-                    localOn: localOn, followed: followed, restoreSource: restoreSource)
+                    localOn: localOn, followed: followed, restoreSource: [])
                 alerts.replaceEnabled(authoritative)
 
                 // Partition by realm and converge EACH table independently. A legacy "USA" row

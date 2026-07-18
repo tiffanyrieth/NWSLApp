@@ -27,7 +27,9 @@ struct BracketLeaderboardView: View {
     let myPoints: Int
 
     @State private var tab: Tab = .rankings
-    @State private var standings: [BracketStanding] = []
+    @State private var standings: [BracketStanding] = []   // the visible top rows
+    @State private var you: BracketStanding?               // your own standing (real rank, even past the top)
+    @State private var totalPlayers = 0                    // TRUE count for "of N" / percentile
     @State private var history: [BracketEditionStat] = []
     @State private var loaded = false
 
@@ -57,7 +59,10 @@ struct BracketLeaderboardView: View {
         .nativeBackButton(title: "Leaderboard")
         .task {
             if let editionID {
-                standings = await service.standings(editionID: editionID, myUserID: myUserID, myName: myName, myPoints: myPoints)
+                let result = await service.standings(editionID: editionID, myUserID: myUserID, myName: myName, myPoints: myPoints)
+                standings = result.rows
+                you = result.you
+                totalPlayers = result.total
             }
             if let myUserID { history = await service.myEditionStats(userID: myUserID) }
             loaded = true
@@ -73,10 +78,10 @@ struct BracketLeaderboardView: View {
             emptyCard("No active edition", "Rankings appear once a Bracket Battle is live.")
         } else if !loaded {
             loadingCard
-        } else if standings.isEmpty {
+        } else if standings.isEmpty && you == nil {
             emptyCard("Be the first in", "No picks have been scored yet — play a round to start the board.")
         } else {
-            if let you = standings.first(where: { $0.isYou }) { yourPositionBanner(you) }
+            if let you { yourPositionBanner(you) }
             if standings.count >= 3 { podium }
             VStack(spacing: 0) {
                 ForEach(standings) { standingRow($0) }
@@ -114,11 +119,12 @@ struct BracketLeaderboardView: View {
     private func rankSubtitle(_ you: BracketStanding) -> String {
         var parts: [String] = []
         if let acc = you.accuracy { parts.append("\(pct(acc)) accurate") }
-        if standings.count >= 5 {
-            let p = max(1, Int((Double(you.rank) / Double(standings.count) * 100).rounded(.up)))
-            parts.append("top \(p)% of \(standings.count)")
+        // Percentile / "of N" reflects the TRUE total player count, not the capped list.
+        if totalPlayers >= 5 {
+            let p = max(1, Int((Double(you.rank) / Double(totalPlayers) * 100).rounded(.up)))
+            parts.append("top \(p)% of \(totalPlayers)")
         } else {
-            parts.append("of \(standings.count)")
+            parts.append("of \(totalPlayers)")
         }
         return parts.joined(separator: " · ")
     }

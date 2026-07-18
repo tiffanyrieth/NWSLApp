@@ -24,7 +24,10 @@ struct BracketLeaderboardRow: Identifiable, Equatable {
     let name: String
     let points: Int
     let isYou: Bool
-    var id: String { "\(rank)-\(name)" }
+    /// True for the "You" row shown UNDER a divider because you rank past the visible
+    /// top (`rank` is then your real position). The compact card draws the separator.
+    var isBelowFold: Bool = false
+    var id: String { "\(rank)-\(name)-\(isBelowFold)" }
 }
 
 /// A richer standings row for the standalone Leaderboard screen — adds the accuracy
@@ -39,6 +42,17 @@ struct BracketStanding: Identifiable, Equatable {
     var id: String { "\(rank)-\(name)-\(isYou)" }
     /// Pick accuracy 0…1, or nil before any pick is scored (shown as "—", never faked).
     var accuracy: Double? { total > 0 ? Double(correct) / Double(total) : nil }
+}
+
+/// The standalone Leaderboard screen's Rankings payload: the top `visibleLimit` rows,
+/// the signed-in user's OWN standing (their real rank even when past the top — powers
+/// the "Your rank" banner), and the TRUE total player count (for the "of N" / percentile,
+/// which must reflect everyone, not just the capped list).
+struct BracketStandingsResult {
+    let rows: [BracketStanding]
+    let you: BracketStanding?
+    let total: Int
+    static let empty = BracketStandingsResult(rows: [], you: nil, total: 0)
 }
 
 /// One edition in the signed-in user's history (the Leaderboard "Your Stats" tab).
@@ -131,65 +145,130 @@ struct BracketService {
 
     // MARK: - Leaderboard
 
-    /// The real edition standings with the signed-in user spliced in and ranked.
-    /// Real `bracket_scores` only — a read failure or empty board just shows the user
-    /// (honest for a new game; never fabricated rivals).
-    func leaderboard(myPoints: Int, myName: String, editionID: String) async -> [BracketLeaderboardRow] {
-        var others: [(name: String, points: Int)] = []
+    /// The real edition standings, capped to the visible top with the signed-in user
+    /// spliced in at their TRUE rank — inline when within the top, else a below-fold
+    /// "You" row (never a flattering ~101). Real `bracket_scores` only; a read failure
+    /// honestly shows just the user.
+    func leaderboard(myPoints: Int, myName: String, editionID: String, myUserID: UUID?) async -> [BracketLeaderboardRow] {
+        var rivals: [(name: String, points: Int)] = []
         do {
-            let rows: [ScoreRow] = try await client
-                .from("bracket_scores").select("display_name, points")
+            let rows: [StandingScoreRow] = try await client
+                .from("bracket_scores").select("user_id, display_name, points")
                 .eq("edition_id", value: editionID).order("points", ascending: false)
+                .limit(LeaderboardRanking.visibleLimit)
                 .execute().value
-            others = rows.map { (name: $0.display_name ?? "Fan", points: $0.points) }
+            let myID = myUserID?.uuidString.lowercased()
+            rivals = rows
+                .filter { $0.user_id.lowercased() != myID }              // never double the user
+                .map { (name: $0.display_name ?? "Fan", points: $0.points) }
         } catch {
-            // Honest degrade to just-you, but flag the read failure (never silent).
-            others = []
+            rivals = []
             await MainActor.run { Diagnostics.shared.record(.apiFailure, "bracket leaderboard: \(error.localizedDescription)") }
         }
-        var all = others.map { (name: $0.name, points: $0.points, isYou: false) }
-        all.append((name: myName, points: myPoints, isYou: true))
-        all.sort { $0.points != $1.points ? $0.points > $1.points : ($0.isYou && !$1.isYou) }
-        return all.enumerated().map { i, r in
-            BracketLeaderboardRow(rank: i + 1, name: r.name, points: r.points, isYou: r.isYou)
+        // Signed out → just the top rivals, no "You" row.
+        guard myUserID != nil else {
+            return rivals.enumerated().map { BracketLeaderboardRow(rank: $0 + 1, name: $1.name, points: $1.points, isYou: false) }
+        }
+        let trueRank = await rank(editionID: editionID, points: myPoints)
+        let placement = LeaderboardRanking.placement(trueRank: trueRank, cappedRivalCount: rivals.count)
+        if case .belowFold(let realRank) = placement {
+            var rows = rivals.prefix(LeaderboardRanking.visibleLimit).enumerated().map {
+                BracketLeaderboardRow(rank: $0 + 1, name: $1.name, points: $1.points, isYou: false)
+            }
+            rows.append(BracketLeaderboardRow(rank: realRank, name: myName, points: myPoints, isYou: true, isBelowFold: true))
+            return rows
+        }
+        // .inline (or .none on a rank-lookup failure → append at the end): splice inline.
+        let slot: Int = { if case .inline(let s) = placement { return s }; return rivals.count }()
+        var all = rivals.map { (name: $0.name, points: $0.points, isYou: false) }
+        all.insert((name: myName, points: myPoints, isYou: true), at: min(slot, all.count))
+        return all.prefix(LeaderboardRanking.visibleLimit).enumerated().map {
+            BracketLeaderboardRow(rank: $0 + 1, name: $1.name, points: $1.points, isYou: $1.isYou)
+        }
+    }
+
+    /// The signed-in user's TRUE 1-based rank in an edition, computed with a COUNT (rows
+    /// scoring strictly higher, +1) — no rows transferred, so it's flat regardless of how
+    /// large the board is. `nil` on failure (caller degrades to an inline splice, never a
+    /// wrong number). `myPoints` is the fresher LOCAL total (bracket_scores lags the tally).
+    private func rank(editionID: String, points: Int) async -> Int? {
+        do {
+            let response = try await client.from("bracket_scores")
+                .select("user_id", head: true, count: .exact)
+                .eq("edition_id", value: editionID)
+                .gt("points", value: points)
+                .execute()
+            return (response.count ?? 0) + 1
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "bracket rank: \(error.localizedDescription)") }
+            return nil
         }
     }
 
     // MARK: - Standalone Leaderboard screen
 
-    /// Full standings for an edition (Rankings tab): `bracket_scores` joined with
-    /// `bracket_user_edition_stats` for accuracy, the signed-in user spliced in if not
-    /// yet scored. Real data only — a read failure or empty board honestly shows just
-    /// you (or nothing). No fabricated rivals, no padded accuracy.
-    func standings(editionID: String, myUserID: UUID?, myName: String, myPoints: Int) async -> [BracketStanding] {
+    /// Rankings-tab payload: the top `visibleLimit` of `bracket_scores` joined with
+    /// accuracy, PLUS the signed-in user's own standing (real rank even past the top, for
+    /// the "Your rank" banner) and the TRUE total player count (for "of N" / percentile).
+    /// Real data only — a failure honestly degrades to just you / nothing; no fabricated
+    /// rivals, no padded accuracy.
+    func standings(editionID: String, myUserID: UUID?, myName: String, myPoints: Int) async -> BracketStandingsResult {
         var scoreRows: [StandingScoreRow] = []
+        var total = 0
         var accByUser: [String: (correct: Int, total: Int)] = [:]
         do {
-            scoreRows = try await client.from("bracket_scores")
-                .select("user_id, display_name, points")
+            let response: PostgrestResponse<[StandingScoreRow]> = try await client.from("bracket_scores")
+                .select("user_id, display_name, points", count: .exact)
                 .eq("edition_id", value: editionID).order("points", ascending: false)
-                .execute().value
-            let statRows: [StandingStatRow] = try await client.from("bracket_user_edition_stats")
-                .select("user_id, correct_picks, total_picks")
-                .eq("edition_id", value: editionID).execute().value
-            for s in statRows { accByUser[s.user_id.lowercased()] = (s.correct_picks, s.total_picks) }
+                .limit(LeaderboardRanking.visibleLimit)
+                .execute()
+            scoreRows = response.value
+            total = response.count ?? scoreRows.count
+            // Accuracy for the VISIBLE users only — bounded to the page, not the whole edition.
+            let visibleIDs = scoreRows.map(\.user_id)
+            if !visibleIDs.isEmpty {
+                let statRows: [StandingStatRow] = try await client.from("bracket_user_edition_stats")
+                    .select("user_id, correct_picks, total_picks")
+                    .eq("edition_id", value: editionID)
+                    .in("user_id", values: visibleIDs)
+                    .execute().value
+                for s in statRows { accByUser[s.user_id.lowercased()] = (s.correct_picks, s.total_picks) }
+            }
         } catch {
             await MainActor.run { Diagnostics.shared.record(.apiFailure, "bracket standings: \(error.localizedDescription)") }
         }
         let myID = myUserID?.uuidString.lowercased()
-        var built: [(name: String, points: Int, correct: Int, total: Int, isYou: Bool)] = scoreRows.map { r in
+        let rows: [BracketStanding] = scoreRows.enumerated().map { i, r in
             let acc = accByUser[r.user_id.lowercased()] ?? (0, 0)
-            return (r.display_name ?? "Fan", r.points, acc.correct, acc.total, r.user_id.lowercased() == myID)
+            return BracketStanding(rank: i + 1, name: r.display_name ?? "Fan", points: r.points,
+                                   correct: acc.correct, total: acc.total, isYou: r.user_id.lowercased() == myID)
         }
-        // Splice "You" when signed in but not yet in the scored set (so you always see yourself).
-        if let myID, !built.contains(where: { $0.isYou }) {
-            let acc = accByUser[myID] ?? (0, 0)
-            built.append((myName, myPoints, acc.correct, acc.total, true))
+        // The user's OWN standing for the banner: their in-list row if visible, else a
+        // computed real-rank row (their accuracy fetched on its own).
+        var you: BracketStanding? = rows.first { $0.isYou }
+        if you == nil, let myUserID {
+            let trueRank = await rank(editionID: editionID, points: myPoints) ?? (total + 1)
+            let acc = await myAccuracy(editionID: editionID, userID: myUserID)
+            you = BracketStanding(rank: trueRank, name: myName, points: myPoints,
+                                  correct: acc.correct, total: acc.total, isYou: true)
         }
-        built.sort { $0.points != $1.points ? $0.points > $1.points : ($0.isYou && !$1.isYou) }
-        return built.enumerated().map { i, r in
-            BracketStanding(rank: i + 1, name: r.name, points: r.points, correct: r.correct, total: r.total, isYou: r.isYou)
+        let finalTotal = max(total, rows.count, you?.rank ?? 0)
+        return BracketStandingsResult(rows: rows, you: you, total: finalTotal)
+    }
+
+    /// The signed-in user's own accuracy backing for an edition (a single-row lookup),
+    /// used when they rank past the visible page so the banner still shows real accuracy.
+    private func myAccuracy(editionID: String, userID: UUID) async -> (correct: Int, total: Int) {
+        do {
+            let rows: [StandingStatRow] = try await client.from("bracket_user_edition_stats")
+                .select("user_id, correct_picks, total_picks")
+                .eq("edition_id", value: editionID).eq("user_id", value: userID).limit(1)
+                .execute().value
+            if let r = rows.first { return (r.correct_picks, r.total_picks) }
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "bracket my-accuracy: \(error.localizedDescription)") }
         }
+        return (0, 0)
     }
 
     /// Every edition the signed-in user has played (Your Stats tab), newest-scoring first.
@@ -283,11 +362,6 @@ private struct MatchupRow: Decodable {
                               communityWinnerID: community_winner_id, splitAPercent: split_a_percent,
                               voteCount: vote_count)
     }
-}
-
-private struct ScoreRow: Decodable {
-    let display_name: String?
-    let points: Int
 }
 
 private struct StandingScoreRow: Decodable { let user_id: String; let display_name: String?; let points: Int }

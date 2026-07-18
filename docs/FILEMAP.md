@@ -7,7 +7,7 @@ NWSLApp/
 ├── NWSLAppApp.swift                   — app entry; launches RootTabView; forces dark; DEBUG `-resetOnboarding`; AppDelegate (APNs token + foreground/tap → PushBridge)
 ├── NWSLApp.entitlements               — Sign in with Apple + aps-environment (push) + usernotifications.time-sensitive (live-match rich alerts) + game-center (Game Center)
 ├── Config/
-│   ├── AppConfig.swift                — base URLs; scoreboard/summary/roster/weather → proxy; DEBUG `-useESPNDirect`; content route URLs (teamVideos/feed/spotlight/trivia)
+│   ├── AppConfig.swift                — base URLs; scoreboard/summary/roster/weather → proxy; DEBUG `-useESPNDirect`; content route URLs (teamVideos/feed/trivia)
 │   ├── Secrets.swift                  — 🔒 GITIGNORED Supabase URL + anon key
 │   └── Secrets.example                — checked-in template (non-.swift so it never compiles)
 ├── DesignSystem/
@@ -26,7 +26,7 @@ NWSLApp/
 │   ├── AthleteStatistics.swift        — ESPN Core API /statistics → PlayerSeasonStats
 │   ├── MatchSummary.swift             — ESPN /summary: lineups+formation, boxscore, key-events timeline
 │   ├── MatchWeather.swift             — past match's historical kickoff weather (proxy `/weather`, Open-Meteo); WMO code → night-aware SF Symbol + temp for the MatchDetail header stamp
-│   ├── PlayerSpotlight.swift          — (legacy) player-of-week model; the Home Spotlight section was retired for Know Her Game; model retained for the `/spotlight` decode path
+│   ├── PlayerSpotlight.swift          — (legacy) player-of-week model; the Home Spotlight section + its `/spotlight` fetch were retired for Know Her Game; model retained only as a legacy seed shape
 │   ├── KnowHerGame.swift              — Know Her Game content: `KnowHerPool`/`KnowHerPlayer`/`KnowHerQuestion` (Codable, mirrors proxy `src/knowher.ts`); category labels; `editionKey(weekKey:)`
 │   ├── PlayerStats.swift              — per-player season stats + team-leaders (real ESPN data)
 │   ├── Roster.swift                   — squad + team profile from one roster fetch; `ClubSquad.cachedAsOf` from the proxy's `proxyCachedAsOf` marker (last-known-good fallback)
@@ -40,9 +40,9 @@ NWSLApp/
 ├── Services/
 │   ├── BracketScoring.swift           — pure Bracket scorer (tiered per-round points). Unit-tested
 │   ├── ContentRoundRobin.swift        — pure COUNT-BASED fair-share (Home M1 + Social): `balanced` = EQUAL per-club slots, volume-blind + age-agnostic, strict recency within a club (round-robin across CLUBS, no type-interleave) + `home/feedSlotsPerClub` + `advancedOffsets` (pull-refresh rotation) + optional `ArticlePriority` (Home FIRST-LOAD only: prefer ≤quota=3 club-site articles TOTAL across clubs (global cap, round-robined) + float to top, then normal recency mix; staleness-gated 4×/14d relative — no time window). Unit-tested
-│   ├── BracketService.swift           — Bracket Supabase client: currentEdition/results/leaderboard/submit + standings/myEditionStats (Leaderboard screen); throw or honest-empty (online-only)
+│   ├── BracketService.swift           — Bracket Supabase client: currentEdition/results/leaderboard(top-100+rank)/submit + standings→BracketStandingsResult(rows+you+true total via count:.exact)/myEditionStats; throw or honest-empty (online-only)
 │   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats
-│   ├── ContentService.swift           — ALIVE content client: homeCards→/team-videos · feedCards→/feed · spotlightCards→/spotlight; all `throws` (online-only; no seed)
+│   ├── ContentService.swift           — ALIVE content client: homeCards→/team-videos · feedCards→/feed; all `throws` (online-only; no seed)
 │   ├── ESPNService.swift              — async fetch: scoreboard + summary + weather + roster (proxy)/teams/standings + seasonStats (Core API)
 │   ├── FollowSyncService.swift        — Supabase `follows` client (fetch/push/add/remove); RLS-scoped
 │   ├── CompetitionFollowSyncService.swift — Supabase `competition_follows` client (NT + Champions Cup keys: "nt:USA"/"concacaf"); competition twin of FollowSyncService; RLS-scoped
@@ -68,8 +68,9 @@ NWSLApp/
 │   ├── AppleTokenExchangeService.swift — fire-and-forget `POST /auth/apple-token-exchange` (Apple authorizationCode + session JWT) so the proxy stores a SIWA refresh_token for revoke-on-delete (guideline 5.1.1(v)); never blocks sign-in
 │   ├── ForceUpdateService.swift       — launch-time forced-update check: `GET /config` → compares `minBuild` (int) vs this build's CFBundleVersion; FAILS OPEN (timeout/error/unreachable → allow). See `AppGateView`
 │   ├── SupportStore.swift             — @MainActor @Observable StoreKit 2: 4 tip tiers (one-time + monthly), load/purchase/restore; `errorMessage` honest-failure (unverified/pending/failed → message + telemetry, never a fake success)
-│   ├── PredictLeaderboardService.swift— Supabase per-team Predict board: upsertScore + standings(team); a read failure shows only your real local score (no fabricated rivals)
-│   ├── TriviaLeaderboardService.swift — Supabase league-wide Trivia best-streak board: upsertScore + standings; read failure shows only your real local streak
+│   ├── LeaderboardRanking.swift       — shared "top-100 + your rank" rule for Fan Zone boards: `placement(trueRank,rivalCount)` → none/inline/belowFold; boards fetch only the top visibleLimit(100) + a cheap COUNT for the user's true rank (no full-table read). Unit-tested
+│   ├── PredictLeaderboardService.swift— Supabase per-team Predict board: upsertScore + standings(team, top-100) + rank(team,points) COUNT; a read failure shows only your real local score (no fabricated rivals)
+│   ├── TriviaLeaderboardService.swift — Supabase league-wide Trivia best-streak board: upsertScore + standings (top-100 guardrail); board is DORMANT (community-results replaced it); read failure shows only your real local streak
 │   ├── PredictionScoring.swift        — pure Predict-the-XI scorer (Mastermind partial, max 88). Unit-tested
 │   ├── RecentForm.swift               — pure last-5 W/D/L per club from the season; feeds Standings "Last 5"; `result(scored:conceded:)` = the shared W/D/L rule (reused by MatchDetailViewModel.form). Unit-tested
 │   ├── TeamSocialLinksProvider.swift  — static per-team social-account URLs (reference data, no live API)
@@ -199,7 +200,9 @@ Packages/LiveActivityContract/       — local SPM package: the app↔widget Liv
 Packages/MatchClockKit/              — local SPM package: the app's live football-clock engine + its display guard. Holds `MatchClock` (whole-minute formatter, 1'…45' then `45'+n`; 90' cap → `90'+n`), `LiveMinuteText` (TimelineView local tick, styled via a caller `content:` closure), the `TickAnchor` engine (`reconcile(previous:sources:at:)` — the monotonic frozen-clock rule), the `ClockTickSource` protocol (Event conforms app-side, so the package never imports the ESPN model), and the CONSOLIDATED guard `MatchClockDisplay.resolve(...)` + `LiveMatchClockView` — the ONE place the halftime/anchor/fallback decision lives (was copy-pasted across MatchCard/ComingUpRow/MatchDetailView). Foundation+SwiftUI leaf, no DesignSystem/app deps. Linked by NWSLApp only (widget stays on Apple's `Text(timerInterval:)`). Tests in the package's own `MatchClockKitTests`. MatchStore keeps live-state ownership + UserDefaults durability, delegates the invariant logic here.
 
 supabase/schema.sql                    — Postgres: profiles, follows, competition_follows, device_tokens, notification_preferences, team_alert_preferences, bracket_* (editions/entrants/matchups/votes/scores + v2: config/stats_editions/creative_editions/user_edition_stats), prediction_scores, trivia_scores, live_activity_start_tokens + live_activities (V2 Live Activity tokens) (+ RLS + GRANTs; all per-user FKs `on delete cascade` so account deletion cascades). v2 deltas in `migration_bracket_*.sql`; `migration_account_deletion_cascade.sql` adds cascade to the 5 FKs that lacked it; `migration_profile_name_is_custom.sql` adds `profiles.name_is_custom` (no backfill); `migration_live_activity_tokens.sql` adds the two V2 token tables; `migration_apple_refresh_token.sql` adds `profiles.apple_refresh_token` + `grant … to service_role` (SIWA revoke-on-delete); `migration_live_activities_pref.sql` + `migration_notif_opt_in.sql` add `notification_preferences.live_activities_enabled` (V2 opt-in) and flip all notification defaults to false (pure opt-in); `migration_analytics_counters.sql` adds the anonymous `analytics_counters` daily-rollup table + `increment_counters` RPC (service_role-only, proxy-write/owner-read; starter queries in-file); `seed_bracket_*.sql` (run in the SQL editor)
-docs/silent-failure-audit.md           — 2026-06 NO-SILENT-FAILURES sweep: method + the 15 read-path catches that now emit Diagnostics + the reviewed-OK `try?` sites
+docs/old/                              — ARCHIVED docs (superseded/completed, kept for history): silent-failure-audit.md (2026-06 sweep — rule now in CLAUDE.md) · bracket-battle-spec.md (spec for shipped work — operating truth in .claude/rules/bracket-battle.md) · design-audit.md (2026-07 pre-launch design audit — conventions now in .claude/rules/fan-zone.md + CLAUDE.md) · architecture.md (2026-07 coupling-map snapshot — dated)
+.claude/rules/live-activity-notifications.md — AUTO-LOADS on any Live Activity / MatchClock / push-token / NSE / widget file → forces the notification+LA source-of-truth docs (live-activity-v2.md · notifications.md · push-fanout-scaling.md) into context; this fragile sports-app subsystem is NOT reconstructable from training
+docs/notifications.md                  — the whole notification pipeline (V1 + V2) end-to-end: match event → proxy → watcher cron → detect → APNs (Queues / Broadcast Channels) → device → render. PERMANENT reference (stitches live-activity-v2.md + push-fanout-scaling.md into one flow); auto-loaded by the rule above
 docs/national-teams.md                 — the NT system doc: countries≠feeds, the confederation map + global-feed rule, the ESPN history-only quirk, the 3 synced slug lists, watcher fixture-window polling + discovery cadence, maintenance recipes + cost model
 NWSLApp.storekit                       — local StoreKit 2 config (4 tip consumables + monthly subs) for in-sim Support testing; referenced by the shared scheme. ASC products owner-gated
 ```

@@ -52,6 +52,11 @@ final class NotifTrace {
     /// Record one step of the registration chain. Always os_logs; buffers to disk; opportunistically
     /// flushes to Supabase if signed in.
     func log(_ step: String, _ status: Status, _ detail: String = "") {
+        // DEBUG-ONLY. NotifTrace persists IDENTITY-LINKED (user_id + device_id) breadcrumbs to the
+        // Supabase `notification_diagnostics` table — it must NOT ship in Release/TestFlight, so the
+        // App Store "Data Not Linked to You" posture holds (only contact info is ever linked). In
+        // shipped builds this is a no-op; the anonymous `Diagnostics` spine still records failures.
+        #if DEBUG
         logger.info("\(step, privacy: .public) \(status.rawValue, privacy: .public) \(detail, privacy: .public)")
         let crumb = Crumb(occurredAt: Date(), step: step, status: status.rawValue, detail: detail)
         recent.insert(crumb, at: 0)
@@ -59,11 +64,14 @@ final class NotifTrace {
         pending.append(crumb)
         Self.savePending(pending)
         Task { await flush() }
+        #endif
     }
 
     /// Flush the pending queue to `notification_diagnostics`. No-op (keeps buffering) until a session
     /// exists. Best-effort: on failure crumbs stay queued for the next attempt (sign-in / foreground).
     func flush() async {
+        // DEBUG-ONLY (see `log`): no identity-linked upload in shipped builds.
+        #if DEBUG
         guard !isFlushing, !pending.isEmpty else { return }
         guard let userID = SupabaseManager.client.auth.currentUser?.id else { return }  // buffer until signed in
         isFlushing = true
@@ -88,6 +96,7 @@ final class NotifTrace {
             // The trace sink itself failed — surface on the primary spine so we still know.
             Diagnostics.shared.record(.apiFailure, "notifTrace flush: \(error.localizedDescription)")
         }
+        #endif
     }
 
     // MARK: - Row (snake_case → Postgres columns 1:1)

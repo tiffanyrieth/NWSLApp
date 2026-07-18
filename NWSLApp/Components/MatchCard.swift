@@ -214,13 +214,15 @@ struct MatchCard: View {
     private var homeColor: Color { Color.teamColor(for: event.homeCompetitor) }
     private var awayColor: Color { Color.teamColor(for: event.awayCompetitor) }
 
+    // Cached: a MatchCard body evaluates per card while scrolling the full-season schedule, so a
+    // per-body DateFormatter alloc was scroll-hot. Static = one instance, reused across all cards.
+    private static let kickoffTimeFormatter: DateFormatter = {
+        let f = DateFormatter(); f.locale = .current; f.timeZone = .current
+        f.timeStyle = .short; f.dateStyle = .none; return f
+    }()
+
     private var kickoffTimeText: String {
         guard let kickoff = event.kickoff else { return "—" }
-        let formatter = DateFormatter()
-        formatter.locale = .current
-        formatter.timeZone = .current
-        formatter.timeStyle = .short
-        formatter.dateStyle = .none
-        return formatter.string(from: kickoff)
+        return Self.kickoffTimeFormatter.string(from: kickoff)
     }
 }

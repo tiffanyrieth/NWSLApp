@@ -33,9 +33,15 @@ enum AppConfig {
     /// The season the app reads player stats for. Hardcoded to the current season;
     /// a stale value silently returns empty stats league-wide (no crash). Centralized
     /// here so the yearly fix is one line.
-    /// TODO (#6): resolve dynamically from the league root's `season.year`
-    /// (`GET …/leagues/usa.nwsl` → `season.year`).
-    static let currentSeasonYear = 2026
+    /// The active NWSL season year for player stats + the Predict leaderboard key. NWSL runs ~Mar–Nov,
+    /// so in the Jan/Feb offseason the "current" season is still last year — mirrors the Schedule/Standings
+    /// rollover intent (don't advance stats + the Predict key to a season that hasn't started). Flips to
+    /// the new year in March. (Standings itself uses a stronger per-season games-played signal.)
+    static var currentSeasonYear: Int {
+        let cal = Calendar.current, now = Date()
+        let year = cal.component(.year, from: now)
+        return cal.component(.month, from: now) < 3 ? year - 1 : year
+    }
 
     /// The deployed caching proxy. `GET /scoreboard` here forwards the query
     /// string to ESPN's scoreboard endpoint and returns the bytes unchanged,

@@ -65,9 +65,9 @@ final class PredictXIViewModel {
     private let leaderboardService: PredictLeaderboardService
     private let now: () -> Date
 
-    /// The leaderboard season key (matches the Supabase column default). Dynamic
-    /// season detection is the same follow-up as `currentSeasonYear` elsewhere (#6).
-    private static let currentSeason = "2026"
+    /// The leaderboard season key (matches the Supabase column default). Single source of truth =
+    /// `AppConfig.currentSeasonYear` (offseason-aware), so a new year advances everywhere at once.
+    private static var currentSeason: String { String(AppConfig.currentSeasonYear) }
 
     init(service: ESPNService = ESPNService(),
          leaderboardService: PredictLeaderboardService = PredictLeaderboardService(),

@@ -376,6 +376,12 @@ struct PredictXIView: View {
                 Text("Predictors").dsFont(12).foregroundStyle(.secondary)
             }
             ForEach(rows) { row in
+                // A below-fold "You" row means you rank past the visible top — separate it
+                // with a divider so the jump from #100 to your real rank reads honestly.
+                if row.isBelowFold {
+                    Divider().overlay(Color.secondary.opacity(0.4))
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                }
                 HStack(spacing: 12) {
                     Text("\(row.rank)")
                         .font(.subheadline.weight(.bold).monospacedDigit())

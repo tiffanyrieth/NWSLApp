@@ -72,7 +72,8 @@ final class BracketViewModel {
         ))
         await scoreSettledRounds(edition: edition, store: store)
         leaderboard = await service.leaderboard(myPoints: store.points,
-                                                myName: displayName ?? "You", editionID: edition.id)
+                                                myName: displayName ?? "You", editionID: edition.id,
+                                                myUserID: userID)
         state = .loaded
     }
 

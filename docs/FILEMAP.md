@@ -40,7 +40,7 @@ NWSLApp/
 ├── Services/
 │   ├── BracketScoring.swift           — pure Bracket scorer (tiered per-round points). Unit-tested
 │   ├── ContentRoundRobin.swift        — pure COUNT-BASED fair-share (Home M1 + Social): `balanced` = EQUAL per-club slots, volume-blind + age-agnostic, strict recency within a club (round-robin across CLUBS, no type-interleave) + `home/feedSlotsPerClub` + `advancedOffsets` (pull-refresh rotation) + optional `ArticlePriority` (Home FIRST-LOAD only: prefer ≤quota=3 club-site articles TOTAL across clubs (global cap, round-robined) + float to top, then normal recency mix; staleness-gated 4×/14d relative — no time window). Unit-tested
-│   ├── BracketService.swift           — Bracket Supabase client: currentEdition/results/leaderboard/submit + standings/myEditionStats (Leaderboard screen); throw or honest-empty (online-only)
+│   ├── BracketService.swift           — Bracket Supabase client: currentEdition/results/leaderboard(top-100+rank)/submit + standings→BracketStandingsResult(rows+you+true total via count:.exact)/myEditionStats; throw or honest-empty (online-only)
 │   ├── AthleteStatsCache.swift        — actor; session cache of PlayerSeasonStats
 │   ├── ContentService.swift           — ALIVE content client: homeCards→/team-videos · feedCards→/feed · spotlightCards→/spotlight; all `throws` (online-only; no seed)
 │   ├── ESPNService.swift              — async fetch: scoreboard + summary + weather + roster (proxy)/teams/standings + seasonStats (Core API)
@@ -68,8 +68,9 @@ NWSLApp/
 │   ├── AppleTokenExchangeService.swift — fire-and-forget `POST /auth/apple-token-exchange` (Apple authorizationCode + session JWT) so the proxy stores a SIWA refresh_token for revoke-on-delete (guideline 5.1.1(v)); never blocks sign-in
 │   ├── ForceUpdateService.swift       — launch-time forced-update check: `GET /config` → compares `minBuild` (int) vs this build's CFBundleVersion; FAILS OPEN (timeout/error/unreachable → allow). See `AppGateView`
 │   ├── SupportStore.swift             — @MainActor @Observable StoreKit 2: 4 tip tiers (one-time + monthly), load/purchase/restore; `errorMessage` honest-failure (unverified/pending/failed → message + telemetry, never a fake success)
-│   ├── PredictLeaderboardService.swift— Supabase per-team Predict board: upsertScore + standings(team); a read failure shows only your real local score (no fabricated rivals)
-│   ├── TriviaLeaderboardService.swift — Supabase league-wide Trivia best-streak board: upsertScore + standings; read failure shows only your real local streak
+│   ├── LeaderboardRanking.swift       — shared "top-100 + your rank" rule for Fan Zone boards: `placement(trueRank,rivalCount)` → none/inline/belowFold; boards fetch only the top visibleLimit(100) + a cheap COUNT for the user's true rank (no full-table read). Unit-tested
+│   ├── PredictLeaderboardService.swift— Supabase per-team Predict board: upsertScore + standings(team, top-100) + rank(team,points) COUNT; a read failure shows only your real local score (no fabricated rivals)
+│   ├── TriviaLeaderboardService.swift — Supabase league-wide Trivia best-streak board: upsertScore + standings (top-100 guardrail); board is DORMANT (community-results replaced it); read failure shows only your real local streak
 │   ├── PredictionScoring.swift        — pure Predict-the-XI scorer (Mastermind partial, max 88). Unit-tested
 │   ├── RecentForm.swift               — pure last-5 W/D/L per club from the season; feeds Standings "Last 5"; `result(scored:conceded:)` = the shared W/D/L rule (reused by MatchDetailViewModel.form). Unit-tested
 │   ├── TeamSocialLinksProvider.swift  — static per-team social-account URLs (reference data, no live API)

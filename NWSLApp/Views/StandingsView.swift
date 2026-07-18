@@ -133,8 +133,9 @@ struct StandingsView: View {
         .padding(.bottom, 12)
     }
 
-    /// The active season year — same source MatchStore uses for the scoreboard.
-    private var seasonYear: Int { Calendar.current.component(.year, from: Date()) }
+    /// The season the loaded table represents (from the VM's rollover), so the offseason label shows the
+    /// prior season it's actually serving — not the raw calendar year (which would mislabel the gap).
+    private var seasonYear: Int { viewModel.servedSeason }
 
     // MARK: - Table
 

@@ -129,11 +129,6 @@ final class FollowSyncCoordinator {
                 // onboarding-tap timing (the old `local.isEmpty ? …` latched onto a partial set
                 // mid-onboarding and pruned the rest — the reinstall data-loss bug).
                 let authoritative = (following.hasOnboarded && !local.isEmpty) ? local : remote
-                // TEMP (reinstall-restore verification — remove after verified): prove the branch
-                // restores the full server set and that no prune runs. Readable via the proxy's
-                // GET /telemetry/recent.
-                Diagnostics.shared.record(.debugTrace,
-                    "reconcile local=\(local.count)\(local.sorted()) remote=\(remote.count)\(remote.sorted()) onboarded=\(following.hasOnboarded) → authoritative=\(authoritative == local ? "local" : "remote")(\(authoritative.count))")
                 following.replace(ids: authoritative)   // sync-down / restore (no-op when device wins)
                 knownFollows = authoritative
                 for id in authoritative.subtracting(remote) {   // upload local-only adds (never deletes)

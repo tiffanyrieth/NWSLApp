@@ -120,16 +120,6 @@ enum AppConfig {
         contentRouteURL("feed", teams: teams)
     }
 
-    /// The proxy route powering Home Module 2 "Get to know your players":
-    /// `GET /spotlight?teams=WAS,POR,…` (B2). The Worker picks one real player from
-    /// each followed club's most recent matchday squad, attaches real ESPN season
-    /// stats, and generates a short "why watch" blurb via Haiku — returning
-    /// `PlayerSpotlight` JSON the app decodes directly. Returns nil on a malformed
-    /// query (the caller then throws → honest error). Mirrors `teamVideosURL`/`feedURL`.
-    static func spotlightURL(teams: [String]) -> URL? {
-        contentRouteURL("spotlight", teams: teams)
-    }
-
     /// The proxy route powering Fan Zone Daily Trivia: `GET /trivia`. Unlike the
     /// other content routes, Daily Trivia is **league-wide** (one shared question
     /// pool, not team-scoped — see `games-design-spec.md`), so this builds with no

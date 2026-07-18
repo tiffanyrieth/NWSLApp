@@ -97,7 +97,8 @@ struct MatchDetailView: View {
             if case .idle = viewModel.summaryState { await viewModel.loadSummary() }
             // Historical kickoff weather for the header stamp — fire alongside the summary,
             // not gated on it (additive; loadWeather no-ops unless the match is already past).
-            await viewModel.loadWeather()
+            // Pass the LIVE temporal state, not the VM's frozen seed.
+            await viewModel.loadWeather(isPast: temporalState == .past)
             while !Task.isCancelled && temporalState != .past {
                 let interval: Duration = temporalState == .live ? .seconds(60) : .seconds(120)
                 try? await Task.sleep(for: interval)
@@ -106,7 +107,7 @@ struct MatchDetailView: View {
             }
             // The poll loop only exits once the match is past — a match that finished while
             // on-screen now has weather available, so make one attempt after the loop.
-            await viewModel.loadWeather()
+            await viewModel.loadWeather(isPast: temporalState == .past)
         }
     }
 

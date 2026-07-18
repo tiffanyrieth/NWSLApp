@@ -373,6 +373,10 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
   anything Live Activity: the render law (alert REQUIRED, `sound:""` = quiet), two-token system +
   20-min lead, testing runbook (replay.mjs / test-activity / telemetry), AI-misconception traps
   (V2 is NOT text-only; app does NOT need to be open; "1/1 ok" ≠ rendered; 8pm listing ≠ 8pm kickoff).
+- **`docs/notifications.md`** — the WHOLE notification pipeline (V1 + V2) end-to-end: match event → proxy →
+  watcher cron → detect → APNs (Queues / Broadcast Channels) → device → render. A **PERMANENT** reference —
+  this connective sports-app knowledge (channels, clock anchoring, the fragile V2 wiring) is **NOT
+  reconstructable from training**, so read it before ANY notification / Live-Activity / watcher / clock change.
 - **`docs/navigation.md`** — each tab's lens + adjacency rules (read when adding/redesigning a screen).
 - **`docs/versioning.md`** — the (non-semver) version model + distribution.
 - **`docs/roadmap.md`** — What's Next (pending work).
@@ -383,6 +387,9 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
   proven 2026-07-09**: **V1 buzz + LA push-to-start → Cloudflare Queues** ($0); **V2 in-match updates →
   APNs Broadcast Channels** (channel-per-match, iOS 18+; iOS 17 = V1-only graceful degradation); Firebase
   declined; Workers Paid $5/mo = the ~10–15k-user expansion slot. Read before push-scale/launch work.
-- **`.claude/rules/bracket-battle.md`** + **`.claude/rules/fan-zone.md`** — feature rules that
-  **auto-load** (path-scoped) when you touch Bracket / Predict-the-XI / Fan-Zone / Trivia / Home-games
-  files; you don't need to open them manually.
+- **`.claude/rules/bracket-battle.md`** + **`.claude/rules/fan-zone.md`** + **`.claude/rules/live-activity-
+  notifications.md`** — feature rules that **auto-load** (path-scoped): the first two when you touch Bracket /
+  Predict-the-XI / Fan-Zone / Trivia / Home-games files (the Fan-Zone one carries the **build/change LOGIC
+  GATE** — six invariants to run before any game or scoring change); the last on any Live-Activity / MatchClock /
+  push-token / NSE / widget file — it FORCES the notification+LA source-of-truth docs into context, because that
+  fragile subsystem must never be edited from first principles. You don't need to open them manually.

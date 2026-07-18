@@ -164,7 +164,9 @@ struct NationalTeamCard: View {
     }
 
     private var bell: some View {
-        let on = teamAlerts.alertsEnabled(for: team.code)
+        // Display-gate on auth like the hub (NotificationDisplayGate): a Tier-2 intent preserved
+        // across sign-out reads OFF while signed out — never show a bell "ON" it can't deliver.
+        let on = NotificationDisplayGate.displayedTier2(teamAlerts.alertsEnabled(for: team.code), signedIn: auth.isSignedIn)
         // Same shared flow as a club bell: ON cascades the default bundle (first time) + intercepts
         // sign-in when signed out + shows the toast (CompetitionsView hosts the toast/sheet).
         return Button {

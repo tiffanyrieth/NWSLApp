@@ -160,7 +160,7 @@ struct TeamsView: View {
                         .frame(width: 40, height: 40)
                         .background(Color.dsBgCard)
                         .clipShape(Circle())
-                    if teamAlerts.enabledCount > 0 {
+                    if auth.isSignedIn && teamAlerts.enabledCount > 0 {
                         Circle()
                             .fill(Color.dsLive)
                             .frame(width: 8, height: 8)
@@ -293,7 +293,10 @@ struct TeamsView: View {
     }
 
     private func bellButton(for club: Club) -> some View {
-        let on = teamAlerts.alertsEnabled(for: club.id)
+        // Display-gate on auth, exactly like the hub (NotificationDisplayGate): a Tier-2 intent
+        // preserved across sign-out must READ as OFF while signed out — a filled bell here would be
+        // "shown ON while it can't deliver," the banned silent-failure-that-looks-like-success.
+        let on = NotificationDisplayGate.displayedTier2(teamAlerts.alertsEnabled(for: club.id), signedIn: auth.isSignedIn)
         // Direct toggle — tap = on/off, always. (The old first-tap "doorway into the
         // hub" was retired in favor of the Teams-tab coach mark.) The bell never
         // requests iOS notification permission — that fires only from inside the hub
@@ -387,7 +390,7 @@ struct TeamsView: View {
     // "{N} team(s) with match alerts · Manage" → the hub, OR an empty-state hint.
     @ViewBuilder
     private var alertsFooter: some View {
-        let n = teamAlerts.enabledCount
+        let n = auth.isSignedIn ? teamAlerts.enabledCount : 0   // display-gated on auth (see the grid bell)
         Group {
             if n > 0 {
                 Button { path.append(NotificationsRoute.hub) } label: {

@@ -148,9 +148,15 @@ final class MatchDetailViewModel {
     /// leaves the current content (no `.loading` flash) and ignores transient
     /// poll failures — the screen keeps showing the last good summary.
     func refresh() async {
-        if let fresh = try? await service.fetchSummary(eventID: event.id, nearKickoff: nearKickoff) {
+        do {
+            let fresh = try await service.fetchSummary(eventID: event.id, nearKickoff: nearKickoff)
             recordSummaryGaps(fresh)
             summaryState = .loaded(fresh)
+        } catch {
+            // Keep the last-good summary (no .loading flash, no user-facing error for a transient poll
+            // miss) — but make a SUSTAINED live-summary outage LOUD to the engineer. The scoreboard poll
+            // already records .apiFailure; the /summary poll shouldn't be the silent one (NO SILENT FAILURES).
+            Diagnostics.shared.record(.apiFailure, "match summary poll \(event.id): \(error.localizedDescription)")
         }
     }
 

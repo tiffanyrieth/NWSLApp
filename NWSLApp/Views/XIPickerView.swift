@@ -268,6 +268,14 @@ struct XIPickerView: View {
         VStack(spacing: 10) {
             Button {
                 guard !didSubmit else { return }          // double-tap guard (submit is one-way)
+                // Deadline re-check: the open-fixture card blocks ENTERING a closed fixture, but if the
+                // deadline (kickoff−2h) passes while this sheet is open, don't LOCK IN a late prediction
+                // that would still be scored. Save the draft so nothing's lost, then close.
+                guard fixture.deadline.timeIntervalSinceNow > 0 else {
+                    store.saveDraft(picker.toPrediction())
+                    dismiss()
+                    return
+                }
                 didSubmit = true
                 store.saveDraft(picker.toPrediction())   // persist the latest as a draft…
                 store.submit(fixtureID: fixture.id)       // …then flip it to submitted (one-way)

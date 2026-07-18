@@ -94,7 +94,12 @@ Per tick, the watcher diffs each in-window match against **KV (`MATCH_STATE`)**:
 - **`detectEvents`** produces: **kickoff · goal · halftime · full-time · red card** (reds only — keys on ESPN's
   explicit `redCard` boolean, never text) **· VAR correction** (a debounced score *decrease*: wait, re-poll a
   cache-busted scoreboard, fire only if it persists) **· lineup-posted** (polls `/summary` in a 75-min
-  pre-kickoff window, fires the tick both XIs are up).
+  pre-kickoff window, fires the tick both XIs are up). Lineup dedup is **retry-until-sent** (two KV markers:
+  `lineup-pub:{id}` latches "XIs posted" to stop the `/summary` re-poll; `lineup:{id}` marks the one-shot send
+  only once ≥1 recipient is actually reached) — so a 0-recipient tick (a transient Supabase read, or a follower
+  who enabled the alert late) retries next tick instead of being permanently dropped, mirroring the V2 LA-start.
+  A published-but-0-recipient tick logs the gate breakdown (`teamOptIns`/`prefEligible`) and flags the SUSPICIOUS
+  case (followers exist yet resolved to zero) — no silent success.
 - **Fire-once ledgers** in `StoredState` (e.g. per-side `redCards`) prevent duplicate sends; a pre-existing KV row
   baselines rather than late-firing.
 

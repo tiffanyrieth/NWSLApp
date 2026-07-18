@@ -69,7 +69,8 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   side: `MatchWeather` model (WMO→SF-Symbol day/night map) + `MatchDetailView` header stamp
   (`MatchDetailViewModel.loadWeather`, additive/non-blocking, past-only).
 - **Content routes** (build + normalize to `[ContentCard]`/models): `/team-videos` (Home: YouTube +
-  club OG news + club IG), `/feed` (Feed: Bluesky reporters/clubs + news RSS + player IG), `/spotlight`,
+  club OG news + club IG), `/feed` (Feed: Bluesky reporters/clubs + news RSS + player IG), `/spotlight`
+  (app-side retired for Know Her Game — the proxy route + its Haiku builder are retained but currently unused),
   `/trivia` (KV pool), `/national-teams` (data-driven NT Browse-all, deduped by FIFA, 24h), `/telemetry`
   (POST sink → KV), `/analytics` (POST sink, 2026-07-17: ANONYMOUS Level-3 usage counters — whitelisted
   `{event,param,n}` batches, one per app session, NO IDs/IP → `increment_counters` RPC → Supabase

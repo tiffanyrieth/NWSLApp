@@ -154,7 +154,7 @@ auto alias); editable in Profile via the same `DisplayNameEntry`. ZERO fabricate
 empty/loading states, never fake rivals or padded counts; a read failure shows only the user's real local
 value. Game Center (`GameCenterManager`) is additive on top of the Supabase boards.
 
-## Design consistency — two families + shared components (established 2026-07-17, `docs/design-audit.md`)
+## Design consistency — two families + shared components (established 2026-07-17, `docs/old/design-audit.md`)
 
 The whole Fan Zone was moved onto the DesignSystem tokens + a shared component library (pre-launch design
 audit). **Build every FUTURE game — a Superfan zone, the NWSL Trivia rebuild, anything new — WITH this,

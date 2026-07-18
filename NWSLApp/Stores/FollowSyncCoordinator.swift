@@ -149,6 +149,12 @@ final class FollowSyncCoordinator {
                 // a missing RLS GRANT) surfaces instead of follows quietly never syncing.
                 Diagnostics.shared.record(.apiFailure, "follows reconcile: \(error.localizedDescription)")
                 knownFollows = following.followedIDs
+                // A signed-in user IS a returning user (onboarding precedes sign-in; a reinstall keeps the
+                // Keychain session but wipes local `hasOnboarded`). When the restore FAILS (offline) we
+                // can't read their server follows — but we must NOT drop them into the onboarding picker.
+                // Complete onboarding so they enter the app; the next successful reconcile restores their
+                // follows (local is still empty here, so the device-authoritative branch can't prune).
+                following.completeOnboarding()
             }
         }
         reconcileCompetitions(userID: userID)

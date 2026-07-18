@@ -95,10 +95,20 @@ final class NotificationScheduler {
 
     // MARK: - Rescheduling
 
+    /// A hash of the set we last actually scheduled, so a reschedule triggered by an UNRELATED store
+    /// change is a no-op when the built set is identical. `observeStores` watches `matches.state`, which
+    /// `MatchStore` reassigns on EVERY ~60s live-poll refresh — without this gate a live match rebuilt the
+    /// whole day-before/spotlight set every minute (removeAll + ~50 add) and reopened a repeated window
+    /// where all pending reminders were briefly gone. In-memory only (Hasher's per-run seed = within-process).
+    private var lastScheduleSignature: Int?
+
     /// Rebuild all local notifications from scratch. Idempotent. Reads the stores
     /// on the main actor, then performs the center mutations off the synchronous path.
     func reschedule() {
         let requests = buildRequests()
+        let signature = Self.scheduleSignature(of: requests)
+        guard signature != lastScheduleSignature else { return }   // nothing changed → skip the churn
+        lastScheduleSignature = signature
         Task {
             // We own every locally-scheduled request, so clearing all pending ones
             // is a clean rebuild (delivered/server pushes are unaffected).
@@ -113,6 +123,21 @@ final class NotificationScheduler {
 
     func cancelAll() async {
         center.removeAllPendingNotificationRequests()
+        lastScheduleSignature = nil   // force a full rebuild on the next reschedule
+    }
+
+    /// Order-independent hash of the request set — identifier + fire date + title/body — so an identical
+    /// rebuild compares equal and is skipped.
+    private static func scheduleSignature(of requests: [UNNotificationRequest]) -> Int {
+        var hasher = Hasher()
+        for r in requests.sorted(by: { $0.identifier < $1.identifier }) {
+            hasher.combine(r.identifier)
+            if let cal = r.trigger as? UNCalendarNotificationTrigger { hasher.combine(cal.nextTriggerDate()) }
+            else if let ti = r.trigger as? UNTimeIntervalNotificationTrigger { hasher.combine(ti.timeInterval) }
+            hasher.combine(r.content.title)
+            hasher.combine(r.content.body)
+        }
+        return hasher.finalize()
     }
 
     private func buildRequests() -> [UNNotificationRequest] {

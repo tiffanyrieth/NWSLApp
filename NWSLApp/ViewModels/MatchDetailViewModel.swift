@@ -124,8 +124,11 @@ final class MatchDetailViewModel {
     /// A `not-finished` body is expected-silent (the match just isn't over yet); a thrown error or
     /// any other unexpected `unavailable` reason fails LOUD to the engineer via Diagnostics
     /// (NO SILENT FAILURES) while failing gracefully to the user (the row simply omits the stamp).
-    func loadWeather() async {
-        guard temporalState == .past, weather == nil else { return }
+    /// `isPast` is the CALLER's LIVE temporal state (from the refreshing MatchStore event), NOT the VM's
+    /// `temporalState` — that derives from the frozen seed event, so a match opened pre-kickoff/live would
+    /// stay `.live` forever and never load its (now-available) kickoff weather when it finishes on-screen.
+    func loadWeather(isPast: Bool) async {
+        guard isPast, weather == nil else { return }
         do {
             let result = try await service.fetchWeather(eventID: event.id)
             if result.isHistorical {
@@ -148,9 +151,15 @@ final class MatchDetailViewModel {
     /// leaves the current content (no `.loading` flash) and ignores transient
     /// poll failures — the screen keeps showing the last good summary.
     func refresh() async {
-        if let fresh = try? await service.fetchSummary(eventID: event.id, nearKickoff: nearKickoff) {
+        do {
+            let fresh = try await service.fetchSummary(eventID: event.id, nearKickoff: nearKickoff)
             recordSummaryGaps(fresh)
             summaryState = .loaded(fresh)
+        } catch {
+            // Keep the last-good summary (no .loading flash, no user-facing error for a transient poll
+            // miss) — but make a SUSTAINED live-summary outage LOUD to the engineer. The scoreboard poll
+            // already records .apiFailure; the /summary poll shouldn't be the silent one (NO SILENT FAILURES).
+            Diagnostics.shared.record(.apiFailure, "match summary poll \(event.id): \(error.localizedDescription)")
         }
     }
 

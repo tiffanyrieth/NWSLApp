@@ -5,14 +5,18 @@ paths:
   - "**/XI*.swift"
   - "**/*Prediction*.swift"
   - "**/Trivia*.swift"
+  - "**/KnowHer*.swift"
+  - "**/Bracket*.swift"
+  - "**/Superfan*.swift"
+  - "**/CommunityResults*.swift"
   - "**/HomeView*.swift"
 ---
 
 # Fan Zone & game visibility rules
 
-The Fan Zone leads Home (**top module**, above Club News) — the three games (Predict the XI, Bracket
-Battle, Daily Trivia) plus a cross-game Superfan summary. (Bracket Battle's own engine/ops live in
-`.claude/rules/bracket-battle.md`.)
+The Fan Zone leads Home (**top module**, above Club News) — the four games (Predict the XI, Bracket
+Battle, Know Her Game, NWSL Trivia) plus a cross-game Superfan summary. (Bracket Battle's own engine/ops
+live in `.claude/rules/bracket-battle.md`.)
 
 ## Home layout (`HomeView.swift` + `Components/FanZoneCard.swift`)
 
@@ -37,7 +41,8 @@ The **Superfan summary is the TRAILING card** at the end of the row (`SuperfanCa
 `GameCenterManager.syncAll`), gated to **≥2 games played AND total > 0** (`superfanBannerVisible`; it
 counts games *played*, so it stays even when a game is hidden). Countdowns via the pure
 `compactCountdown(to:from:)`. Each game keeps its accent: predict `dsGamePredict` (pink), bracket
-`dsGameBracket` (teal), trivia `dsGameTrivia` (indigo). Below the row, **Club News** is a PINNED
+`dsGameBracket` (teal), know-her `dsGameSpotlight` (amber), trivia `dsGameTrivia` (indigo). Below the
+row, **Club News** is a PINNED
 section header (title + chip bar) — presentation only; its data/scoping/balancing/chip-requery logic
 is untouched (DO-NOT-TOUCH). The whole Fan Zone block still hides when no game is active (offseason).
 
@@ -65,7 +70,7 @@ game** (free mix). Unit-tested (`ContentRoundRobinTests`).
 | Predict the XI | a followed team has a fixture within `PredictionFixture.activeWindow` (28 days) | no upcoming fixture for any followed team |
 | Bracket Battle | `BracketStore.hasActiveEdition` | no active edition |
 | Daily Trivia | always | never |
-| Fan Zone section | ≥1 game visible | all three hidden (offseason) |
+| Fan Zone section | ≥1 game visible | all games hidden (offseason) |
 
 A game with nothing active/upcoming is hidden **everywhere** (card + screen) — no dead links.
 
@@ -76,19 +81,35 @@ A game with nothing active/upcoming is hidden **everywhere** (card + screen) —
 lock) · `PredictionStore` (`predict.v2.*`, `seasonPoints`, `points(forTeam:)`) · `PredictionScoring`
 (Mastermind partial, max 88; unit-tested) · per-team leaderboards (`PredictLeaderboardService` — a
 read failure shows only your real local score). The open-fixtures slate + scoring (via `/summary`)
-live in `PredictXIViewModel`; the in-flight picker is `XIPickerViewModel` / `XIPickerView`.
+live in `PredictXIViewModel`; the in-flight picker is `XIPickerViewModel` / `XIPickerView`. **Auto-pick**
+(`XIPickerViewModel.autoPick()`, button in the picker's FORMATION header) = beginner quick-fill: random
+formation + a distinct random player per slot (position-blind, score untouched); re-tap to re-roll.
 
-## Daily Trivia
+## Know Her Game
 
-5 questions/day, one scored play per local day (Wordle-style gate); `TriviaStore`
-(streak/bestStreak/totalCorrect/accuracy); `TriviaService` throws on failure OR empty pool
-(online-only, no seed); league-wide best-streak board (`TriviaLeaderboardService`).
+Weekly per-team player quiz (community family — the KHG-as-template for the Trivia rebuild). `KnowHerPool`/
+`KnowHerPlayer`/`KnowHerQuestion` (mirrors proxy `src/knowher.ts`) · `KnowHerGameStore` (`knowher.v1.*`,
+per-edition scores keyed `{weekKey}-{team}-{athleteId}`, weekly streak, PERSISTED `previousPool` = one-week
+"Last week" grace window kept only if exactly the prior ISO week) · `KnowHerGameViewModel` (transient
+session) · results via the shared `CommunityResultsView` (amber `dsGameSpotlight`). Flow: `KnowHerPickerView`
+(multi-team, or single-team when a "Last week" section exists) → `KnowHerGameView` (intro→question→result,
+`Entry .play/.review`). Content is fully-automated weekly (see `docs/know-her-game.md`). One featured player
+per followed team per week; hidden when no followed team has a featured player.
+
+## NWSL Trivia
+
+⚠️ **Being REBUILT next week** (Daily → WEEKLY redesign, `docs/nwsl-trivia-weekly-redesign.md`) — treat the
+below as the CURRENT (soon-legacy) shape, and rebuild it into the **community family** (Know Her Game is the
+template). Today: 5 questions/day, one scored play per local day (Wordle-style gate); `TriviaStore`
+(streak/bestStreak/totalCorrect/accuracy); `TriviaService` throws on failure OR empty pool (online-only, no
+seed); results via the shared `CommunityResultsView` (indigo `dsGameTrivia`). The old league-wide best-streak
+board (`TriviaLeaderboardService`) is retired from the UI.
 
 ## Sign-in & honesty
 
 Games are **browsable signed-out**, but **sign-in + a chosen display name are MANDATORY to PLAY** —
 gated at the first ranked ACTION, no skip. The gate is `FanZoneGate` (`Components/FanZoneGate.swift`):
-`.fanZoneGate(isRequested:gameName:onAuthorized:)` → a no-skip "Sign in to play" step (only escape is
+`.fanZoneGate(isRequested:gameName:accent:onAuthorized:)` → a no-skip "Sign in to play" step (only escape is
 "Go back", which cancels the action) → a REQUIRED display-name step (`DisplayNameEntry`, prefilled with
 Apple's name) → then `onAuthorized` runs. Already signed-in + named → runs immediately, no sheet.
 Action points: **Bracket** "Make your picks" (intro→voting), **Predict** the open-fixture tap (→picker),
@@ -99,3 +120,34 @@ display name is the leaderboard identity (Supabase `profiles`/`*_scores.display_
 auto alias); editable in Profile via the same `DisplayNameEntry`. ZERO fabricated data: honest
 empty/loading states, never fake rivals or padded counts; a read failure shows only the user's real local
 value. Game Center (`GameCenterManager`) is additive on top of the Supabase boards.
+
+## Design consistency — two families + shared components (established 2026-07-17, `docs/design-audit.md`)
+
+The whole Fan Zone was moved onto the DesignSystem tokens + a shared component library (pre-launch design
+audit). **Build every FUTURE game — a Superfan zone, the NWSL Trivia rebuild, anything new — WITH this,
+not around it. Reuse what's shared; never reintroduce raw UIKit colors/fonts.** (This is exactly the "so
+we don't have to run that report again" contract.)
+
+**Two visual families — the surface signals the mode before the copy does:**
+- **COMPETITIVE** (Predict the XI + Bracket Battle) = the ARENA look: `Color.dsBgPrimary` (black) page +
+  `Color.dsMdCard` (navy) cards. Reads "ranked / leaderboard."
+- **COMMUNITY** (NWSL Trivia + Know Her Game) = the CANONICAL app-card look: `Color.dsBgGrouped` page +
+  `Color.dsBgCard` cards. Reads "play + compare / community stats."
+- Each game keeps its OWN accent regardless of family — Predict `dsGamePredict` (pink), Bracket
+  `dsGameBracket` (teal), Trivia `dsGameTrivia` (indigo), Know Her `dsGameSpotlight` (amber). A NEW game
+  picks a family + a `dsGame*` token; **add a token, never hardcode a hex.**
+
+**Reuse these — do NOT re-roll (all already wired across the Fan Zone):**
+- Buttons → `DSButton`. Error/empty states → `RetryStateView` (retry renders through DSButton). Team
+  colors → `Color.teamColor(for:liftOnDark:fallback:)`. Player avatars → `PlayerHeadshot` (ring + monogram
+  are the caller's overlay). Voice pills → `CategoryPill`. The "how everyone did" panel →
+  `CommunityResultsView` (shared by both community games; takes the caller's accent).
+- Surfaces + text via DS tokens ONLY: no `Color(.systemGroupedBackground)` / `.systemGray*` / `.separator`;
+  no raw `.white` (→ `Color.dsFgPrimary`); no raw `.font(.system/.headline…)` for READABLE text (→
+  `.dsFont`). **EXEMPT — keep `.font(.system)`:** monograms/badge letters inside fixed-size dots + fixed-
+  width numeric columns (rank/points/count) — a container that doesn't scale must not scale its text.
+- Correct/wrong = `dsSuccess`/`dsError`, never raw `.green`/`.red`.
+
+**The sign-in gate is game-tinted + generic:** `.fanZoneGate(…accent:…)` takes the tapped game's accent and
+its copy covers BOTH leaderboards AND community stats. Don't revert it to hardcoded teal or a competitive-
+only "ranked game" line — a new game just passes its own accent.

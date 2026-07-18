@@ -2,8 +2,18 @@
 
 **Date:** 2026-07-17 · **Scope:** every screen (33 views) + component (35) + the two cross-cutting
 lenses (component reuse, dark-mode). **Method:** 13 parallel read-in-full passes against the design-system
-yardstick (`DSColor` / `DSText.dsFont` / `DSMetrics`), plus targeted in-sim screenshots. **This is a
-flag-only report — nothing here has been changed.** Decide what to address before shipping.
+yardstick (`DSColor` / `DSText.dsFont` / `DSMetrics`), plus targeted in-sim screenshots.
+
+> **✅ RESOLVED 2026-07-17 (Phases 1–5, PRs #156 + #158).** All three 🔴 blockers fixed (debug screen
+> `#if DEBUG`'d, dead onboarding teaser cut, KnowHer amber-CTA contrast). Shared components built + wired
+> app-wide (`DSButton`, `RetryStateView`, `Color.teamColor`, `BroadcastBrand`, `PlatformBrand`, one
+> `PlayerHeadshot` under all avatars, `CategoryPill` tokens). Dead code deleted (`PlayerCard`,
+> `SocialLinkButton`, Trivia `leaderboardCard`). Fan Zone reorganized into the **two visual families**
+> (competitive arena / community cards) + per-game-tinted generic `FanZoneGate`. Readable text → `.dsFont`.
+> **The design conventions this audit established now live in `.claude/rules/fan-zone.md` (Design
+> consistency §) + CLAUDE.md UI rules, so future work builds with them — this audit shouldn't need re-running.**
+> **One item intentionally OPEN:** 🟡 #5 for **NWSL Trivia** — deliberately NOT swept; being rebuilt into
+> the community family next week (`docs/nwsl-trivia-weekly-redesign.md`). Original flag-only findings below.
 
 ## How to read this
 

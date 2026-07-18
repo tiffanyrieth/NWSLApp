@@ -29,6 +29,7 @@
 //
 
 import UIKit
+import ImageIO
 
 final class ImageCache {
     static let shared = ImageCache()
@@ -75,7 +76,7 @@ final class ImageCache {
                !(200..<300).contains(http.statusCode) {
                 return nil
             }
-            guard let image = UIImage(data: data) else {
+            guard let image = Self.downsampledImage(data: data, maxPixel: 1000) else {
                 // 2xx but the bytes aren't an image — genuinely unexpected (a non-2xx/404, e.g. a
                 // headshot miss, took the branch above and stays silent: that's an expected fallback).
                 let host = url.host ?? ""
@@ -89,5 +90,28 @@ final class ImageCache {
             Task { @MainActor in Diagnostics.shared.record(.apiFailure, "image fetch \(host)") }
             return nil
         }
+    }
+
+    /// Decode + DOWNSAMPLE via ImageIO so a large CDN source (IG / YouTube / news OG, often 1080px+)
+    /// becomes a ~card-sized bitmap instead of a full-res one held in the NSCache and force-decoded on the
+    /// MAIN thread at draw time (the feed / club-news scroll cost). Downsampling only SHRINKS — a source
+    /// already ≤ maxPixel (crests, headshots) comes back effectively unchanged, and the largest consumer is
+    /// a ~200pt card (≈600px @3x), so 1000px stays crisp. Runs in the async `image(for:)` context, so the
+    /// decode is off the main thread. Falls back to a plain decode if ImageIO can't read the bytes.
+    private static func downsampledImage(data: Data, maxPixel: Int) -> UIImage? {
+        guard let src = CGImageSourceCreateWithData(data as CFData,
+                                                    [kCGImageSourceShouldCache: false] as CFDictionary) else {
+            return UIImage(data: data)
+        }
+        let opts: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,   // respect EXIF orientation
+            kCGImageSourceShouldCacheImmediately: true,          // decode NOW (off-main), not at draw time
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+        ]
+        guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else {
+            return UIImage(data: data)
+        }
+        return UIImage(cgImage: cg)
     }
 }

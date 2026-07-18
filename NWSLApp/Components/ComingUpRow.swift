@@ -134,14 +134,13 @@ struct ComingUpRow: View {
         return "\(home)–\(away)"
     }
 
+    private static let kickoffTimeFormatter: DateFormatter = {
+        let f = DateFormatter(); f.locale = .current; f.timeZone = .current
+        f.timeStyle = .short; f.dateStyle = .none; return f
+    }()
     private var kickoffTimeText: String? {
         guard let kickoff = event.kickoff else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = .current
-        formatter.timeZone = .current
-        formatter.timeStyle = .short
-        formatter.dateStyle = .none
-        return formatter.string(from: kickoff)
+        return Self.kickoffTimeFormatter.string(from: kickoff)
     }
 
     // MARK: - Broadcast ("where do I watch this?" — the #1 new-NWSL-fan question)

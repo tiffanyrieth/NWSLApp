@@ -530,12 +530,10 @@ struct HomeView: View {
     }
 
     /// Local-day key ("yyyy-MM-dd") — Trivia's cycle (a fresh set each day).
-    private static func todayKey() -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f.string(from: Date())
-    }
+    private static let dayKeyFormatter: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"; return f
+    }()
+    private static func todayKey() -> String { dayKeyFormatter.string(from: Date()) }
 
     /// The Fan Zone "Know Her Game" card. One followed player → names her ("Trinity Rodman ·
     /// WAS"); 2+ → the cluster line ("N of M played"). All played → "Done this week".
@@ -670,13 +668,10 @@ struct HomeView: View {
     }
 
     /// "Sat 7:30 PM" — the Predict context-line kickoff format (mirrors PredictXIView).
-    private static func kickoffLabel(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = .current
-        formatter.timeZone = .current
-        formatter.dateFormat = "EEE h:mm a"
-        return formatter.string(from: date)
-    }
+    private static let kickoffLabelFormatter: DateFormatter = {
+        let f = DateFormatter(); f.locale = .current; f.timeZone = .current; f.dateFormat = "EEE h:mm a"; return f
+    }()
+    private static func kickoffLabel(_ date: Date) -> String { kickoffLabelFormatter.string(from: date) }
 
     /// The next local midnight — when Daily Trivia refreshes (TriviaStore's day-gate
     /// flips at local midnight).

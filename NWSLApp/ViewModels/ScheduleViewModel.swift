@@ -171,12 +171,19 @@ final class ScheduleViewModel {
     }
 
     /// "Nov 4–11" (same-month), "Nov 28–Dec 2" (cross-month), or "Nov 8" (single day).
+    private static let rangeMonthDay: DateFormatter = {
+        let f = DateFormatter(); f.locale = .current; f.timeZone = .current; f.dateFormat = "MMM d"; return f
+    }()
+    private static let rangeDayOnly: DateFormatter = {
+        let f = DateFormatter(); f.locale = .current; f.timeZone = .current; f.dateFormat = "d"; return f
+    }()
+
     private func dateRange(_ dates: [Date]) -> String? {
         let sorted = dates.sorted()
         guard let first = sorted.first, let last = sorted.last else { return nil }
-        let f = DateFormatter(); f.locale = .current; f.timeZone = .current; f.dateFormat = "MMM d"
+        let f = Self.rangeMonthDay
         if calendar.isDate(first, inSameDayAs: last) { return f.string(from: first) }
-        let d = DateFormatter(); d.locale = .current; d.timeZone = .current; d.dateFormat = "d"
+        let d = Self.rangeDayOnly
         let sameMonth = calendar.component(.month, from: first) == calendar.component(.month, from: last)
         return sameMonth ? "\(f.string(from: first))–\(d.string(from: last))"
                          : "\(f.string(from: first))–\(f.string(from: last))"
@@ -294,26 +301,25 @@ final class ScheduleViewModel {
 
     // MARK: - Private
 
+    // Cached formatters — `label(forDayKey:)` runs PER SECTION on every scheduleSections build (each poll
+    // + body render), so a per-call DateFormatter alloc (up to 3 per section) was the bulk of the recompute
+    // cost. Static = one instance each, reused. (See also `rangeMonthDay`/`rangeDayOnly` above.)
+    private static let keyFormatter: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = .current
+        f.dateFormat = "yyyy-MM-dd"; return f
+    }()
+    private static let dayLabelFormatter: DateFormatter = {
+        let f = DateFormatter(); f.locale = .current; f.timeZone = .current
+        f.dateFormat = "EEEE, MMMM d"; return f   // "Friday, June 6" (per the spec)
+    }()
+
     private func todayKey() -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: now())
+        Self.keyFormatter.string(from: now())
     }
 
     private func label(forDayKey key: String) -> String {
         if key == todayKey() { return "Today" }
-        let parser = DateFormatter()
-        parser.locale = Locale(identifier: "en_US_POSIX")
-        parser.timeZone = .current
-        parser.dateFormat = "yyyy-MM-dd"
-        guard let date = parser.date(from: key) else { return key }
-
-        let display = DateFormatter()
-        display.locale = .current
-        display.timeZone = .current
-        display.dateFormat = "EEEE, MMMM d"   // "Friday, June 6" (per the spec)
-        return display.string(from: date)
+        guard let date = Self.keyFormatter.date(from: key) else { return key }
+        return Self.dayLabelFormatter.string(from: date)
     }
 }

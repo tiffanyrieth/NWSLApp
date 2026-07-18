@@ -76,6 +76,11 @@ struct MatchDetailView: View {
             }
         }
         .background(Color.dsBgPrimary)
+        // Tapping a lineup-pitch player pushes her stat screen (same PlayerDetailView as
+        // Teams → team → player); the pitch dots vend a LineupPlayerRef via NavigationLink.
+        .navigationDestination(for: LineupPlayerRef.self) { ref in
+            LineupPlayerStatsView(ref: ref)
+        }
         // Bare ‹ chevron, no centered title: the full-bleed header (crests + score)
         // carries identity. `nativeBackButton()` keeps the swipe gesture via the editor
         // toolbar role (see DSText).
@@ -341,7 +346,8 @@ struct MatchDetailView: View {
             abbr: roster.team?.abbreviation ?? "—",
             formation: roster.formation,
             players: roster.starters,
-            accent: accent
+            accent: accent,
+            clubID: roster.team?.id
         )
     }
 
@@ -389,7 +395,9 @@ struct MatchDetailView: View {
                 FormationPitchView(
                     formation: roster.formation,
                     players: roster.starters,
-                    accent: accent
+                    accent: accent,
+                    abbr: roster.team?.abbreviation,
+                    clubID: roster.team?.id
                 )
             } else {
                 lineupList("Starting XI", players: roster.starters)

@@ -121,4 +121,28 @@ struct MatchSummaryTests {
         #expect(oddPlayer.didSubIn == false)
         #expect(oddPlayer.didSubOut == false)
     }
+
+    // MARK: - asAthlete bridge (pitch tap → PlayerDetailView). A lineup player carries
+    // only id/name/jersey/position; asAthlete maps that to the roster Athlete the player
+    // screen expects, and stays nil when ESPN gave no id (dot stays non-tappable).
+
+    @Test func asAthleteBridgesPitchPlayerToRosterAthlete() throws {
+        let summary = try loadSummary()
+        let gk = try #require(summary.homeRoster?.starters.first)   // formationPlace 1 = GK
+
+        let athlete = try #require(gk.asAthlete)                    // has an id → bridges
+        #expect(athlete.id == gk.athlete?.id)
+        #expect(athlete.jersey == gk.jersey)                       // jersey carried across
+        #expect(athlete.positionAbbreviation == "G")               // position preserved…
+        #expect(athlete.isGoalkeeper)                              // …→ GK stat set on detail
+        #expect(athlete.name.isEmpty == false)
+    }
+
+    @Test func asAthleteIsNilWithoutAnAthleteID() throws {
+        // ESPN sometimes omits the athlete node; the dot must stay non-tappable, not crash.
+        let json = #"{ "rosters": [ { "homeAway": "home", "roster": [ { "jersey": "9", "starter": true } ] } ] }"#
+        let summary = try JSONDecoder().decode(MatchSummary.self, from: Data(json.utf8))
+        let player = try #require(summary.homeRoster?.roster?.first)
+        #expect(player.asAthlete == nil)
+    }
 }

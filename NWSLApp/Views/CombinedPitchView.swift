@@ -20,6 +20,8 @@ struct CombinedPitchView: View {
         let formation: String?
         let players: [MatchPlayer]   // starters
         let accent: ResolvedTeamColor
+        /// Team's ESPN club id — lets a tapped player fetch her full roster bio + stats.
+        var clubID: String? = nil
     }
 
     let home: Side
@@ -47,17 +49,35 @@ struct CombinedPitchView: View {
                 ZStack {
                     pitch
                     ForEach(homePlaced) { dot in
-                        PitchDot(player: dot.player, accent: home.accent)
+                        playerDot(dot.player, side: home)
                             .position(x: dot.point.x * geo.size.width, y: dot.point.y * geo.size.height)
                     }
                     ForEach(awayPlaced) { dot in
-                        PitchDot(player: dot.player, accent: away.accent)
+                        playerDot(dot.player, side: away)
                             .position(x: dot.point.x * geo.size.width, y: dot.point.y * geo.size.height)
                     }
                 }
             }
             .aspectRatio(0.66, contentMode: .fit)
             .frame(maxWidth: .infinity)
+        }
+    }
+
+    /// A pitch marker that pushes the player's stat screen when tapped (same PlayerDetailView
+    /// as Teams → team → player). Falls back to a plain, non-tappable dot when ESPN gave no
+    /// athlete id. `.buttonStyle(.plain)` keeps the disc's look; the destination is registered
+    /// in MatchDetailView (`navigationDestination(for: LineupPlayerRef.self)`).
+    @ViewBuilder
+    private func playerDot(_ player: MatchPlayer, side: Side) -> some View {
+        if let athlete = player.asAthlete {
+            NavigationLink(value: LineupPlayerRef(athlete: athlete,
+                                                  clubID: side.clubID,
+                                                  accentHex: DesignTeamColors.hex(for: side.abbr))) {
+                PitchDot(player: player, accent: side.accent)
+            }
+            .buttonStyle(.plain)
+        } else {
+            PitchDot(player: player, accent: side.accent)
         }
     }
 

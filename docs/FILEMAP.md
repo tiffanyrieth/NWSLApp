@@ -140,6 +140,7 @@ NWSLApp/
 │   ├── MatchDetailView.swift          — state-aware match: full-bleed Card-C header (72pt crests, team-color abbr + score) + bare ‹ chevron over a transparent bar (`nativeBackButton()`); past=Play-by-Play/Lineups/Stats (formation pitch + bench), live=poll (60s) & LIVE pill, future=info + How-to-Watch + comparison + form
 │   ├── CombinedPitchView.swift        — BOTH teams' XIs on ONE pitch; Lineups default
 │   ├── FormationPitchView.swift       — single-team XI on a pitch; per-team list fallback
+│   ├── LineupPlayerStatsView.swift    — tapping a lineup-pitch player pushes the full PlayerDetailView (same as Teams → team → player): fetches her team-roster bio (age/height/nationality) + season stats; bridges MatchPlayer→Athlete (`asAthlete`) as the instant header + fallback; LineupPlayerRef nav value
 │   ├── PlayerDetailView.swift         — roster bio + season stat block
 │   ├── StandingsView.swift            — color-block table (# · TEAM · PTS · GP · W · D · L · GD · LAST 5); signed GD; crest + color-coded abbr; cyan PLAYOFF LINE; team-color spine/tint/accent rank = FOLLOW indicator; Last-5 via RecentForm. Pure table all season — the playoffs live in SCHEDULE (the earlier segmented bracket was removed as duplication)
 │   ├── PlayoffPathView.swift          — the Playoffs chip's seeded content: per-followed-team hero + accent timeline (current round→🏆), steps = shared PlayoffMatchupRow, the "Win → face X in the [round]" projection line, multi-team stacked sections + "if both win…" storyline, eliminated-team muted state

@@ -220,7 +220,10 @@ with intent stored auto-presents the sign-in sheet app-wide + emits `tier2Signed
 DELIBERATE sign-out never nags — `SignOutSentinels`, `AuthStore.startAuthStateListener` +
 `revalidateSession`; DEBUG repro `-simulateLostSession`). **Lineup-posted (Stage D, done):** the watcher polls
 `/summary` (cache-busted via the proxy binding) in a 75-min pre-kickoff window and pushes "Lineups in" the tick
-BOTH XIs are posted (≥11 starters/side, KV-deduped); the app shows the pre-match XI in `MatchDetailView`'s
+BOTH XIs are posted (≥11 starters/side; dedup = **retry-until-SENT**, two KV markers — `lineup-pub` latches
+"XIs posted" to stop the /summary re-poll, `lineup:` marks fired only once ≥1 recipient is actually reached, so
+a 0-recipient tick RETRIES next tick and logs the gate breakdown / SUSPICIOUS flag — the old mark-fired-at-0
+silently dropped a real user's alert, 2026-07-18); the app shows the pre-match XI in `MatchDetailView`'s
 future layout. UI groups kickoff+HT+FT under one "Match updates" toggle (grouping only — each still gates its
 own column server-side). NEVER auto-enable a notification WITHOUT an explicit user
 action. National-team alerts: bell keyed by FIFA code → `competition_alert_preferences` (separate from
@@ -259,6 +262,10 @@ edit without an explicit decision.** ⚠️ **Cloud routines egress-allowlist by
 `*.workers.dev` 403s `host_not_allowed`; the routine environment MUST be set to FULL network access**
 (the sourcing needs the open web anyway). Don't fan out per-player sub-agents (16× the session cost).
 Detail: `docs/know-her-game.md` §5d.
+**Feeds carry more than we parse — check there FIRST** before proposing any new data source/fetch: the
+already-fetched ESPN responses have repeatedly held whole features unparsed (2026-07-18, 3-for-3: `/summary`
+`commentary`→full play-by-play, `leaders`→top performers, `videos`→highlights; athlete `/statistics` ~100
+stats). Current parsed-vs-unparsed inventory: `docs/backend.md` (proxy § pass-through caching).
 
 ## Workflow & engineering practices (requirements — flag the trade-off before bypassing)
 

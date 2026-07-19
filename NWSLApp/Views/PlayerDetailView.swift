@@ -99,33 +99,51 @@ struct PlayerDetailView: View {
         return initials.isEmpty ? "—" : initials
     }
 
-    // The season stat block — keepers and outfield players show different lines.
-    // Styled to match the bio table directly above it.
+    // The season stat block — grouped, position-aware sections (Attacking / Passing / Defending /
+    // Discipline for outfield; Goalkeeping / Distribution for keepers) from ESPN's full stat set,
+    // non-zero only. Falls back to the headline line when the full set isn't available.
     private func statsCard(_ stats: PlayerSeasonStats) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let sections = stats.seasonSections
+        return VStack(alignment: .leading, spacing: 14) {
             Text(seasonLabel)
                 .dsFont(12, weight: .semibold)
                 .foregroundStyle(Color.dsFgSecondary)
-            VStack(spacing: 0) {
-                let rows = statRows(stats)
-                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                    HStack {
-                        Text(row.label).foregroundStyle(Color.dsFgSecondary)
-                        Spacer()
-                        Text(row.value).dsFont(15, weight: .semibold, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
-                    }
-                    .dsFont(15)
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 16)
-                    if index < rows.count - 1 {
-                        Rectangle().fill(Color.dsSeparator).frame(height: 0.5)
+            if sections.isEmpty {
+                statsTable(statRows(stats))
+            } else {
+                ForEach(sections) { section in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(section.title.uppercased())
+                            .dsFont(11, weight: .semibold)
+                            .tracking(0.6)
+                            .foregroundStyle(Color.dsFgTertiary)
+                        statsTable(section.items.map { (label: $0.label, value: $0.value) })
                     }
                 }
             }
-            .background(Color.dsBgCard)
-            .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// A card of label→value rows, shared by each grouped section and the legacy fallback.
+    private func statsTable(_ rows: [(label: String, value: String)]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                HStack {
+                    Text(row.label).foregroundStyle(Color.dsFgSecondary)
+                    Spacer()
+                    Text(row.value).dsFont(15, weight: .semibold, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
+                }
+                .dsFont(15)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
+                if index < rows.count - 1 {
+                    Rectangle().fill(Color.dsSeparator).frame(height: 0.5)
+                }
+            }
+        }
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd))
     }
 
     private func statRows(_ s: PlayerSeasonStats) -> [(label: String, value: String)] {

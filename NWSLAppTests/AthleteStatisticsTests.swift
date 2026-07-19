@@ -83,4 +83,45 @@ struct AthleteStatisticsTests {
         #expect(line.saves == 0)
         #expect(line.cleanSheets == 0)
     }
+
+    // MARK: - Grouped season sections (the expanded player-stats screen)
+
+    @Test func seasonSectionsGroupOutfieldStatsNonZero() throws {
+        let sections = try loadStats().playerSeasonStats(athleteID: "262615", isGoalkeeper: false).seasonSections
+        let titles = sections.map(\.title)
+        // Outfield set — the keeper section must NOT appear.
+        #expect(titles.contains("Overview"))
+        #expect(titles.contains("Attacking"))
+        #expect(titles.contains("Passing"))
+        #expect(!titles.contains("Goalkeeping"))
+
+        let attacking = try #require(sections.first { $0.title == "Attacking" })
+        let labels = attacking.items.map(\.label)
+        #expect(labels.contains("Goals"))       // the fixture's non-zero headline stats
+        #expect(labels.contains("Assists"))
+        #expect(labels.contains("Shots"))
+
+        // Non-zero only: no row shows a bare "0" (percentages like "75%" are fine).
+        for section in sections { for item in section.items { #expect(item.value != "0") } }
+    }
+
+    @Test func seasonSectionsShowGoalkeepingWithPercent() throws {
+        let json = """
+        { "splits": { "categories": [
+            { "name": "general", "stats": [ { "name": "appearances", "value": 10 }, { "name": "minutes", "value": 900 } ] },
+            { "name": "goalKeeping", "stats": [
+                { "name": "saves", "value": 31 }, { "name": "cleanSheet", "value": 3 }, { "name": "savePct", "value": 0.75 }
+            ] }
+        ] } }
+        """
+        let stats = try JSONDecoder().decode(AthleteStatistics.self, from: Data(json.utf8))
+        let sections = stats.playerSeasonStats(athleteID: "gk", isGoalkeeper: true).seasonSections
+        let titles = sections.map(\.title)
+        #expect(titles.contains("Goalkeeping"))
+        #expect(!titles.contains("Attacking"))       // keeper → no outfield attacking section
+
+        let gk = try #require(sections.first { $0.title == "Goalkeeping" })
+        #expect(gk.items.contains { $0.label == "Saves" && $0.value == "31" })
+        #expect(gk.items.contains { $0.label == "Save %" && $0.value == "75%" })   // 0.75 fraction → 75%
+    }
 }

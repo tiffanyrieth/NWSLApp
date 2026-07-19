@@ -78,7 +78,8 @@ extension AthleteStatistics {
             saves: int("goalKeeping.saves"),
             cleanSheets: int("goalKeeping.cleanSheet"),
             goalsAgainst: int("goalKeeping.goalsConceded"),
-            isGoalkeeper: isGoalkeeper
+            isGoalkeeper: isGoalkeeper,
+            all: f                       // full stat set → the grouped detail sections
         )
     }
 }

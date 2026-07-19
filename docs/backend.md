@@ -26,6 +26,15 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
 (GitHub `tiffanyrieth/nwslapp-proxy`), live at `https://nwslapp-proxy.tiffany-rieth.workers.dev`.
 - **Pass-through caching:** `GET /scoreboard`, `GET /summary?event={id}` forward to ESPN
   and return bytes **unchanged** (app decoders untouched); match-state-aware TTL.
+  - **The `/summary` payload carries far more than the app originally parsed** — as of 2026-07-18 the
+    app also decodes `commentary` (the FULL play-by-play: shots/saves/fouls/corners/offsides/VAR),
+    `leaders` (per-team match top performers), and `videos` (highlight clips, deep-link-out only;
+    thumbnails load direct from `a.espncdn.com`, NOT via the proxy). Still unparsed: `news` (the
+    GENERAL NWSL feed, not match-scoped — deliberately skipped, overlaps Club News),
+    `lastFiveGames`/`headToHeadGames`, `odds` (skipped — values). The scoreboard similarly carries
+    unused `competitor.form` ("WDLWL"), `competitor.records` ("5-4-5"), and embedded per-team
+    `competitor.statistics`. Lesson (3-for-3 in one session): before adding a data source, check
+    what the already-fetched feeds carry unparsed.
   - ⚠️ **`/scoreboard` busts the ESPN UPSTREAM on every cache MISS** (`proxyAndCache(..., bustUpstream)`):
     appends a `_cb=<ts>` to the ESPN fetch so ESPN can't serve its 25–47-min-stale full-season cache
     (see quirks above). The proxy's OWN edge-cache key stays the clean incoming URL, so app traffic still

@@ -573,24 +573,30 @@ struct MatchDetailView: View {
 
     private var futureLayout: some View {
         let preview = viewModel.buildPreview(season: matchStore.events)
-        return ScrollView {
-            VStack(spacing: 24) {
-                header
-                futureInfoGrid
-                HowToWatchCard(broadcast: broadcastName)
-                    .padding(.horizontal, 20)
-                preMatchLineups
-                if preview.hasData {
-                    seasonComparison(preview)
-                    recentForm(preview)
+        // Header OUTSIDE the ScrollView — exactly like tabbedLayout — so its full-bleed
+        // background reaches the top edge under the status bar. Inside a ScrollView the top
+        // safe area clips it, leaving a black gap (the "doesn't fully expand" bug, image 8).
+        return VStack(spacing: 0) {
+            header
+            ScrollView {
+                VStack(spacing: 24) {
+                    futureInfoGrid
+                    HowToWatchCard(broadcast: broadcastName)
+                        .padding(.horizontal, 20)
+                    preMatchLineups
+                    if preview.hasData {
+                        seasonComparison(preview)
+                        recentForm(preview)
+                    }
                 }
+                .padding(.top, 24)      // preserve the old header→grid gap now that header is pinned
+                .padding(.bottom, 20)
+                // Structural guard: clamp the content to the scroll viewport's width so no single
+                // over-wide child can make this VERTICAL scroll view drift/pan horizontally (a recurring
+                // class — the kickoff-time text hit it once, then a future-game layout again, 2026-07-11).
+                // Flexible children fit; anything genuinely over-wide clips instead of enabling a 2D drag.
+                .containerRelativeFrame(.horizontal)
             }
-            .padding(.bottom, 20)
-            // Structural guard: clamp the content to the scroll viewport's width so no single
-            // over-wide child can make this VERTICAL scroll view drift/pan horizontally (a recurring
-            // class — the kickoff-time text hit it once, then a future-game layout again, 2026-07-11).
-            // Flexible children fit; anything genuinely over-wide clips instead of enabling a 2D drag.
-            .containerRelativeFrame(.horizontal)
         }
     }
 

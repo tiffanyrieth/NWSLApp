@@ -197,4 +197,47 @@ struct MatchSummaryTests {
         #expect(items[2].kind == .foul)
         #expect(items[2].isHome == false)            // "Away FC" → away
     }
+
+    // MARK: - Top performers (leaders) + highlight videos
+
+    @Test func topPerformersPairsLeadersHomeVsAway() throws {
+        let json = """
+        {
+          "leaders": [
+            { "team": { "id": "H", "abbreviation": "HOM" },
+              "leaders": [ { "name": "totalShots", "displayName": "Total Shots",
+                             "leaders": [ { "displayValue": "5", "athlete": { "displayName": "H. Striker", "jersey": "9" } } ] } ] },
+            { "team": { "id": "A", "abbreviation": "AWY" },
+              "leaders": [ { "name": "totalShots", "displayName": "Total Shots",
+                             "leaders": [ { "displayValue": "3", "athlete": { "displayName": "A. Winger", "jersey": "7" } } ] } ] }
+          ]
+        }
+        """
+        let summary = try JSONDecoder().decode(MatchSummary.self, from: Data(json.utf8))
+        let rows = summary.topPerformers(homeID: "H")
+        #expect(rows.count == 1)
+        let row = try #require(rows.first)
+        #expect(row.category == "Total Shots")
+        #expect(row.home?.value == "5")
+        #expect(row.home?.name == "H. Striker")
+        #expect(row.home?.jersey == "9")
+        #expect(row.away?.value == "3")          // the OTHER team mapped to away
+        #expect(row.away?.name == "A. Winger")
+    }
+
+    @Test func decodesHighlightVideos() throws {
+        let json = """
+        { "videos": [
+            { "headline": "Game Highlights", "duration": 78,
+              "thumbnail": "https://a.espncdn.com/x.jpg",
+              "links": { "web": { "href": "https://www.espn.com/video/clip/1" } } }
+        ] }
+        """
+        let summary = try JSONDecoder().decode(MatchSummary.self, from: Data(json.utf8))
+        let video = try #require(summary.videos?.first)
+        #expect(video.headline == "Game Highlights")
+        #expect(video.durationLabel == "1:18")          // 78s → 1:18
+        #expect(video.webURL?.absoluteString == "https://www.espn.com/video/clip/1")
+        #expect(video.thumbnailURL != nil)
+    }
 }

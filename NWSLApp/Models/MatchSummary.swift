@@ -30,8 +30,37 @@ struct MatchSummary: Decodable {
     let rosters: [MatchRoster]?
     let keyEvents: [KeyEvent]?
     let commentary: [Commentary]?
+    let leaders: [MatchLeaders]?
+    let videos: [MatchVideo]?
     let gameInfo: GameInfo?
 }
+
+// MARK: - Videos (match highlight clips)
+//
+// The summary's `videos` are match-specific highlight clips (a game reel + per-goal clips),
+// already in the fetched response. We show a thumbnail that DEEP-LINKS OUT to ESPN's web
+// player — never in-app playback (ESPN video carries ads + auth, against the app's values).
+// (The summary's separate `news` array is the GENERAL NWSL feed, not match-scoped, so it's
+// intentionally not surfaced here — Club News already covers league news.)
+
+struct MatchVideo: Decodable {
+    let headline: String?
+    let description: String?
+    let duration: Int?               // seconds
+    let thumbnail: String?           // a.espncdn.com CDN image (loaded direct, not via the proxy)
+    let links: VideoLinks?
+
+    var webURL: URL? { links?.web?.href.flatMap(URL.init(string:)) }
+    var thumbnailURL: URL? { thumbnail.flatMap(URL.init(string:)) }
+    /// "1:18" from the second count, or nil when unknown.
+    var durationLabel: String? {
+        guard let duration, duration > 0 else { return nil }
+        return String(format: "%d:%02d", duration / 60, duration % 60)
+    }
+}
+
+struct VideoLinks: Decodable { let web: VideoWeb? }
+struct VideoWeb: Decodable { let href: String? }
 
 // MARK: - Boxscore (team-level match stats)
 
@@ -120,6 +149,7 @@ struct MatchAthlete: Decodable {
     let displayName: String?
     let shortName: String?
     let lastName: String?
+    let jersey: String?              // present on `leaders` athletes (absent elsewhere → nil)
 }
 
 struct MatchPosition: Decodable {
@@ -192,6 +222,47 @@ struct CommentaryPlay: Decodable {
 
 struct CommentaryTeam: Decodable {
     let displayName: String?
+}
+
+// MARK: - Leaders (per-match top performers)
+//
+// The summary carries a `leaders` array (one entry per team) — each team's top athlete in
+// a handful of categories (Total Shots, Accurate Passes, Defensive Interventions, Saves).
+// Already in the fetched response; powers the "Top performers" card.
+
+struct MatchLeaders: Decodable {
+    let team: LeaderTeam?
+    let leaders: [LeaderCategory]?
+}
+
+struct LeaderTeam: Decodable {
+    let id: String?
+    let abbreviation: String?
+}
+
+struct LeaderCategory: Decodable {
+    let name: String?                // stable slug ("totalShots")
+    let displayName: String?         // "Total Shots"
+    let leaders: [LeaderEntry]?      // ranked; [0] is the leader
+}
+
+struct LeaderEntry: Decodable {
+    let displayValue: String?
+    let athlete: MatchAthlete?
+}
+
+/// One row of the Top-performers card: a category with each team's leader (or nil if absent).
+struct TopPerformerRow: Identifiable {
+    let id: String                   // category slug
+    let category: String             // "Total Shots"
+    let home: LeaderPick?
+    let away: LeaderPick?
+}
+
+struct LeaderPick {
+    let name: String
+    let jersey: String?
+    let value: String
 }
 
 // MARK: - Unified play-by-play row model
@@ -325,6 +396,29 @@ extension MatchSummary {
         }
 
         return items.sorted { $0.sortValue > $1.sortValue }   // newest-first
+    }
+
+    /// Per-category top performers paired home-vs-away for the Top-performers card.
+    /// Both teams carry the same category set, so we key off whichever side has them.
+    func topPerformers(homeID: String?) -> [TopPerformerRow] {
+        guard let leaders, !leaders.isEmpty else { return [] }
+        let home = leaders.first { $0.team?.id == homeID }
+        let away = leaders.first { $0.team?.id != home?.team?.id }
+        let categories = home?.leaders ?? away?.leaders ?? []
+
+        func pick(_ side: MatchLeaders?, _ slug: String) -> LeaderPick? {
+            guard let entry = side?.leaders?.first(where: { $0.name == slug })?.leaders?.first,
+                  let name = entry.athlete?.shortName ?? entry.athlete?.displayName,
+                  let value = entry.displayValue?.nonEmpty else { return nil }
+            return LeaderPick(name: name, jersey: entry.athlete?.jersey?.nonEmpty, value: value)
+        }
+
+        return categories.compactMap { cat in
+            guard let slug = cat.name else { return nil }
+            let row = TopPerformerRow(id: slug, category: cat.displayName ?? slug,
+                                      home: pick(home, slug), away: pick(away, slug))
+            return (row.home == nil && row.away == nil) ? nil : row   // drop fully-empty rows
+        }
     }
 
     /// Classify a keyEvent (goals/cards/subs). Goal FIRST via the authoritative `scoringPlay`

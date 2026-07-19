@@ -33,6 +33,7 @@ struct MatchDetailView: View {
     private let competition: CompetitionType
 
     @Environment(MatchStore.self) private var matchStore
+    @Environment(\.openURL) private var openURL
 
     @State private var tab: DetailTab = .summary
     @State private var pulse = false
@@ -243,6 +244,11 @@ struct MatchDetailView: View {
         let awayAbbr = event.awayCompetitor?.team?.abbreviation ?? summary.awayRoster?.team?.abbreviation
 
         VStack(spacing: 14) {
+            // Recap header: highlight clips (deep-link out to ESPN), then per-team top performers.
+            if let videos = summary.videos, !videos.isEmpty { highlightsCard(videos) }
+            let performers = summary.topPerformers(homeID: homeID)
+            if !performers.isEmpty { topPerformersCard(performers) }
+
             if items.isEmpty {
                 // A real match with no events yet says "No key events yet"; a truly sparse
                 // fixture (no lineups, no stats either — common for a non-NWSL match) gets
@@ -281,6 +287,117 @@ struct MatchDetailView: View {
             }
         }
         .padding()
+    }
+
+    /// Match highlight clips — a horizontal rail of thumbnails that DEEP-LINK OUT to ESPN's
+    /// web player (no in-app playback: ESPN video = ads + auth, against values). Thumbnails load
+    /// direct from ESPN's CDN via CachedThumbnail (not the proxy) — on-demand + cached.
+    private func highlightsCard(_ videos: [MatchVideo]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Highlights")
+                .dsFont(13, weight: .bold)
+                .foregroundStyle(Color.dsFgPrimary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(Array(videos.enumerated()), id: \.offset) { _, video in
+                        highlightClip(video)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+    }
+
+    private func highlightClip(_ video: MatchVideo) -> some View {
+        Button {
+            if let url = video.webURL { openURL(url) }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                ZStack {
+                    CachedThumbnail(url: video.thumbnailURL) {
+                        Rectangle().fill(Color.dsMdCard)
+                    }
+                    .frame(width: 220, height: 124)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    Image(systemName: "play.circle.fill")
+                        .dsFont(34)
+                        .foregroundStyle(.white.opacity(0.92))
+                        .shadow(radius: 3)
+                    if let duration = video.durationLabel {
+                        Text(duration)
+                            .dsFont(10, weight: .bold, monospacedDigit: true)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5).padding(.vertical, 2)
+                            .background(.black.opacity(0.7), in: Capsule())
+                            .padding(6)
+                            .frame(width: 220, height: 124, alignment: .bottomTrailing)
+                    }
+                }
+                .frame(width: 220, height: 124)
+                Text(video.headline ?? "Highlight")
+                    .dsFont(12, weight: .semibold)
+                    .foregroundStyle(Color.dsFgPrimary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(width: 220, height: 34, alignment: .topLeading)
+                Label("Watch on ESPN", systemImage: "arrow.up.right")
+                    .dsFont(10, weight: .semibold)
+                    .foregroundStyle(Color.dsFgTertiary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Per-match top performers — each category (Total Shots / Accurate Passes / Defensive
+    /// Interventions / Saves) with each team's leader, home-left / away-right in team colors.
+    private func topPerformersCard(_ rows: [TopPerformerRow]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Top performers")
+                .dsFont(13, weight: .bold)
+                .foregroundStyle(Color.dsFgPrimary)
+            VStack(spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    HStack(spacing: 8) {
+                        performerSide(row.home, color: matchColors.home.fill, trailing: false)
+                        Text(row.category)
+                            .dsFont(10.5, weight: .semibold)
+                            .foregroundStyle(Color.dsFgTertiary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity)
+                        performerSide(row.away, color: matchColors.away.fill, trailing: true)
+                    }
+                    .padding(.vertical, 9)
+                    if index < rows.count - 1 { Divider() }
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func performerSide(_ pick: LeaderPick?, color: Color, trailing: Bool) -> some View {
+        if let pick {
+            VStack(alignment: trailing ? .trailing : .leading, spacing: 1) {
+                Text(pick.value)
+                    .dsFont(16, weight: .heavy, design: .rounded, monospacedDigit: true)
+                    .foregroundStyle(color)
+                Text(pick.jersey.map { "\($0)  \(pick.name)" } ?? pick.name)
+                    .dsFont(11)
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, alignment: trailing ? .trailing : .leading)
+        } else {
+            Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+        }
     }
 
     private func officialsText(_ summary: MatchSummary) -> String? {

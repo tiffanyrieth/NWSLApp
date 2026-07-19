@@ -2,43 +2,41 @@
 //  EventTimelineRow.swift
 //  NWSLApp
 //
-//  One entry in a match's Play-by-Play (design handoff `match-detail.jsx` →
-//  `EventRow`): minute · a team-color crest box on the LEFT (scan-by-color, no
-//  need to read to the far right) · the event glyph (goal / card / substitution)
-//  · the player + detail · and, for a goal, the running scoreline on the right. A
-//  goal row gets a team-color wash fading right so big moments stand out.
+//  One entry in a match's Play-by-Play: minute · a team-color crest box on the LEFT
+//  (scan-by-color) · the event glyph (goal / card / sub / shot / save / foul / corner /
+//  offside / VAR) · a primary line (scorer name, or the play label) + detail (assist /
+//  "on for" / the ESPN commentary sentence) · and, for a goal, the running scoreline on
+//  the right. A goal row gets a team-color wash fading right so big moments stand out.
 //
-//  The team identity (color + crest) and the running scoreline are resolved by the
-//  caller (MatchDetailView) and passed in.
+//  Driven by the unified `PlayByPlayItem` (MatchSummary.swift) so both the enriched
+//  keyEvents rows and the text-only commentary rows share one component. The team
+//  identity (color + crest) is resolved by the caller (MatchDetailView) from `isHome`.
 //
 
 import SwiftUI
 
 struct EventTimelineRow: View {
-    let event: KeyEvent
-    /// Minute-marker tint — the match's temporal-state accent (cyan past/future,
-    /// orange live).
+    let item: PlayByPlayItem
+    /// Minute-marker tint — the match's temporal-state accent (cyan past/future, orange live).
     var minuteColor: Color = .secondary
     /// The event team's resolved color (left crest box + goal wash).
     var teamColor: Color = .dsFgSecondary
     /// The event team's crest (real art via TeamLogo) for the left box.
     var crestURL: String? = nil
     var crestAbbr: String? = nil
-    /// Running scoreline on a goal row, e.g. "1–0".
-    var score: String? = nil
 
-    /// Goal = ESPN's authoritative `scoringPlay` flag first (covers `penalty---scored`, own goals,
-    /// every variant), then the type-name fallback. NEVER substring-match loosely here: the type
-    /// "penalty---scoRED" contains "red" — which rendered scored penalties as red cards until
-    /// 2026-07-05 (owner caught it live, BOS vs BAY 5' penalty shown as a red card).
-    private var isGoal: Bool { event.scoringPlay == true || (event.type?.type ?? "").contains("goal") }
+    private var isGoal: Bool { item.kind.isGoal }
 
     var body: some View {
         HStack(spacing: 11) {
-            Text(minute)
+            Text(item.minute)
                 .dsFont(13, weight: .bold, monospacedDigit: true)
+                // Stoppage minutes ("90'+11'") are long — shrink to one line rather than
+                // wrap to three (a lone "'" on its own row); plain minutes stay centered.
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
                 .foregroundStyle(minuteColor)
-                .frame(width: 30, alignment: .center)
+                .frame(width: 36, alignment: .center)
 
             // Team identity on the LEFT — a color-tinted box holding the real crest.
             ZStack {
@@ -51,19 +49,20 @@ struct EventTimelineRow: View {
             iconView.frame(width: 18)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(primaryName)
+                Text(item.primary)
                     .dsFont(14, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
-                if let detail {
+                if let detail = item.detail {
                     Text(detail)
                         .dsFont(11.5)
                         .foregroundStyle(Color.dsFgSecondary)
+                        .fixedSize(horizontal: false, vertical: true)   // commentary can wrap 2 lines
                 }
             }
 
             Spacer(minLength: 0)
 
-            if isGoal, let score {
+            if isGoal, let score = item.score {
                 Text(score)
                     .dsFont(15, weight: .heavy, design: .rounded, monospacedDigit: true)
                     .foregroundStyle(Color.dsFgPrimary)
@@ -87,64 +86,43 @@ struct EventTimelineRow: View {
         }
     }
 
-    // A substitution gets the green-in / red-out arrows; a card is a small colored
-    // rectangle; a goal is a soccer ball.
+    // One glyph per play kind. Cards are drawn shapes; the rest are SF Symbols.
     @ViewBuilder
     private var iconView: some View {
-        let type = event.type?.type ?? ""
-        // Goal FIRST (scoringPlay-driven — see isGoal), and EXACT card matches: the loose
-        // `contains("red")` matched "penalty---scoRED" and drew scored penalties as red cards.
-        if isGoal {
-            Image(systemName: "soccerball.inverse")
-                .dsFont(15)
-                .foregroundStyle(Color.dsFgPrimary)
-        } else if type.contains("substitution") {
+        switch item.kind {
+        case .goal:
+            symbol("soccerball.inverse", size: 15, color: .dsFgPrimary)
+        case .substitution:
             SubstitutionArrows()
-        } else if type.contains("yellow-card") {
+        case .yellowCard:
             cardRect(.dsWarning)
-        } else if type.contains("red-card") {
+        case .redCard:
             cardRect(.dsLive)
-        } else {
-            Image(systemName: "circle.fill")
-                .dsFont(7)
-                .foregroundStyle(.secondary)
+        case .shotOnTarget:
+            symbol("soccerball", size: 13, color: .dsSuccess)   // on frame → saved/scored
+        case .shotOffTarget, .shotBlocked:
+            symbol("soccerball", size: 13, color: .dsFgTertiary)
+        case .foul:
+            symbol("exclamationmark.triangle.fill", size: 12, color: .dsWarning)
+        case .corner:
+            symbol("flag.fill", size: 12, color: .dsFgSecondary)
+        case .offside:
+            symbol("flag.slash.fill", size: 12, color: .dsFgTertiary)
+        case .varReview:
+            symbol("tv.fill", size: 11, color: .dsFgSecondary)
+        case .other:
+            symbol("circle.fill", size: 7, color: .secondary)
         }
+    }
+
+    private func symbol(_ name: String, size: CGFloat, color: Color) -> some View {
+        Image(systemName: name).dsFont(size).foregroundStyle(color)
     }
 
     private func cardRect(_ color: Color) -> some View {
         RoundedRectangle(cornerRadius: 2, style: .continuous)
             .fill(color)
             .frame(width: 10, height: 13)
-    }
-
-    // MARK: - Derived display
-
-    private var minute: String {
-        let clock = event.clock?.displayValue ?? ""
-        return clock.isEmpty ? "—" : clock
-    }
-
-    private var names: [String] {
-        (event.participants ?? []).compactMap { $0.athlete?.displayName }
-    }
-
-    private var primaryName: String {
-        names.first ?? event.type?.text ?? "—"
-    }
-
-    /// Assist for a goal, "on for {outgoing}" for a sub (ESPN lists [in, out]).
-    private var detail: String? {
-        let type = event.type?.type ?? ""
-        guard names.count > 1 else {
-            return type.contains("card") ? event.type?.text : nil
-        }
-        if isGoal {
-            return "Assist: \(names[1])"
-        }
-        if type.contains("substitution") {
-            return "on for \(names[1])"
-        }
-        return names.dropFirst().joined(separator: ", ")
     }
 }
 

@@ -231,38 +231,38 @@ struct MatchDetailView: View {
 
     @ViewBuilder
     private func summaryTab(_ summary: MatchSummary) -> some View {
-        let events = summary.timelineEvents
         let homeID = summary.homeBoxscore?.team?.id ?? summary.homeRoster?.team?.id
+        let homeName = summary.homeRoster?.team?.displayName ?? summary.homeBoxscore?.team?.displayName
+        // The FULL play-by-play, newest-first (goals/cards/subs enriched from keyEvents +
+        // shots/fouls/corners/offsides/VAR from commentary).
+        let items = summary.playByPlay(homeID: homeID, homeDisplayName: homeName)
         // Crest + abbreviation per side for each event row's left color box.
         let homeCrest = event.homeCompetitor?.team?.logo
         let awayCrest = event.awayCompetitor?.team?.logo
         let homeAbbr = event.homeCompetitor?.team?.abbreviation ?? summary.homeRoster?.team?.abbreviation
         let awayAbbr = event.awayCompetitor?.team?.abbreviation ?? summary.awayRoster?.team?.abbreviation
-        // Running scoreline per goal (chronological events).
-        let scorelines = goalScorelines(events, homeID: homeID)
 
         VStack(spacing: 14) {
-            if events.isEmpty {
-                // A real match with no goals/cards yet says "No key events yet"; a
-                // truly sparse fixture (no lineups, no stats either — common for a
-                // non-NWSL match) gets the gentler "will be updated" copy.
+            if items.isEmpty {
+                // A real match with no events yet says "No key events yet"; a truly sparse
+                // fixture (no lineups, no stats either — common for a non-NWSL match) gets
+                // the gentler "will be updated" copy.
                 let hasRichData = summary.homeRoster != nil || summary.awayRoster != nil
                     || !statRows(summary).isEmpty
                 emptyState(hasRichData ? "No key events yet."
                                        : "Match details will be updated when available.")
             } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(events.enumerated()), id: \.offset) { index, ev in
-                        let isHome = ev.team?.id == homeID
+                // Lazy — a full match's play-by-play is 100+ rows.
+                LazyVStack(spacing: 0) {
+                    ForEach(items) { item in
                         EventTimelineRow(
-                            event: ev,
+                            item: item,
                             minuteColor: underlineColor,
-                            teamColor: isHome ? matchColors.home.fill : matchColors.away.fill,
-                            crestURL: isHome ? homeCrest : awayCrest,
-                            crestAbbr: isHome ? homeAbbr : awayAbbr,
-                            score: scorelines[index]
+                            teamColor: item.isHome ? matchColors.home.fill : matchColors.away.fill,
+                            crestURL: item.isHome ? homeCrest : awayCrest,
+                            crestAbbr: item.isHome ? homeAbbr : awayAbbr
                         )
-                        if index < events.count - 1 { Divider().padding(.leading, 2) }
+                        if item.id != items.last?.id { Divider().padding(.leading, 2) }
                     }
                 }
                 .padding(.vertical, 4)
@@ -289,20 +289,6 @@ struct MatchDetailView: View {
             .compactMap { $0.displayName ?? $0.fullName }
         guard !names.isEmpty else { return nil }
         return "Officials: " + names.joined(separator: " · ")
-    }
-
-    /// Running scoreline ("home–away") at each goal, keyed by event index. Walks
-    /// the chronological events, crediting the scoring side by `team.id`.
-    private func goalScorelines(_ events: [KeyEvent], homeID: String?) -> [Int: String] {
-        var home = 0, away = 0
-        var map: [Int: String] = [:]
-        for (index, ev) in events.enumerated() {
-            let isGoal = ev.scoringPlay == true || (ev.type?.type ?? "").contains("goal")
-            guard isGoal else { continue }
-            if ev.team?.id == homeID { home += 1 } else { away += 1 }
-            map[index] = "\(home)\u{2013}\(away)"   // en dash
-        }
-        return map
     }
 
     // MARK: - Lineups tab (starters + substitutes)

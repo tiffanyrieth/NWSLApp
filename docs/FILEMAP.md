@@ -24,7 +24,7 @@ NWSLApp/
 │   ├── ContentCard.swift              — unified ALIVE-content model: 7 layouts + `sourceType` (club·reporter·player·league·news). NO time window — representation is count-based + age-agnostic (see ContentRoundRobin)
 │   ├── NationalTeam.swift             — followable women's NT: FIFA code + name + flag + brand color. Curated `featured(8)`/`all(16)` + a `discovered` init for data-driven Browse-all (ESPN flag by FIFA; color via DesignTeamColors.displayHex else neutral)
 │   ├── AthleteStatistics.swift        — ESPN Core API /statistics → PlayerSeasonStats
-│   ├── MatchSummary.swift             — ESPN /summary: lineups+formation, boxscore, key-events timeline
+│   ├── MatchSummary.swift             — ESPN /summary: lineups+formation, boxscore, key-events timeline + FULL `commentary` play-by-play; `playByPlay(homeID:homeDisplayName:)` merges keyEvents (enriched goals/cards/subs) with commentary (shots/fouls/corners/offsides/VAR) → `PlayByPlayItem`, newest-first
 │   ├── MatchWeather.swift             — past match's historical kickoff weather (proxy `/weather`, Open-Meteo); WMO code → night-aware SF Symbol + temp for the MatchDetail header stamp
 │   ├── PlayerSpotlight.swift          — (legacy) player-of-week model; the Home Spotlight section + its `/spotlight` fetch were retired for Know Her Game; model retained only as a legacy seed shape
 │   ├── KnowHerGame.swift              — Know Her Game content: `KnowHerPool`/`KnowHerPlayer`/`KnowHerQuestion` (Codable, mirrors proxy `src/knowher.ts`); category labels; `editionKey(weekKey:)`

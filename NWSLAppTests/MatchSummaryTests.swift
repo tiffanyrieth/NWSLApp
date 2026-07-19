@@ -145,4 +145,56 @@ struct MatchSummaryTests {
         let player = try #require(summary.homeRoster?.roster?.first)
         #expect(player.asAthlete == nil)
     }
+
+    // MARK: - Full play-by-play (commentary merged with keyEvents)
+    //
+    // The Play-by-Play tab merges the rich keyEvents rows (goal/card/sub, enriched with a
+    // scorer + running scoreline) with the commentary-only types (shots/fouls/corners/…),
+    // newest-first. Commentary's OWN goal/kickoff slugs must be dropped (no dupe of the goal,
+    // no neutral markers). Team is mapped to home/away by DISPLAY NAME (commentary has no id).
+
+    @Test func playByPlayMergesCommentaryAndKeyEventsNewestFirst() throws {
+        let json = """
+        {
+          "keyEvents": [
+            { "id": "g1", "scoringPlay": true,
+              "type": { "text": "Goal", "type": "penalty---scored" },
+              "clock": { "value": 3305, "displayValue": "56'" },
+              "team": { "id": "H", "displayName": "Home FC" },
+              "participants": [ { "athlete": { "displayName": "A. Scorer" } } ] }
+          ],
+          "commentary": [
+            { "sequence": 1, "time": { "value": 0, "displayValue": "" }, "text": "First Half begins.",
+              "play": { "type": { "text": "Kickoff", "type": "kickoff" }, "clock": { "value": 0, "displayValue": "" } } },
+            { "sequence": 40, "time": { "value": 2000, "displayValue": "33'" }, "text": "Foul by an away player.",
+              "play": { "type": { "text": "Foul", "type": "foul" }, "clock": { "value": 2000, "displayValue": "33'" },
+                        "team": { "displayName": "Away FC" } } },
+            { "sequence": 66, "time": { "value": 3300, "displayValue": "55'" }, "text": "Attempt saved.",
+              "play": { "type": { "text": "Shot On Target", "type": "shot-on-target" }, "clock": { "value": 3300, "displayValue": "55'" },
+                        "team": { "displayName": "Home FC" } } },
+            { "sequence": 67, "time": { "value": 3305, "displayValue": "56'" }, "text": "Goal!",
+              "play": { "type": { "text": "Penalty - Scored", "type": "penalty---scored" }, "clock": { "value": 3305, "displayValue": "56'" },
+                        "team": { "displayName": "Home FC" } } }
+          ]
+        }
+        """
+        let summary = try JSONDecoder().decode(MatchSummary.self, from: Data(json.utf8))
+        #expect(summary.commentary?.count == 4)   // all four decoded
+
+        let items = summary.playByPlay(homeID: "H", homeDisplayName: "Home FC")
+        // 3 rows: keyEvents goal + commentary shot + foul. The commentary GOAL (dupe of the
+        // keyEvents row) and KICKOFF (neutral) are dropped.
+        #expect(items.count == 3)
+        #expect(items.map(\.kind) == [.goal, .shotOnTarget, .foul])   // newest-first by clock
+
+        let goal = items[0]
+        #expect(goal.score == "1\u{2013}0")          // running scoreline attached
+        #expect(goal.primary == "A. Scorer")         // enriched scorer from keyEvents
+        #expect(goal.isHome)
+
+        #expect(items[1].primary == "Shot on target")
+        #expect(items[1].isHome)                     // "Home FC" → home
+        #expect(items[2].kind == .foul)
+        #expect(items[2].isHome == false)            // "Away FC" → away
+    }
 }

@@ -121,4 +121,123 @@ struct MatchSummaryTests {
         #expect(oddPlayer.didSubIn == false)
         #expect(oddPlayer.didSubOut == false)
     }
+
+    // MARK: - asAthlete bridge (pitch tap → PlayerDetailView). A lineup player carries
+    // only id/name/jersey/position; asAthlete maps that to the roster Athlete the player
+    // screen expects, and stays nil when ESPN gave no id (dot stays non-tappable).
+
+    @Test func asAthleteBridgesPitchPlayerToRosterAthlete() throws {
+        let summary = try loadSummary()
+        let gk = try #require(summary.homeRoster?.starters.first)   // formationPlace 1 = GK
+
+        let athlete = try #require(gk.asAthlete)                    // has an id → bridges
+        #expect(athlete.id == gk.athlete?.id)
+        #expect(athlete.jersey == gk.jersey)                       // jersey carried across
+        #expect(athlete.positionAbbreviation == "G")               // position preserved…
+        #expect(athlete.isGoalkeeper)                              // …→ GK stat set on detail
+        #expect(athlete.name.isEmpty == false)
+    }
+
+    @Test func asAthleteIsNilWithoutAnAthleteID() throws {
+        // ESPN sometimes omits the athlete node; the dot must stay non-tappable, not crash.
+        let json = #"{ "rosters": [ { "homeAway": "home", "roster": [ { "jersey": "9", "starter": true } ] } ] }"#
+        let summary = try JSONDecoder().decode(MatchSummary.self, from: Data(json.utf8))
+        let player = try #require(summary.homeRoster?.roster?.first)
+        #expect(player.asAthlete == nil)
+    }
+
+    // MARK: - Full play-by-play (commentary merged with keyEvents)
+    //
+    // The Play-by-Play tab merges the rich keyEvents rows (goal/card/sub, enriched with a
+    // scorer + running scoreline) with the commentary-only types (shots/fouls/corners/…),
+    // newest-first. Commentary's OWN goal/kickoff slugs must be dropped (no dupe of the goal,
+    // no neutral markers). Team is mapped to home/away by DISPLAY NAME (commentary has no id).
+
+    @Test func playByPlayMergesCommentaryAndKeyEventsNewestFirst() throws {
+        let json = """
+        {
+          "keyEvents": [
+            { "id": "g1", "scoringPlay": true,
+              "type": { "text": "Goal", "type": "penalty---scored" },
+              "clock": { "value": 3305, "displayValue": "56'" },
+              "team": { "id": "H", "displayName": "Home FC" },
+              "participants": [ { "athlete": { "displayName": "A. Scorer" } } ] }
+          ],
+          "commentary": [
+            { "sequence": 1, "time": { "value": 0, "displayValue": "" }, "text": "First Half begins.",
+              "play": { "type": { "text": "Kickoff", "type": "kickoff" }, "clock": { "value": 0, "displayValue": "" } } },
+            { "sequence": 40, "time": { "value": 2000, "displayValue": "33'" }, "text": "Foul by an away player.",
+              "play": { "type": { "text": "Foul", "type": "foul" }, "clock": { "value": 2000, "displayValue": "33'" },
+                        "team": { "displayName": "Away FC" } } },
+            { "sequence": 66, "time": { "value": 3300, "displayValue": "55'" }, "text": "Attempt saved.",
+              "play": { "type": { "text": "Shot On Target", "type": "shot-on-target" }, "clock": { "value": 3300, "displayValue": "55'" },
+                        "team": { "displayName": "Home FC" } } },
+            { "sequence": 67, "time": { "value": 3305, "displayValue": "56'" }, "text": "Goal!",
+              "play": { "type": { "text": "Penalty - Scored", "type": "penalty---scored" }, "clock": { "value": 3305, "displayValue": "56'" },
+                        "team": { "displayName": "Home FC" } } }
+          ]
+        }
+        """
+        let summary = try JSONDecoder().decode(MatchSummary.self, from: Data(json.utf8))
+        #expect(summary.commentary?.count == 4)   // all four decoded
+
+        let items = summary.playByPlay(homeID: "H", homeDisplayName: "Home FC")
+        // 3 rows: keyEvents goal + commentary shot + foul. The commentary GOAL (dupe of the
+        // keyEvents row) and KICKOFF (neutral) are dropped.
+        #expect(items.count == 3)
+        #expect(items.map(\.kind) == [.goal, .shotOnTarget, .foul])   // newest-first by clock
+
+        let goal = items[0]
+        #expect(goal.score == "1\u{2013}0")          // running scoreline attached
+        #expect(goal.primary == "A. Scorer")         // enriched scorer from keyEvents
+        #expect(goal.isHome)
+
+        #expect(items[1].primary == "Shot on target")
+        #expect(items[1].isHome)                     // "Home FC" → home
+        #expect(items[2].kind == .foul)
+        #expect(items[2].isHome == false)            // "Away FC" → away
+    }
+
+    // MARK: - Top performers (leaders) + highlight videos
+
+    @Test func topPerformersPairsLeadersHomeVsAway() throws {
+        let json = """
+        {
+          "leaders": [
+            { "team": { "id": "H", "abbreviation": "HOM" },
+              "leaders": [ { "name": "totalShots", "displayName": "Total Shots",
+                             "leaders": [ { "displayValue": "5", "athlete": { "displayName": "H. Striker", "jersey": "9" } } ] } ] },
+            { "team": { "id": "A", "abbreviation": "AWY" },
+              "leaders": [ { "name": "totalShots", "displayName": "Total Shots",
+                             "leaders": [ { "displayValue": "3", "athlete": { "displayName": "A. Winger", "jersey": "7" } } ] } ] }
+          ]
+        }
+        """
+        let summary = try JSONDecoder().decode(MatchSummary.self, from: Data(json.utf8))
+        let rows = summary.topPerformers(homeID: "H")
+        #expect(rows.count == 1)
+        let row = try #require(rows.first)
+        #expect(row.category == "Total Shots")
+        #expect(row.home?.value == "5")
+        #expect(row.home?.name == "H. Striker")
+        #expect(row.home?.jersey == "9")
+        #expect(row.away?.value == "3")          // the OTHER team mapped to away
+        #expect(row.away?.name == "A. Winger")
+    }
+
+    @Test func decodesHighlightVideos() throws {
+        let json = """
+        { "videos": [
+            { "headline": "Game Highlights", "duration": 78,
+              "thumbnail": "https://a.espncdn.com/x.jpg",
+              "links": { "web": { "href": "https://www.espn.com/video/clip/1" } } }
+        ] }
+        """
+        let summary = try JSONDecoder().decode(MatchSummary.self, from: Data(json.utf8))
+        let video = try #require(summary.videos?.first)
+        #expect(video.headline == "Game Highlights")
+        #expect(video.durationLabel == "1:18")          // 78s → 1:18
+        #expect(video.webURL?.absoluteString == "https://www.espn.com/video/clip/1")
+        #expect(video.thumbnailURL != nil)
+    }
 }

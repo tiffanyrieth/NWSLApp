@@ -445,6 +445,13 @@ struct RootTabView: View {
         }
         // Returning to the foreground re-syncs (covers scores earned while offline).
         .onChange(of: scenePhase) { _, phase in
+            if phase == .background {
+                // Drop the process-global GC auth handler so a later resume performs no Game
+                // Center re-auth — iOS's "signed in as {gamertag}" banner was dropping over
+                // HOME on every foreground after a Fan Zone visit (looked broken). The next
+                // Fan Zone entry re-installs it contextually. See releaseAuthHandlerOnBackground.
+                GameCenterManager.shared.releaseAuthHandlerOnBackground()
+            }
             if phase == .active {
                 GameCenterManager.shared.syncAll(trivia: trivia, predict: predict, bracket: bracket, knowHer: knowHer)
                 // Refresh live scores immediately on return to foreground. The live-poll

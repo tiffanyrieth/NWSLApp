@@ -30,6 +30,11 @@ struct FormationPitchView: View {
     /// The team's resolved match color (distinct from the opponent's, legible on
     /// the pitch) — fill for the dot, onText for the jersey number.
     let accent: ResolvedTeamColor
+    /// Team abbreviation, used to color the pushed player-stat screen when a dot is
+    /// tapped. nil ⇒ dots stay non-tappable (no navigation target).
+    var abbr: String? = nil
+    /// Team's ESPN club id — lets a tapped player fetch her full roster bio + stats.
+    var clubID: String? = nil
 
     /// Whether a pitch can be drawn for these starters (else the caller lists them).
     static func supports(formation: String?, players: [MatchPlayer]) -> Bool {
@@ -40,6 +45,23 @@ struct FormationPitchView: View {
     /// Pitch lines: faint white over green (design token).
     private let line = Color.dsPitchLine
 
+    /// A pitch marker that pushes the player's stat screen when tapped (same PlayerDetailView
+    /// as Teams → team → player). Non-tappable when we have no athlete id or no `abbr` to
+    /// color the destination. Destination registered in MatchDetailView.
+    @ViewBuilder
+    private func playerDot(_ player: MatchPlayer) -> some View {
+        if let abbr, let athlete = player.asAthlete {
+            NavigationLink(value: LineupPlayerRef(athlete: athlete,
+                                                  clubID: clubID,
+                                                  accentHex: DesignTeamColors.hex(for: abbr))) {
+                PitchDot(player: player, accent: accent)
+            }
+            .buttonStyle(.plain)
+        } else {
+            PitchDot(player: player, accent: accent)
+        }
+    }
+
     var body: some View {
         let placed = layout()
         VStack(spacing: 10) {
@@ -47,7 +69,7 @@ struct FormationPitchView: View {
                 ZStack {
                     pitch
                     ForEach(placed) { dot in
-                        PitchDot(player: dot.player, accent: accent)
+                        playerDot(dot.player)
                             .position(
                                 x: dot.point.x * geo.size.width,
                                 y: dot.point.y * geo.size.height

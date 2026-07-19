@@ -33,6 +33,7 @@ struct MatchDetailView: View {
     private let competition: CompetitionType
 
     @Environment(MatchStore.self) private var matchStore
+    @Environment(\.openURL) private var openURL
 
     @State private var tab: DetailTab = .summary
     @State private var pulse = false
@@ -76,6 +77,11 @@ struct MatchDetailView: View {
             }
         }
         .background(Color.dsBgPrimary)
+        // Tapping a lineup-pitch player pushes her stat screen (same PlayerDetailView as
+        // Teams → team → player); the pitch dots vend a LineupPlayerRef via NavigationLink.
+        .navigationDestination(for: LineupPlayerRef.self) { ref in
+            LineupPlayerStatsView(ref: ref)
+        }
         // Bare ‹ chevron, no centered title: the full-bleed header (crests + score)
         // carries identity. `nativeBackButton()` keeps the swipe gesture via the editor
         // toolbar role (see DSText).
@@ -226,38 +232,43 @@ struct MatchDetailView: View {
 
     @ViewBuilder
     private func summaryTab(_ summary: MatchSummary) -> some View {
-        let events = summary.timelineEvents
         let homeID = summary.homeBoxscore?.team?.id ?? summary.homeRoster?.team?.id
+        let homeName = summary.homeRoster?.team?.displayName ?? summary.homeBoxscore?.team?.displayName
+        // The FULL play-by-play, newest-first (goals/cards/subs enriched from keyEvents +
+        // shots/fouls/corners/offsides/VAR from commentary).
+        let items = summary.playByPlay(homeID: homeID, homeDisplayName: homeName)
         // Crest + abbreviation per side for each event row's left color box.
         let homeCrest = event.homeCompetitor?.team?.logo
         let awayCrest = event.awayCompetitor?.team?.logo
         let homeAbbr = event.homeCompetitor?.team?.abbreviation ?? summary.homeRoster?.team?.abbreviation
         let awayAbbr = event.awayCompetitor?.team?.abbreviation ?? summary.awayRoster?.team?.abbreviation
-        // Running scoreline per goal (chronological events).
-        let scorelines = goalScorelines(events, homeID: homeID)
 
         VStack(spacing: 14) {
-            if events.isEmpty {
-                // A real match with no goals/cards yet says "No key events yet"; a
-                // truly sparse fixture (no lineups, no stats either — common for a
-                // non-NWSL match) gets the gentler "will be updated" copy.
+            // Recap header: highlight clips (deep-link out to ESPN), then per-team top performers.
+            if let videos = summary.videos, !videos.isEmpty { highlightsCard(videos) }
+            let performers = summary.topPerformers(homeID: homeID)
+            if !performers.isEmpty { topPerformersCard(performers) }
+
+            if items.isEmpty {
+                // A real match with no events yet says "No key events yet"; a truly sparse
+                // fixture (no lineups, no stats either — common for a non-NWSL match) gets
+                // the gentler "will be updated" copy.
                 let hasRichData = summary.homeRoster != nil || summary.awayRoster != nil
                     || !statRows(summary).isEmpty
                 emptyState(hasRichData ? "No key events yet."
                                        : "Match details will be updated when available.")
             } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(events.enumerated()), id: \.offset) { index, ev in
-                        let isHome = ev.team?.id == homeID
+                // Lazy — a full match's play-by-play is 100+ rows.
+                LazyVStack(spacing: 0) {
+                    ForEach(items) { item in
                         EventTimelineRow(
-                            event: ev,
+                            item: item,
                             minuteColor: underlineColor,
-                            teamColor: isHome ? matchColors.home.fill : matchColors.away.fill,
-                            crestURL: isHome ? homeCrest : awayCrest,
-                            crestAbbr: isHome ? homeAbbr : awayAbbr,
-                            score: scorelines[index]
+                            teamColor: item.isHome ? matchColors.home.fill : matchColors.away.fill,
+                            crestURL: item.isHome ? homeCrest : awayCrest,
+                            crestAbbr: item.isHome ? homeAbbr : awayAbbr
                         )
-                        if index < events.count - 1 { Divider().padding(.leading, 2) }
+                        if item.id != items.last?.id { Divider().padding(.leading, 2) }
                     }
                 }
                 .padding(.vertical, 4)
@@ -278,26 +289,123 @@ struct MatchDetailView: View {
         .padding()
     }
 
+    /// Match highlight clips — a horizontal rail of thumbnails that DEEP-LINK OUT to ESPN's
+    /// web player (no in-app playback: ESPN video = ads + auth, against values). Thumbnails load
+    /// direct from ESPN's CDN via CachedThumbnail (not the proxy) — on-demand + cached.
+    private func highlightsCard(_ videos: [MatchVideo]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Highlights")
+                .dsFont(13, weight: .bold)
+                .foregroundStyle(Color.dsFgPrimary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(Array(videos.enumerated()), id: \.offset) { _, video in
+                        highlightClip(video)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+    }
+
+    private func highlightClip(_ video: MatchVideo) -> some View {
+        Button {
+            if let url = video.webURL { openURL(url) }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                ZStack {
+                    CachedThumbnail(url: video.thumbnailURL) {
+                        Rectangle().fill(Color.dsMdCard)
+                    }
+                    .frame(width: 220, height: 124)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    Image(systemName: "play.circle.fill")
+                        .dsFont(34)
+                        .foregroundStyle(.white.opacity(0.92))
+                        .shadow(radius: 3)
+                    if let duration = video.durationLabel {
+                        Text(duration)
+                            .dsFont(10, weight: .bold, monospacedDigit: true)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5).padding(.vertical, 2)
+                            .background(.black.opacity(0.7), in: Capsule())
+                            .padding(6)
+                            .frame(width: 220, height: 124, alignment: .bottomTrailing)
+                    }
+                }
+                .frame(width: 220, height: 124)
+                Text(video.headline ?? "Highlight")
+                    .dsFont(12, weight: .semibold)
+                    .foregroundStyle(Color.dsFgPrimary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(width: 220, height: 34, alignment: .topLeading)
+                Label("Watch on ESPN", systemImage: "arrow.up.right")
+                    .dsFont(10, weight: .semibold)
+                    .foregroundStyle(Color.dsFgTertiary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Per-match top performers — each category (Total Shots / Accurate Passes / Defensive
+    /// Interventions / Saves) with each team's leader, home-left / away-right in team colors.
+    private func topPerformersCard(_ rows: [TopPerformerRow]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Top performers")
+                .dsFont(13, weight: .bold)
+                .foregroundStyle(Color.dsFgPrimary)
+            VStack(spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    HStack(spacing: 8) {
+                        performerSide(row.home, color: matchColors.home.fill, trailing: false)
+                        Text(row.category)
+                            .dsFont(10.5, weight: .semibold)
+                            .foregroundStyle(Color.dsFgTertiary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity)
+                        performerSide(row.away, color: matchColors.away.fill, trailing: true)
+                    }
+                    .padding(.vertical, 9)
+                    if index < rows.count - 1 { Divider() }
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func performerSide(_ pick: LeaderPick?, color: Color, trailing: Bool) -> some View {
+        if let pick {
+            VStack(alignment: trailing ? .trailing : .leading, spacing: 1) {
+                Text(pick.value)
+                    .dsFont(16, weight: .heavy, design: .rounded, monospacedDigit: true)
+                    .foregroundStyle(color)
+                Text(pick.jersey.map { "\($0)  \(pick.name)" } ?? pick.name)
+                    .dsFont(11)
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, alignment: trailing ? .trailing : .leading)
+        } else {
+            Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+        }
+    }
+
     private func officialsText(_ summary: MatchSummary) -> String? {
         let names = (summary.gameInfo?.officials ?? [])
             .sorted { ($0.order ?? .max) < ($1.order ?? .max) }
             .compactMap { $0.displayName ?? $0.fullName }
         guard !names.isEmpty else { return nil }
         return "Officials: " + names.joined(separator: " · ")
-    }
-
-    /// Running scoreline ("home–away") at each goal, keyed by event index. Walks
-    /// the chronological events, crediting the scoring side by `team.id`.
-    private func goalScorelines(_ events: [KeyEvent], homeID: String?) -> [Int: String] {
-        var home = 0, away = 0
-        var map: [Int: String] = [:]
-        for (index, ev) in events.enumerated() {
-            let isGoal = ev.scoringPlay == true || (ev.type?.type ?? "").contains("goal")
-            guard isGoal else { continue }
-            if ev.team?.id == homeID { home += 1 } else { away += 1 }
-            map[index] = "\(home)\u{2013}\(away)"   // en dash
-        }
-        return map
     }
 
     // MARK: - Lineups tab (starters + substitutes)
@@ -341,7 +449,8 @@ struct MatchDetailView: View {
             abbr: roster.team?.abbreviation ?? "—",
             formation: roster.formation,
             players: roster.starters,
-            accent: accent
+            accent: accent,
+            clubID: roster.team?.id
         )
     }
 
@@ -389,7 +498,9 @@ struct MatchDetailView: View {
                 FormationPitchView(
                     formation: roster.formation,
                     players: roster.starters,
-                    accent: accent
+                    accent: accent,
+                    abbr: roster.team?.abbreviation,
+                    clubID: roster.team?.id
                 )
             } else {
                 lineupList("Starting XI", players: roster.starters)
@@ -579,24 +690,30 @@ struct MatchDetailView: View {
 
     private var futureLayout: some View {
         let preview = viewModel.buildPreview(season: matchStore.events)
-        return ScrollView {
-            VStack(spacing: 24) {
-                header
-                futureInfoGrid
-                HowToWatchCard(broadcast: broadcastName)
-                    .padding(.horizontal, 20)
-                preMatchLineups
-                if preview.hasData {
-                    seasonComparison(preview)
-                    recentForm(preview)
+        // Header OUTSIDE the ScrollView — exactly like tabbedLayout — so its full-bleed
+        // background reaches the top edge under the status bar. Inside a ScrollView the top
+        // safe area clips it, leaving a black gap (the "doesn't fully expand" bug, image 8).
+        return VStack(spacing: 0) {
+            header
+            ScrollView {
+                VStack(spacing: 24) {
+                    futureInfoGrid
+                    HowToWatchCard(broadcast: broadcastName)
+                        .padding(.horizontal, 20)
+                    preMatchLineups
+                    if preview.hasData {
+                        seasonComparison(preview)
+                        recentForm(preview)
+                    }
                 }
+                .padding(.top, 24)      // preserve the old header→grid gap now that header is pinned
+                .padding(.bottom, 20)
+                // Structural guard: clamp the content to the scroll viewport's width so no single
+                // over-wide child can make this VERTICAL scroll view drift/pan horizontally (a recurring
+                // class — the kickoff-time text hit it once, then a future-game layout again, 2026-07-11).
+                // Flexible children fit; anything genuinely over-wide clips instead of enabling a 2D drag.
+                .containerRelativeFrame(.horizontal)
             }
-            .padding(.bottom, 20)
-            // Structural guard: clamp the content to the scroll viewport's width so no single
-            // over-wide child can make this VERTICAL scroll view drift/pan horizontally (a recurring
-            // class — the kickoff-time text hit it once, then a future-game layout again, 2026-07-11).
-            // Flexible children fit; anything genuinely over-wide clips instead of enabling a 2D drag.
-            .containerRelativeFrame(.horizontal)
         }
     }
 

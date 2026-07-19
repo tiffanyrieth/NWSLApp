@@ -142,6 +142,36 @@ struct PlayingAsBadge: View {
     }
 }
 
+/// In-content variant of `PlayingAsBadge` — a right-aligned strip pinned to the TOP of a game
+/// screen's content (below the nav bar). Keeps the "Playing as {name}" affordance OUT of the nav
+/// bar, whose variable-width trailing item knocked the centered inline title off-center (the title
+/// drifted per game — "Know Her Game" left, "NWSL Trivia" right, etc.). No reserved space when
+/// signed out. Apply via `.fanZonePlayingAs(accent:)`.
+struct PlayingAsRow: View {
+    @Environment(AuthStore.self) private var auth
+    let accent: Color
+
+    var body: some View {
+        if auth.isSignedIn, auth.hasChosenName {
+            HStack(spacing: 0) {
+                Spacer()
+                PlayingAsBadge(accent: accent)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 8)
+        }
+    }
+}
+
+extension View {
+    /// Pin the "Playing as {name}" chip to the top of a Fan Zone game screen's content instead of
+    /// the nav bar's trailing slot — so the centered `nativeBackButton` title stays centered.
+    func fanZonePlayingAs(accent: Color) -> some View {
+        safeAreaInset(edge: .top, spacing: 0) { PlayingAsRow(accent: accent) }
+    }
+}
+
 // MARK: - The gate sheet (Sign in → Display name)
 
 struct FanZoneGateSheet: View {

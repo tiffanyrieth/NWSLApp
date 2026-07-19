@@ -47,7 +47,7 @@ struct DailyTriviaView: View {
             }
         }
         .nativeBackButton(title: "NWSL Trivia")
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { PlayingAsBadge(accent: Color.dsGameTrivia) } }
+        .fanZonePlayingAs(accent: Color.dsGameTrivia)
         .background(Color.dsBgGrouped)
         // Mandatory sign-in + display name to play — gated at the first "Submit Answer", so
         // a finished game's streak always reaches the leaderboard. "Go back" cancels.

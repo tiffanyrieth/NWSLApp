@@ -55,7 +55,7 @@ struct KnowHerPickerView: View {
             }
         }
         .nativeBackButton(title: "Know Her Game")
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { PlayingAsBadge(accent: accent) } }
+        .fanZonePlayingAs(accent: accent)
         .background(Color.dsBgGrouped)
         .task {
             GameCenterManager.shared.authenticate()

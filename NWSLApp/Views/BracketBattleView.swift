@@ -48,7 +48,7 @@ struct BracketBattleView: View {
             }
         }
         .nativeBackButton(title: "Bracket Battle")
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { PlayingAsBadge(accent: accent) } }
+        .fanZonePlayingAs(accent: accent)
         .background(Color.dsBgPrimary.ignoresSafeArea())
         .task {
             // Start Game Center auth here (a game screen) rather than at launch, so

@@ -84,6 +84,21 @@ final class GameCenterManager {
         }
     }
 
+    /// Release the process-global auth handler when the app backgrounds. The handler is what
+    /// makes GameKit RE-authenticate on every foreground after the GC session lapses — and that
+    /// re-auth is what drops iOS's "signed in as {gamertag}" welcome banner over whatever screen
+    /// the user lands on (Home, usually — the "app looks broken" report, 2026-07-18). Other apps
+    /// avoid this by authenticating once per cold launch; we go further: install only in the Fan
+    /// Zone (contextual), and DROP the handler on background so a plain resume to Home performs
+    /// no GC auth at all. The next Fan Zone entry re-installs it (the game screens' `.task`
+    /// hooks call `authenticate()` on appear). The OS-level Game Center session itself is
+    /// untouched — score `submit`s still work while the handler is nil.
+    func releaseAuthHandlerOnBackground() {
+        guard didStartAuthentication else { return }   // never installed → nothing to release
+        GKLocalPlayer.local.authenticateHandler = nil
+        didStartAuthentication = false                  // allow the next Fan Zone entry to re-install
+    }
+
     /// Open the native Game Center dashboard from Profile's 🏆 Leaderboards cell. Triggers
     /// auth ON TAP (not on Profile appear), so the GC sign-in banner only shows when the user
     /// actually asks for leaderboards. If auth is still resolving, the dashboard opens once it

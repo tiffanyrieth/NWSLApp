@@ -339,7 +339,13 @@ final class AuthStore {
         // they already know. Also clear any earlier desync flag: it's been acknowledged by intent.
         UserDefaults.standard.set(true, forKey: SignOutSentinels.deliberateSignOut)
         UserDefaults.standard.removeObject(forKey: SignOutSentinels.tier2WasOnAtSignOut)
-        try? await client.auth.signOut()
+        // scope: .local — sign out THIS device only. supabase-swift's default (.global) revokes the
+        // user's refresh tokens SERVER-SIDE for EVERY device, so a routine sign-out on one install
+        // would involuntarily sign the user out everywhere (iPhone sign-out killing an iPad session;
+        // and, during testing, a sim/USB sign-out killing the TestFlight session — revalidateSession
+        // then correctly detects the dead session and re-prompts). deleteAccount() keeps .global on
+        // purpose (the account is gone → every session should die).
+        try? await client.auth.signOut(scope: .local)
         currentUser = nil
     }
 

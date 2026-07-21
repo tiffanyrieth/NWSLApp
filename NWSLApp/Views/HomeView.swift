@@ -536,11 +536,12 @@ struct HomeView: View {
     private static func todayKey() -> String { dayKeyFormatter.string(from: Date()) }
 
     /// The Fan Zone "Know Her Game" card. One followed player → names her ("Trinity Rodman ·
-    /// WAS"); 2+ → the cluster line ("N of M played"). All played → "Done this week".
+    /// WAS"); 2+ → the cluster line ("N of M played"). All played → "Done". Edition-neutral copy
+    /// (KHG is biweekly — an edition spans 2 weeks, so avoid "this week").
     private var knowHerCardModel: FanZoneCardModel {
         let players = knowHer.players
         var model = FanZoneCardModel(game: .knowHer, title: "Know Her Game",
-                                     contextLine: "This week's player")
+                                     contextLine: "Your player")
         if players.count == 1, let p = players.first {
             model.contextLine = "\(p.playerName) · \(p.teamAbbreviation.uppercased())"
         } else if players.count > 1 {
@@ -548,7 +549,7 @@ struct HomeView: View {
         }
         if knowHer.allPlayed {
             model.dimmed = true
-            model.doneLine = "Done this week"
+            model.doneLine = "Done"
         }
         return model
     }

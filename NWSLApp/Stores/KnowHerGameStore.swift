@@ -92,20 +92,21 @@ final class KnowHerGameStore {
         }
     }
 
-    /// Maintain the one-week "Last week" window. When a NEW week's pool arrives, the pool we were showing
-    /// becomes "last week" — but only if it's EXACTLY the prior ISO week (reusing the streak's
-    /// week-adjacency check); a 2-week-stale pool (app not opened in a while) is dropped so the section
-    /// never mislabels an old edition. Same-week reloads and the very first load don't rotate.
+    /// Maintain the "Last week" window. When a NEW edition's pool arrives, the pool we were showing becomes
+    /// "last week" — but only if it's the immediately-prior KHG edition (biweekly = 1–2 ISO weeks back,
+    /// reusing the streak's adjacency check); an older stale pool (app not opened in a while) is dropped so
+    /// the section never mislabels an old edition. Same-edition reloads and the very first load don't rotate.
     private func rotatePreviousPool(oldPool: KnowHerPool?, newPool: KnowHerPool) {
-        guard let oldPool, oldPool.weekKey != newPool.weekKey else { return } // same-week reload / first load
+        guard let oldPool, oldPool.weekKey != newPool.weekKey else { return } // same-edition reload / first load
         previousPool = Self.retainsPreviousWeek(old: oldPool.weekKey, new: newPool.weekKey) ? oldPool : nil
         defaults.set(try? JSONEncoder().encode(previousPool), forKey: Key.previousPool)
     }
 
-    /// Whether the outgoing week should be KEPT as "last week": a different week AND exactly the prior
-    /// ISO week (a 2-week gap — app not opened in a while — is dropped so the section never mislabels).
+    /// Whether the outgoing edition should be KEPT as "last week": a different edition AND the immediately-
+    /// prior KHG edition (biweekly = 1–2 ISO weeks back). An older gap (app not opened in a while) is dropped
+    /// so the section never mislabels an old edition.
     static func retainsPreviousWeek(old: String, new: String) -> Bool {
-        old != new && isConsecutiveWeek(previous: old, current: new)
+        old != new && isConsecutiveEdition(previous: old, current: new)
     }
 
     // MARK: - Reads
@@ -160,11 +161,11 @@ final class KnowHerGameStore {
         guard scores[editionKey] == nil else { return }
         scores[editionKey] = correct
 
-        // Weekly streak: continue if the last completed week was the immediately-prior week key,
-        // else (re)start at 1. The first completion in a NEW week bumps it; later players the
-        // same week don't (already stamped).
+        // Edition streak: continue if the last completed edition was the immediately-prior one (biweekly =
+        // 1–2 ISO weeks back), else (re)start at 1. The first completion in a NEW edition bumps it; later
+        // players the same edition don't (already stamped).
         if lastCompletedWeek != weekKey {
-            if let last = lastCompletedWeek, Self.isConsecutiveWeek(previous: last, current: weekKey) {
+            if let last = lastCompletedWeek, Self.isConsecutiveEdition(previous: last, current: weekKey) {
                 weeklyStreak += 1
             } else {
                 weeklyStreak = 1
@@ -177,10 +178,13 @@ final class KnowHerGameStore {
 
     // MARK: - Helpers
 
-    /// Whether `current` is exactly one ISO-week after `previous` (keys like "2026-W27").
-    /// Handles the year boundary loosely (any "…-W1"/"-W01" right after a late week counts);
+    /// Whether `current` is the NEXT consecutive KHG edition after `previous` (keys like "2026-W27").
+    /// KHG is BIWEEKLY, so consecutive editions are normally 2 ISO weeks apart; a 1-week gap is also
+    /// accepted so a cadence transition (or legacy weekly data) never spuriously breaks a streak or drops
+    /// the "last week" grace. A gap of 3+ weeks means an edition was missed → not consecutive. The year
+    /// boundary is handled loosely (KHG's season is Mar–Nov, within one ISO year, so it's near-dead code);
     /// an unparseable pair just restarts the streak (safe).
-    static func isConsecutiveWeek(previous: String, current: String) -> Bool {
+    static func isConsecutiveEdition(previous: String, current: String) -> Bool {
         func parse(_ s: String) -> (Int, Int)? {
             let parts = s.split(separator: "-")
             guard parts.count >= 2, let year = Int(parts[0]) else { return nil }
@@ -189,8 +193,8 @@ final class KnowHerGameStore {
             return (year, week)
         }
         guard let (py, pw) = parse(previous), let (cy, cw) = parse(current) else { return false }
-        if cy == py { return cw == pw + 1 }
-        if cy == py + 1 { return cw <= 1 && pw >= 52 } // wrapped past year end
+        if cy == py { let gap = cw - pw; return gap == 1 || gap == 2 }
+        if cy == py + 1 { return pw >= 52 && (cw == 1 || cw == 2) } // wrapped past year end
         return false
     }
 

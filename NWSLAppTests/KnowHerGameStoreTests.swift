@@ -33,14 +33,28 @@ struct KnowHerGameStoreTests {
         #expect(!s.isPlayed(editionKey: "2026-W29-WAS-317423"))
     }
 
-    @Test func retainsPreviousWeekOnlyForTheExactlyPriorWeek() {
-        // Kept: the immediately-prior ISO week becomes "last week".
+    @Test func retainsPreviousEditionForOneOrTwoWeekGap() {
+        // Kept: the immediately-prior BIWEEKLY edition (editions are 2 ISO weeks apart).
+        #expect(KnowHerGameStore.retainsPreviousWeek(old: "2026-W27", new: "2026-W29"))
+        // Kept: a 1-week gap too (cadence transition / legacy weekly data).
         #expect(KnowHerGameStore.retainsPreviousWeek(old: "2026-W28", new: "2026-W29"))
         // Kept across the year boundary (W52 → W01).
         #expect(KnowHerGameStore.retainsPreviousWeek(old: "2025-W52", new: "2026-W01"))
-        // Dropped: a 2-week gap (app not opened in a while) must NOT show as "last week".
-        #expect(!KnowHerGameStore.retainsPreviousWeek(old: "2026-W27", new: "2026-W29"))
-        // Dropped: same week (a reload, not a rotation).
+        // Dropped: a 3+ week gap (an edition was missed — app not opened in a while).
+        #expect(!KnowHerGameStore.retainsPreviousWeek(old: "2026-W26", new: "2026-W29"))
+        // Dropped: same edition (a reload, not a rotation).
         #expect(!KnowHerGameStore.retainsPreviousWeek(old: "2026-W29", new: "2026-W29"))
+    }
+
+    @Test func editionStreakContinuesAcrossBiweeklyGapAndResetsOnAMiss() {
+        let s = store()
+        s.recordCompletion(editionKey: "2026-W27-WAS-1", weekKey: "2026-W27", correct: 5)
+        #expect(s.weeklyStreak == 1)
+        // Next biweekly edition (2 weeks later) → streak continues.
+        s.recordCompletion(editionKey: "2026-W29-WAS-2", weekKey: "2026-W29", correct: 5)
+        #expect(s.weeklyStreak == 2)
+        // A missed edition (4 weeks later = a 3+ week gap) → streak resets to 1.
+        s.recordCompletion(editionKey: "2026-W33-WAS-3", weekKey: "2026-W33", correct: 5)
+        #expect(s.weeklyStreak == 1)
     }
 }

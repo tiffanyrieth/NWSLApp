@@ -77,11 +77,10 @@ struct MatchDetailView: View {
             }
         }
         .background(Color.dsBgPrimary)
-        // Tapping a lineup-pitch player pushes her stat screen (same PlayerDetailView as
-        // Teams → team → player); the pitch dots vend a LineupPlayerRef via NavigationLink.
-        .navigationDestination(for: LineupPlayerRef.self) { ref in
-            LineupPlayerStatsView(ref: ref)
-        }
+        // Tapping a lineup-pitch player pushes her stat screen (same PlayerDetailView as Teams →
+        // team → player). The pitch dots use a CLOSURE-based NavigationLink (see CombinedPitchView)
+        // — a value + `navigationDestination(for:)` registered HERE was mis-scoped (MatchDetail is a
+        // pushed child) and double-pushed the screen (2026-07-18 bug), so it lives on the dot now.
         // Bare ‹ chevron, no centered title: the full-bleed header (crests + score)
         // carries identity. `nativeBackButton()` keeps the swipe gesture via the editor
         // toolbar role (see DSText).
@@ -244,10 +243,9 @@ struct MatchDetailView: View {
         let awayAbbr = event.awayCompetitor?.team?.abbreviation ?? summary.awayRoster?.team?.abbreviation
 
         VStack(spacing: 14) {
-            // Recap header: highlight clips (deep-link out to ESPN), then per-team top performers.
+            // Recap header: highlight clips deep-link out to ESPN. (Top performers is STATS, not
+            // plays — it lives on the Stats tab, 2026-07-21.)
             if let videos = summary.videos, !videos.isEmpty { highlightsCard(videos) }
-            let performers = summary.topPerformers(homeID: homeID)
-            if !performers.isEmpty { topPerformersCard(performers) }
 
             if items.isEmpty {
                 // A real match with no events yet says "No key events yet"; a truly sparse
@@ -605,52 +603,73 @@ struct MatchDetailView: View {
 
     @ViewBuilder
     private func statsTab(_ summary: MatchSummary) -> some View {
+        let homeID = summary.homeBoxscore?.team?.id ?? summary.homeRoster?.team?.id
+        let performers = summary.topPerformers(homeID: homeID)
         let rows = statRows(summary)
-        if rows.isEmpty {
+        if performers.isEmpty && rows.isEmpty {
             emptyState("Match stats aren't available.")
         } else {
             VStack(spacing: 16) {
-                // Team-abbreviation header anchors which side is which, in color.
-                HStack {
-                    Text(summary.homeBoxscore?.team?.abbreviation ?? "—")
-                        .foregroundStyle(matchColors.home.fill)
-                    Spacer()
-                    Text(summary.awayBoxscore?.team?.abbreviation ?? "—")
-                        .foregroundStyle(matchColors.away.fill)
-                }
-                .dsFont(12, weight: .bold)
-
-                VStack(spacing: 18) {
-                    ForEach(rows) { row in
-                        StatComparisonBar(
-                            label: row.label,
-                            home: row.home, away: row.away,
-                            homeDisplay: row.homeDisplay, awayDisplay: row.awayDisplay,
-                            homeColor: matchColors.home.fill, awayColor: matchColors.away.fill
-                        )
-                    }
-                }
+                // Per-team leaders first (moved here from Play-by-Play — it's stats, not plays).
+                if !performers.isEmpty { topPerformersCard(performers) }
+                if !rows.isEmpty { teamComparisonCard(summary, rows: rows) }
             }
-            .padding()
-            .frame(maxWidth: .infinity)
-            .background(Color.dsBgCard)
-            .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
             .padding()
         }
     }
 
+    /// The head-to-head comparison bars for the whole-team boxscore stats.
+    private func teamComparisonCard(_ summary: MatchSummary, rows: [StatRow]) -> some View {
+        VStack(spacing: 16) {
+            // Team-abbreviation header anchors which side is which, in color.
+            HStack {
+                Text(summary.homeBoxscore?.team?.abbreviation ?? "—")
+                    .foregroundStyle(matchColors.home.fill)
+                Spacer()
+                Text(summary.awayBoxscore?.team?.abbreviation ?? "—")
+                    .foregroundStyle(matchColors.away.fill)
+            }
+            .dsFont(12, weight: .bold)
+
+            VStack(spacing: 18) {
+                ForEach(rows) { row in
+                    StatComparisonBar(
+                        label: row.label,
+                        home: row.home, away: row.away,
+                        homeDisplay: row.homeDisplay, awayDisplay: row.awayDisplay,
+                        homeColor: matchColors.home.fill, awayColor: matchColors.away.fill
+                    )
+                }
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+    }
+
     /// The stats we surface, in display order. `percent` stats are normalized so
-    /// "0.9" (pass accuracy) and "61" (possession) both read as a percentage.
+    /// "0.9" (pass accuracy) and "61" (possession) both read as a percentage. A spec
+    /// with no data on BOTH sides drops out (statRows), so a sparse match stays clean.
     private struct StatSpec { let name: String; let label: String; let percent: Bool }
     private static let statSpecs: [StatSpec] = [
-        .init(name: "possessionPct", label: "Possession",    percent: true),
-        .init(name: "totalShots",    label: "Shots",         percent: false),
-        .init(name: "shotsOnTarget", label: "Shots on Target", percent: false),
-        .init(name: "wonCorners",    label: "Corners",       percent: false),
-        .init(name: "totalPasses",   label: "Passes",        percent: false),
-        .init(name: "passPct",       label: "Pass Accuracy", percent: true),
-        .init(name: "foulsCommitted",label: "Fouls",         percent: false),
-        .init(name: "totalTackles",  label: "Tackles",       percent: false),
+        .init(name: "possessionPct",  label: "Possession",      percent: true),
+        .init(name: "totalShots",     label: "Shots",           percent: false),
+        .init(name: "shotsOnTarget",  label: "Shots on Target", percent: false),
+        .init(name: "wonCorners",     label: "Corners",         percent: false),
+        .init(name: "saves",          label: "Saves",           percent: false),
+        .init(name: "totalPasses",    label: "Passes",          percent: false),
+        .init(name: "passPct",        label: "Pass Accuracy",   percent: true),
+        .init(name: "totalCrosses",   label: "Crosses",         percent: false),
+        .init(name: "totalLongBalls", label: "Long Balls",      percent: false),
+        .init(name: "totalTackles",   label: "Tackles",         percent: false),
+        .init(name: "interceptions",  label: "Interceptions",   percent: false),
+        .init(name: "effectiveClearance", label: "Clearances",  percent: false),
+        .init(name: "blockedShots",   label: "Blocks",          percent: false),
+        .init(name: "foulsCommitted", label: "Fouls",           percent: false),
+        .init(name: "offsides",       label: "Offsides",        percent: false),
+        .init(name: "yellowCards",    label: "Yellow Cards",    percent: false),
+        .init(name: "redCards",       label: "Red Cards",       percent: false),
     ]
 
     private struct StatRow: Identifiable {
@@ -665,6 +684,9 @@ struct MatchDetailView: View {
         return Self.statSpecs.compactMap { spec in
             guard let h = number(homeBox.stat(spec.name)?.displayValue),
                   let a = number(awayBox.stat(spec.name)?.displayValue) else { return nil }
+            // Drop a row that's 0 on BOTH sides (e.g. red cards, offsides in a clean game) — a
+            // 0–0 bar conveys nothing and reads as empty. A one-sided value (saves 6–0) stays.
+            if h == 0 && a == 0 { return nil }
             return StatRow(
                 label: spec.label,
                 home: spec.percent ? normalizedPercent(h) : h,

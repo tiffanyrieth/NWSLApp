@@ -47,13 +47,20 @@ struct FormationPitchView: View {
 
     /// A pitch marker that pushes the player's stat screen when tapped (same PlayerDetailView
     /// as Teams → team → player). Non-tappable when we have no athlete id or no `abbr` to
-    /// color the destination. Destination registered in MatchDetailView.
+    /// color the destination.
+    ///
+    /// CLOSURE-based NavigationLink (not value + `navigationDestination(for:)`) — see the same
+    /// note in CombinedPitchView: a for-based destination registered on the pushed MatchDetail
+    /// is mis-scoped and double-pushed the screen (2026-07-18 bug); a self-contained closure
+    /// link works in any host stack.
     @ViewBuilder
     private func playerDot(_ player: MatchPlayer) -> some View {
         if let abbr, let athlete = player.asAthlete {
-            NavigationLink(value: LineupPlayerRef(athlete: athlete,
-                                                  clubID: clubID,
-                                                  accentHex: DesignTeamColors.hex(for: abbr))) {
+            NavigationLink {
+                LineupPlayerStatsView(ref: LineupPlayerRef(athlete: athlete,
+                                                           clubID: clubID,
+                                                           accentHex: DesignTeamColors.hex(for: abbr)))
+            } label: {
                 PitchDot(player: player, accent: accent)
             }
             .buttonStyle(.plain)

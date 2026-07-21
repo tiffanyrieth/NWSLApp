@@ -53,7 +53,6 @@ struct LineupPlayerStatsView: View {
     @State private var rosterAthlete: Athlete?
     @State private var stats: PlayerSeasonStats?
     @State private var squadColorHex: String?
-    @State private var didLoad = false
     private let service = ESPNService()
 
     /// The full roster Athlete once loaded (age/height/nationality), else the match one.
@@ -70,12 +69,14 @@ struct LineupPlayerStatsView: View {
     }
 
     private func load() async {
-        guard !didLoad else { return }   // one fetch per push (survives body re-eval)
-        didLoad = true
+        // Guard each piece on its own nil-state rather than a single latch: a disrupted or
+        // failed first fetch must be able to RETRY on the next appearance instead of latching a
+        // permanently blank card (the transient-blank-stats hardening, 2026-07-21). `.task` runs
+        // once per appearance, so a success sticks and won't refetch.
 
         // Full bio (age/height/nationality/position) lives in the TEAM ROSTER — the same
         // fetch Teams → team uses. Find her by id; a miss keeps the match identity.
-        if let clubID = ref.clubID {
+        if rosterAthlete == nil, let clubID = ref.clubID {
             do {
                 let squad = try await service.fetchRoster(clubID: clubID)
                 rosterAthlete = squad.athletes.first { $0.id == ref.athlete.id }
@@ -85,7 +86,10 @@ struct LineupPlayerStatsView: View {
                     "lineup player roster \(clubID): \(error.localizedDescription)")
             }
         }
-        // Her season stats — cached per-athlete fetch (best-effort; nil ⇒ no stat card).
-        stats = await service.seasonStats(for: [athlete]).first
+        // Her season stats — cached per-athlete fetch. A nil result (failed/disrupted) is retried
+        // on reappear; seasonStats logs a genuine failure so a blank card is diagnosable.
+        if stats == nil {
+            stats = await service.seasonStats(for: [athlete]).first
+        }
     }
 }

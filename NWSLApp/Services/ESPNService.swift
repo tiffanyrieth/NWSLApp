@@ -211,8 +211,16 @@ struct ESPNService {
                                                           isGoalkeeper: athlete.isGoalkeeper)
                         await self.statsCache.store(stats, year: year)
                         return stats
+                    } catch is CancellationError {
+                        return nil   // caller navigated away — expected, don't log
+                    } catch let error as URLError where error.code == .cancelled {
+                        return nil   // URLSession's cancellation shape — also expected
                     } catch {
-                        // Best-effort: a single bad athlete is omitted, not fatal.
+                        // Best-effort: a single bad athlete is omitted, not fatal — but NOT
+                        // silently (no-silent-failures rule). A genuine failure is logged so a
+                        // blank stats card is diagnosable rather than looking like "no stats".
+                        Diagnostics.shared.record(.apiFailure,
+                            "season stats \(athlete.id) (\(year)): \(error.localizedDescription)")
                         return nil
                     }
                 }

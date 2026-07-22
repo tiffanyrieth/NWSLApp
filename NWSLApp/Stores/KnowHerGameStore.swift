@@ -117,8 +117,19 @@ final class KnowHerGameStore {
     /// The featured players for the followed teams, in the pool's order.
     var players: [KnowHerPlayer] { pool?.players ?? [] }
 
-    /// True once there's at least one featured player to play — the Home visibility gate.
+    /// True once there's at least one featured player to play (for the user's followed teams).
     var hasContent: Bool { !(pool?.players.isEmpty ?? true) }
+
+    /// A KHG round is LIVE this cycle — a loaded pool with a real weekKey — even when NONE of the user's
+    /// followed teams has a featured player (all exhausted). Drives Home visibility alongside
+    /// `hasPreviousWeek` so the honest "all caught up" picker stays reachable in-season; offseason (no pool
+    /// / blank weekKey) it's false and the game hides.
+    var hasCurrentRound: Bool { !((pool?.weekKey.isEmpty) ?? true) }
+
+    /// This round's 1-based edition number (proxy-stamped), for the picker's "Round N".
+    var round: Int? { pool?.round }
+    /// Last round's edition number (from the retained previous pool).
+    var previousRound: Int? { previousPool?.round }
 
     func isPlayed(_ player: KnowHerPlayer) -> Bool {
         guard let weekKey else { return false }

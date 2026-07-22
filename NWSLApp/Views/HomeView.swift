@@ -372,9 +372,10 @@ struct HomeView: View {
     /// when a followed team has a fixture within 28 days; Bracket Battle and Daily
     /// Trivia follow. The first entry becomes the featured lead card.
     private enum FanGame: Hashable { case predict, bracket, trivia, knowHer }
-    /// Know Her Game shows when the weekly pool has a featured player for a followed team
-    /// (hidden in the offseason / before content loads — online-only, docs §4).
-    private var knowHerVisible: Bool { knowHer.hasContent }
+    /// Know Her Game shows when a round is live — a featured player for a followed team, OR the user's teams
+    /// are all exhausted this in-season round (the honest "all caught up" picker) — or a recent prior
+    /// round's results are still retained. Hidden in the offseason / before content loads (online-only §4).
+    private var knowHerVisible: Bool { knowHer.hasCurrentRound || knowHer.hasPreviousWeek }
     private var visibleGames: [FanGame] {
         var games: [FanGame] = []
         if predictXIVisible { games.append(.predict) }
@@ -542,6 +543,13 @@ struct HomeView: View {
         let players = knowHer.players
         var model = FanZoneCardModel(game: .knowHer, title: "Know Her Game",
                                      contextLine: "Your player")
+        // No featured player for the user's followed teams: in-season = they're all exhausted this round
+        // (honest "All caught up"), else a lingering prior round's results. Card stays visible + honest.
+        if players.isEmpty {
+            model.contextLine = knowHer.hasCurrentRound ? "All caught up" : "Last round results"
+            model.dimmed = true
+            return model
+        }
         if players.count == 1, let p = players.first {
             model.contextLine = "\(p.playerName) · \(p.teamAbbreviation.uppercased())"
         } else if players.count > 1 {

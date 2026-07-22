@@ -75,5 +75,8 @@ struct KnowHerPlayer: Identifiable, Codable, Equatable {
 struct KnowHerPool: Codable, Equatable {
     let weekKey: String
     let season: Int
+    /// 1-based edition index this season, stamped by the proxy at publish — the picker's "Round N".
+    /// Optional so older pool payloads (and previews/tests) still decode.
+    let round: Int?
     let players: [KnowHerPlayer]
 }

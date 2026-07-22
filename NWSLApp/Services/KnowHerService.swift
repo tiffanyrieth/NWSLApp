@@ -29,7 +29,11 @@ struct KnowHerService {
             throw ContentServiceError.badURL
         }
         let live = try await fetch(KnowHerPool.self, from: url)
-        guard !live.players.isEmpty else { throw KnowHerServiceError.emptyPool }
+        // A live in-season pool with NO player for the user's followed teams (their teams are exhausted
+        // this round) comes back with players:[] but a REAL weekKey — a valid "all caught up" state the
+        // picker surfaces honestly, NOT an error. Only a truly absent pool (blank weekKey = offseason /
+        // not yet loaded) is emptyPool → the game hides.
+        guard !(live.players.isEmpty && live.weekKey.isEmpty) else { throw KnowHerServiceError.emptyPool }
         return live
     }
 

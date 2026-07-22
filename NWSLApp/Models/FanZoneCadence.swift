@@ -80,6 +80,11 @@ enum FanZoneCadence {
 
     // MARK: - The quiz slot
 
+    /// The season year the anchor belongs to — the year component of every round edition key. A round
+    /// that spills past New Year keeps its season's year ("2026-R26" in January), the same season-
+    /// scoping rule KHG's seasonPoints uses.
+    static var seasonYear: Int { Int(seasonAnchor.prefix(4)) ?? 2026 }
+
     /// Which game DROPS a new round in `date`'s week. Even offsets = Know Her Game (Week 1 is KHG),
     /// odd = Trivia.
     ///

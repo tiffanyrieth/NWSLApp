@@ -32,6 +32,9 @@ enum GameCenterID {
     /// The starter achievement set.
     enum Achievement {
         static let firstPrediction   = "com.tiffanyrieth.nwslapp.NWSLApp.achievement.first_prediction"
+        // ⚠️ The trivia identifiers predate the biweekly-round rebuild and are KEPT (a published GC
+        // achievement id is forever): "perfect_day" now means a perfect ROUND, and the streak pair
+        // counts consecutive ROUNDS (7 rounds ≈ a whole season of showing up; 30 ≈ a multi-year fan).
         static let triviaPerfectDay  = "com.tiffanyrieth.nwslapp.NWSLApp.achievement.trivia_perfect_day"
         static let triviaStreak7     = "com.tiffanyrieth.nwslapp.NWSLApp.achievement.trivia_streak_7"
         static let triviaStreak30    = "com.tiffanyrieth.nwslapp.NWSLApp.achievement.trivia_streak_30"

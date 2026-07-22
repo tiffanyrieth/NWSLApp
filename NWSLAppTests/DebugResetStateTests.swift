@@ -31,16 +31,17 @@ struct DebugResetStateTests {
         return defaults
     }
 
-    // MARK: - Trivia (scalar keys → 0 / "")
+    // MARK: - Trivia (scalar keys → 0, dict keys → empty Data())
 
     @Test func triviaResetClearsProgress() {
         let defaults = isolatedDefaults("test.reset.trivia")
         let store = TriviaStore(defaults: defaults)
-        store.recordCompletion(correct: 5, outOf: 5)
+        store.recordCompletion(round: 8, editionKey: "2026-R08", correct: 7, outOf: 10,
+                               picks: [0, 1, 2, 3, 0, 1, 2, 3, 0, 1])
         // Sanity: progress is actually present before the reset.
         #expect(store.bestStreak > 0)
-        #expect(store.totalAnswered == 5)
-        #expect(store.hasPlayedToday)
+        #expect(store.totalAnswered == 10)
+        #expect(store.isPlayed(editionKey: "2026-R08"))
 
         TriviaStore.debugResetState(defaults: defaults)
 
@@ -49,9 +50,10 @@ struct DebugResetStateTests {
         #expect(reloaded.bestStreak == 0)
         #expect(reloaded.totalCorrect == 0)
         #expect(reloaded.totalAnswered == 0)
-        #expect(reloaded.lastScore == 0)
-        // "" sentinel reads as "never played" through the day-gate.
-        #expect(!reloaded.hasPlayedToday)
+        #expect(reloaded.lastCompletedRound == 0)
+        // The empty-Data() sentinel decodes back to empty maps → "never played".
+        #expect(!reloaded.isPlayed(editionKey: "2026-R08"))
+        #expect(reloaded.picks(editionKey: "2026-R08") == nil)
     }
 
     // MARK: - Predict the XI (JSON keys → empty Data(), seasonPoints → 0)

@@ -469,7 +469,7 @@ struct HomeView: View {
         switch game {
         case .predict: PredictXIView()
         case .bracket: BracketBattleView()
-        case .trivia:  DailyTriviaView()
+        case .trivia:  TriviaLandingView()
         case .knowHer: knowHerDestination
         }
     }
@@ -524,17 +524,12 @@ struct HomeView: View {
         case .bracket:
             return bracket.summary.map { "\($0.id)-r\($0.currentRoundRaw)" }
         case .trivia:
-            return Self.todayKey()
+            // The round's edition key — the dot returns when a NEW biweekly round drops.
+            return trivia.currentEditionKey
         case .knowHer:
             return knowHer.weekKey
         }
     }
-
-    /// Local-day key ("yyyy-MM-dd") — Trivia's cycle (a fresh set each day).
-    private static let dayKeyFormatter: DateFormatter = {
-        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"; return f
-    }()
-    private static func todayKey() -> String { dayKeyFormatter.string(from: Date()) }
 
     /// The Fan Zone "Know Her Game" card. One followed player → names her ("Trinity Rodman ·
     /// WAS"); 2+ → the cluster line ("N of M played"). All played → "Done". Edition-neutral copy
@@ -659,19 +654,19 @@ struct HomeView: View {
 
     private var triviaCardModel: FanZoneCardModel {
         var model = FanZoneCardModel(game: .trivia, title: "NWSL Trivia",
-                                     contextLine: "5 questions · refreshes daily")
+                                     contextLine: "10 questions · new round every 2 weeks")
         if trivia.streak > 0 { model.badge = "\(trivia.streak)🔥" }
 
-        if trivia.hasPlayedToday {
+        if trivia.hasPlayedCurrentRound {
             model.dimmed = true
-            model.contextLine = "\(trivia.lastScore)/5 correct today"
-            let fresh = compactCountdown(to: Self.nextLocalMidnight())
-            model.doneLine = fresh.map { "Done today · new questions in \($0)" } ?? "Done today"
+            model.contextLine = "\(trivia.currentScore ?? 0)/10 this round"
+            let fresh = compactCountdown(to: trivia.roundCloses)
+            model.doneLine = fresh.map { "Played · next round in \($0)" } ?? "Played this round"
             return model
         }
-        model.statusLine = trivia.streak > 0 ? "\(trivia.streak)-day streak" : "Play now"
-        if let fresh = compactCountdown(to: Self.nextLocalMidnight()) {
-            model.countdown = "New in \(fresh)"
+        model.statusLine = trivia.streak > 0 ? "\(trivia.streak)-round streak" : "Play now"
+        if let fresh = compactCountdown(to: trivia.roundCloses) {
+            model.countdown = "Closes in \(fresh)"
         }
         return model
     }

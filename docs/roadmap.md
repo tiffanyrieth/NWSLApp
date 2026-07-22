@@ -1,12 +1,10 @@
 # Roadmap / What's Next
 
 > ### ⏳ OWNER SETUP — analytics + alerting go-live steps (2026-07-17, ~15 min total)
-> The anonymous-analytics + ops-alerting code is MERGED + deployed but four one-time owner steps
-> arm it (each is a silent no-op until done — nothing breaks meanwhile):
-> 1. **Supabase migration** (required for counters to record): paste
->    `supabase/migration_analytics_counters.sql` into the SQL editor + Run. Verify: use the app,
->    background it, then `select * from analytics_counters;` shows session rows. (Until then every
->    flush logs `analyticsRpcFail: increment_counters 404` in /telemetry/recent — expected.)
+> The anonymous-analytics + ops-alerting code is MERGED + deployed; three one-time owner steps still
+> arm the alerting (each is a silent no-op until done — nothing breaks meanwhile):
+> 1. ✅ **Supabase migration — DONE (2026-07-22):** `supabase/migration_analytics_counters.sql` applied,
+>    so counters now record. (No more `analyticsRpcFail: increment_counters 404` in /telemetry/recent.)
 > 2. **Resend** (error-spike email): create a free account at resend.com → API key →
 >    `wrangler secret put RESEND_API_KEY` + `wrangler secret put ALERT_EMAIL` (your address) in
 >    ~/Projects/nwslapp-proxy. Threshold ≥8 error events/15min, max 1 email/hour.
@@ -68,6 +66,22 @@
 > app source. The unit tests that reference `PostseasonSimulator.clinchTable` (`PlayoffClinchTests`) move
 > to inline fixtures at that point. Nothing auto-reminds — this note is the reminder.
 
+> ### ✅ SHIPPED — Fan Zone v2 (2026-07-22, merged to main)
+> The Fan Zone v2 batch is DONE + on main (detail in git + `.claude/rules/fan-zone.md`):
+> - **Superfan Zone:** the trailing "Superfan" carousel card is now TAPPABLE → `SuperfanDetailView`, a
+>   cross-game season stats hub (season total, competitive tier + percentile, per-game breakdown, "Your
+>   best moments"). New backing: `superfan_scores` Supabase table + `SuperfanService`/`SuperfanStats`;
+>   season-scoped, passes the 1k stress gate. ✅ **`migration_superfan_scores.sql` applied.**
+> - **Know Her Game → BIWEEKLY + landing page:** KHG now alternates the Fan Zone quiz slot with NWSL
+>   Trivia (Week 1 = KHG), editions numbered "Round N"; the old `KnowHerPickerView` is now the richer
+>   `KnowHerLandingView` (This round · Last round · How players are chosen + "all caught up" state).
+> - **NWSL Trivia FACELIFT:** `DailyTriviaView` rebuilt onto the Know Her Game community-family pattern
+>   (intro, progress dots, tap-to-answer, shared `ScoreRing` + `CommunityResultsView`). ⚠️ UI ONLY —
+>   the Daily→Weekly question-sourcing engine is still parked (see Pending, below).
+> - **Team-color vibrancy (Predict + Player Detail):** new shared `TeamWashBackground`
+>   (`Components/TeamColorWash.swift`) on the Predict fixture/result + "Predictors" leaderboard cards,
+>   `MatchCard` migrated onto it; "Playing as" now a consistent below-nav strip across all games.
+
 > ### ✅ CLOSED 2026-07-13/16 (kept as one-liners; detail in git/memories)
 > - **Live-clock / staleness / Match-Detail (build 26):** DEVICE-VERIFIED 2026-07-13 — count-up past
 >   60', stoppage `45+7`/`90+6`, HT/FT, no pan; two display-only wording follow-ups remain (Match
@@ -94,11 +108,15 @@ Pending work only (ALIVE > core > hardening); shipped work lives in git history 
 - **Home follow-ups:** spotlight no-repeat-per-season + opt-in weekly notif.
 - **Player headshots Phase B2 banners** — DEFERRED (licensing).
 - **Accessibility** — now a PRE-RELEASE GATE (see the ♿ callout above): VoiceOver + color-blind pass before launch.
-- **More team-color vibrancy (owner interested 2026-07-21)** — extend the MatchDetail team-color wash to more
-  surfaces so club color carries further (candidate surfaces: Home header, Team detail, schedule cards,
-  standings followed-team rows, player detail already uses `accentHex`). Keeps the neutral-canvas philosophy
-  — color comes from the TEAMS, not the chrome; the crest/abbreviation identity rules still hold. Design pass,
-  scope per-surface with the owner (don't recolor chrome globally). Reference: MatchDetail header wash.
+- **NWSL Trivia — Daily → WEEKLY question-sourcing redesign (PARKED)** — the v2 UI facelift shipped
+  (community family), but the engine rebuild (`docs/nwsl-trivia-weekly-redesign.md`: weekly cadence,
+  10 questions/wk, 530-pool → 53 weeks, annual regen, stat-questions-in-code) is the next Fan Zone build.
+- **More team-color vibrancy (owner interested 2026-07-21)** — Predict cards + schedule `MatchCard` +
+  player detail now carry the wash (via `TeamWashBackground` / `accentHex`, shipped in Fan Zone v2). STILL
+  pending: extend it to more surfaces so club color carries further (candidate surfaces: Home header, Team
+  detail, Standings followed-team rows, the Squad grid). Keeps the neutral-canvas philosophy — color comes
+  from the TEAMS, not the chrome; the crest/abbreviation identity rules still hold. Design pass, scope
+  per-surface with the owner (don't recolor chrome globally). Reference: MatchDetail header wash.
 
 **Hardening (after ALIVE work):**
 - `Fixtures/scoreboard.json` + decode-only test for `Scoreboard`/Event helpers (date parsing, `dayKey` TZ).

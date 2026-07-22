@@ -168,6 +168,32 @@ enum FanZoneCadence {
         let offset = weekOffset(for: kickoff)
         return offset >= 0 ? offset + 1 : nil
     }
+
+    /// The soccer week covering `date` (Week 1 = the anchor week; nil preseason) — the app's "what
+    /// round is Predict on right now" read.
+    static func currentSoccerWeek(at date: Date = Date()) -> Int? { soccerWeek(for: date) }
+
+    /// The Monday (UTC midnight) opening soccer week `week`.
+    static func weekStartDate(week: Int) -> Date {
+        weekStart(for: anchorDate).addingTimeInterval(TimeInterval((week - 1) * 7 * 86_400))
+    }
+
+    /// The fan-facing label for a Predict round — a DATE RANGE ("Jun 22–28"), deliberately not
+    /// "Week N": ESPN publishes no NWSL matchweek number, and our internal ordinal keeps counting
+    /// through break weeks, so any displayed number would drift from the league's official count.
+    /// A date can't be wrong.
+    static func weekLabel(week: Int) -> String {
+        let start = weekStartDate(week: week)
+        let end = start.addingTimeInterval(6 * 86_400)
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        let sameMonth = Calendar(identifier: .iso8601).isDate(start, equalTo: end, toGranularity: .month)
+        f.dateFormat = "MMM d"
+        let startText = f.string(from: start)
+        f.dateFormat = sameMonth ? "d" : "MMM d"
+        return "\(startText)–\(f.string(from: end))"
+    }
 }
 
 // Modulo that always returns a non-negative result, unlike Swift's `%` (which keeps the dividend's

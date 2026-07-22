@@ -61,6 +61,15 @@ final class PredictXIViewModel {
     /// local total). Empty until loaded.
     private(set) var leaderboards: [(team: String, rows: [LeaderboardRow])] = []
 
+    /// The ROUND boards — one per team, for that team's most relevant soccer week (the current week
+    /// once it has scores, else the latest scored week — "how did I do in Sunday's round"). The
+    /// comp arena's second clock; `weekLabel` is the honest date-range label ("Jun 22–28").
+    private(set) var roundBoards: [(team: String, week: Int, weekLabel: String, rows: [LeaderboardRow])] = []
+
+    /// When the slate is EMPTY (a break week): the soonest followed-team fixture beyond the open
+    /// window, so the paused state can name the reopen date. nil in-season or true offseason.
+    private(set) var nextOpening: (team: String, kickoff: Date, opensAt: Date)?
+
     private let service: ESPNService
     private let leaderboardService: PredictLeaderboardService
     private let now: () -> Date
@@ -90,6 +99,9 @@ final class PredictXIViewModel {
         clubsByAbbr = Dictionary(clubs.clubs.map { ($0.abbreviation, $0) }, uniquingKeysWith: { first, _ in first })
         eventsByID = Dictionary(matches.events.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         upcomingFixtures = buildUpcoming(matches: matches, clubs: clubs, following: following)
+        nextOpening = upcomingFixtures.isEmpty
+            ? findNextOpening(matches: matches, clubs: clubs, following: following)
+            : nil
 
         await scoreSettledSubmissions(store: store)
         await loadLeaderboards(store: store, auth: auth)
@@ -123,6 +135,24 @@ final class PredictXIViewModel {
         return fixtures.sorted { $0.kickoff < $1.kickoff }
     }
 
+    /// The paused-state read (an international break / deep offseason): when the slate is empty, the
+    /// SOONEST followed-team fixture beyond the 28-day horizon — so the screen can say honestly when
+    /// predictions reopen ("opens Jun 12" = kickoff − the active window) instead of a dead empty state.
+    /// nil when there is no future fixture at all (true offseason; the Home gate hides the game).
+    private func findNextOpening(matches: MatchStore, clubs: ClubStore,
+                                 following: FollowingStore) -> (team: String, kickoff: Date, opensAt: Date)? {
+        var soonest: (team: String, kickoff: Date, opensAt: Date)?
+        for id in following.followedIDs {
+            guard let club = clubs.club(id: id) else { continue }
+            let next = matches.matches(for: club).first { ($0.kickoff ?? .distantPast) > now() }
+            guard let kickoff = next?.kickoff else { continue }
+            if kickoff < (soonest?.kickoff ?? .distantFuture) {
+                soonest = (club.abbreviation, kickoff, kickoff.addingTimeInterval(-PredictionFixture.activeWindow))
+            }
+        }
+        return soonest
+    }
+
     /// For each submitted-but-unscored prediction whose match has finished, fetch
     /// `/summary`, build the answer key, score it, and persist. Best-effort: a
     /// failed fetch just retries on the next load.
@@ -139,7 +169,11 @@ final class PredictXIViewModel {
                 let summary = try await service.fetchSummary(eventID: prediction.eventID)
                 if let actual = ActualResult.make(from: summary, isHome: isHome,
                                                   homeScore: homeScore, awayScore: awayScore) {
-                    store.recordScore(PredictionScoring.score(prediction, against: actual), for: fixtureID)
+                    var score = PredictionScoring.score(prediction, against: actual)
+                    // Stamp the fixture's soccer week — the round-board key (a 2-game week's
+                    // fixtures share a week, so their totals sum into one round row).
+                    score.soccerWeek = event.kickoff.flatMap { FanZoneCadence.soccerWeek(for: $0) }
+                    store.recordScore(score, for: fixtureID)
                 }
             } catch {
                 // Leave it unscored; the next load tries again (proxy caches the
@@ -246,6 +280,18 @@ final class PredictXIViewModel {
                 await leaderboardService.upsertScore(
                     teamAbbreviation: team, points: store.points(forTeam: team),
                     displayName: auth.displayName, userID: userID, season: season)
+                // The round twin: push this team's week sums for the retained window (current +
+                // previous — anything older is pruned server-side, so pushing it would be waste).
+                if let currentWeek = FanZoneCadence.currentSoccerWeek() {
+                    for week in [currentWeek - 1, currentWeek] where week >= 1 {
+                        let weekPoints = store.points(forTeam: team, week: week)
+                        if weekPoints > 0 {
+                            await leaderboardService.upsertRoundScore(
+                                teamAbbreviation: team, week: week, points: weekPoints,
+                                displayName: auth.displayName, userID: userID, season: season)
+                        }
+                    }
+                }
             }
         }
 
@@ -255,6 +301,7 @@ final class PredictXIViewModel {
         for team in store.scoredTeams where !teams.contains(team) { teams.append(team) }
 
         var boards: [(team: String, rows: [LeaderboardRow])] = []
+        var rounds: [(team: String, week: Int, weekLabel: String, rows: [LeaderboardRow])] = []
         for team in teams {
             let standings = await leaderboardService.standings(teamAbbreviation: team, season: season)
             // Only the signed-in user gets a "You" row — and only they need a rank lookup.
@@ -264,9 +311,37 @@ final class PredictXIViewModel {
                     teamAbbreviation: team, season: season, points: store.points(forTeam: team))
             }
             boards.append((team: team, rows: rankedRows(
-                team: team, standings: standings, trueRank: trueRank, store: store, auth: auth)))
+                team: team, standings: standings, trueRank: trueRank, store: store, auth: auth,
+                points: store.points(forTeam: team))))
+
+            // The round board: the current week once it has any of MY scores, else my latest scored
+            // week (the just-finished round — "did I beat them Sunday"). No round-stamped score yet →
+            // no round board for this team (honest absence, not an empty fabrication).
+            if let week = roundBoardWeek(team: team, store: store) {
+                let weekPoints = store.points(forTeam: team, week: week)
+                let roundStandings = await leaderboardService.roundStandings(
+                    teamAbbreviation: team, season: season, week: week)
+                var roundTrueRank: Int?
+                if auth.userID != nil {
+                    roundTrueRank = await leaderboardService.roundRank(
+                        teamAbbreviation: team, season: season, week: week, points: weekPoints)
+                }
+                rounds.append((team: team, week: week, weekLabel: FanZoneCadence.weekLabel(week: week),
+                               rows: rankedRows(team: team, standings: roundStandings,
+                                                trueRank: roundTrueRank, store: store, auth: auth,
+                                                points: weekPoints)))
+            }
         }
         leaderboards = boards
+        roundBoards = rounds
+    }
+
+    /// Which soccer week a team's round board shows: the current week if I have scored points in it,
+    /// else my most recent scored week (retention keeps current + previous server-side, and my own
+    /// weeks always include anything I can rank in). nil = nothing round-stamped yet.
+    private func roundBoardWeek(team: String, store: PredictionStore) -> Int? {
+        guard let latest = store.latestScoredWeek(forTeam: team) else { return nil }
+        return latest
     }
 
     /// Build a team's display board: the fetched top-`visibleLimit` rivals with the
@@ -274,10 +349,11 @@ final class PredictXIViewModel {
     /// the window, or as a below-fold "You" row (honest real rank) when they aren't.
     /// The user's own server row is dropped; we show their fresher local total instead.
     private func rankedRows(team: String, standings: [PredictLeaderboardService.Standing],
-                            trueRank: Int?, store: PredictionStore, auth: AuthStore) -> [LeaderboardRow] {
+                            trueRank: Int?, store: PredictionStore, auth: AuthStore,
+                            points: Int) -> [LeaderboardRow] {
         let myID = auth.userID?.uuidString
         let myName = auth.displayName ?? "You"
-        let myPoints = store.points(forTeam: team)
+        let myPoints = points   // season total OR one week's sum — the caller picks the clock
         let rivals = standings.filter { $0.userID != myID }
 
         switch LeaderboardRanking.placement(trueRank: trueRank, cappedRivalCount: rivals.count) {

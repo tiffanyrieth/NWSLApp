@@ -119,6 +119,82 @@ struct PredictLeaderboardService {
             return nil
         }
     }
+
+    // MARK: - ROUND boards (predict_round_scores — the comp arena's second clock)
+
+    /// Push the user's points for ONE team in ONE soccer week. The round value is a completed sum
+    /// (a week's scored fixtures can only add), so the same non-decreasing clamp as the season
+    /// upsert applies — a reinstalled device's partial re-score can't lower the banked round.
+    func upsertRoundScore(teamAbbreviation: String, week: Int, points: Int,
+                          displayName: String?, userID: UUID, season: String) async {
+        do {
+            let serverPoints = try await currentRoundPoints(
+                teamAbbreviation: teamAbbreviation, week: week, userID: userID, season: season)
+            let row = RoundScoreUpsert(user_id: userID, team_abbreviation: teamAbbreviation,
+                                       season: season, week: week, display_name: displayName,
+                                       points: max(points, serverPoints))
+            try await client
+                .from("predict_round_scores")
+                .upsert(row, onConflict: "user_id,team_abbreviation,season,week")
+                .execute()
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict round upsert \(teamAbbreviation) w\(week): \(error.localizedDescription)") }
+        }
+    }
+
+    private func currentRoundPoints(teamAbbreviation: String, week: Int,
+                                    userID: UUID, season: String) async throws -> Int {
+        let rows: [ScoreRow] = try await client
+            .from("predict_round_scores")
+            .select("user_id, display_name, points")
+            .eq("user_id", value: userID)
+            .eq("team_abbreviation", value: teamAbbreviation)
+            .eq("season", value: season)
+            .eq("week", value: week)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.points ?? 0
+    }
+
+    /// The top of a team's ROUND board (one soccer week) — same shape, cap, and honest-empty
+    /// contract as the season `standings`.
+    func roundStandings(teamAbbreviation: String, season: String, week: Int) async -> [Standing] {
+        do {
+            let rows: [ScoreRow] = try await client
+                .from("predict_round_scores")
+                .select("user_id, display_name, points")
+                .eq("team_abbreviation", value: teamAbbreviation)
+                .eq("season", value: season)
+                .eq("week", value: week)
+                .order("points", ascending: false)
+                .limit(LeaderboardRanking.visibleLimit)
+                .execute()
+                .value
+            return rows.map { Standing(userID: $0.user_id, name: $0.display_name ?? "Fan", points: $0.points) }
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict round standings \(teamAbbreviation) w\(week): \(error.localizedDescription)") }
+            return []
+        }
+    }
+
+    /// True 1-based rank on a round board — the COUNT pattern of `rank`, week-scoped.
+    func roundRank(teamAbbreviation: String, season: String, week: Int, points: Int) async -> Int? {
+        do {
+            let response = try await client
+                .from("predict_round_scores")
+                .select("user_id", head: true, count: .exact)
+                .eq("team_abbreviation", value: teamAbbreviation)
+                .eq("season", value: season)
+                .eq("week", value: week)
+                .gt("points", value: points)
+                .execute()
+            return (response.count ?? 0) + 1
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict round rank \(teamAbbreviation) w\(week): \(error.localizedDescription)") }
+            return nil
+        }
+    }
 }
 
 // snake_case to match the Postgres column names exactly (PostgREST maps 1:1).
@@ -132,6 +208,15 @@ private struct ScoreUpsert: Encodable {
     let user_id: UUID
     let team_abbreviation: String
     let season: String
+    let display_name: String?
+    let points: Int
+}
+
+private struct RoundScoreUpsert: Encodable {
+    let user_id: UUID
+    let team_abbreviation: String
+    let season: String
+    let week: Int
     let display_name: String?
     let points: Int
 }

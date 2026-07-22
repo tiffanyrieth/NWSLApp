@@ -20,10 +20,43 @@ struct PredictionStorePerTeamTests {
     }
 
     /// A score worth exactly `players * 3` points (only the players category set).
-    private func score(players: Int) -> PredictionScore {
+    private func score(players: Int, week: Int? = nil) -> PredictionScore {
         PredictionScore(correctPlayers: players, correctPositions: 0,
                         formationCorrect: false, exactScoreline: false,
-                        resultCorrect: false, perfectXI: false)
+                        resultCorrect: false, perfectXI: false, soccerWeek: week)
+    }
+
+    // MARK: - ROUND (soccer-week) scoping — the comp arena's second clock
+
+    @Test func weekPointsSumATwoGameWeekAndExcludeOtherWeeks() {
+        // The owner's rule: Spirit playing Wednesday AND Saturday → both fixtures land in ONE round.
+        let store = freshStore()
+        store.saveDraft(XIPrediction(fixtureID: "e1-WAS", eventID: "e1", teamAbbreviation: "WAS"))
+        store.recordScore(score(players: 10, week: 12), for: "e1-WAS")  // 30 pts, Wed
+        store.saveDraft(XIPrediction(fixtureID: "e2-WAS", eventID: "e2", teamAbbreviation: "WAS"))
+        store.recordScore(score(players: 5, week: 12), for: "e2-WAS")   // 15 pts, Sat
+        store.saveDraft(XIPrediction(fixtureID: "e3-WAS", eventID: "e3", teamAbbreviation: "WAS"))
+        store.recordScore(score(players: 11, week: 13), for: "e3-WAS")  // 33 pts, next week
+
+        #expect(store.points(forTeam: "WAS", week: 12) == 45)
+        #expect(store.points(forTeam: "WAS", week: 13) == 33)
+        #expect(store.points(forTeam: "WAS", week: 11) == 0)
+        #expect(store.points(forTeam: "WAS") == 78, "the season clock is untouched by week scoping")
+        #expect(store.latestScoredWeek(forTeam: "WAS") == 13)
+    }
+
+    @Test func preRoundClockScoresStayOutOfRoundSumsButInTheSeason() {
+        // Scores persisted before soccerWeek existed decode as nil — their week is unknowable, so
+        // they contribute to NO round board but still count toward the season totals.
+        let store = freshStore()
+        store.saveDraft(XIPrediction(fixtureID: "e1-WAS", eventID: "e1", teamAbbreviation: "WAS"))
+        store.recordScore(score(players: 8), for: "e1-WAS")             // legacy, no week
+        store.saveDraft(XIPrediction(fixtureID: "e2-WAS", eventID: "e2", teamAbbreviation: "WAS"))
+        store.recordScore(score(players: 4, week: 9), for: "e2-WAS")
+
+        #expect(store.points(forTeam: "WAS", week: 9) == 12)
+        #expect(store.points(forTeam: "WAS") == 36)
+        #expect(store.latestScoredWeek(forTeam: "WAS") == 9)
     }
 
     @Test func pointsAreScopedPerTeam() {

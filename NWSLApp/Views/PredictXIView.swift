@@ -195,16 +195,33 @@ struct PredictXIView: View {
             Image(systemName: "calendar.badge.clock")
                 .dsFont(34)
                 .foregroundStyle(.secondary)
-            Text("No upcoming matches to predict")
-                .dsFont(17, weight: .semibold)
-            Text("Follow a team with a fixture coming up and it'll appear here to predict.")
-                .dsFont(15)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+            if let opening = viewModel.nextOpening {
+                // The PAUSED state (an international break): the game isn't broken, the league is
+                // resting — say when it comes back. Boards below stay browsable throughout (owner
+                // rule: the card/screen never hide just because a week has no fixtures).
+                Text("No NWSL matches this week")
+                    .dsFont(17, weight: .semibold)
+                Text("Predictions for \(viewModel.teamLabel(opening.team))'s next match open \(Self.pausedDateFormatter.string(from: max(opening.opensAt, Date()))).")
+                    .dsFont(15)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            } else {
+                Text("No upcoming matches to predict")
+                    .dsFont(17, weight: .semibold)
+                Text("Follow a team with a fixture coming up and it'll appear here to predict.")
+                    .dsFont(15)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
     }
+
+    /// "Jun 12" — the paused state's reopen date.
+    private static let pausedDateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "MMM d"; return f
+    }()
 
     // MARK: - Open fixture card
 
@@ -373,23 +390,47 @@ struct PredictXIView: View {
 
     // MARK: - Leaderboard (REAL, per-team — you're ranked among fans of YOUR club)
 
+    /// Which clock each team's standings card shows (the comp arena's two clocks —
+    /// owner design ruling: this round AND the season, tab-switchable).
+    @State private var boardClock: [String: BoardClock] = [:]
+    private enum BoardClock: String { case round, season }
+
     /// One standings card per team you're predicting or have scored in. Empty (shows
     /// nothing) when you have no active/scored team — the screen's own empty state
     /// covers the no-activity case.
     @ViewBuilder
     private var leaderboardSection: some View {
         ForEach(viewModel.leaderboards, id: \.team) { board in
-            teamLeaderboardCard(team: board.team, rows: board.rows)
+            teamLeaderboardCard(team: board.team, seasonRows: board.rows,
+                                round: viewModel.roundBoards.first { $0.team == board.team })
         }
     }
 
-    private func teamLeaderboardCard(team: String, rows: [PredictXIViewModel.LeaderboardRow]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private func teamLeaderboardCard(
+        team: String, seasonRows: [PredictXIViewModel.LeaderboardRow],
+        round: (team: String, week: Int, weekLabel: String, rows: [PredictXIViewModel.LeaderboardRow])?
+    ) -> some View {
+        // Default to the ROUND clock when a round board exists (the fresh "did I beat them this
+        // week" read); season otherwise. The user's tab choice sticks per team for the session.
+        let clock = boardClock[team] ?? (round != nil ? .round : .season)
+        let rows = (clock == .round ? round?.rows : nil) ?? seasonRows
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 TeamLogo(urlString: viewModel.club(forAbbreviation: team)?.logoURL, teamAbbreviation: team, size: 22)
                 Text(viewModel.teamLabel(team)).dsFont(17, weight: .semibold)
                 Spacer()
                 Text("Predictors").dsFont(12).foregroundStyle(.secondary)
+            }
+            if let round {
+                // The two clocks. "This round" carries the honest date-range label (never a
+                // week NUMBER — ESPN has no NWSL matchweek numbering to match).
+                HStack(spacing: 8) {
+                    clockTab("This round", detail: round.weekLabel,
+                             isOn: clock == .round) { boardClock[team] = .round }
+                    clockTab("Season", detail: nil,
+                             isOn: clock == .season) { boardClock[team] = .season }
+                    Spacer()
+                }
             }
             ForEach(rows) { row in
                 // A below-fold "You" row means you rank past the visible top — separate it
@@ -428,6 +469,22 @@ struct PredictXIView: View {
         // Quiet single-team tint — this board is fans of ONE club, so it wears that club's color.
         .background { TeamWashBackground(base: .dsMdCard, home: teamColor(team)) }
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    /// One clock tab ("This round · Jun 22–28" / "Season") — a small segmented affordance in the
+    /// board header, accent-filled when active (mirrors the Bracket leaderboard's two-tab read).
+    private func clockTab(_ title: String, detail: String?, isOn: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Text(title).dsFont(12, weight: .semibold)
+                if let detail { Text(detail).dsFont(11).opacity(0.8) }
+            }
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(isOn ? accent.opacity(0.2) : Color.dsBgTertiary.opacity(0.5))
+            .foregroundStyle(isOn ? accent : .secondary)
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     private var resetButton: some View {

@@ -33,6 +33,14 @@ struct BracketLeaderboardView: View {
     @State private var history: [BracketEditionStat] = []
     @State private var loaded = false
 
+    /// The most recently COMPLETED edition — the Rankings tab can reopen it (owner's World Cup
+    /// rule: the previous tournament's final table stays browsable; its votes are retained too,
+    /// so its rounds remain inspectable elsewhere). nil until fetched / none completed yet.
+    @State private var previousEdition: (id: String, title: String)?
+    /// Which edition the Rankings tab is showing: false = the ACTIVE edition (live splice),
+    /// true = the previous completed edition (server rows as-of close).
+    @State private var showingPrevious = false
+
     private let service = BracketService()
     private let accent = Color.dsGameBracket
 
@@ -67,23 +75,44 @@ struct BracketLeaderboardView: View {
             Text("Sign in to Game Center in iOS Settings to view the leaderboards.")
         }
         .task {
-            if let editionID {
-                let result = await service.standings(editionID: editionID, myUserID: myUserID, myName: myName, myPoints: myPoints)
-                standings = result.rows
-                you = result.you
-                totalPlayers = result.total
-            }
+            // The previous completed edition (may BE the shown edition when nothing is active).
+            let previous = await service.lastCompletedEdition()
+            if previous?.id != editionID { previousEdition = previous }
+            // No live edition but a finished one exists → Rankings defaults to its final table
+            // instead of a dead empty state (the "tournament is over, the records remain" read).
+            if editionID == nil, previousEdition != nil { showingPrevious = true }
+            if editionID == nil, previousEdition == nil { tab = .yourStats }
+            await loadStandings()
             if let myUserID { history = await service.myEditionStats(userID: myUserID) }
             loaded = true
         }
-        .onAppear { if editionID == nil { tab = .yourStats } }
+    }
+
+    /// (Re)load the Rankings rows for whichever edition the tab is showing. The ACTIVE edition
+    /// splices the caller's live points; a PAST edition uses the banked server points (the table
+    /// as it stood at close — stamped ranks agree with it).
+    private func loadStandings() async {
+        let target = showingPrevious ? previousEdition?.id : editionID
+        guard let target else { standings = []; you = nil; totalPlayers = 0; return }
+        var points = myPoints
+        if showingPrevious, let myUserID {
+            points = await service.myPoints(editionID: target, userID: myUserID)
+        }
+        let result = await service.standings(editionID: target, myUserID: myUserID, myName: myName, myPoints: points)
+        standings = result.rows
+        you = result.you
+        totalPlayers = result.total
     }
 
     // MARK: - Rankings tab
 
     @ViewBuilder
     private var rankingsTab: some View {
-        if editionID == nil {
+        // Edition switcher — only when there are two editions to switch between.
+        if editionID != nil, previousEdition != nil {
+            editionSwitcher
+        }
+        if editionID == nil && previousEdition == nil {
             emptyCard("No active edition", "Rankings appear once a Bracket Battle is live.")
         } else if !loaded {
             loadingCard
@@ -277,9 +306,50 @@ struct BracketLeaderboardView: View {
                 Spacer()
                 if let acc = e.accuracy { Text("\(pct(acc)) accurate").dsFont(12).foregroundStyle(Color.dsFgTertiary) }
             }
+            // The competitive line: where you FINISHED, World-Cup-style — survives forever even
+            // after the edition's per-vote detail is pruned (rank stamped at close by the engine).
+            // Absent (not invented) for editions closed before stamping existed.
+            if e.isComplete, let rank = e.finalRank, let field = e.fieldSize {
+                HStack(spacing: 5) {
+                    Image(systemName: "flag.checkered").dsFont(11).foregroundStyle(accent)
+                    Text("Finished #\(rank) of \(field)")
+                        .dsFont(12, weight: .bold).foregroundStyle(accent)
+                }
+            }
         }
         .padding(14)
         .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    /// "Current | <previous title> (final)" — which edition's table Rankings shows. Only rendered
+    /// when both exist. Switching reloads (a past edition's rows are the banked as-of-close table).
+    private var editionSwitcher: some View {
+        HStack(spacing: 8) {
+            switcherTab("Current", isOn: !showingPrevious) {
+                guard showingPrevious else { return }
+                showingPrevious = false
+                Task { await loadStandings() }
+            }
+            switcherTab("\(previousEdition?.title ?? "Previous") · Final", isOn: showingPrevious) {
+                guard !showingPrevious else { return }
+                showingPrevious = true
+                Task { await loadStandings() }
+            }
+            Spacer()
+        }
+    }
+
+    private func switcherTab(_ title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .dsFont(12, weight: .semibold)
+                .lineLimit(1)
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .background(isOn ? accent.opacity(0.2) : Color.dsBgTertiary.opacity(0.5))
+                .foregroundStyle(isOn ? accent : .secondary)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Shared pieces

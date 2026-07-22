@@ -70,6 +70,11 @@ struct BracketEditionStat: Identifiable, Equatable {
     let currentStreak: Int   // consecutive correct picks, carried across rounds (0 on a miss)
     let longestStreak: Int   // the per-edition best run
     let isComplete: Bool
+    /// Where the user FINISHED, stamped by the engine at edition close ("Finished #12 of 340" —
+    /// the number that makes history competitive). nil = still active, or closed before stamping
+    /// existed; the row simply omits the rank line (never invent one).
+    let finalRank: Int?
+    let fieldSize: Int?
     var id: String { editionID }
     var accuracy: Double? { total > 0 ? Double(correct) / Double(total) : nil }
     var bestRoundAccuracy: Double? { bestRoundTotal > 0 ? Double(bestRoundCorrect) / Double(bestRoundTotal) : nil }
@@ -207,6 +212,42 @@ struct BracketService {
 
     // MARK: - Standalone Leaderboard screen
 
+    /// The most recently COMPLETED edition (id + title) — the "previous edition" the Rankings tab
+    /// can reopen (owner's World Cup rule: the last finished tournament stays browsable). nil when
+    /// nothing has completed yet or on failure.
+    func lastCompletedEdition() async -> (id: String, title: String)? {
+        struct Row: Decodable { let id: String; let title: String }
+        do {
+            let rows: [Row] = try await client.from("bracket_editions")
+                .select("id, title")
+                .not("completed_at", operator: .is, value: "null")
+                .order("completed_at", ascending: false)
+                .limit(1)
+                .execute().value
+            return rows.first.map { ($0.id, $0.title) }
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "bracket last-completed: \(error.localizedDescription)") }
+            return nil
+        }
+    }
+
+    /// The signed-in user's own banked points in one edition (0 if none) — the `myPoints` a PAST
+    /// edition's standings need (the live-splice value only exists for the active edition).
+    func myPoints(editionID: String, userID: UUID) async -> Int {
+        do {
+            let rows: [MyScoreRow] = try await client.from("bracket_scores")
+                .select("edition_id, points")
+                .eq("edition_id", value: editionID)
+                .eq("user_id", value: userID)
+                .limit(1)
+                .execute().value
+            return rows.first?.points ?? 0
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "bracket my-points: \(error.localizedDescription)") }
+            return 0
+        }
+    }
+
     /// Rankings-tab payload: the top `visibleLimit` of `bracket_scores` joined with
     /// accuracy, PLUS the signed-in user's own standing (real rank even past the top, for
     /// the "Your rank" banner) and the TRUE total player count (for "of N" / percentile).
@@ -277,7 +318,7 @@ struct BracketService {
     func myEditionStats(userID: UUID) async -> [BracketEditionStat] {
         do {
             let stats: [MyStatRow] = try await client.from("bracket_user_edition_stats")
-                .select("edition_id, correct_picks, total_picks, best_round, best_round_correct, best_round_total, current_streak, longest_streak")
+                .select("edition_id, correct_picks, total_picks, best_round, best_round_correct, best_round_total, current_streak, longest_streak, final_rank, field_size")
                 .eq("user_id", value: userID).execute().value
             let scores: [MyScoreRow] = try await client.from("bracket_scores")
                 .select("edition_id, points").eq("user_id", value: userID).execute().value
@@ -301,7 +342,8 @@ struct BracketService {
                     bestRoundRaw: st?.best_round, bestRoundCorrect: st?.best_round_correct ?? 0,
                     bestRoundTotal: st?.best_round_total ?? 0,
                     currentStreak: st?.current_streak ?? 0, longestStreak: st?.longest_streak ?? 0,
-                    isComplete: !ed.is_active)
+                    isComplete: !ed.is_active,
+                    finalRank: st?.final_rank, fieldSize: st?.field_size)
             }.sorted { $0.points > $1.points }
         } catch {
             await MainActor.run { Diagnostics.shared.record(.apiFailure, "bracket my-stats: \(error.localizedDescription)") }
@@ -375,6 +417,9 @@ private struct MyStatRow: Decodable {
     let best_round_total: Int
     let current_streak: Int
     let longest_streak: Int
+    // Stamped by the engine at edition close (nil = still active, or closed pre-stamping).
+    let final_rank: Int?
+    let field_size: Int?
 }
 private struct MyScoreRow: Decodable { let edition_id: String; let points: Int }
 private struct EdMetaRow: Decodable {

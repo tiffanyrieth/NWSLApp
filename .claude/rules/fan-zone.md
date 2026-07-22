@@ -103,9 +103,9 @@ game** (free mix). Unit-tested (`ContentRoundRobinTests`).
 
 | Game | Visible when | Hidden when |
 |---|---|---|
-| Predict the XI | a followed team has a fixture within `PredictionFixture.activeWindow` (28 days) | no upcoming fixture for any followed team |
+| Predict the XI | a followed team has a fixture within `PredictionFixture.activeWindow` (28 days) | no FUTURE fixture at all (true offseason). A mid-season BREAK week shows the PAUSED state ("No NWSL matches this week — predictions open <date>") with boards browsable, never a hidden card |
 | Bracket Battle | `BracketStore.hasActiveEdition` | no active edition |
-| Daily Trivia | always | never |
+| NWSL Trivia | always | never |
 | Fan Zone section | ≥1 game visible | all games hidden (offseason) |
 
 A game with nothing active/upcoming is hidden **everywhere** (card + screen) — no dead links.
@@ -116,7 +116,9 @@ A game with nothing active/upcoming is hidden **everywhere** (card + screen) —
 28d) · `XIPrediction` (`slots` [Int:String], 11 to be `isComplete`; `draft → submitted`, one-way
 lock) · `PredictionStore` (`predict.v2.*`, `seasonPoints`, `points(forTeam:)`) · `PredictionScoring`
 (Mastermind partial, max 88; unit-tested) · per-team leaderboards (`PredictLeaderboardService` — a
-read failure shows only your real local score). The open-fixtures slate + scoring (via `/summary`)
+read failure shows only your real local score) with **TWO CLOCKS** (owner comp-arena ruling): a
+season board AND a per-soccer-week ROUND board (`predict_round_scores`; a 2-game week is ONE round;
+round tab labeled with a DATE RANGE, never "Week N" — no official NWSL matchweek numbering exists). The open-fixtures slate + scoring (via `/summary`)
 live in `PredictXIViewModel`; the in-flight picker is `XIPickerViewModel` / `XIPickerView`. **Auto-pick**
 (`XIPickerViewModel.autoPick()`, button in the picker's FORMATION header) = beginner quick-fill: random
 formation + a distinct random player per slot (position-blind, score untouched); re-tap to re-roll.
@@ -138,15 +140,17 @@ hidden when no followed team has a featured player.
 
 ## NWSL Trivia
 
-**UI FACELIFT DONE, question-engine redesign STILL PARKED.** The interface was rebuilt onto the **community
-family** (Fan Zone v2 — Know Her Game is the template): `DailyTriviaView` now has an intro screen, progress
-DOTS, tap-to-answer with auto-advance (no Submit button), the shared `ScoreRing`, a score-based title, a
-"+N points" Superfan pill, and the shared `CommunityResultsView` panel (indigo `dsGameTrivia`) as the
-post-game payoff. **CADENCE IS UNCHANGED** — the separate **Daily → WEEKLY question-sourcing redesign**
-(`docs/nwsl-trivia-weekly-redesign.md`) is still to build; until it lands Trivia stays DAILY: 5 questions/day,
-one scored play per local day (Wordle-style gate), copy still daily ("Today's quiz", "day streak").
-`TriviaStore` (streak/bestStreak/totalCorrect/accuracy); `TriviaService` throws on failure OR empty pool
-(online-only, no seed). The old league-wide best-streak board (`TriviaLeaderboardService`) is retired from the UI.
+✅ **REBUILT 2026-07-23 — BIWEEKLY ROUNDS** (community family; Know Her Game is the template, and the two now
+share the whole grammar: landing page → round session → live community results). 10 questions per round; a
+round runs TWO weeks; drops alternate with KHG on `FanZoneCadence` (KHG even week-offsets, Trivia odd —
+staggered, so BOTH stay playable and one community game refreshes every week). One scored play per round
+(`TriviaStore` round-gate); the streak counts consecutive ROUNDS. Retention = current + previous round only
+(store prunes on write; `quiz_answers` prunes via pg_cron). Flow: `TriviaLandingView` (This round / Last
+round / How it works) → `TriviaRoundView` (`Entry .play/.review(round:)`); results via the shared
+`CommunityResultsView` (indigo `dsGameTrivia`), live from the first responder. The question POOL still rides
+the original stocked set with a deterministic per-round slice (wraps after ~4 rounds) until the annual
+content-generation pipeline lands (roadmap) — structure first, content pipeline second (owner rule).
+The old league-wide best-streak board (`TriviaLeaderboardService`) is DELETED.
 
 ## Sign-in & honesty
 

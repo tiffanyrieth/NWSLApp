@@ -57,6 +57,15 @@ struct BracketLeaderboardView: View {
         }
         .background(Color.dsBgPrimary.ignoresSafeArea())
         .nativeBackButton(title: "Leaderboard")
+        // Honest result when Game Center isn't signed in — never a silent dead tap (NO SILENT FAILURES).
+        .alert("Game Center unavailable", isPresented: Binding(
+            get: { GameCenterManager.shared.leaderboardsUnavailable },
+            set: { if !$0 { GameCenterManager.shared.leaderboardsUnavailable = false } })
+        ) {
+            Button("OK", role: .cancel) { GameCenterManager.shared.leaderboardsUnavailable = false }
+        } message: {
+            Text("Sign in to Game Center in iOS Settings to view the leaderboards.")
+        }
         .task {
             if let editionID {
                 let result = await service.standings(editionID: editionID, myUserID: myUserID, myName: myName, myPoints: myPoints)
@@ -276,7 +285,7 @@ struct BracketLeaderboardView: View {
     // MARK: - Shared pieces
 
     private var gameCenterCard: some View {
-        Button { GameCenterManager.shared.showDashboard() } label: {
+        Button { GameCenterManager.shared.openLeaderboards() } label: {
             HStack(spacing: 12) {
                 Image(systemName: "rosette").dsFont(18).foregroundStyle(accent)
                 VStack(alignment: .leading, spacing: 1) {

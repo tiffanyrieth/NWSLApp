@@ -372,9 +372,10 @@ struct HomeView: View {
     /// when a followed team has a fixture within 28 days; Bracket Battle and Daily
     /// Trivia follow. The first entry becomes the featured lead card.
     private enum FanGame: Hashable { case predict, bracket, trivia, knowHer }
-    /// Know Her Game shows when the weekly pool has a featured player for a followed team
-    /// (hidden in the offseason / before content loads — online-only, docs §4).
-    private var knowHerVisible: Bool { knowHer.hasContent }
+    /// Know Her Game shows when a round is live — a featured player for a followed team, OR the user's teams
+    /// are all exhausted this in-season round (the honest "all caught up" picker) — or a recent prior
+    /// round's results are still retained. Hidden in the offseason / before content loads (online-only §4).
+    private var knowHerVisible: Bool { knowHer.hasCurrentRound || knowHer.hasPreviousWeek }
     private var visibleGames: [FanGame] {
         var games: [FanGame] = []
         if predictXIVisible { games.append(.predict) }
@@ -430,12 +431,15 @@ struct HomeView: View {
                 // played, total > 0). Stays even when a game is hidden, since it gates on
                 // games PLAYED, not games currently visible.
                 if superfanBannerVisible {
-                    SuperfanCard(
-                        predictPoints: predict.seasonPoints,
-                        bracketPoints: bracket.points,
-                        triviaCorrect: trivia.totalCorrect,
-                        knowHerPoints: knowHer.totalPoints
-                    )
+                    NavigationLink { SuperfanDetailView() } label: {
+                        SuperfanCard(
+                            predictPoints: predict.seasonPoints,
+                            bracketPoints: bracket.points,
+                            triviaCorrect: trivia.seasonCorrect,
+                            knowHerPoints: knowHer.seasonPoints(year: AppConfig.currentSeasonYear)
+                        )
+                    }
+                    .buttonStyle(.plain)
                     .frame(width: 152)
                 }
             }
@@ -447,13 +451,14 @@ struct HomeView: View {
     /// Show the Superfan banner only once the user has genuine scores in ≥2 games AND a
     /// non-zero total — never a meaningless "0" for a new user (handoff visibility rule).
     private var superfanBannerVisible: Bool {
-        let played = [predict.hasPredicted, bracket.hasPlayed, trivia.totalAnswered > 0, knowHer.totalPoints > 0]
-            .filter { $0 }.count
+        let season = AppConfig.currentSeasonYear
+        let played = [predict.hasPredicted, bracket.hasPlayed, trivia.totalAnswered > 0,
+                      knowHer.playedInSeason(year: season)].filter { $0 }.count
         let total = GameCenterScores.superfanTotal(
-            triviaTotalCorrect: trivia.totalCorrect,
+            triviaTotalCorrect: trivia.seasonCorrect,
             predictSeasonPoints: predict.seasonPoints,
             bracketPoints: bracket.points,
-            knowHerPoints: knowHer.totalPoints)
+            knowHerPoints: knowHer.seasonPoints(year: season))
         return played >= 2 && total > 0
     }
 
@@ -469,18 +474,14 @@ struct HomeView: View {
         }
     }
 
-    /// One followed team with a player → straight to the intro (docs §3); 2+ → the picker.
-    @ViewBuilder
+    /// The Know Her Game landing page (`KnowHerLandingView`) — ALWAYS shown, even for a single-team fan.
+    /// It's a hub, not just a team selector: the round number, this round's player(s), last round's
+    /// results, and the "how players are chosen" explainer. Tapping a player row plays; the picker also
+    /// hosts the honest exhausted state. (Previously a one-team fan with no last-round data was dropped
+    /// straight into the game — inconsistent once the picker became a real landing page, owner call
+    /// 2026-07-21: Round 1 went straight in, Round 2+ hit the picker.)
     private var knowHerDestination: some View {
-        let players = knowHer.players
-        // Go straight to the game only for a single-team fan with NOTHING else to show. Route through
-        // the picker when there are multiple players OR a "Last week" section exists — otherwise a
-        // one-team fan would have no way to reach last week's results.
-        if players.count == 1 && !knowHer.hasPreviousWeek {
-            KnowHerGameView(player: players[0], weekKey: knowHer.weekKey ?? "")
-        } else {
-            KnowHerPickerView(teams: viewModel.followedTeamAbbreviations(following: following))
-        }
+        KnowHerLandingView(teams: viewModel.followedTeamAbbreviations(following: following))
     }
 
     // MARK: Fan Zone card models — HomeView owns the per-game state logic and hands
@@ -536,11 +537,19 @@ struct HomeView: View {
     private static func todayKey() -> String { dayKeyFormatter.string(from: Date()) }
 
     /// The Fan Zone "Know Her Game" card. One followed player → names her ("Trinity Rodman ·
-    /// WAS"); 2+ → the cluster line ("N of M played"). All played → "Done this week".
+    /// WAS"); 2+ → the cluster line ("N of M played"). All played → "Done". Edition-neutral copy
+    /// (KHG is biweekly — an edition spans 2 weeks, so avoid "this week").
     private var knowHerCardModel: FanZoneCardModel {
         let players = knowHer.players
         var model = FanZoneCardModel(game: .knowHer, title: "Know Her Game",
-                                     contextLine: "This week's player")
+                                     contextLine: "Your player")
+        // No featured player for the user's followed teams: in-season = they're all exhausted this round
+        // (honest "All caught up"), else a lingering prior round's results. Card stays visible + honest.
+        if players.isEmpty {
+            model.contextLine = knowHer.hasCurrentRound ? "All caught up" : "Last round results"
+            model.dimmed = true
+            return model
+        }
         if players.count == 1, let p = players.first {
             model.contextLine = "\(p.playerName) · \(p.teamAbbreviation.uppercased())"
         } else if players.count > 1 {
@@ -548,7 +557,7 @@ struct HomeView: View {
         }
         if knowHer.allPlayed {
             model.dimmed = true
-            model.doneLine = "Done this week"
+            model.doneLine = "Done"
         }
         return model
     }

@@ -280,19 +280,7 @@ struct KnowHerGameView: View {
     }
 
     private var scoreCircle: some View {
-        ZStack {
-            Circle().stroke(accent.opacity(0.18), lineWidth: 10).frame(width: 132, height: 132)
-            Circle()
-                .trim(from: 0, to: scoreFraction)
-                .stroke(accent, style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .frame(width: 132, height: 132)
-            VStack(spacing: 2) {
-                Text("\(bankedScore)/\(player.questions.count)")
-                    .dsFont(34, weight: .heavy, design: .rounded).foregroundStyle(accent)
-                Text("correct").dsFont(12).foregroundStyle(.secondary)
-            }
-        }
+        ScoreRing(score: bankedScore, total: player.questions.count, accent: accent)
     }
 
     @ViewBuilder
@@ -367,10 +355,6 @@ struct KnowHerGameView: View {
     private var hasBankedScore: Bool { viewModel.isFinished || store.score(editionKey: viewModel.editionKey) != nil }
     /// Score to display: the just-played session score, or the banked score on a locked re-open.
     private var bankedScore: Int { viewModel.isFinished ? viewModel.score : (store.score(editionKey: viewModel.editionKey) ?? viewModel.score) }
-    private var scoreFraction: CGFloat {
-        let total = player.questions.count
-        return total > 0 ? CGFloat(bankedScore) / CGFloat(total) : 0
-    }
     private var percent: Int {
         let total = player.questions.count
         return total > 0 ? Int((Double(bankedScore) / Double(total) * 100).rounded()) : 0

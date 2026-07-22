@@ -50,6 +50,10 @@ struct KnowHerQuestion: Identifiable, Codable, Equatable {
 struct KnowHerPlayer: Identifiable, Codable, Equatable {
     let teamAbbreviation: String
     let espnAthleteId: String
+    /// Numeric ESPN team id, stamped server-side at publish. The app doesn't use it (headshots resolve
+    /// from `espnAthleteId`); it rides the pool so the match-watcher can target this team's followers for
+    /// the biweekly KHG push. Optional so older pool payloads still decode.
+    let espnTeamId: String?
     let playerName: String
     let jerseyNumber: Int
     let position: String
@@ -71,5 +75,8 @@ struct KnowHerPlayer: Identifiable, Codable, Equatable {
 struct KnowHerPool: Codable, Equatable {
     let weekKey: String
     let season: Int
+    /// 1-based edition index this season, stamped by the proxy at publish — the picker's "Round N".
+    /// Optional so older pool payloads (and previews/tests) still decode.
+    let round: Int?
     let players: [KnowHerPlayer]
 }

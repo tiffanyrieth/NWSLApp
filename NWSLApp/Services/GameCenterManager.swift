@@ -197,7 +197,7 @@ final class GameCenterManager {
         if trivia.bestStreak >= 30 { report(GameCenterID.Achievement.triviaStreak30) }
         if bracket.points > 0 { report(GameCenterID.Achievement.bracketRoundWon) }
         if GameCenterScores.playedAllThree(
-                playedTrivia: trivia.lastCompletedDay != nil,
+                playedTrivia: trivia.hasEverPlayed,
                 hasPredicted: predict.hasPredicted,
                 playedBracket: bracket.hasPlayed) {
             report(GameCenterID.Achievement.playedAllThree)

@@ -265,6 +265,13 @@ struct PredictionScore: Codable, Equatable {
     var resultCorrect: Bool        // W/D/L right, even if the score was wrong
     var perfectXI: Bool            // all 11 correct
 
+    /// The soccer week the fixture belonged to (FanZoneCadence.soccerWeek of its kickoff), stamped at
+    /// scoring time — the round-leaderboard key. OPTIONAL and additive: scores persisted before the
+    /// round clock existed decode as nil and simply don't contribute to a round board (their week is
+    /// unknowable without the fixture's kickoff, which was never stored); the season totals they feed
+    /// are untouched.
+    var soccerWeek: Int?
+
     // Per-category points (the spec's fixed weights).
     var playersPoints: Int { correctPlayers * 3 }
     var positionsPoints: Int { correctPositions * 2 }

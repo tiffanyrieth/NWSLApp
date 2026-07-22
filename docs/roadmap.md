@@ -1,5 +1,22 @@
 # Roadmap / What's Next
 
+> ### ⏳ OWNER SETUP — Fan Zone v3 migrations (2026-07-23, ~5 min — required before the branch ships)
+> Four SQL files to paste into the Supabase SQL editor + Run, in any order (all idempotent):
+> `migration_fanzone_progress.sql` (game-progress restore), `migration_predict_round_scores.sql`
+> (Predict round boards), `migration_bracket_final_rank.sql` (final ranks + the bracket_votes
+> service_role DELETE grant), `migration_retention_cron.sql` (pg_cron prunes; needs the pg_cron
+> extension toggle on the free tier — Database → Extensions if the CREATE EXTENSION errs).
+> Plus one proxy deploy (`wrangler deploy` in ~/Projects/nwslapp-proxy — quiz-results reveal rule +
+> bracket rank stamping ride together).
+
+> ### 🎡 NWSL Trivia — content pipeline ONLY (structure SHIPPED 2026-07-23)
+> The biweekly-round STRUCTURE (rounds, landing page, retention, community model) is built — the app
+> already treats Trivia as biweekly 10-Q rounds alternating with KHG. What remains is CONTENT: the
+> annual ~530-question generation (tuned prompt + evergreen/season-bound tagging + difficulty
+> stratification per `docs/nwsl-trivia-weekly-redesign.md` content rules) and its Claude-Routine
+> loader. Until then the current stocked pool serves rounds with a deterministic slice (repeats
+> after ~4 rounds — acceptable interim, owner-approved).
+
 > ### ⏳ OWNER SETUP — analytics + alerting go-live steps (2026-07-17, ~15 min total)
 > The anonymous-analytics + ops-alerting code is MERGED + deployed; three one-time owner steps still
 > arm the alerting (each is a silent no-op until done — nothing breaks meanwhile):

@@ -1,24 +1,34 @@
 //
-//  DailyTriviaView.swift
+//  TriviaRoundView.swift
 //  NWSLApp
 //
-//  NWSL Trivia — the community-family quiz. Faceit-lifted (Fan Zone v2) onto Know Her Game's interface so
-//  the two community games stop diverging: an INTRO screen, progress DOTS (not a bar), TAP-TO-ANSWER with
-//  ~1.2s auto-advance (no Submit button), a shared SCORE RING, a score-based feel-good title, a "+N points"
-//  Superfan pill, and the shared `CommunityResultsView` "how everyone did" panel moved up front (the old
-//  Review recap list is gone — the community panel IS the post-game payoff).
+//  NWSL Trivia — the community-family quiz, one biweekly ROUND per session (renamed from
+//  DailyTriviaView with the round rebuild). Shares Know Her Game's interface family: an INTRO screen,
+//  progress DOTS (not a bar), TAP-TO-ANSWER with ~1.2s auto-advance (no Submit button), a shared SCORE
+//  RING, a score-based feel-good title, a "+N points" Superfan pill, and the shared
+//  `CommunityResultsView` "how everyone did" panel (the community panel IS the post-game payoff).
 //
-//  CADENCE IS UNCHANGED — this is the interface facelift only. Trivia stays DAILY (one scored play per
-//  local day; the same deterministic 5-of-N slice) until the separate question-sourcing project lands the
-//  weekly/biweekly + 10-question rebuild. So the copy here is still daily ("Today's quiz", "day streak").
+//  ROUND MODEL: 10 questions per biweekly round (FanZoneCadence), one scored play per round; the round
+//  streak replaces the day streak. `Entry` mirrors KHG: `.play` = the LIVE round (intro → questions →
+//  result, locked to a recap once played); `.review(round:)` = a PAST round's read-only recap — the
+//  slate recomputes deterministically from the pool, the score/picks come from TriviaStore. Entry
+//  routes through TriviaLandingView (the front door), not straight from Home.
 //
-//  One scored play per day: `TriviaStore.hasPlayedToday` locks the result recap. Sign-in + a chosen
-//  display name are gated at "Start the quiz" (community answers are always written signed in).
+//  Sign-in + a chosen display name are gated at "Start the quiz" (community answers are always
+//  written signed in).
 //
 
 import SwiftUI
 
-struct DailyTriviaView: View {
+struct TriviaRoundView: View {
+    /// How this screen was entered — the live round, or a past round's read-only recap.
+    enum Entry: Equatable {
+        case play
+        case review(round: Int)
+    }
+
+    var entry: Entry = .play
+
     @State private var viewModel = TriviaViewModel()
     @Environment(TriviaStore.self) private var store
     @Environment(AuthStore.self) private var auth
@@ -37,7 +47,7 @@ struct DailyTriviaView: View {
         Group {
             switch viewModel.state {
             case .idle, .loading:
-                ProgressView("Loading today's trivia…")
+                ProgressView("Loading the round…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .error(let message):
                 errorView(message)
@@ -55,21 +65,29 @@ struct DailyTriviaView: View {
         }
         .task {
             GameCenterManager.shared.authenticate()
-            if case .idle = viewModel.state { await viewModel.loadDaily() }
+            if case .idle = viewModel.state {
+                if case .review(let round) = entry {
+                    await viewModel.loadRound(round)
+                } else {
+                    await viewModel.loadRound()
+                }
+            }
         }
     }
 
-    /// The day's questions as game-agnostic descriptors for the community-results panel.
+    /// The round's questions as game-agnostic descriptors for the community-results panel.
     private var triviaCommunityQuestions: [CommunityResultsView.QuestionInfo] {
         viewModel.questions.map { .init(id: $0.id, prompt: $0.question, options: $0.options, correctIndex: $0.correctIndex) }
     }
 
     @ViewBuilder
     private var loadedContent: some View {
-        if viewModel.isFinished {
+        if case .review = entry {
+            resultView()                      // past-round recap (read-only; score from the store)
+        } else if viewModel.isFinished {
             resultView()                      // just-finished session
-        } else if store.hasPlayedToday {
-            resultView()                      // already played today → locked recap
+        } else if store.hasPlayedCurrentRound {
+            resultView()                      // already played this round → locked recap
         } else if started {
             questionView
         } else {
@@ -93,7 +111,7 @@ struct DailyTriviaView: View {
                     .background(accent.opacity(0.14)).foregroundStyle(accent).clipShape(Capsule())
                 VStack(spacing: 4) {
                     Text("Test your league knowledge").dsFont(28, weight: .bold).multilineTextAlignment(.center)
-                    Text("Today's quiz · \(viewModel.questionCount) questions")
+                    Text("Round \(viewModel.round) · \(viewModel.questionCount) questions")
                         .dsFont(15).foregroundStyle(.secondary)
                 }
                 metaRow.padding(.vertical, 4)
@@ -105,7 +123,7 @@ struct DailyTriviaView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                Text("A fresh quiz each day — one attempt. Points add to your Superfan total.")
+                Text("A fresh round every two weeks — one attempt. Points add to your Superfan total.")
                     .dsFont(12).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center).padding(.horizontal)
             }
@@ -117,7 +135,7 @@ struct DailyTriviaView: View {
         HStack(spacing: 0) {
             metaItem("\(viewModel.questionCount)", "questions")
             Divider().frame(height: 32)
-            metaItem("Daily", "new quiz")
+            metaItem("2 wks", "per round")
             Divider().frame(height: 32)
             metaItem("\(viewModel.questionCount)", "max points")
         }
@@ -137,8 +155,8 @@ struct DailyTriviaView: View {
         HStack(spacing: 10) {
             Image(systemName: "flame.fill").dsFont(18).foregroundStyle(.orange)
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(store.streak)-day streak").dsFont(13, weight: .bold)
-                Text("Keep it going — play every day").dsFont(11).foregroundStyle(.secondary)
+                Text("\(store.streak)-round streak").dsFont(13, weight: .bold)
+                Text("Keep it going — play every round").dsFont(11).foregroundStyle(.secondary)
             }
             Spacer()
         }
@@ -231,29 +249,39 @@ struct DailyTriviaView: View {
     private func resultView() -> some View {
         ScrollView {
             VStack(spacing: 24) {
-                ScoreRing(score: displayScore, total: viewModel.questionCount, accent: accent)
-                    .padding(.top, 12)
-                VStack(spacing: 8) {
-                    Text(feelGoodTitle).dsFont(22, weight: .bold).multilineTextAlignment(.center)
-                    if let learned = learnLine {
-                        Text(learned).dsFont(15).foregroundStyle(.secondary)
+                if reviewedWithoutPlaying {
+                    // KHG rule: last round's community results are browsable even if you sat it out —
+                    // but never render a lying 0/10 ring for a round that was simply not played.
+                    VStack(spacing: 8) {
+                        Text("Round \(viewModel.round)").dsFont(22, weight: .bold)
+                        Text("You didn't play this one — here's how everyone did.")
+                            .dsFont(15).foregroundStyle(.secondary)
                             .multilineTextAlignment(.center).padding(.horizontal)
                     }
+                    .padding(.top, 12)
+                } else {
+                    ScoreRing(score: displayScore, total: viewModel.questionCount, accent: accent)
+                        .padding(.top, 12)
+                    VStack(spacing: 8) {
+                        Text(feelGoodTitle).dsFont(22, weight: .bold).multilineTextAlignment(.center)
+                        if let learned = learnLine {
+                            Text(learned).dsFont(15).foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center).padding(.horizontal)
+                        }
+                    }
+                    if displayScore > 0 {
+                        Text("+\(displayScore) points")
+                            .dsFont(17, weight: .semibold).foregroundStyle(accent)
+                            .padding(.horizontal, 16).padding(.vertical, 8)
+                            .background(accent.opacity(0.14)).clipShape(Capsule())
+                    }
+                    statMiniCards
                 }
-                if displayScore > 0 {
-                    Text("+\(displayScore) points")
-                        .dsFont(17, weight: .semibold).foregroundStyle(accent)
-                        .padding(.horizontal, 16).padding(.vertical, 8)
-                        .background(accent.opacity(0.14)).clipShape(Capsule())
-                }
-                statMiniCards
-                // The community "how everyone did" panel IS the post-game payoff (the old Review list was
-                // dropped as a duplicate). Trivia reveals it after the day closes (server-decided).
-                if let edition = store.lastCompletedDay {
-                    CommunityResultsView(game: "trivia", editionKey: edition,
-                                         questions: triviaCommunityQuestions, accent: accent,
-                                         pendingWrite: writeTask)
-                }
+                // The community "how everyone did" panel IS the post-game payoff (the old Review list
+                // was dropped as a duplicate). Live from the first responder, KHG-style.
+                CommunityResultsView(game: "trivia", editionKey: viewModel.editionKey,
+                                     questions: triviaCommunityQuestions, accent: accent,
+                                     pendingWrite: writeTask)
                 Button { dismiss() } label: {
                     Text("Back to Fan Zone")
                         .dsFont(17, weight: .semibold).frame(maxWidth: .infinity).padding(.vertical, 14)
@@ -261,7 +289,7 @@ struct DailyTriviaView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                Text("Come back tomorrow for a fresh set of five — keep your streak alive!")
+                Text("A fresh 10 drop with every round — keep your streak alive!")
                     .dsFont(11).foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center).padding(.horizontal)
             }
@@ -271,7 +299,7 @@ struct DailyTriviaView: View {
 
     private var statMiniCards: some View {
         HStack(spacing: 8) {
-            miniStat(icon: "flame.fill", tint: .orange, value: "\(store.streak)", label: "day streak")
+            miniStat(icon: "flame.fill", tint: .orange, value: "\(store.streak)", label: "round streak")
             miniStat(icon: "target", tint: accent,
                      value: "\(Int((store.accuracy * 100).rounded()))%", label: "all-time")
         }
@@ -307,33 +335,54 @@ struct DailyTriviaView: View {
         }
     }
 
-    /// Bank the day's score, fire achievements, write the community answers, flip to the result.
+    /// Bank the round's score, fire achievements, write the community answers, flip to the result.
     private func finishFlow() {
         guard !viewModel.isFinished else { return }
-        store.recordCompletion(correct: viewModel.score, outOf: viewModel.questionCount)
+        store.recordCompletion(round: viewModel.round, editionKey: viewModel.editionKey,
+                               correct: viewModel.score, outOf: viewModel.questionCount,
+                               picks: viewModel.picks)
         viewModel.finish()
         // Game Center (additive): achievements only. NWSL Trivia has no competitive leaderboard — the
-        // community-results panel replaces it; the Superfan total gets the lifetime-correct count via syncAll.
+        // community-results panel replaces it; the Superfan total gets the season-correct count via syncAll.
+        // The streak achievements now count ROUNDS (identifiers kept; 7 rounds ≈ a whole season showing up).
         if viewModel.score == viewModel.questionCount {
             GameCenterManager.shared.report(GameCenterID.Achievement.triviaPerfectDay)
         }
         if store.bestStreak >= 7 { GameCenterManager.shared.report(GameCenterID.Achievement.triviaStreak7) }
         if store.bestStreak >= 30 { GameCenterManager.shared.report(GameCenterID.Achievement.triviaStreak30) }
-        // Signed in (gated at Start) → persist per-question answers to the shared community aggregate.
-        if let userID = auth.userID, let edition = store.lastCompletedDay {
+        // Signed in (gated at Start) → persist per-question answers to the shared community aggregate,
+        // and push the progress summary (the reinstall-restore row — partial columns, trivia's only).
+        if let userID = auth.userID {
             let answers = viewModel.communityAnswers()
+            let edition = viewModel.editionKey
             // Hold the write so the community panel can await it before fetching (see writeTask).
             writeTask = Task {
                 await QuizResultsService().upsert(game: "trivia", editionKey: edition,
                     answers: answers, userID: userID, season: String(AppConfig.currentSeasonYear))
+            }
+            let p = store.progressSnapshot()
+            Task {
+                await ProgressSyncService().uploadTrivia(
+                    lifetimeCorrect: p.lifetimeCorrect, lifetimeAnswered: p.lifetimeAnswered,
+                    bestStreak: p.bestStreak, seasonCorrect: p.seasonCorrect,
+                    roundStreak: p.roundStreak, lastRound: p.lastRound,
+                    userID: userID, season: String(AppConfig.currentSeasonYear))
             }
         }
     }
 
     // MARK: - Derived
 
-    /// The just-played session score, or today's banked score on a locked re-open.
-    private var displayScore: Int { viewModel.isFinished ? viewModel.score : store.lastScore }
+    /// The just-played session score, or the banked score for this round (live recap / review).
+    private var displayScore: Int {
+        viewModel.isFinished ? viewModel.score : (store.score(editionKey: viewModel.editionKey) ?? 0)
+    }
+
+    /// Reviewing a round the user never played — community results only, no personal score UI.
+    private var reviewedWithoutPlaying: Bool {
+        if case .review = entry { return store.score(editionKey: viewModel.editionKey) == nil }
+        return false
+    }
 
     private var feelGoodTitle: String {
         let total = viewModel.questionCount
@@ -357,7 +406,13 @@ struct DailyTriviaView: View {
     }
 
     private func errorView(_ message: String) -> some View {
-        RetryStateView(message: message) { await viewModel.loadDaily() }
+        RetryStateView(message: message) {
+            if case .review(let round) = entry {
+                await viewModel.loadRound(round)
+            } else {
+                await viewModel.loadRound()
+            }
+        }
     }
 
     // MARK: - Option styling (correct=dsSuccess, wrong pick=dsError)
@@ -412,7 +467,7 @@ struct DailyTriviaView: View {
 
 #Preview {
     NavigationStack {
-        DailyTriviaView()
+        TriviaRoundView()
             .environment(TriviaStore())
             .environment(AuthStore())
     }

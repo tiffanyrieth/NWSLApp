@@ -106,6 +106,11 @@ struct RootTabView: View {
     // it after the session restores (see FollowSyncCoordinator).
     @State private var syncCoordinator: FollowSyncCoordinator?
 
+    // Fan Zone progress restore (reinstall / replacement phone) — the game-stats twin of
+    // syncCoordinator. Held alive here, not injected: game views upload via per-game partial
+    // upserts (ProgressSyncService), so only the sign-in restore lives in the coordinator.
+    @State private var progressCoordinator: ProgressSyncCoordinator?
+
     // Owns local (Tier 1) notification scheduling — day-before match reminders +
     // the weekly Player Spotlight. Like syncCoordinator, held alive here and not
     // injected (no view reads it); it reschedules when the season, the club
@@ -144,20 +149,6 @@ struct RootTabView: View {
     // prewarmed app that later foregrounds never re-runs it — the UI mounting is the honest
     // "a person opened the app" signal.
     @State private var didCountSession = false
-
-    /// Brief launch state for a signed-in user whose follows are being restored from the server,
-    /// shown instead of the onboarding picker (see the root gate). Honest + quiet, dark-theme.
-    private var restoringView: some View {
-        ZStack {
-            Color.dsBgGrouped.ignoresSafeArea()
-            VStack(spacing: 16) {
-                ProgressView().tint(Color.dsAccent)
-                Text("Restoring your teams…")
-                    .dsFont(15)
-                    .foregroundStyle(Color.dsFgSecondary)
-            }
-        }
-    }
 
     var body: some View {
         @Bindable var router = router
@@ -210,16 +201,12 @@ struct RootTabView: View {
                         .tabItem { Label("Social", systemImage: "dot.radiowaves.left.and.right") }
                         .tag(AppTab.feed)
                 }
-            } else if !auth.sessionRestoreAttempted
-                        || (auth.isSignedIn && !(syncCoordinator?.restoreResolved ?? false)) {
-                // A signed-in user's follows are being restored from the server (or the session
-                // is still being restored at launch). Show a brief "Restoring…" rather than
-                // flashing the onboarding picker — a returning signed-in user must NOT be sent
-                // back through onboarding, and showing the picker is exactly what let onboarding
-                // taps race the restore. `reconcile` flips `restoreResolved` once the server set
-                // is known and calls `completeOnboarding()` when it restored follows (→ the hub).
-                restoringView
             } else {
+                // Onboarding is decided purely by LOCAL state now, so there's nothing to wait for —
+                // no "Restoring…" gate. Sync is upward-only (FollowSyncCoordinator): signing in never
+                // rewrites follows or completes onboarding, so a signed-in user mid-picker simply stays
+                // in the picker. The old gate existed to stop onboarding taps racing the server restore;
+                // with the restore gone, so is the race.
                 // First open: full-screen team picker with NO tab bar. Two reasons:
                 // (1) onboarding can't be skipped by tapping another tab (the TabView
                 // isn't in the hierarchy yet); (2) the TabView's FIRST layout then happens
@@ -324,6 +311,14 @@ struct RootTabView: View {
                 let coordinator = FollowSyncCoordinator(following: following, auth: auth)
                 coordinator.start()
                 syncCoordinator = coordinator
+            }
+            if progressCoordinator == nil {
+                // Fan Zone progress restore (reinstall / replacement phone): fetch + monotonic-merge
+                // the server summary row into the game stores at sign-in; game views push completions
+                // up through this same coordinator. Sibling of syncCoordinator, same lifecycle.
+                let coordinator = ProgressSyncCoordinator(trivia: trivia, knowHer: knowHer, auth: auth)
+                coordinator.start()
+                progressCoordinator = coordinator
             }
             // One-time seed of per-team alerts from the old GLOBAL Match Day toggles,
             // so existing testers don't silently lose alerts on upgrade. Idempotent

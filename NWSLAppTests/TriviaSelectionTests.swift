@@ -2,11 +2,12 @@
 //  TriviaSelectionTests.swift
 //  NWSLAppTests
 //
-//  Covers the pure daily-question selection (TriviaViewModel.dailySelection): the
-//  deterministic, NON-REPEATING slice that backs Daily Trivia's "5 per day". The
-//  live pool (proxy `/trivia`) can be any size, so the selection must be stable
-//  per day, independent of the backend's ordering, and walk the WHOLE pool before
-//  any question repeats (the point of a large live pool).
+//  Covers the pure per-round question selection (TriviaViewModel.roundSelection): the
+//  deterministic, NON-REPEATING slice that backs NWSL Trivia's "10 per biweekly round".
+//  The live pool (proxy `/trivia`) can be any size, so the selection must be stable per
+//  round, independent of the backend's ordering, and walk the WHOLE pool before any
+//  question repeats — determinism is also what makes past-round REVIEW work with no
+//  stored questions (round N always recomputes the same slate).
 //
 
 import Foundation
@@ -31,75 +32,89 @@ struct TriviaSelectionTests {
 
     // MARK: - Determinism
 
-    @Test func sameDayIsDeterministic() {
+    @Test func sameRoundIsDeterministic() {
         let p = pool(40)
-        let a = TriviaViewModel.dailySelection(from: p, dayNumber: 123, count: 5)
-        let b = TriviaViewModel.dailySelection(from: p, dayNumber: 123, count: 5)
+        let a = TriviaViewModel.roundSelection(from: p, roundNumber: 12, count: 10)
+        let b = TriviaViewModel.roundSelection(from: p, roundNumber: 12, count: 10)
         #expect(a.map(\.id) == b.map(\.id))
-        #expect(a.count == 5)
+        #expect(a.count == 10)
     }
 
-    @Test func differentDaysDiffer() {
+    @Test func differentRoundsDiffer() {
         let p = pool(40)
-        let day1 = TriviaViewModel.dailySelection(from: p, dayNumber: 1, count: 5).map(\.id)
-        let day2 = TriviaViewModel.dailySelection(from: p, dayNumber: 2, count: 5).map(\.id)
-        #expect(day1 != day2)
+        let r1 = TriviaViewModel.roundSelection(from: p, roundNumber: 1, count: 10).map(\.id)
+        let r2 = TriviaViewModel.roundSelection(from: p, roundNumber: 2, count: 10).map(\.id)
+        #expect(r1 != r2)
     }
 
     /// The pool is sorted by id before slicing, so however the backend orders the
-    /// array, a given day yields the same 5.
+    /// array, a given round yields the same 10.
     @Test func inputOrderDoesNotMatter() {
         let p = pool(40)
         let reordered = p.reversed().map { $0 }
-        let a = TriviaViewModel.dailySelection(from: p, dayNumber: 7, count: 5).map(\.id)
-        let b = TriviaViewModel.dailySelection(from: reordered, dayNumber: 7, count: 5).map(\.id)
+        let a = TriviaViewModel.roundSelection(from: p, roundNumber: 3, count: 10).map(\.id)
+        let b = TriviaViewModel.roundSelection(from: reordered, roundNumber: 3, count: 10).map(\.id)
         #expect(a == b)
     }
 
     // MARK: - Non-repeating coverage
 
-    @Test func eachDaysFiveAreUnique() {
+    @Test func eachRoundsTenAreUnique() {
         let p = pool(40)
-        for day in 0..<8 {
-            let ids = TriviaViewModel.dailySelection(from: p, dayNumber: day, count: 5).map(\.id)
-            #expect(Set(ids).count == 5)
+        for round in 1...5 {
+            let ids = TriviaViewModel.roundSelection(from: p, roundNumber: round, count: 10).map(\.id)
+            #expect(Set(ids).count == 10)
         }
     }
 
-    /// 40 questions / 5 per day = 8 disjoint days that cover the whole pool exactly
-    /// once; day 8 wraps back to day 0's block.
+    /// 40 questions / 10 per round = 4 disjoint rounds that cover the whole pool exactly
+    /// once; round 5 wraps back to round 1's block — the honest interim behavior until the
+    /// content pipeline stocks the 530-question pool (53 rounds, zero repeats).
     @Test func wholePoolPlaysBeforeRepeat() {
         let p = pool(40)
         var seen = Set<String>()
-        for day in 0..<8 {
-            seen.formUnion(TriviaViewModel.dailySelection(from: p, dayNumber: day, count: 5).map(\.id))
+        for round in 1...4 {
+            seen.formUnion(TriviaViewModel.roundSelection(from: p, roundNumber: round, count: 10).map(\.id))
         }
         #expect(seen.count == 40)
 
-        let day0 = TriviaViewModel.dailySelection(from: p, dayNumber: 0, count: 5).map(\.id)
-        let day8 = TriviaViewModel.dailySelection(from: p, dayNumber: 8, count: 5).map(\.id)
-        #expect(day0 == day8)
+        let r1 = TriviaViewModel.roundSelection(from: p, roundNumber: 1, count: 10).map(\.id)
+        let r5 = TriviaViewModel.roundSelection(from: p, roundNumber: 5, count: 10).map(\.id)
+        #expect(r1 == r5)
+    }
+
+    /// Rounds are 1-based (round 1 = the first block). Locks the −1 offset so a refactor
+    /// can't silently shift every round's slate by one block.
+    @Test func roundOneTakesTheFirstBlock() {
+        let p = pool(40)
+        let r1 = Set(TriviaViewModel.roundSelection(from: p, roundNumber: 1, count: 10).map(\.id))
+        var firstBlock = Set<String>()
+        for round in 1...4 {
+            firstBlock.formUnion(TriviaViewModel.roundSelection(from: p, roundNumber: round, count: 10).map(\.id))
+            if round == 1 { #expect(firstBlock == r1) }
+        }
     }
 
     // MARK: - Edge cases
 
-    @Test func negativeDayNumberStaysInBounds() {
-        // Pre-2001 dates produce negative day numbers; the slice must not crash or
-        // go out of range.
+    @Test func defensiveRoundNumbersStayInBounds() {
+        // Round 0 / negative can't occur from the cadence, but a bad caller must not crash.
         let p = pool(40)
-        let ids = TriviaViewModel.dailySelection(from: p, dayNumber: -3, count: 5).map(\.id)
-        #expect(ids.count == 5)
-        #expect(Set(ids).count == 5)
+        for bad in [0, -3] {
+            let ids = TriviaViewModel.roundSelection(from: p, roundNumber: bad, count: 10).map(\.id)
+            #expect(ids.count == 10)
+            #expect(Set(ids).count == 10)
+        }
     }
 
-    @Test func poolSmallerThanDailyCountReturnsWholePool() {
+    @Test func poolSmallerThanRoundCountReturnsWholePool() {
         let p = pool(3)
-        let picked = TriviaViewModel.dailySelection(from: p, dayNumber: 5, count: 5)
+        let picked = TriviaViewModel.roundSelection(from: p, roundNumber: 5, count: 10)
         #expect(picked.count == 3)
         #expect(Set(picked.map(\.id)).count == 3)
     }
 
     @Test func emptyPoolReturnsEmpty() {
-        #expect(TriviaViewModel.dailySelection(from: [], dayNumber: 1, count: 5).isEmpty)
+        #expect(TriviaViewModel.roundSelection(from: [], roundNumber: 1, count: 10).isEmpty)
     }
 }

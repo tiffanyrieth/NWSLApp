@@ -71,6 +71,67 @@ struct MirrorReconcileTests {
         #expect(!fired)
     }
 
+    @Test func completeOnboardingFiresOnceOnTheRealTransition() {
+        // The coordinator hangs the first prune-capable reconcile off this hook, so it must fire
+        // on the false→true transition and NOT again on a repeat call.
+        let store = FollowingStore(defaults: isolatedDefaults("test.mirror.onboarded.hook"))
+        var fires = 0
+        store.onOnboardingCompleted = { fires += 1 }
+        store.completeOnboarding()
+        store.completeOnboarding()
+        #expect(fires == 1)
+    }
+
+    // MARK: - Follows reconcile set-logic (UPWARD-ONLY, 2026-07-23)
+
+    @Test func midOnboardingAddsButNeverPrunes() {
+        // THE REGRESSION GUARD. Signing in from the alert-bell intercept mid-picker: the user has
+        // tapped one club so far. That partial set must never look authoritative — adding is fine,
+        // deleting is the "only the oldest follow survives" data-loss bug.
+        let ops = FollowSyncCoordinator.resolveFollowOps(
+            local: ["angelcity"],
+            remote: ["spirit", "wave"],
+            hasOnboarded: false)
+        #expect(ops.add == ["angelcity"])
+        #expect(ops.remove.isEmpty)
+    }
+
+    @Test func midOnboardingWithEmptyLocalIsANoOp() {
+        // A fresh install that signs in before tapping anything: nothing to push, nothing to prune.
+        // (The old code restored the server set here and skipped onboarding entirely.)
+        let ops = FollowSyncCoordinator.resolveFollowOps(
+            local: [], remote: ["spirit", "wave"], hasOnboarded: false)
+        #expect(ops.add.isEmpty)
+        #expect(ops.remove.isEmpty)
+    }
+
+    @Test func onboardedDeviceIsAuthoritativeBothWays() {
+        // Post-onboarding the server is made to match the device exactly: "follow 16 then unfollow
+        // back to 2" must leave the server holding 2.
+        let ops = FollowSyncCoordinator.resolveFollowOps(
+            local: ["spirit", "angelcity"],
+            remote: ["spirit", "wave", "current", "thorns"],
+            hasOnboarded: true)
+        #expect(ops.add == ["angelcity"])
+        #expect(ops.remove == ["wave", "current", "thorns"])
+    }
+
+    @Test func alreadyInSyncProducesNoWrites() {
+        let ops = FollowSyncCoordinator.resolveFollowOps(
+            local: ["spirit", "wave"], remote: ["spirit", "wave"], hasOnboarded: true)
+        #expect(ops.add.isEmpty)
+        #expect(ops.remove.isEmpty)
+    }
+
+    @Test func onboardedWithEmptyLocalClearsTheServer() {
+        // Unfollowing everything is a legitimate state and must propagate — the device is the
+        // source of truth, so an empty local set means an empty server set.
+        let ops = FollowSyncCoordinator.resolveFollowOps(
+            local: [], remote: ["spirit"], hasOnboarded: true)
+        #expect(ops.add.isEmpty)
+        #expect(ops.remove == ["spirit"])
+    }
+
     // MARK: - Reconcile set-logic (device-wins / restore / alerts ⊆ follows)
 
     @Test func deviceWinsAndPrunesGhostAlerts() {

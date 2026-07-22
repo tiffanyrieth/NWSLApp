@@ -2,25 +2,28 @@
 //  TriviaViewModel.swift
 //  NWSLApp
 //
-//  Owns one Daily-Trivia *session* — Home's Module 3 "Play", game 1. Same
-//  idle/loading/loaded/error State shape as the other view models, here tracking
-//  the question-bank load. The durable stats (streak, accuracy, the day-gate)
-//  are NOT here — they live in TriviaStore; this only holds the transient state
-//  of the 5 questions being played right now.
+//  Owns one NWSL Trivia *session* — the biweekly 10-question round being played (or
+//  reviewed) right now. Same idle/loading/loaded/error State shape as the other view
+//  models, here tracking the question-bank load. The durable stats (round streak,
+//  accuracy, the round-gate) are NOT here — they live in TriviaStore.
 //
-//  Daily selection: the 5 questions are a DETERMINISTIC, NON-REPEATING slice of
-//  the pool. The pool is sorted by id (so the order is independent of however the
-//  backend returns it), shuffled ONCE by a fixed-seed SplitMix64 (the stable
-//  "cycle order", identical on every device), then paged by the local day number
-//  (day N → questions [N*5 ..< N*5+5], wrapping). So a ~500-question pool yields
-//  ~100 days of unique sets before any repeat — the whole point of a large live
-//  pool — while staying stable all day with no persistence (the day IS the index).
-//  (Earlier this re-shuffled the whole pool per day, which overlapped across days
-//  and squandered a large pool's longevity.)
+//  Round selection: the round's 10 questions are a DETERMINISTIC, NON-REPEATING slice
+//  of the pool. The pool is sorted by id (so the order is independent of however the
+//  backend returns it), shuffled ONCE by a fixed-seed SplitMix64 (the stable "cycle
+//  order", identical on every device), then paged by the ROUND number (round N →
+//  questions [(N−1)*10 ..< N*10], wrapping). Determinism is what makes review work
+//  with no stored questions: last round's slate recomputes from the same pool + the
+//  round number, so only the user's picks/score need persisting (TriviaStore).
+//  ⚠️ Wrapping honesty: today's ~41-question pool covers 4 rounds before questions
+//  repeat — an accepted interim until the annual content-generation pipeline stocks
+//  the full pool (roadmap; the 530-question target = 53 rounds, zero repeats).
 //
 //  Flow per question: select an option (changeable) → submit (locks + reveals
 //  correct/incorrect) → next (advance), matching the spec's "tap to select, tap
 //  Next to advance, see correct/incorrect immediately after submitting."
+//
+//  (The old league-wide best-streak leaderboard was retired — the community
+//  "how everyone did" panel replaced it; its dead service/rows are gone.)
 //
 
 import Foundation
@@ -36,12 +39,11 @@ final class TriviaViewModel {
 
     private(set) var state: State = .idle
 
-    /// Today's 5 questions (empty until `.loaded`).
+    /// The round's 10 questions (empty until `.loaded`).
     private(set) var questions: [TriviaQuestion] = []
 
-    /// Real league-wide best-streak standings, fetched in `refreshLeaderboard`.
-    /// You are spliced in from your live local best streak. Empty until loaded.
-    private(set) var leaderboard: [LeaderboardRow] = []
+    /// The round this session belongs to (the live round for play; a past round for review).
+    private(set) var round: Int = 1
 
     // MARK: Session state (transient — reset each play)
 
@@ -57,66 +59,60 @@ final class TriviaViewModel {
     /// True once the last question's results have been requested.
     private(set) var isFinished = false
 
-    /// How many questions to serve per day (spec: 5).
-    private let dailyCount = 5
+    /// Questions per round (the biweekly redesign: 10, up from the daily 5 — 8/10 feels
+    /// earned where 3/5 felt punishing).
+    private let roundCount = 10
 
-    /// Fixed seed for the one-time "cycle order" shuffle. Constant (not the day
+    /// Fixed seed for the one-time "cycle order" shuffle. Constant (not the round
     /// number) so the pool's playback order is the same on every device and every
-    /// day; only the *page* into it advances daily. ("nWSLTRV1" as hex.)
+    /// round; only the *page* into it advances per round. ("nWSLTRV1" as hex.)
     private static let cycleSeed: UInt64 = 0x6E57_534C_5452_5631
 
     private let service: TriviaService
-    private let leaderboardService: TriviaLeaderboardService
-    private let calendar: Calendar
     private let now: () -> Date
-
-    /// The league-wide best-streak season key (matches the Supabase column default).
-    private static let currentSeason = "2026"
 
     init(
         service: TriviaService = TriviaService(),
-        leaderboardService: TriviaLeaderboardService = TriviaLeaderboardService(),
-        calendar: Calendar = .current,
         now: @escaping () -> Date = Date.init
     ) {
         self.service = service
-        self.leaderboardService = leaderboardService
-        self.calendar = calendar
         self.now = now
+    }
+
+    /// The edition key this session banks/reads under (matches TriviaStore + `quiz_answers`).
+    var editionKey: String {
+        FanZoneCadence.editionKey(round: round, seasonYear: FanZoneCadence.seasonYear)
     }
 
     // MARK: - Loading
 
-    /// Load the live question pool (proxy `/trivia`) and lock in today's deterministic
-    /// 5. Online-only: any failure — network error or an empty pool (no playable quiz)
-    /// — surfaces as an honest error with "Try again"; there is no seed fallback.
-    func loadDaily() async {
+    /// Load the live question pool (proxy `/trivia`) and lock in a round's deterministic 10.
+    /// `round: nil` = the LIVE round (play); passing a round = that round's slate (review —
+    /// determinism recomputes exactly what that round served). Online-only: any failure —
+    /// network error or an empty pool (no playable quiz) — surfaces as an honest error with
+    /// "Try again"; there is no seed fallback.
+    func loadRound(_ requested: Int? = nil) async {
         state = .loading
+        // Before Trivia's first-ever round (a fresh preseason install), fall back to round 1's
+        // slate rather than erroring — the gate on PLAYING is the store's, not the loader's.
+        round = requested ?? FanZoneCadence.roundNumber(for: .trivia, at: now()) ?? 1
         do {
             let all = try await service.triviaQuestions()
-            questions = dailyQuestions(from: all)
+            questions = Self.roundSelection(from: all, roundNumber: round, count: roundCount)
             resetSession()
             state = .loaded
         } catch {
             Diagnostics.shared.record(.apiFailure, "trivia load: \(error.localizedDescription)")
-            state = .error("Couldn't load today's trivia — tap to retry.")
+            state = .error("Couldn't load this round's trivia — tap to retry.")
         }
     }
 
-    /// Today's deterministic 5: derive the local day number, then delegate to the
-    /// pure `dailySelection` slice.
-    private func dailyQuestions(from all: [TriviaQuestion]) -> [TriviaQuestion] {
-        let startOfToday = calendar.startOfDay(for: now())
-        let dayNumber = Int(startOfToday.timeIntervalSinceReferenceDate / 86_400)
-        return Self.dailySelection(from: all, dayNumber: dayNumber, count: dailyCount)
-    }
-
-    /// Pure, NON-REPEATING daily slice (factored out so it's unit-testable without
-    /// the network/clock). Sort by id (so the result is independent of the
-    /// backend's ordering), shuffle ONCE with a fixed seed (the stable cycle
-    /// order), then take the day-numbered block of `count`, wrapping at the end.
-    /// The whole pool plays before any question repeats.
-    static func dailySelection(from all: [TriviaQuestion], dayNumber: Int, count: Int) -> [TriviaQuestion] {
+    /// Pure, NON-REPEATING per-round slice (factored out so it's unit-testable without
+    /// the network/clock). Sort by id (so the result is independent of the backend's
+    /// ordering), shuffle ONCE with a fixed seed (the stable cycle order), then take
+    /// the round-numbered block of `count`, wrapping at the end. The whole pool plays
+    /// before any question repeats.
+    static func roundSelection(from all: [TriviaQuestion], roundNumber: Int, count: Int) -> [TriviaQuestion] {
         let n = all.count
         guard n > 0, count > 0 else { return [] }
 
@@ -125,9 +121,9 @@ final class TriviaViewModel {
         let cycle = ordered.shuffled(using: &generator)
 
         let take = min(count, n)
-        // day N → block N, wrapping. The extra `+ n) % n` keeps it non-negative
-        // for pre-2001 dates (negative day numbers).
-        let start = ((dayNumber * take) % n + n) % n
+        // Round N → block N−1 (rounds are 1-based), wrapping. The extra `+ n) % n`
+        // keeps a defensive round-0/negative input non-crashing.
+        let start = (((roundNumber - 1) * take) % n + n) % n
         return (0..<take).map { cycle[(start + $0) % n] }
     }
 
@@ -190,53 +186,17 @@ final class TriviaViewModel {
     }
 
     /// The per-question answers to persist to the shared community aggregate (`quiz_answers`,
-    /// game "trivia") — one row per answered question, built from `picks` vs the day's questions.
+    /// game "trivia") — one row per answered question, built from `picks` vs the round's questions.
     /// Powers the NYT-style "how everyone did" screen (docs §11b).
     func communityAnswers() -> [QuizAnswer] {
         zip(questions, picks).map { question, pick in
             QuizAnswer(questionID: question.id, selectedIndex: pick, isCorrect: pick == question.correctIndex)
         }
     }
-
-    // MARK: - Leaderboard (REAL, league-wide best-streak via Supabase)
-
-    struct LeaderboardRow: Identifiable {
-        let id = UUID()
-        let rank: Int
-        let name: String
-        let streak: Int
-        let isYou: Bool
-    }
-
-    /// Push the user's best streak (signed-in only; best-effort) then read the
-    /// world-readable standings and splice the user's LIVE local best streak in
-    /// (fresher than any just-written row, and the only row when signed out). No
-    /// fabricated rivals — a sparse board (just you) early on is the honest state.
-    /// Safe to call on every results-screen appearance; idempotent.
-    func refreshLeaderboard(store: TriviaStore, auth: AuthStore) async {
-        let season = Self.currentSeason
-
-        if let userID = auth.userID {
-            await leaderboardService.upsertScore(
-                bestStreak: store.bestStreak, displayName: auth.displayName,
-                userID: userID, season: season)
-        }
-
-        let standings = await leaderboardService.standings(season: season)
-        let myID = auth.userID?.uuidString
-        var entries = standings
-            .filter { $0.userID != myID }
-            .map { (name: $0.name, streak: $0.bestStreak, isYou: false) }
-        entries.append((name: auth.displayName ?? "You", streak: store.bestStreak, isYou: true))
-        entries.sort { $0.streak != $1.streak ? $0.streak > $1.streak : ($0.isYou && !$1.isYou) }
-        leaderboard = entries.enumerated().map { i, e in
-            LeaderboardRow(rank: i + 1, name: e.name, streak: e.streak, isYou: e.isYou)
-        }
-    }
 }
 
-/// A tiny deterministic RNG (SplitMix64) so the daily question pick is stable for
-/// a given seed — same day in, same 5 questions out, on every device.
+/// A tiny deterministic RNG (SplitMix64) so the round's question pick is stable for
+/// a given seed — same round in, same 10 questions out, on every device.
 private struct SeededGenerator: RandomNumberGenerator {
     private var state: UInt64
 

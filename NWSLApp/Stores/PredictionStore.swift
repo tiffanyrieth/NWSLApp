@@ -79,6 +79,25 @@ final class PredictionStore {
         Set(scores.keys.compactMap { predictions[$0]?.teamAbbreviation })
     }
 
+    /// Points earned for `team` in one soccer week — the ROUND-board value (a two-game week sums
+    /// both fixtures, the owner rule). Pre-round-clock scores (nil soccerWeek) don't contribute.
+    func points(forTeam abbreviation: String, week: Int) -> Int {
+        scores.reduce(0) { sum, entry in
+            guard predictions[entry.key]?.teamAbbreviation == abbreviation,
+                  entry.value.soccerWeek == week else { return sum }
+            return sum + entry.value.total
+        }
+    }
+
+    /// The most recent soccer week with scored points for `team` (nil = no round-stamped score yet) —
+    /// which round the "This round" board should show once the current week has no scores.
+    func latestScoredWeek(forTeam abbreviation: String) -> Int? {
+        scores.compactMap { entry -> Int? in
+            guard predictions[entry.key]?.teamAbbreviation == abbreviation else { return nil }
+            return entry.value.soccerWeek
+        }.max()
+    }
+
     /// Fixture ids that are submitted but not yet scored — the view model fetches
     /// `/summary` for these once their match has settled.
     var submittedAwaitingScore: [String] {

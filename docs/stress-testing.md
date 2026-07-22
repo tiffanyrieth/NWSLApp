@@ -171,6 +171,23 @@ For each subsystem, walk it explicitly:
 
 ## 7. Status ledger
 
+- **Fan Zone v3 (rounds/retention/restore, 2026-07-23): ✅ passes 1k + 100k by construction.**
+  Verified first against primary docs (supabase.com/pricing): Supabase has **UNLIMITED API requests**
+  on every tier — the binding constraints are **DB size (free 500 MB / Pro 8 GB), MAU (50k/100k),
+  egress (5/250 GB)**, the OPPOSITE shape of Workers (where request count is the cap). New load paths:
+  • `fanzone_progress` — 1 row/(user,season) ≈150 B ⇒ ~20 MB at 100k; writes = 1 partial upsert per
+    quiz completion + 1 fetch/merge per sign-in. Flat, unmetered.
+  • `predict_round_scores` — users × followed-clubs × 2 retained weeks (cron prunes >28d) ⇒ ~a few
+    thousand rows at 1k users, bounded forever. Round boards reuse the top-100 + HEAD-count-rank
+    pattern that already passed 1k.
+  • **Retention crons run INSIDE Postgres (pg_cron)** — zero Worker requests, zero API calls; and they
+    CAP `quiz_answers`, the one table §6 flagged unbounded (~85 MB/season at 1k engaged under weekly
+    cadence): with the 35-day prune it plateaus at a few MB regardless of season length. The prune is
+    safe because restore reads the SUMMARY row, never raw answers.
+  • Bracket close adds two service-role calls per EDITION (rank stamp + old-vote delete) — per-edition,
+    not per-user; noise.
+  100k lever: all of the above scale linearly in rows, none in request rate; first paid wall stays the
+  ~30–50k-user Supabase Pro size/MAU line already forecast in §6.
 - **Push fan-out:** ✅ **DECIDED 2026-07-09** (4-agent primary-doc research). V1 buzz + LA push-to-start
   → Cloudflare Queues fan-out ($0, free since 2026-02-04). V2 in-match updates → APNs Broadcast
   Channels (channel-per-match, one POST/event). Firebase declined. iOS 17 = graceful degradation (V1

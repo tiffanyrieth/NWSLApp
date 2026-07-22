@@ -2,22 +2,18 @@
 //  DailyTriviaView.swift
 //  NWSLApp
 //
-//  Daily Trivia — Home's Module 3 "Play", game 1 (Reference/Design/
-//  games-design-spec.md). Pushed from the Home "Play" card, so it rides Home's
-//  NavigationStack (the nav-bar back button is the explicit affordance — no own
-//  stack). Five multiple-choice questions a day; select → submit (reveals
-//  correct/incorrect) → next; a results screen at the end shows today's score,
-//  the streak, and all-time accuracy.
+//  NWSL Trivia — the community-family quiz. Faceit-lifted (Fan Zone v2) onto Know Her Game's interface so
+//  the two community games stop diverging: an INTRO screen, progress DOTS (not a bar), TAP-TO-ANSWER with
+//  ~1.2s auto-advance (no Submit button), a shared SCORE RING, a score-based feel-good title, a "+N points"
+//  Superfan pill, and the shared `CommunityResultsView` "how everyone did" panel moved up front (the old
+//  Review recap list is gone — the community panel IS the post-game payoff).
 //
-//  Visual identity: an indigo "quiz" accent, distinct from team colors and the
-//  app's blue follow-highlight, per the spec's "own but cohesive game identity."
-//  Correct/incorrect reveals use green/red — the one place those colors read as
-//  right/wrong rather than a team.
+//  CADENCE IS UNCHANGED — this is the interface facelift only. Trivia stays DAILY (one scored play per
+//  local day; the same deterministic 5-of-N slice) until the separate question-sourcing project lands the
+//  weekly/biweekly + 10-question rebuild. So the copy here is still daily ("Today's quiz", "day streak").
 //
-//  One scored play per day (the streak mechanic): once TriviaStore.hasPlayedToday
-//  is true, the screen shows the locked results summary and "come back tomorrow"
-//  instead of replaying. Durable stats live in TriviaStore; this view owns only
-//  the in-progress session via TriviaViewModel.
+//  One scored play per day: `TriviaStore.hasPlayedToday` locks the result recap. Sign-in + a chosen
+//  display name are gated at "Start the quiz" (community answers are always written signed in).
 //
 
 import SwiftUI
@@ -26,13 +22,13 @@ struct DailyTriviaView: View {
     @State private var viewModel = TriviaViewModel()
     @Environment(TriviaStore.self) private var store
     @Environment(AuthStore.self) private var auth
+    @Environment(\.dismiss) private var dismiss
 
-    /// The game's signature accent (per the approved indigo theme).
-    private let accent = Color.dsGameTrivia
-
-    /// Presents the sign-in invite when a signed-out user finishes a game (their result
-    /// needs an account to reach the Supabase leaderboard). Skippable; local stats persist.
     @State private var gateRequested = false
+    /// Flipped by the sign-in gate at "Start the quiz" — intro → questions.
+    @State private var started = false
+
+    private let accent = Color.dsGameTrivia
 
     var body: some View {
         Group {
@@ -47,16 +43,14 @@ struct DailyTriviaView: View {
             }
         }
         .nativeBackButton(title: "NWSL Trivia")
-        .fanZonePlayingAs(accent: Color.dsGameTrivia)
+        .fanZonePlayingAs(accent: accent)
         .background(Color.dsBgGrouped)
-        // Mandatory sign-in + display name to play — gated at the first "Submit Answer", so
-        // a finished game's streak always reaches the leaderboard. "Go back" cancels.
+        // Mandatory sign-in + display name to play — gated at "Start the quiz", so the completion write
+        // is always signed in. "Go back" cancels.
         .fanZoneGate(isRequested: $gateRequested, gameName: "NWSL Trivia", accent: accent) {
-            viewModel.submit()
+            started = true
         }
         .task {
-            // Start Game Center auth here (a game screen) rather than at launch, so
-            // the GC banner only shows when the user is about to play. Idempotent.
             GameCenterManager.shared.authenticate()
             if case .idle = viewModel.state { await viewModel.loadDaily() }
         }
@@ -67,299 +61,301 @@ struct DailyTriviaView: View {
         viewModel.questions.map { .init(id: $0.id, prompt: $0.question, options: $0.options, correctIndex: $0.correctIndex) }
     }
 
-    // Decide which screen: a just-finished session shows the full recap; a user
-    // who already played today sees the locked summary; otherwise, play.
     @ViewBuilder
     private var loadedContent: some View {
         if viewModel.isFinished {
-            resultsView(showRecap: true)
+            resultView()                      // just-finished session
         } else if store.hasPlayedToday {
-            resultsView(showRecap: false)
-        } else {
+            resultView()                      // already played today → locked recap
+        } else if started {
             questionView
+        } else {
+            introView
         }
     }
 
-    // MARK: - Question screen
+    // MARK: - Intro
+
+    private var introView: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                Image(systemName: "brain.head.profile")
+                    .dsFont(36).foregroundStyle(accent)
+                    .frame(width: 80, height: 80)
+                    .background(accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .padding(.top, 8)
+                Text("NWSL TRIVIA")
+                    .dsFont(11, weight: .bold).tracking(0.5)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(accent.opacity(0.14)).foregroundStyle(accent).clipShape(Capsule())
+                VStack(spacing: 4) {
+                    Text("Test your league knowledge").dsFont(28, weight: .bold).multilineTextAlignment(.center)
+                    Text("Today's quiz · \(viewModel.questionCount) questions")
+                        .dsFont(15).foregroundStyle(.secondary)
+                }
+                metaRow.padding(.vertical, 4)
+                if store.streak > 0 { streakCard }
+                Button { gateRequested = true } label: {
+                    Text("Start the quiz")
+                        .dsFont(17, weight: .semibold).frame(maxWidth: .infinity).padding(.vertical, 14)
+                        .background(accent).foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                Text("A fresh quiz each day — one attempt. Points add to your Superfan total.")
+                    .dsFont(12).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center).padding(.horizontal)
+            }
+            .padding(20)
+        }
+    }
+
+    private var metaRow: some View {
+        HStack(spacing: 0) {
+            metaItem("\(viewModel.questionCount)", "questions")
+            Divider().frame(height: 32)
+            metaItem("Daily", "new quiz")
+            Divider().frame(height: 32)
+            metaItem("\(viewModel.questionCount)", "max points")
+        }
+        .padding(.vertical, 12).frame(maxWidth: .infinity)
+        .background(Color.dsBgCard).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func metaItem(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 3) {
+            Text(value).dsFont(17, weight: .semibold).foregroundStyle(accent)
+            Text(label).dsFont(11).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var streakCard: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "flame.fill").dsFont(18).foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(store.streak)-day streak").dsFont(13, weight: .bold)
+                Text("Keep it going — play every day").dsFont(11).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgCard).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    // MARK: - Question (dots + tap-to-answer)
 
     @ViewBuilder
     private var questionView: some View {
         if let question = viewModel.currentQuestion {
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        progressHeader
-                        categoryChip(for: question)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    progressHeader(question)
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "brain.head.profile")
+                            .font(.system(size: 20)).foregroundStyle(accent)
+                            .frame(width: 44, height: 44)
+                            .background(accent.opacity(0.14), in: Circle())
                         Text(question.question)
-                            .font(.title2.weight(.bold))
-                            .fixedSize(horizontal: false, vertical: true)
-                        VStack(spacing: 12) {
-                            ForEach(question.options.indices, id: \.self) { index in
-                                optionRow(question: question, index: index)
-                            }
+                            .dsFont(20, weight: .bold).fixedSize(horizontal: false, vertical: true)
+                    }
+                    VStack(spacing: 12) {
+                        ForEach(question.options.indices, id: \.self) { index in
+                            optionRow(question: question, index: index)
                         }
                     }
-                    .padding(20)
+                    Text("Tap an answer — auto-advances")
+                        .dsFont(11).foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity).multilineTextAlignment(.center)
                 }
-                actionBar(for: question)
+                .padding(20)
             }
         }
     }
 
-    private var progressHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private func progressHeader(_ question: TriviaQuestion) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label("NWSL TRIVIA", systemImage: "brain.head.profile")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(accent)
-                Spacer()
                 Text("Question \(viewModel.questionNumber) of \(viewModel.questionCount)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .dsFont(12, weight: .semibold).foregroundStyle(.secondary)
+                Spacer()
+                Text(question.category.label.uppercased())
+                    .dsFont(11, weight: .bold)
+                    .padding(.horizontal, 9).padding(.vertical, 4)
+                    .background(accent.opacity(0.14)).foregroundStyle(accent).clipShape(Capsule())
             }
-            // Progress bar: indigo fill over a track, one segment per question.
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.dsBgTertiary)
-                    Capsule()
-                        .fill(accent)
-                        .frame(width: geo.size.width * progressFraction)
+            HStack(spacing: 6) {
+                ForEach(0..<viewModel.questionCount, id: \.self) { i in
+                    Circle()
+                        .fill(i < viewModel.questionNumber ? accent : Color.dsBgTertiary)
+                        .frame(width: 7, height: 7)
                 }
             }
-            .frame(height: 6)
         }
     }
 
-    private var progressFraction: CGFloat {
-        guard viewModel.questionCount > 0 else { return 0 }
-        return CGFloat(viewModel.questionNumber) / CGFloat(viewModel.questionCount)
-    }
-
-    private func categoryChip(for question: TriviaQuestion) -> some View {
-        HStack(spacing: 8) {
-            Text(question.category.label.uppercased())
-                .font(.caption2.weight(.bold))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(accent.opacity(0.12))
-                .foregroundStyle(accent)
-                .clipShape(Capsule())
-            Text(question.difficulty.rawValue.capitalized)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    // One answer option. Styling depends on selected / revealed / correctness.
     private func optionRow(question: TriviaQuestion, index: Int) -> some View {
         let style = optionStyle(question: question, index: index)
         return Button {
-            viewModel.select(index)
+            answer(index)
         } label: {
             HStack(spacing: 14) {
                 Text(letter(index))
                     .font(.subheadline.weight(.bold))
                     .frame(width: 26, height: 26)
-                    .background(style.badgeFill)
-                    .foregroundStyle(style.badgeText)
+                    .background(style.badgeFill).foregroundStyle(style.badgeText)
                     .clipShape(Circle())
                 Text(question.options[index])
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .dsFont(17).foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
                 if let icon = style.trailingIcon {
-                    Image(systemName: icon)
-                        .foregroundStyle(style.borderColor)
+                    Image(systemName: icon).foregroundStyle(style.borderColor)
                 }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(style.fill)
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(style.borderColor, lineWidth: style.borderWidth)
-            )
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(style.borderColor, lineWidth: style.borderWidth))
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(viewModel.isRevealed)
     }
 
-    // Pinned bottom bar: Submit → Next → See Results, respecting safe area.
-    private func actionBar(for question: TriviaQuestion) -> some View {
-        VStack(spacing: 0) {
-            Divider()
-            Group {
-                if !viewModel.isRevealed {
-                    // Gate the FIRST submit on sign-in + display name; the gate runs
-                    // viewModel.submit() once authorized (instantly after the first time).
-                    Button("Submit Answer") { gateRequested = true }
-                        .disabled(viewModel.selectedIndex == nil)
-                } else if viewModel.isLastQuestion {
-                    Button("See Results") {
-                        // Double-tap guard: `finish()` flips `isFinished` synchronously, so a
-                        // second tap before the results view swaps in bails (no duplicate submits).
-                        guard !viewModel.isFinished else { return }
-                        store.recordCompletion(correct: viewModel.score, outOf: viewModel.questionCount)
-                        viewModel.finish()
-                        // Game Center (additive): achievements only. NWSL Trivia has NO competitive
-                        // leaderboard now (docs §11) — the community-results screen replaces it; the
-                        // superfan total still gets the lifetime-correct count via syncAll.
-                        if viewModel.score == viewModel.questionCount {
-                            GameCenterManager.shared.report(GameCenterID.Achievement.triviaPerfectDay)
-                        }
-                        if store.bestStreak >= 7 { GameCenterManager.shared.report(GameCenterID.Achievement.triviaStreak7) }
-                        if store.bestStreak >= 30 { GameCenterManager.shared.report(GameCenterID.Achievement.triviaStreak30) }
-                        // Signed in (gated at the first Submit) → persist per-question answers to the
-                        // shared community aggregate. Edition key = today's day-key (store stamped it).
-                        if let userID = auth.userID, let edition = store.lastCompletedDay {
-                            let answers = viewModel.communityAnswers()
-                            Task {
-                                await QuizResultsService().upsert(game: "trivia", editionKey: edition,
-                                    answers: answers, userID: userID, season: "2026")
-                            }
-                        }
-                    }
-                } else {
-                    Button("Next Question") { viewModel.advance() }
-                }
-            }
-            .font(.headline)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(viewModel.selectedIndex == nil && !viewModel.isRevealed ? Color.dsBgTertiary : accent)
-            .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
-        }
-        .background(.bar)
-    }
+    // MARK: - Result (score ring + community)
 
-    // MARK: - Results screen
-
-    private func resultsView(showRecap: Bool) -> some View {
+    private func resultView() -> some View {
         ScrollView {
             VStack(spacing: 24) {
+                ScoreRing(score: displayScore, total: viewModel.questionCount, accent: accent)
+                    .padding(.top, 12)
                 VStack(spacing: 8) {
-                    Image(systemName: "brain.head.profile")
-                        .dsFont(44)
-                        .foregroundStyle(accent)
-                    Text(showRecap ? "Nice work!" : "You're all set for today")
-                        .font(.title2.weight(.bold))
+                    Text(feelGoodTitle).dsFont(22, weight: .bold).multilineTextAlignment(.center)
+                    if let learned = learnLine {
+                        Text(learned).dsFont(15).foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center).padding(.horizontal)
+                    }
                 }
-                .padding(.top, 12)
-
-                scoreCard
-
-                // Community "how everyone did" replaces the old streak leaderboard (docs §11).
-                // Trivia reveals it AFTER the day closes (server-decided); today shows the
-                // "check back tomorrow" state alongside the personal score.
+                if displayScore > 0 {
+                    Text("+\(displayScore) points")
+                        .dsFont(17, weight: .semibold).foregroundStyle(accent)
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                        .background(accent.opacity(0.14)).clipShape(Capsule())
+                }
+                statMiniCards
+                // The community "how everyone did" panel IS the post-game payoff (the old Review list was
+                // dropped as a duplicate). Trivia reveals it after the day closes (server-decided).
                 if let edition = store.lastCompletedDay {
                     CommunityResultsView(game: "trivia", editionKey: edition,
                                          questions: triviaCommunityQuestions, accent: accent)
                 }
-
-                if showRecap {
-                    recapList
+                Button { dismiss() } label: {
+                    Text("Back to Fan Zone")
+                        .dsFont(17, weight: .semibold).frame(maxWidth: .infinity).padding(.vertical, 14)
+                        .background(accent).foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
-
+                .buttonStyle(.plain)
                 Text("Come back tomorrow for a fresh set of five — keep your streak alive!")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+                    .dsFont(11).foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center).padding(.horizontal)
             }
             .padding(20)
         }
     }
 
-    // Today's score + streak + all-time accuracy.
-    private var scoreCard: some View {
-        VStack(spacing: 16) {
-            VStack(spacing: 4) {
-                Text("\(store.lastScore) / \(viewModel.questionCount)")
-                    .dsFont(48, weight: .heavy, design: .rounded)
-                    .foregroundStyle(accent)
-                Text("Today's score")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            Divider()
-            HStack {
-                statItem(
-                    value: "\(store.streak)",
-                    label: store.streak == 1 ? "day streak" : "day streak",
-                    icon: "flame.fill",
-                    tint: .orange
-                )
-                Divider().frame(height: 40)
-                statItem(
-                    value: "\(Int((store.accuracy * 100).rounded()))%",
-                    label: "all-time accuracy",
-                    icon: "target",
-                    tint: accent
-                )
-            }
+    private var statMiniCards: some View {
+        HStack(spacing: 8) {
+            miniStat(icon: "flame.fill", tint: .orange, value: "\(store.streak)", label: "day streak")
+            miniStat(icon: "target", tint: accent,
+                     value: "\(Int((store.accuracy * 100).rounded()))%", label: "all-time")
         }
-        .padding(20)
+    }
+
+    private func miniStat(icon: String, tint: Color, value: String, label: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon).foregroundStyle(tint)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value).dsFont(15, weight: .bold)
+                Text(label).dsFont(10).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
         .frame(maxWidth: .infinity)
-        .background(Color.dsBgCard)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Color.dsBgCard).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
+    // MARK: - Actions
 
-    private func statItem(value: String, label: String, icon: String, tint: Color) -> some View {
-        VStack(spacing: 4) {
-            HStack(spacing: 5) {
-                Image(systemName: icon).foregroundStyle(tint)
-                Text(value).font(.title3.weight(.bold))
-            }
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    // Per-question recap (fresh session only): correct answer + whether you got it.
-    private var recapList: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Review")
-                .font(.headline)
-            ForEach(viewModel.questions.indices, id: \.self) { index in
-                let question = viewModel.questions[index]
-                let pick = index < viewModel.picks.count ? viewModel.picks[index] : nil
-                let gotItRight = pick == question.correctIndex
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: gotItRight ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundStyle(gotItRight ? Color.dsSuccess : Color.dsError)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(question.question)
-                            .font(.subheadline.weight(.semibold))
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text("Answer: \(question.correctAnswer)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(14)
-                .background(Color.dsBgCard)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    /// Tap-to-answer: lock + reveal immediately, then auto-advance (~1.2s). Guarded so a second tap during
+    /// the reveal is ignored. Mirrors Know Her Game's `answer(_:)`.
+    private func answer(_ index: Int) {
+        guard !viewModel.isRevealed else { return }
+        viewModel.select(index)
+        viewModel.submit()
+        Task {
+            try? await Task.sleep(for: .seconds(1.2))
+            await MainActor.run {
+                if viewModel.isLastQuestion { finishFlow() } else { viewModel.advance() }
             }
         }
     }
 
-    // MARK: - Error
+    /// Bank the day's score, fire achievements, write the community answers, flip to the result.
+    private func finishFlow() {
+        guard !viewModel.isFinished else { return }
+        store.recordCompletion(correct: viewModel.score, outOf: viewModel.questionCount)
+        viewModel.finish()
+        // Game Center (additive): achievements only. NWSL Trivia has no competitive leaderboard — the
+        // community-results panel replaces it; the Superfan total gets the lifetime-correct count via syncAll.
+        if viewModel.score == viewModel.questionCount {
+            GameCenterManager.shared.report(GameCenterID.Achievement.triviaPerfectDay)
+        }
+        if store.bestStreak >= 7 { GameCenterManager.shared.report(GameCenterID.Achievement.triviaStreak7) }
+        if store.bestStreak >= 30 { GameCenterManager.shared.report(GameCenterID.Achievement.triviaStreak30) }
+        // Signed in (gated at Start) → persist per-question answers to the shared community aggregate.
+        if let userID = auth.userID, let edition = store.lastCompletedDay {
+            let answers = viewModel.communityAnswers()
+            Task {
+                await QuizResultsService().upsert(game: "trivia", editionKey: edition,
+                    answers: answers, userID: userID, season: String(AppConfig.currentSeasonYear))
+            }
+        }
+    }
+
+    // MARK: - Derived
+
+    /// The just-played session score, or today's banked score on a locked re-open.
+    private var displayScore: Int { viewModel.isFinished ? viewModel.score : store.lastScore }
+
+    private var feelGoodTitle: String {
+        let total = viewModel.questionCount
+        let pct = total > 0 ? Int((Double(displayScore) / Double(total) * 100).rounded()) : 0
+        switch pct {
+        case 100: return "Perfect — you really know your league!"
+        case 80...: return "You know your league!"
+        case 60...: return "Getting there!"
+        default: return "We all start somewhere 🌱"
+        }
+    }
+
+    /// The learning payoff — the correct answer to the first question you missed (Trivia questions carry no
+    /// standalone fact, so the answer itself is the "learn". Only after a fresh play, when picks exist).
+    private var learnLine: String? {
+        guard viewModel.isFinished else { return nil }
+        for (q, pick) in zip(viewModel.questions, viewModel.picks) where pick != q.correctIndex {
+            return "The answer was \(q.correctAnswer)."
+        }
+        return nil
+    }
 
     private func errorView(_ message: String) -> some View {
         RetryStateView(message: message) { await viewModel.loadDaily() }
     }
 
-    // MARK: - Option styling
+    // MARK: - Option styling (correct=dsSuccess, wrong pick=dsError)
 
     private struct OptionStyle {
         var fill: Color
@@ -376,7 +372,6 @@ struct DailyTriviaView: View {
         let isCorrect = index == question.correctIndex
 
         if !viewModel.isRevealed {
-            // Pre-submit: only the current selection is highlighted (indigo).
             return OptionStyle(
                 fill: isSelected ? accent.opacity(0.12) : base,
                 borderColor: isSelected ? accent : Color.dsBgTertiary,
@@ -386,34 +381,21 @@ struct DailyTriviaView: View {
                 trailingIcon: nil
             )
         }
-        // Post-submit reveal: correct = green, your wrong pick = red, rest dim.
         if isCorrect {
             return OptionStyle(
-                fill: Color.dsSuccess.opacity(0.14),
-                borderColor: Color.dsSuccess,
-                borderWidth: 2,
-                badgeFill: Color.dsSuccess,
-                badgeText: .white,
-                trailingIcon: "checkmark"
+                fill: Color.dsSuccess.opacity(0.14), borderColor: Color.dsSuccess, borderWidth: 2,
+                badgeFill: Color.dsSuccess, badgeText: .white, trailingIcon: "checkmark"
             )
         }
         if isSelected {
             return OptionStyle(
-                fill: Color.dsError.opacity(0.12),
-                borderColor: Color.dsError,
-                borderWidth: 2,
-                badgeFill: Color.dsError,
-                badgeText: .white,
-                trailingIcon: "xmark"
+                fill: Color.dsError.opacity(0.12), borderColor: Color.dsError, borderWidth: 2,
+                badgeFill: Color.dsError, badgeText: .white, trailingIcon: "xmark"
             )
         }
         return OptionStyle(
-            fill: base,
-            borderColor: Color.dsBgTertiary,
-            borderWidth: 1,
-            badgeFill: Color.dsBgTertiary,
-            badgeText: .secondary,
-            trailingIcon: nil
+            fill: base, borderColor: Color.dsBgTertiary, borderWidth: 1,
+            badgeFill: Color.dsBgTertiary, badgeText: .secondary, trailingIcon: nil
         )
     }
 

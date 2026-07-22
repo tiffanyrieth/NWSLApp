@@ -27,6 +27,9 @@ struct DailyTriviaView: View {
     @State private var gateRequested = false
     /// Flipped by the sign-in gate at "Start the quiz" — intro → questions.
     @State private var started = false
+    /// Held so the results community panel AWAITS the write before fetching — the player then sees her own
+    /// answer counted instead of a "0 fans played" flash (mirrors Know Her Game).
+    @State private var writeTask: Task<Void, Never>?
 
     private let accent = Color.dsGameTrivia
 
@@ -248,7 +251,8 @@ struct DailyTriviaView: View {
                 // dropped as a duplicate). Trivia reveals it after the day closes (server-decided).
                 if let edition = store.lastCompletedDay {
                     CommunityResultsView(game: "trivia", editionKey: edition,
-                                         questions: triviaCommunityQuestions, accent: accent)
+                                         questions: triviaCommunityQuestions, accent: accent,
+                                         pendingWrite: writeTask)
                 }
                 Button { dismiss() } label: {
                     Text("Back to Fan Zone")
@@ -318,7 +322,8 @@ struct DailyTriviaView: View {
         // Signed in (gated at Start) → persist per-question answers to the shared community aggregate.
         if let userID = auth.userID, let edition = store.lastCompletedDay {
             let answers = viewModel.communityAnswers()
-            Task {
+            // Hold the write so the community panel can await it before fetching (see writeTask).
+            writeTask = Task {
                 await QuizResultsService().upsert(game: "trivia", editionKey: edition,
                     answers: answers, userID: userID, season: String(AppConfig.currentSeasonYear))
             }

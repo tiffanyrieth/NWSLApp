@@ -210,6 +210,7 @@ struct PredictXIView: View {
 
     private func openItemCard(_ item: PredictXIViewModel.PredictionItem) -> some View {
         let fixture = item.fixture
+        let colors = fixtureColors(fixture)
         return Button {
             pendingFixture = fixture
             gateRequested = true
@@ -221,7 +222,8 @@ struct PredictXIView: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.dsMdCard)
+            // Two-team club-color wash over the navy card — the schedule/match-detail treatment.
+            .background { TeamWashBackground(base: .dsMdCard, home: colors.home, away: colors.away) }
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -279,6 +281,7 @@ struct PredictXIView: View {
 
     private func resultCard(_ item: PredictXIViewModel.PredictionItem) -> some View {
         let score = item.score ?? .zero
+        let colors = fixtureColors(item.fixture)
         return VStack(alignment: .leading, spacing: 14) {
             matchHeader(item.fixture, finalScore: item.finalScore)
 
@@ -301,7 +304,7 @@ struct PredictXIView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.dsMdCard)
+        .background { TeamWashBackground(base: .dsMdCard, home: colors.home, away: colors.away) }
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -329,7 +332,7 @@ struct PredictXIView: View {
         let homeAbbr = fixture.isHome ? fixture.teamAbbreviation : fixture.opponentAbbreviation
         let awayAbbr = fixture.isHome ? fixture.opponentAbbreviation : fixture.teamAbbreviation
         return HStack(spacing: 12) {
-            teamColumn(homeAbbr)
+            teamColumn(homeAbbr, color: teamColor(homeAbbr))
             VStack(spacing: 4) {
                 if let final = finalScore {
                     Text("\(final.home)–\(final.away)").dsFont(20, weight: .heavy)
@@ -342,17 +345,30 @@ struct PredictXIView: View {
                 }
             }
             .frame(minWidth: 84)
-            teamColumn(awayAbbr)
+            teamColumn(awayAbbr, color: teamColor(awayAbbr))
         }
         .frame(maxWidth: .infinity)
     }
 
-    private func teamColumn(_ abbreviation: String) -> some View {
+    private func teamColumn(_ abbreviation: String, color: Color) -> some View {
         VStack(spacing: 6) {
             TeamLogo(urlString: viewModel.club(forAbbreviation: abbreviation)?.logoURL, teamAbbreviation: abbreviation, size: 38)
-            Text(abbreviation).dsFont(12, weight: .bold)
+            // Abbreviation in the club's color — the crest+abbreviation two-team rule (matches MatchCard).
+            Text(abbreviation).dsFont(12, weight: .bold).foregroundStyle(color)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Team-color resolution (navy Competitive surface → liftOnDark)
+
+    private func teamColor(_ abbreviation: String) -> Color {
+        Color.teamColor(for: abbreviation, liftOnDark: true, fallback: .dsFgSecondary)
+    }
+
+    private func fixtureColors(_ fixture: PredictionFixture) -> (home: Color, away: Color) {
+        let homeAbbr = fixture.isHome ? fixture.teamAbbreviation : fixture.opponentAbbreviation
+        let awayAbbr = fixture.isHome ? fixture.opponentAbbreviation : fixture.teamAbbreviation
+        return (teamColor(homeAbbr), teamColor(awayAbbr))
     }
 
     // MARK: - Leaderboard (REAL, per-team — you're ranked among fans of YOUR club)
@@ -409,7 +425,8 @@ struct PredictXIView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.dsMdCard)
+        // Quiet single-team tint — this board is fans of ONE club, so it wears that club's color.
+        .background { TeamWashBackground(base: .dsMdCard, home: teamColor(team)) }
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 

@@ -28,63 +28,94 @@ struct PlayerDetailView: View {
     var body: some View {
         let accent = Color.teamAccent(hex: accentHex)
         ScrollView {
-            VStack(spacing: 20) {
-                PlayerHeadshot(athleteID: athlete.id, size: 96, kind: .detail) {
-                    ZStack {
-                        Circle().fill(accent.fill)
-                        Text(monogram)
-                            .dsFont(34, weight: .bold)
-                            .foregroundStyle(accent.on)
-                            .minimumScaleFactor(0.5)
-                            .lineLimit(1)
-                            .padding(10)
-                    }
-                    .frame(width: 96, height: 96)
-                }
+            VStack(spacing: 0) {
+                header(accent)
 
-                VStack(spacing: 4) {
-                    Text(athlete.name)
-                        .dsFont(22, weight: .bold)
-                        .foregroundStyle(Color.dsFgPrimary)
-                        .multilineTextAlignment(.center)
-                    if let position = athlete.positionName {
-                        Text(position)
-                            .dsFont(15)
-                            .foregroundStyle(Color.dsFgSecondary)
-                    }
-                }
-
-                if !bioRows.isEmpty {
-                    VStack(spacing: 0) {
-                        ForEach(Array(bioRows.enumerated()), id: \.offset) { index, row in
-                            HStack {
-                                Text(row.label).foregroundStyle(Color.dsFgSecondary)
-                                Spacer()
-                                Text(row.value).dsFont(15, weight: .medium).foregroundStyle(Color.dsFgPrimary)
-                            }
-                            .dsFont(15)
-                            .padding(.vertical, 12)
-                            .padding(.horizontal, 16)
-                            if index < bioRows.count - 1 {
-                                Rectangle().fill(Color.dsSeparator).frame(height: 0.5)
+                VStack(spacing: 20) {
+                    if !bioRows.isEmpty {
+                        VStack(spacing: 0) {
+                            ForEach(Array(bioRows.enumerated()), id: \.offset) { index, row in
+                                HStack {
+                                    Text(row.label).foregroundStyle(Color.dsFgSecondary)
+                                    Spacer()
+                                    Text(row.value).dsFont(15, weight: .medium).foregroundStyle(Color.dsFgPrimary)
+                                }
+                                .dsFont(15)
+                                .padding(.vertical, 12)
+                                .padding(.horizontal, 16)
+                                if index < bioRows.count - 1 {
+                                    Rectangle().fill(Color.dsSeparator).frame(height: 0.5)
+                                }
                             }
                         }
+                        .background(Color.dsBgCard)
+                        .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd))
                     }
-                    .background(Color.dsBgCard)
-                    .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd))
-                }
 
-                if let stats {
-                    statsCard(stats)
+                    if let stats {
+                        statsCard(stats)
+                    }
                 }
+                .padding()
             }
-            .padding()
         }
         .frame(maxWidth: .infinity)
         .background(Color.dsBgGrouped)
-        // Bare ‹ chevron, no centered title — the in-content name header (above) carries
-        // identity, so a nav title would duplicate it.
+        // Bare ‹ chevron, no centered title — the full-bleed team-color header carries identity.
+        // Transparent (not hidden) nav bar so the wash bleeds up behind it and edge-swipe survives.
         .nativeBackButton()
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+    }
+
+    // MARK: - Full-bleed team-color header (mirrors TeamDetailView / MatchDetailView so a player
+    // reads as belonging to their club — the crest/headshot sits over the club's color wash).
+
+    private func header(_ accent: (fill: Color, on: Color)) -> some View {
+        VStack(spacing: 12) {
+            PlayerHeadshot(athleteID: athlete.id, size: 96, kind: .detail) {
+                ZStack {
+                    Circle().fill(accent.fill)
+                    Text(monogram)
+                        .dsFont(34, weight: .bold)
+                        .foregroundStyle(accent.on)
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(1)
+                        .padding(10)
+                }
+                .frame(width: 96, height: 96)
+            }
+
+            VStack(spacing: 4) {
+                Text(athlete.name)
+                    .dsFont(22, weight: .bold)
+                    .foregroundStyle(Color.dsFgPrimary)
+                    .multilineTextAlignment(.center)
+                if let position = athlete.positionName {
+                    Text(position)
+                        .dsFont(15)
+                        .foregroundStyle(Color.dsFgSecondary)
+                }
+            }
+        }
+        .padding(.top, 8)
+        .padding(.bottom, 20)
+        .frame(maxWidth: .infinity)
+        .background(headerBackground(accent).ignoresSafeArea(edges: .top))
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.dsSeparator).frame(height: 0.5)
+        }
+    }
+
+    // Team-color diagonal wash over the dark match-detail panel gradient — the same recipe as
+    // TeamDetailView.headerBackground (dsMdPanel base + accent 0.22→0.05 diagonal).
+    private func headerBackground(_ accent: (fill: Color, on: Color)) -> some View {
+        ZStack {
+            LinearGradient(colors: [Color.dsMdPanel, Color.dsMdPanelBottom],
+                           startPoint: .top, endPoint: .bottom)
+            LinearGradient(colors: [accent.fill.opacity(0.22), accent.fill.opacity(0.05)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
     }
 
     // Jersey number when present, otherwise initials — mirrors the squad card.

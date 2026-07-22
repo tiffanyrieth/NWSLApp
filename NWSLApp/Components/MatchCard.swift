@@ -49,24 +49,9 @@ struct MatchCard: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity)
-        .background {
-            ZStack {
-                Color.dsBgCard
-                // The team-color wash (the sanctioned match gradient at card scale):
-                // home @18% bleeds from the left, away @18% from the right, clear
-                // through the middle. ~100° direction (horizontal, tilted slightly).
-                LinearGradient(
-                    stops: [
-                        .init(color: homeColor.opacity(0.18), location: 0.0),
-                        .init(color: homeColor.opacity(0.0), location: 0.34),
-                        .init(color: awayColor.opacity(0.0), location: 0.66),
-                        .init(color: awayColor.opacity(0.18), location: 1.0),
-                    ],
-                    startPoint: UnitPoint(x: 0, y: 0.42),
-                    endPoint: UnitPoint(x: 1, y: 0.58)
-                )
-            }
-        }
+        // The team-color wash (the sanctioned match gradient at card scale) — now the shared
+        // `TeamWashBackground` so Schedule + Predict draw the identical recipe.
+        .background { TeamWashBackground(base: .dsBgCard, home: homeColor, away: awayColor) }
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
         .onAppear { if event.statusState == "in" { pulse = true } }
     }

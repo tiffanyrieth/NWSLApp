@@ -36,7 +36,7 @@ NWSLApp/
 │   ├── PlayoffOverride.swift          — operator escape hatch (roster-cache philosophy for the bracket): a proxy `/playoff-override?season=YYYY` JSON the app LAYERS over the ESPN-derived bracket when ESPN corrupts postseason data — correct/inject a matchup (winner/score/dropped game), fix seeds, force teamCount, or `hideBracket`. Applied at the EVENT level before derive so a fixed winner propagates. Dormant unless set. Pure + unit-tested (PlayoffOverrideTests)
 │   ├── PlayoffModels.swift            — PURE postseason bracket: `PlayoffRound` (slug-derived, format-resilient) / `BracketSide` / `PlayoffMatchup` / `SeedTree` (standard single-elim pairings from seed count) / `PlayoffBracket.derive(events+seeds)` (QF from seeds, later rounds from feeder winners; overlay real ESPN scores) + `path`/`winContext`/`storyline` + format tripwire. Unit-tested (PlayoffDerivationTests)
 │   ├── TeamSocialLinks.swift          — per-team social links for TeamDetail (reference data, no live API); `iconAssetName` → bundled brand glyph in `Assets.xcassets/Social/`
-│   ├── TriviaQuestion.swift           — one Daily-Trivia question (4 options)
+│   ├── TriviaQuestion.swift           — one NWSL Trivia question (4 options)
 │   ├── SuperfanStats.swift            — Superfan Zone value types: `SuperfanTier` (fan/rising/allStar/mvp; SF Symbol + dsGame* color + `forTopFraction` thresholds ≤5%/≤20%/≤50%) + `SuperfanStanding` (rank/qualifying → topPercent/tier/isMeaningful, minQualifiers=5 for the honest low-scale gate). Pure, unit-tested (SuperfanStatsTests)
 │   └── XIPrediction.swift             — Predict the XI: PositionGroup · Formation · PredictionFixture · XIPrediction (draft→submitted) · ActualResult · PredictionScore
 ├── Services/
@@ -77,7 +77,7 @@ NWSLApp/
 │   ├── PredictionScoring.swift        — pure Predict-the-XI scorer (Mastermind partial, max 88). Unit-tested
 │   ├── RecentForm.swift               — pure last-5 W/D/L per club from the season; feeds Standings "Last 5"; `result(scored:conceded:)` = the shared W/D/L rule (reused by MatchDetailViewModel.form). Unit-tested
 │   ├── TeamSocialLinksProvider.swift  — static per-team social-account URLs (reference data, no live API)
-│   ├── TriviaService.swift            — Daily-Trivia client: triviaQuestions→/trivia; `throws` on failure OR empty pool (online-only; no seed)
+│   ├── TriviaService.swift            — NWSL Trivia client: triviaQuestions→/trivia; `throws` on failure OR empty pool (online-only; no seed)
 │   ├── KnowHerService.swift           — Know Her Game client: pool(teams:)→/knowher; `throws` on failure OR empty pool (online-only; no seed)
 │   └── QuizResultsService.swift       — SHARED community-results client (NWSL Trivia + Know Her): upserts per-question answers to Supabase `quiz_answers`; reads the aggregate distribution from the proxy `/quiz-results` edge cache (never a live DB aggregation)
 ├── Stores/                            — @Observable shared state → UserDefaults, injected

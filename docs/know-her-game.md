@@ -443,7 +443,9 @@ The quiz-game *replacement* for a leaderboard — a NYT-style "how everyone did"
     by editions × colos × TTL) + the tiny per-user answer upsert.
   - ✅ **Reveal timing — HYBRID BY CADENCE (owner):** **Know Her Game (weekly)** shows **live, growing
     honest counts DURING the week** (recompute on a timer → KV; % once N≥25) for in-week community energy;
-    **NWSL Trivia (daily)** uses a **post-close (next-day) reveal** since its window is only 1 day. Both
+    **NWSL Trivia** used a post-close (next-day) reveal while it was daily; ⚠️ **superseded
+    2026-07-23** — Trivia is biweekly ROUNDS now and adopted this same live model (proxy `isRevealed`
+    always true, app `TriviaRoundView`). Both
     feed a **past-editions archive** ("your completed games", cached). **N=1 state — UPDATED 2026-07-13
     (owner):** the "you're the first / check back later" GATE is REMOVED — the live board shows from the
     first responder ("1 fan played" + honest counts). The honest count IS the live-stats hook, and the

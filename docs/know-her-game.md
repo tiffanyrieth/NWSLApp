@@ -229,23 +229,39 @@ API** = fallback. Owner-validated via independent research.
 > routine's dry-run (`load_knowher.mjs` `validatePool`: ≥10 Qs/player, ≥6 human/≤5 stat, ≤65% "True" T/F) and
 > the pool is written in ~4-player **batches** (beats the 32k output-token cap). The picker was renamed
 > `KnowHerPickerView` → `KnowHerLandingView` (a 4-state landing page). Routine model is currently `sonnet-4-6`
-> (owner to flip to Opus). NEXT: move the deterministic stat questions into code (see the active plan). The
-> "runs every Monday" references below now mean "every OTHER Monday."
+> (owner to flip to Opus). ✅ **DONE 2026-07-23: the deterministic stat questions moved into CODE** (see the
+> amendment below). The "runs every Monday" references below now mean "every OTHER Monday."
 
 The engine question is CLOSED: **a Claude Routine (owner's subscription, overnight Monday)** runs the
 **FULL fine-tuned Rodman-WORKING query** — the owner declared that prompt final
-("generated the perfect questions"; the old MC-difficulty frontier is closed). This supersedes §5's
-"code-templated stat questions + Haiku fun facts" sketch: the tuned prompt writes ALL questions,
-including stat ones built from the verified numbers the proxy provides (no stat lookups, so the old
-web_search cost balloon doesn't apply — and the routine draws subscription quota, not API dollars).
+("generated the perfect questions"; the old MC-difficulty frontier is closed). The routine draws
+subscription quota, not API dollars, and never looks stats up (the proxy hands it verified numbers).
+
+⚠️ **AMENDED 2026-07-23 — the model now writes HUMAN-ONLY; the stat questions are generated in CODE.**
+This partially REVIVES §5's "code-templated stat questions" idea (that sketch was dropped in favor of
+"the prompt writes everything"): a `herGame` question's answer IS a number the proxy already has and its
+distractors are just values around it, so model judgment adds nothing — and it kept producing options a
+few units apart (the banned `858 / 906 / 932 / 971` minutes spread), a mental-arithmetic test rather than
+a gettable question. Code does it deterministically and hands the model's whole budget to the human
+questions, which is the only place it adds value. What did NOT change: the human half of the prompt, the
+five-layer guardrail (§6), the sourcing rules, and the owner-owned wording.
 
 The built loop (proxy repo, branch → PR):
 1. **Assemble (code, not model judgment):** `scripts/assemble_knowher_prompt.mjs` fetches each club's
    pick from `/knowher/todo` (now serving age/country + keeper cleanSheets/saves), computes the ISO
    weekKey, and fills `scripts/knowher-weekly-TEMPLATE.md` (the Rodman-faithful template; wording is
-   owner-owned and immutable). Gaps warn loudly; offseason exits non-zero.
-2. **Generate:** the routine executes the assembled prompt verbatim (web search per its own guardrails).
-3. **Validate:** `load_knowher.mjs --dry-run` (server rules, no write).
+   owner-owned and immutable). Gaps warn loudly; offseason exits non-zero. **Also writes the stat sidecar
+   `/tmp/knowher-stats.json`** — the same verified numbers, keyed by athlete id, for step 2b.
+2. **Generate:** the routine executes the assembled prompt verbatim (web search per its own guardrails),
+   producing **8–9 HUMAN questions per player** and no stat questions.
+2b. **Inject the stat questions (code):** `scripts/inject_stat_questions.mjs` builds 2 `herGame` questions
+   per player via `scripts/knowher-stat-questions.mjs` (pure + unit-tested) and **weaves** them into the
+   human run at the ⅓ and ⅔ marks — the app plays questions in pool order, so appending would end every
+   quiz on two dry stat questions. Fails LOUD (exit 1) on a missing/unmatched athlete id or a duplicate
+   question id; the routine must then publish nothing.
+3. **Validate:** `load_knowher.mjs --dry-run` (server rules, no write) — on the MERGED pool. Running the
+   injection BEFORE validation is deliberate: if the model under-delivers human questions, the merged pool
+   falls under the 10-question floor and the run is rejected, so a thin quiz can never publish.
 4. **Publish:** `POST /knowher/ingest` — dedicated `KNOWHER_INGEST_KEY` (never the master admin key,
    never in the public repo), reusing the ONE validate→KV→markFeatured path so the once-per-season
    rotation always advances. Every accept/reject emits a diag.
@@ -283,6 +299,10 @@ NWSL players through men; this guardrail actively fights that. It's a brand valu
      but NOT 8 of them. Make stat questions actually think: MC options that are genuinely CLOSE (the
      minutes question — several 900-range options — was the only hard one, and it worked), or stats that
      aren't self-evident. Difficulty via *plausible-close options*, not obscurity.
+     ⚠️ **REFINED 2026-07-23:** "close" has a floor. Options a few units apart (`858/906/932/971`) stop being
+     a quiz and become mental arithmetic — nobody knows a minutes total to ±25. The rule is now *non-obvious
+     but reasonable*: far enough apart that a fan can REASON to the answer ("she played about ¾ of the
+     season"), never so close that only the exact number decides it. Enforced in code (§5d), not by prompt.
   2. **Only 1 fun fact, dumped at the END.** That sets a "stat quiz" vibe and underwhelms — the emotional
      bond is the whole point. Target **2–3 fun-fact questions, INTERLEAVED** through the set (not all at
      the end). Stats are the FLOOR to reach ~10, not the bulk. Lead human-first.
@@ -297,9 +317,21 @@ NWSL players through men; this guardrail actively fights that. It's a brand valu
 - **Hybrid is the goal for EVERY player** (the emotional bond is the point). A thin-content rookie
   skewing to "9 stats + 1 human" is an accepted *fallback FLOOR* — never the target; always reach for
   human details first, aim for 2–3, interleave them.
-- **Target mix (the ratio, per the canonical prompt):** **≥6 HUMAN/story** questions
-  (`herStory`/`herWorld`/`trueOrFalse`) and **≤4 stat/identity** (`herGame`); 2–3 of the human ones are the
-  delightful "fun facts," interleaved. The `9 stats + 1 human` line above is the floor, not the aim.
+- **Target mix (REVISED 2026-07-23, §5d):** the model writes **8–9 HUMAN questions**
+  (`herStory`/`herWorld`/`trueOrFalse`) — 2–3 of them the delightful "fun facts" — and **code adds exactly 2
+  `herGame`**, woven in at the ⅓ and ⅔ marks. Published quiz = 10–11. The old "≥6 human / ≤4 stat" ratio is
+  superseded: the model no longer writes stat questions at all, so the ratio is now structural rather than
+  something the prompt has to police. The server validator still enforces ≥5 human / ≤5 stat as a backstop.
+- **Thin-coverage fallback is now CAREER/IDENTITY, not stats** (previous clubs, college/youth club, how she
+  arrived, caps or a first call-up, a debut, an honor). Documented for every professional, still tells you
+  who she is, and never fabricated — the old "fall back to hard stat questions" escape hatch is gone with
+  the model's stat questions, and 8 human is a hard floor (fewer ⇒ the merged pool fails the 10-question gate).
+- **Distractor rule (code, `knowher-stat-questions.mjs`):** options are an evenly-spaced run whose step
+  scales with the stat's magnitude, so they're GETTABLE by reasoning, not by recalling an exact number. For
+  minutes the step is a fifth of what she COULD have played, so the four options read as visibly different
+  shares of the season; when her total sits near that ceiling, the top option becomes "every minute of every
+  match." An even run also leaks nothing about which option is the answer, and the answer's slot varies
+  deterministically per stat so "it's never first or last" can't become a free hint.
 - 📌 **Canonical generation prompt (single source of truth) — proxy repo
   `scripts/knowher-weekly-TEMPLATE.md`** (UPDATED 2026-07-13; §5d): the Rodman-faithful weekly template
   the automation fills via `scripts/assemble_knowher_prompt.mjs` and publishes via `/knowher/ingest`. It

@@ -415,6 +415,11 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
   watcher cron → detect → APNs (Queues / Broadcast Channels) → device → render. A **PERMANENT** reference —
   this connective sports-app knowledge (channels, clock anchoring, the fragile V2 wiring) is **NOT
   reconstructable from training**, so read it before ANY notification / Live-Activity / watcher / clock change.
+- **`docs/fan-zone.md`** — ⚠️ THE FAN ZONE SYSTEM DOC. How the four games actually work end-to-end: the
+  two families, the **cadence engine** (biweekly rounds are STAGGERED — both community games stay
+  playable; the anchor is a cross-repo contract with the proxy), state ownership (what's local vs
+  Supabase and why), progress restore, retention, scoring/Superfan, and an add-a-fifth-game checklist.
+  Read before touching any game. The BUILD RULES stay in `.claude/rules/fan-zone.md` (auto-loads).
 - **`docs/navigation.md`** — each tab's lens + adjacency rules (read when adding/redesigning a screen).
 - **`docs/versioning.md`** — the (non-semver) version model + distribution.
 - **`docs/roadmap.md`** — What's Next (pending work).

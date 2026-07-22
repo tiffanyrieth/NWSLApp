@@ -456,7 +456,7 @@ and proxy `tokens/colors.css`.
 - `Views/HomeView.swift` — remove `getToKnowYourPlayers` section; add cluster-card model builder +
   the 1-team-vs-2+ branch (mirror `predictCardModel`'s `count>=2` pattern) + destination routing.
 - `Components/FanZoneCard.swift` — amber accent case; add `isUnseen` bool + dot; unify done-dim.
-- New `Views/KnowHerGameView.swift` (intro/question/result) + `Views/KnowHerPickerView.swift` (mirror
+- New `Views/KnowHerGameView.swift` (intro/question/result) + `Views/KnowHerLandingView.swift` (mirror
   `PredictXIView` list → `.fanZoneGate` → `.sheet`); new `Stores/KnowHerGameStore.swift` (mirror
   `PredictionStore` keyed per week/team/player).
 - `DesignSystem/DSColor.swift` — `dsGameSpotlight`, `dsUnseen`.
@@ -545,7 +545,7 @@ Add a `docs/FILEMAP.md` entry.
 - Models `KnowHerGame.swift`; Service `KnowHerService.swift` (+ `AppConfig.knowHerURL()`, empty=failure);
   Store `KnowHerGameStore.swift` (`@Observable`; per-`{week}-{team}-{player}` played+score → UserDefaults;
   weekly streak).
-- Views `KnowHerGameView.swift` (intro→question→result, mirror `DailyTriviaView`) + `KnowHerPickerView.swift`
+- Views `KnowHerGameView.swift` (intro→question→result, mirror `DailyTriviaView`) + `KnowHerLandingView.swift`
   (multi-team, mirror `PredictXIView` list → `.fanZoneGate` → `.sheet`); result = personal score +
   community-results, NO leaderboard CTA.
 - `Components/FanZoneCard.swift`: `.knowHer` case + amber `dsGameSpotlight` + **cluster launcher card**

@@ -1,9 +1,10 @@
 //
-//  KnowHerPickerView.swift
+//  KnowHerLandingView.swift
 //  NWSLApp
 //
-//  Know Her Game — the picker / landing screen (Fan Zone v2 redesign). It's a small hub, not just a
-//  team selector, with three persistent sections:
+//  Know Her Game — the LANDING PAGE (Fan Zone v2 redesign; owner terminology 2026-07-21). Every entry to
+//  Know Her Game lands here first, single-team fan or many. It's a small hub, not just a team selector,
+//  with three persistent sections:
 //    • This round   — a row per followed team: an available player (tap to play / re-open results), or an
 //                     EXHAUSTED team (dimmed, "All eligible players featured"). When EVERY followed team
 //                     is exhausted this in-season round, the section is replaced by an "All caught up" state.
@@ -20,8 +21,8 @@
 
 import SwiftUI
 
-struct KnowHerPickerView: View {
-    /// The followed-team abbreviations (Home computes them for the gate too), so the picker
+struct KnowHerLandingView: View {
+    /// The followed-team abbreviations (Home computes them for the gate too), so the landing page
     /// can (re)load the pool if reached before Home warmed it.
     let teams: [String]
 

@@ -34,6 +34,12 @@ final class TriviaStore {
     private(set) var totalCorrect: Int
     private(set) var totalAnswered: Int
 
+    /// Correct answers in the CURRENT NWSL season only (zeroes at the season boundary), for the season-
+    /// scoped Superfan total — which never combines years. Distinct from lifetime `totalCorrect`.
+    private(set) var seasonCorrect: Int
+    /// The season `seasonCorrect` belongs to; a new season zeroes the counter.
+    private var counterSeason: Int
+
     /// Today's score (out of the day's question count). Only meaningful when
     /// `hasPlayedToday` — that's what the results screen shows on re-open.
     private(set) var lastScore: Int
@@ -53,6 +59,8 @@ final class TriviaStore {
         static let totalAnswered = "trivia.totalAnswered"
         static let lastScore = "trivia.lastScore"
         static let lastCompletedDay = "trivia.lastCompletedDay"
+        static let seasonCorrect = "trivia.seasonCorrect"
+        static let counterSeason = "trivia.counterSeason"
     }
 
     /// `defaults`/`now`/`calendar` are injectable so tests (and previews) can use
@@ -71,6 +79,17 @@ final class TriviaStore {
         self.totalAnswered = defaults.integer(forKey: Key.totalAnswered)
         self.lastScore = defaults.integer(forKey: Key.lastScore)
         self.lastCompletedDay = defaults.string(forKey: Key.lastCompletedDay)
+        self.seasonCorrect = defaults.integer(forKey: Key.seasonCorrect)
+        self.counterSeason = defaults.integer(forKey: Key.counterSeason)
+        // One-time seed when the season counter is first added (season 1): all lifetime correct IS this
+        // season's (no prior year exists yet), so the season-scoped Superfan total doesn't undercount
+        // pre-migration play. (`self` is fully initialized here, so `seasonNow` is usable.)
+        if defaults.object(forKey: Key.counterSeason) == nil {
+            counterSeason = seasonNow
+            seasonCorrect = totalCorrect
+            defaults.set(seasonCorrect, forKey: Key.seasonCorrect)
+            defaults.set(counterSeason, forKey: Key.counterSeason)
+        }
     }
 
     // MARK: - Derived
@@ -107,6 +126,10 @@ final class TriviaStore {
 
         totalCorrect += correct
         totalAnswered += total
+        // Season-scoped counter (the Superfan total never combines years): a new season zeroes it first.
+        let season = seasonNow
+        if counterSeason != season { seasonCorrect = 0; counterSeason = season }
+        seasonCorrect += correct
         lastScore = correct
         lastCompletedDay = today
 
@@ -122,6 +145,14 @@ final class TriviaStore {
         defaults.set(totalAnswered, forKey: Key.totalAnswered)
         defaults.set(lastScore, forKey: Key.lastScore)
         defaults.set(lastCompletedDay, forKey: Key.lastCompletedDay)
+        defaults.set(seasonCorrect, forKey: Key.seasonCorrect)
+        defaults.set(counterSeason, forKey: Key.counterSeason)
+    }
+
+    /// The current NWSL season year from the injectable clock (Jan/Feb still counts as the prior year).
+    private var seasonNow: Int {
+        let year = calendar.component(.year, from: now())
+        return calendar.component(.month, from: now()) < 3 ? year - 1 : year
     }
 
     /// Wipe all local Trivia progress on account deletion — resets the in-memory
@@ -133,6 +164,8 @@ final class TriviaStore {
         bestStreak = 0
         totalCorrect = 0
         totalAnswered = 0
+        seasonCorrect = 0
+        counterSeason = 0
         lastScore = 0
         lastCompletedDay = nil
         persist()

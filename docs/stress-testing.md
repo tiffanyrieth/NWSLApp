@@ -152,6 +152,13 @@ For each subsystem, walk it explicitly:
         multi-MB fetch. Now capped at `LeaderboardRanking.visibleLimit` (top-100) + a COUNT-based true rank,
         so a board is O(100) regardless of scale. Passes the 1k gate. (Open headroom, not a 1k blocker:
         `quiz_answers` grows unbounded — materialize each closed edition's aggregate + prune when it matters.)
+      - **[x] Superfan Zone (`superfan_scores`) — PASSES 1k.** ONE row per user per season (PK
+        (user_id, season)); a detail-screen open does exactly **1 upsert + 2 `count: .exact, head: true`
+        reads** (zero rows transferred — the tier/percentile is a HEAD count, never a table scan) + 1 tiny
+        own-row select. No per-tick load (opened on demand, not polled), no fan-out, no leaderboard render
+        (the client shows only the count, not a rows list). Same read shape as the Predict/Bracket boards,
+        which already pass 1k. **100k lever:** the two count queries ride the same pattern as the existing
+        boards — no new bottleneck; the season-partition PK keeps each count scoped to the current year.
 - [ ] **APNs pacing / connection reuse** — HTTP/2 throughput of raw sends at hundreds/batch (relevant to
       the Queues consumer's per-invocation batch size).
 - [ ] **iOS local-notification 64 pending cap** — day-before is already windowed to the next 2 fixtures

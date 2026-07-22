@@ -164,6 +164,25 @@ final class KnowHerGameStore {
     /// points-like — comparable to Trivia's lifetime-correct in `GameCenterScores.superfanTotal`.
     var totalPoints: Int { scores.values.reduce(0, +) }
 
+    /// Banked edition points from a given NWSL season only (the edition's weekKey year == `year`), for the
+    /// season-scoped Superfan total — which never combines years. editionKey = "{weekKey}-{team}-{athleteId}"
+    /// and weekKey ("2026-W29") carries the ISO year.
+    func seasonPoints(year: Int) -> Int {
+        scores.reduce(0) { sum, entry in
+            (entry.key.split(separator: "-").first.flatMap { Int($0) }) == year ? sum + entry.value : sum
+        }
+    }
+
+    /// Whether any edition from `year` was banked (for the Superfan "games played this season" count).
+    func playedInSeason(year: Int) -> Bool {
+        scores.keys.contains { ($0.split(separator: "-").first.flatMap { Int($0) }) == year }
+    }
+
+    /// How many editions were banked in `year` (the Superfan "N players learned this season" highlight).
+    func seasonEditionsPlayed(year: Int) -> Int {
+        scores.keys.filter { ($0.split(separator: "-").first.flatMap { Int($0) }) == year }.count
+    }
+
     // MARK: - Mutation
 
     /// Bank a completed edition and bump the weekly streak (§14). Idempotent per edition —

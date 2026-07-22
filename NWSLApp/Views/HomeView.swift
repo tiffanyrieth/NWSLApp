@@ -431,12 +431,15 @@ struct HomeView: View {
                 // played, total > 0). Stays even when a game is hidden, since it gates on
                 // games PLAYED, not games currently visible.
                 if superfanBannerVisible {
-                    SuperfanCard(
-                        predictPoints: predict.seasonPoints,
-                        bracketPoints: bracket.points,
-                        triviaCorrect: trivia.totalCorrect,
-                        knowHerPoints: knowHer.totalPoints
-                    )
+                    NavigationLink { SuperfanDetailView() } label: {
+                        SuperfanCard(
+                            predictPoints: predict.seasonPoints,
+                            bracketPoints: bracket.points,
+                            triviaCorrect: trivia.seasonCorrect,
+                            knowHerPoints: knowHer.seasonPoints(year: AppConfig.currentSeasonYear)
+                        )
+                    }
+                    .buttonStyle(.plain)
                     .frame(width: 152)
                 }
             }
@@ -448,13 +451,14 @@ struct HomeView: View {
     /// Show the Superfan banner only once the user has genuine scores in ≥2 games AND a
     /// non-zero total — never a meaningless "0" for a new user (handoff visibility rule).
     private var superfanBannerVisible: Bool {
-        let played = [predict.hasPredicted, bracket.hasPlayed, trivia.totalAnswered > 0, knowHer.totalPoints > 0]
-            .filter { $0 }.count
+        let season = AppConfig.currentSeasonYear
+        let played = [predict.hasPredicted, bracket.hasPlayed, trivia.totalAnswered > 0,
+                      knowHer.playedInSeason(year: season)].filter { $0 }.count
         let total = GameCenterScores.superfanTotal(
-            triviaTotalCorrect: trivia.totalCorrect,
+            triviaTotalCorrect: trivia.seasonCorrect,
             predictSeasonPoints: predict.seasonPoints,
             bracketPoints: bracket.points,
-            knowHerPoints: knowHer.totalPoints)
+            knowHerPoints: knowHer.seasonPoints(year: season))
         return played >= 2 && total > 0
     }
 

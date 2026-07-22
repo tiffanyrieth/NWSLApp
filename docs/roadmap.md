@@ -29,6 +29,22 @@
 > - README/showcase copy already reframed to match (PR #152); CLAUDE.md carries the
 >   values-vs-mechanics stance so future copy stays consistent.
 
+> ### ♿ PRE-RELEASE GATE — accessibility (owner 2026-07-21; must ship BEFORE launch)
+> Accessibility is a release gate, not a nice-to-have — in an inclusive space like NWSL it must not be
+> overlooked. NOT yet built; this is a scoped workstream to audit + complete before launch. Two parts:
+> - **Blind / low-vision (VoiceOver + Dynamic Type):** systematic pass. Custom-DRAWN elements need
+>   explicit `.accessibilityLabel` (formation-pitch dots, `StatComparisonBar`, score header, live clock,
+>   image-only crests/headshots); GROUP compound units so a match card reads as one element ("Chicago 0,
+>   Angel City 2, Full Time") not fragments; revisit the Dynamic Type **AX1 cap** per-screen (density vs
+>   larger AX sizes — trade-off).
+> - **Color-blind:** never rely on color ALONE — redundant encoding (letter/shape/icon) + respond to
+>   `@Environment(\.accessibilityDifferentiateWithoutColor)`, usually better than a custom mode.
+> Current state = PARTIAL, not zero (FormBadge shows W/D/L letter+color = color-blind safe; text uses
+> `.dsFont`/@ScaledMetric; scattered labels exist) → the work is systematic completion + an audit, then a
+> punch-list. First step when picked up: run the audit (read + VoiceOver in sim). Detail in the
+> accessibility-pre-release-gate memory. (Dark-only is NOT an a11y issue — the app's color balances it.)
+> Also still pending here: profanity-filter the editable leaderboard display name before public launch.
+
 > ### ✅ BUILT (proxy) + ⏳ first-Monday verify — Know Her Game weekly automation (2026-07-13)
 > The full no-human weekly loop is BUILT (proxy branch `feature/knowher-weekly-automation`): deterministic
 > prompt assembly (`assemble_knowher_prompt.mjs` fills the Rodman-faithful `knowher-weekly-TEMPLATE.md`
@@ -77,7 +93,12 @@ Pending work only (ALIVE > core > hardening); shipped work lives in git history 
 - **Pull-to-refresh polish** — keep the list visible during refresh (spinner only on first load).
 - **Home follow-ups:** spotlight no-repeat-per-season + opt-in weekly notif.
 - **Player headshots Phase B2 banners** — DEFERRED (licensing).
-- **Accessibility:** Dynamic Type shipped (AX1 cap); profanity-filter the editable leaderboard display name before public launch.
+- **Accessibility** — now a PRE-RELEASE GATE (see the ♿ callout above): VoiceOver + color-blind pass before launch.
+- **More team-color vibrancy (owner interested 2026-07-21)** — extend the MatchDetail team-color wash to more
+  surfaces so club color carries further (candidate surfaces: Home header, Team detail, schedule cards,
+  standings followed-team rows, player detail already uses `accentHex`). Keeps the neutral-canvas philosophy
+  — color comes from the TEAMS, not the chrome; the crest/abbreviation identity rules still hold. Design pass,
+  scope per-surface with the owner (don't recolor chrome globally). Reference: MatchDetail header wash.
 
 **Hardening (after ALIVE work):**
 - `Fixtures/scoreboard.json` + decode-only test for `Scoreboard`/Event helpers (date parsing, `dayKey` TZ).

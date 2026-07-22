@@ -65,14 +65,22 @@ struct CombinedPitchView: View {
 
     /// A pitch marker that pushes the player's stat screen when tapped (same PlayerDetailView
     /// as Teams → team → player). Falls back to a plain, non-tappable dot when ESPN gave no
-    /// athlete id. `.buttonStyle(.plain)` keeps the disc's look; the destination is registered
-    /// in MatchDetailView (`navigationDestination(for: LineupPlayerRef.self)`).
+    /// athlete id. `.buttonStyle(.plain)` keeps the disc's look.
+    ///
+    /// CLOSURE-based NavigationLink (not value + `navigationDestination(for:)`): a for-based
+    /// destination has to be registered at the NavigationStack ROOT, but MatchDetail is a
+    /// PUSHED child hosted by three different stacks (Schedule ×2, Home). Registering it on the
+    /// pushed MatchDetail mis-scoped the destination, so the first tap shoved a DUPLICATE
+    /// MatchDetail on top of the player page (2026-07-18 bug). A self-contained closure link
+    /// works in any stack and matches the schedule match-card pattern.
     @ViewBuilder
     private func playerDot(_ player: MatchPlayer, side: Side) -> some View {
         if let athlete = player.asAthlete {
-            NavigationLink(value: LineupPlayerRef(athlete: athlete,
-                                                  clubID: side.clubID,
-                                                  accentHex: DesignTeamColors.hex(for: side.abbr))) {
+            NavigationLink {
+                LineupPlayerStatsView(ref: LineupPlayerRef(athlete: athlete,
+                                                           clubID: side.clubID,
+                                                           accentHex: DesignTeamColors.hex(for: side.abbr)))
+            } label: {
                 PitchDot(player: player, accent: side.accent)
             }
             .buttonStyle(.plain)

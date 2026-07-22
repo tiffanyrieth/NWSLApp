@@ -470,18 +470,14 @@ struct HomeView: View {
         }
     }
 
-    /// One followed team with a player → straight to the intro (docs §3); 2+ → the picker.
-    @ViewBuilder
+    /// The Know Her Game landing page (`KnowHerPickerView`) — ALWAYS shown, even for a single-team fan.
+    /// It's a hub, not just a team selector: the round number, this round's player(s), last round's
+    /// results, and the "how players are chosen" explainer. Tapping a player row plays; the picker also
+    /// hosts the honest exhausted state. (Previously a one-team fan with no last-round data was dropped
+    /// straight into the game — inconsistent once the picker became a real landing page, owner call
+    /// 2026-07-21: Round 1 went straight in, Round 2+ hit the picker.)
     private var knowHerDestination: some View {
-        let players = knowHer.players
-        // Go straight to the game only for a single-team fan with NOTHING else to show. Route through
-        // the picker when there are multiple players OR a "Last week" section exists — otherwise a
-        // one-team fan would have no way to reach last week's results.
-        if players.count == 1 && !knowHer.hasPreviousWeek {
-            KnowHerGameView(player: players[0], weekKey: knowHer.weekKey ?? "")
-        } else {
-            KnowHerPickerView(teams: viewModel.followedTeamAbbreviations(following: following))
-        }
+        KnowHerPickerView(teams: viewModel.followedTeamAbbreviations(following: following))
     }
 
     // MARK: Fan Zone card models — HomeView owns the per-game state logic and hands

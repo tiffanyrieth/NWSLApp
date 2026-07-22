@@ -106,6 +106,11 @@ struct RootTabView: View {
     // it after the session restores (see FollowSyncCoordinator).
     @State private var syncCoordinator: FollowSyncCoordinator?
 
+    // Fan Zone progress restore (reinstall / replacement phone) — the game-stats twin of
+    // syncCoordinator. Held alive here, not injected: game views upload via per-game partial
+    // upserts (ProgressSyncService), so only the sign-in restore lives in the coordinator.
+    @State private var progressCoordinator: ProgressSyncCoordinator?
+
     // Owns local (Tier 1) notification scheduling — day-before match reminders +
     // the weekly Player Spotlight. Like syncCoordinator, held alive here and not
     // injected (no view reads it); it reschedules when the season, the club
@@ -306,6 +311,14 @@ struct RootTabView: View {
                 let coordinator = FollowSyncCoordinator(following: following, auth: auth)
                 coordinator.start()
                 syncCoordinator = coordinator
+            }
+            if progressCoordinator == nil {
+                // Fan Zone progress restore (reinstall / replacement phone): fetch + monotonic-merge
+                // the server summary row into the game stores at sign-in; game views push completions
+                // up through this same coordinator. Sibling of syncCoordinator, same lifecycle.
+                let coordinator = ProgressSyncCoordinator(trivia: trivia, knowHer: knowHer, auth: auth)
+                coordinator.start()
+                progressCoordinator = coordinator
             }
             // One-time seed of per-team alerts from the old GLOBAL Match Day toggles,
             // so existing testers don't silently lose alerts on upgrade. Idempotent

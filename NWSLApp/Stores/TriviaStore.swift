@@ -193,6 +193,31 @@ final class TriviaStore {
         persist()
     }
 
+    // MARK: - Progress restore (ProgressSyncService — reinstall / replacement phone)
+
+    /// This store's contribution to the per-user summary row.
+    func progressSnapshot() -> (lifetimeCorrect: Int, lifetimeAnswered: Int, bestStreak: Int,
+                                seasonCorrect: Int, roundStreak: Int, lastRound: Int) {
+        (totalCorrect, totalAnswered, bestStreak, seasonCorrect, streak, lastCompletedRound)
+    }
+
+    /// Fold a MERGED snapshot back in at sign-in (ProgressSnapshot.merge already resolved which side
+    /// wins, monotonically — so this only ever raises counters / adopts a fresher streak pair; a
+    /// fresh install simply takes the server values). Per-round scores/picks are NOT restored: they
+    /// are pruned history (retention rule), and the community recap works without them.
+    func restoreProgress(lifetimeCorrect: Int, lifetimeAnswered: Int, bestStreak restoredBest: Int,
+                         seasonCorrect restoredSeason: Int, roundStreak: Int, lastRound: Int) {
+        totalCorrect = max(totalCorrect, lifetimeCorrect)
+        totalAnswered = max(totalAnswered, lifetimeAnswered)
+        bestStreak = max(bestStreak, restoredBest)
+        seasonCorrect = max(seasonCorrect, restoredSeason)
+        if lastRound > lastCompletedRound {
+            streak = roundStreak
+            lastCompletedRound = lastRound
+        }
+        persist()
+    }
+
     /// Owner retention rule: current + previous round only. Keys are zero-padded ("2026-R08"),
     /// so lexical order == chronological order, including across a season boundary
     /// ("2027-R01" > "2026-R26") — keep the two largest, drop the rest.

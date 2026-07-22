@@ -43,6 +43,19 @@ final class KnowHerGameStore {
     /// pool (see `loadIfNeeded`); a staler pool is dropped so "Last week" never lies.
     private(set) var previousPool: KnowHerPool?
 
+    /// Restored SEASON baseline from the server summary row (ProgressSyncService) — the reinstall/
+    /// replacement-phone path. The `scores` dict is per-edition detail this device has actually played;
+    /// after a wipe it's empty even though the season totals live on the server. Rather than fabricate
+    /// synthetic score entries, the season reads below take `max(local-derived, baseline)` — the same
+    /// monotonic clamp the rest of restore uses, and immune to double-counting when local play and the
+    /// baseline overlap (the server row was BUILT from those same completions).
+    private struct SeasonBaseline: Codable, Equatable {
+        var year: Int
+        var points: Int
+        var editions: Int
+    }
+    private var restoredBaseline: SeasonBaseline?
+
     private let defaults: UserDefaults
     private let service: KnowHerService
 
@@ -52,6 +65,7 @@ final class KnowHerGameStore {
         static let bestWeeklyStreak = "knowher.v1.bestWeeklyStreak"
         static let lastCompletedWeek = "knowher.v1.lastCompletedWeek"
         static let previousPool = "knowher.v1.previousPool"
+        static let restoredBaseline = "knowher.v1.restoredBaseline"
     }
 
     init(defaults: UserDefaults = .standard, service: KnowHerService = KnowHerService()) {
@@ -62,6 +76,7 @@ final class KnowHerGameStore {
         self.bestWeeklyStreak = defaults.integer(forKey: Key.bestWeeklyStreak)
         self.lastCompletedWeek = defaults.string(forKey: Key.lastCompletedWeek)
         self.previousPool = Self.decode(KnowHerPool.self, defaults.data(forKey: Key.previousPool))
+        self.restoredBaseline = Self.decode(SeasonBaseline.self, defaults.data(forKey: Key.restoredBaseline))
     }
 
     // MARK: - Loading (in-memory pool)
@@ -166,21 +181,53 @@ final class KnowHerGameStore {
 
     /// Banked edition points from a given NWSL season only (the edition's weekKey year == `year`), for the
     /// season-scoped Superfan total — which never combines years. editionKey = "{weekKey}-{team}-{athleteId}"
-    /// and weekKey ("2026-W29") carries the ISO year.
+    /// and weekKey ("2026-W29") carries the ISO year. Floored at the restored baseline (see
+    /// `SeasonBaseline`): after a reinstall the local dict is empty but the season total is not lost.
     func seasonPoints(year: Int) -> Int {
-        scores.reduce(0) { sum, entry in
+        let local = scores.reduce(0) { sum, entry in
             (entry.key.split(separator: "-").first.flatMap { Int($0) }) == year ? sum + entry.value : sum
         }
+        let baseline = (restoredBaseline?.year == year) ? restoredBaseline?.points ?? 0 : 0
+        return max(local, baseline)
     }
 
     /// Whether any edition from `year` was banked (for the Superfan "games played this season" count).
     func playedInSeason(year: Int) -> Bool {
-        scores.keys.contains { ($0.split(separator: "-").first.flatMap { Int($0) }) == year }
+        seasonEditionsPlayed(year: year) > 0
     }
 
     /// How many editions were banked in `year` (the Superfan "N players learned this season" highlight).
     func seasonEditionsPlayed(year: Int) -> Int {
-        scores.keys.filter { ($0.split(separator: "-").first.flatMap { Int($0) }) == year }.count
+        let local = scores.keys.filter { ($0.split(separator: "-").first.flatMap { Int($0) }) == year }.count
+        let baseline = (restoredBaseline?.year == year) ? restoredBaseline?.editions ?? 0 : 0
+        return max(local, baseline)
+    }
+
+    // MARK: - Progress restore (ProgressSyncService — reinstall / replacement phone)
+
+    /// This store's contribution to the per-user summary row (for `year`).
+    func progressSnapshot(year: Int) -> (points: Int, editions: Int, weekStreak: Int,
+                                         bestWeekStreak: Int, lastWeek: String?) {
+        (seasonPoints(year: year), seasonEditionsPlayed(year: year),
+         weeklyStreak, bestWeeklyStreak, lastCompletedWeek)
+    }
+
+    /// Fold a MERGED snapshot back in at sign-in (the merge already resolved which side wins,
+    /// monotonically). Season totals land as the baseline floor; the streak pair is adopted only when
+    /// the server side has played more recently (ISO weekKeys compare lexically == chronologically).
+    func restoreProgress(year: Int, points: Int, editions: Int,
+                         weekStreak: Int, bestWeekStreak restoredBest: Int, lastWeek: String?) {
+        let current = (restoredBaseline?.year == year) ? restoredBaseline : nil
+        restoredBaseline = SeasonBaseline(year: year,
+                                          points: max(current?.points ?? 0, points),
+                                          editions: max(current?.editions ?? 0, editions))
+        bestWeeklyStreak = max(bestWeeklyStreak, restoredBest)
+        if let lastWeek, lastWeek > (lastCompletedWeek ?? "") {
+            weeklyStreak = weekStreak
+            lastCompletedWeek = lastWeek
+        }
+        defaults.set(try? JSONEncoder().encode(restoredBaseline), forKey: Key.restoredBaseline)
+        persist()
     }
 
     // MARK: - Mutation
@@ -243,7 +290,9 @@ final class KnowHerGameStore {
         bestWeeklyStreak = 0
         lastCompletedWeek = nil
         previousPool = nil
+        restoredBaseline = nil
         defaults.removeObject(forKey: Key.previousPool)
+        defaults.removeObject(forKey: Key.restoredBaseline)
         persist()
     }
 
@@ -262,6 +311,7 @@ final class KnowHerGameStore {
         defaults.set(0, forKey: Key.bestWeeklyStreak)
         defaults.set("", forKey: Key.lastCompletedWeek)
         defaults.set(Data(), forKey: Key.previousPool)
+        defaults.set(Data(), forKey: Key.restoredBaseline)
     }
     #endif
 }

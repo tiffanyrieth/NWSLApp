@@ -334,7 +334,8 @@ struct KnowHerGameView: View {
         guard !viewModel.isFinished else { return }
         viewModel.finish()
         store.recordCompletion(editionKey: viewModel.editionKey, weekKey: weekKey, correct: viewModel.score)
-        // Signed in (gated at Start) → persist the per-question answers to the community aggregate.
+        // Signed in (gated at Start) → persist the per-question answers to the community aggregate,
+        // and push the progress summary (the reinstall-restore row — partial columns, KHG's only).
         if let userID = auth.userID {
             let answers = viewModel.communityAnswers()
             let edition = viewModel.editionKey
@@ -343,6 +344,14 @@ struct KnowHerGameView: View {
             writeTask = Task {
                 await QuizResultsService().upsert(game: "knowher", editionKey: edition,
                     answers: answers, userID: userID, season: String(AppConfig.currentSeasonYear))
+            }
+            let year = AppConfig.currentSeasonYear
+            let p = store.progressSnapshot(year: year)
+            Task {
+                await ProgressSyncService().uploadKnowHer(
+                    points: p.points, editions: p.editions, weekStreak: p.weekStreak,
+                    bestWeekStreak: p.bestWeekStreak, lastWeek: p.lastWeek,
+                    userID: userID, season: String(year))
             }
         }
     }

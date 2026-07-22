@@ -350,7 +350,8 @@ struct TriviaRoundView: View {
         }
         if store.bestStreak >= 7 { GameCenterManager.shared.report(GameCenterID.Achievement.triviaStreak7) }
         if store.bestStreak >= 30 { GameCenterManager.shared.report(GameCenterID.Achievement.triviaStreak30) }
-        // Signed in (gated at Start) → persist per-question answers to the shared community aggregate.
+        // Signed in (gated at Start) → persist per-question answers to the shared community aggregate,
+        // and push the progress summary (the reinstall-restore row — partial columns, trivia's only).
         if let userID = auth.userID {
             let answers = viewModel.communityAnswers()
             let edition = viewModel.editionKey
@@ -358,6 +359,14 @@ struct TriviaRoundView: View {
             writeTask = Task {
                 await QuizResultsService().upsert(game: "trivia", editionKey: edition,
                     answers: answers, userID: userID, season: String(AppConfig.currentSeasonYear))
+            }
+            let p = store.progressSnapshot()
+            Task {
+                await ProgressSyncService().uploadTrivia(
+                    lifetimeCorrect: p.lifetimeCorrect, lifetimeAnswered: p.lifetimeAnswered,
+                    bestStreak: p.bestStreak, seasonCorrect: p.seasonCorrect,
+                    roundStreak: p.roundStreak, lastRound: p.lastRound,
+                    userID: userID, season: String(AppConfig.currentSeasonYear))
             }
         }
     }

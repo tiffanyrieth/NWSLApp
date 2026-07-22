@@ -219,10 +219,21 @@ API** = fallback. Owner-validated via independent research.
   + ≥2 distinct domains + resolves) makes PUBLISHED output trustworthy on ANY engine — we are ~90% there;
   the remainder is sourcing trial-and-error, not an app-build blocker.
 
-## 5d. ✅ SETTLED + BUILT (2026-07-13) — the automated weekly pipeline (supersedes the open items above)
+## 5d. ✅ SETTLED + BUILT (2026-07-13) — the automated pipeline (supersedes the open items above)
 
-The engine question is CLOSED: **a weekly Claude Routine (owner's subscription, Sonnet, Monday 09:00 UTC
-≈ 5am ET)** runs the **FULL fine-tuned Rodman-WORKING query** — the owner declared that prompt final
+> **⚠️ UPDATE 2026-07-22/23 (current state — older text below is the original design record):** the pipeline
+> is now **BIWEEKLY**, not weekly — Know Her Game alternates the Fan Zone quiz slot with NWSL Trivia (Week 1 =
+> KHG), gated on a COMMITTED `SEASON_ANCHOR` constant in `assemble_knowher_prompt.mjs` (the routine UI has NO
+> env-var field; `KHG_SEASON_ANCHOR` env var = test override only). Eligibility floor is now `starts>=1 ||
+> minutes>=100`; the pool stamps `espnTeamId` + a per-edition `round`. **Content-quality lints** now gate the
+> routine's dry-run (`load_knowher.mjs` `validatePool`: ≥10 Qs/player, ≥6 human/≤5 stat, ≤65% "True" T/F) and
+> the pool is written in ~4-player **batches** (beats the 32k output-token cap). The picker was renamed
+> `KnowHerPickerView` → `KnowHerLandingView` (a 4-state landing page). Routine model is currently `sonnet-4-6`
+> (owner to flip to Opus). NEXT: move the deterministic stat questions into code (see the active plan). The
+> "runs every Monday" references below now mean "every OTHER Monday."
+
+The engine question is CLOSED: **a Claude Routine (owner's subscription, overnight Monday)** runs the
+**FULL fine-tuned Rodman-WORKING query** — the owner declared that prompt final
 ("generated the perfect questions"; the old MC-difficulty frontier is closed). This supersedes §5's
 "code-templated stat questions + Haiku fun facts" sketch: the tuned prompt writes ALL questions,
 including stat ones built from the verified numbers the proxy provides (no stat lookups, so the old

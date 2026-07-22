@@ -156,8 +156,13 @@ brief "Restoring…" until `restoreResolved`, never the picker). Coordinators: `
 Trade-off: two devices on one account diverging offline → last writer wins (acceptable at current scale;
 upgrade to per-item `updated_at` last-write-wins if heavy multi-device curation appears). Schema at
 `supabase/schema.sql`. **Gotcha:** RLS alone isn't enough — a new per-user table needs
-`grant … to authenticated` or signed-in queries silently fail with `42501`. Client built from gitignored
-`Secrets` (`Services/SupabaseManager.swift`).
+`grant … to authenticated` or signed-in queries silently fail with `42501`. **Fan Zone scores (v2,
+applied 2026-07-22):** `superfan_scores` (`migration_superfan_scores.sql`, PK `(user_id, season)`) holds
+each fan's cross-game season total + `games_played` (the ≥2-game qualifier for the client-computed
+tier/percentile); world-readable `select` (`grant … to anon, authenticated`) so the rank is browsable,
+own-row `insert`/`update` only — the app (`SuperfanService`) reads/writes it DIRECTLY with **no
+proxy/service_role path** (contrast the watcher/proxy tables above, no Postgres function). Client built
+from gitignored `Secrets` (`Services/SupabaseManager.swift`).
 
 **Account deletion (right-to-be-forgotten / App Store requirement):** the client can't delete an
 `auth.users` row (needs the service-role key), so Profile → Delete Account calls the proxy

@@ -70,9 +70,12 @@ the context goes generic ("N predictions open") and the countdown is the SOONEST
 open (unsubmitted) predictions — never naming one team. Tapping through lists every followed team's
 next fixture (one per team) in `PredictXIView` — unchanged.
 The **Superfan summary is the TRAILING card** at the end of the row (`SuperfanCard`,
-`GameCenterScores.superfanTotal`, **display-only** — the actual Game Center submit still happens in
-`GameCenterManager.syncAll`), gated to **≥2 games played AND total > 0** (`superfanBannerVisible`; it
-counts games *played*, so it stays even when a game is hidden). Countdowns via the pure
+`GameCenterScores.superfanTotal`; the card body is display-only — the Game Center submit still happens in
+`GameCenterManager.syncAll`) — but as of Fan Zone v2 it is **TAPPABLE → `SuperfanDetailView`**, a cross-game
+season stats hub (season total, competitive tier + percentile, per-game breakdown, "Your best moments"),
+backed by the `superfan_scores` Supabase table + `SuperfanService`/`SuperfanStats` (`SuperfanTier`/
+`SuperfanStanding`; season-scoped, passes the 1k stress gate). Gated to **≥2 games played AND total > 0**
+(`superfanBannerVisible`; it counts games *played*, so it stays even when a game is hidden). Countdowns via the pure
 `compactCountdown(to:from:)`. Each game keeps its accent: predict `dsGamePredict` (pink), bracket
 `dsGameBracket` (teal), know-her `dsGameSpotlight` (amber), trivia `dsGameTrivia` (indigo). Below the
 row, **Club News** is a PINNED
@@ -120,23 +123,30 @@ formation + a distinct random player per slot (position-blind, score untouched);
 
 ## Know Her Game
 
-Weekly per-team player quiz (community family — the KHG-as-template for the Trivia rebuild). `KnowHerPool`/
-`KnowHerPlayer`/`KnowHerQuestion` (mirrors proxy `src/knowher.ts`) · `KnowHerGameStore` (`knowher.v1.*`,
-per-edition scores keyed `{weekKey}-{team}-{athleteId}`, weekly streak, PERSISTED `previousPool` = one-week
-"Last week" grace window kept only if exactly the prior ISO week) · `KnowHerGameViewModel` (transient
-session) · results via the shared `CommunityResultsView` (amber `dsGameSpotlight`). Flow: `KnowHerPickerView`
-(multi-team, or single-team when a "Last week" section exists) → `KnowHerGameView` (intro→question→result,
-`Entry .play/.review`). Content is fully-automated weekly (see `docs/know-her-game.md`). One featured player
-per followed team per week; hidden when no followed team has a featured player.
+**BIWEEKLY** per-team player quiz (community family — the KHG-as-template for the Trivia rebuild). It
+**alternates the Fan Zone quiz slot with NWSL Trivia** (Week 1 = KHG); editions are numbered "Round N"
+(proxy-stamped), Know Her Game as a season of rounds. `KnowHerPool`/`KnowHerPlayer`/`KnowHerQuestion`
+(mirrors proxy `src/knowher.ts`) · `KnowHerGameStore` (`knowher.v1.*`, per-edition scores keyed
+`{weekKey}-{team}-{athleteId}`, edition streak, PERSISTED `previousPool` = "Last round" grace window kept
+only if the immediately-prior KHG edition (biweekly = 1–2 ISO weeks back)) · `KnowHerGameViewModel`
+(transient session) · results via the shared `CommunityResultsView` (amber `dsGameSpotlight`). Flow:
+`KnowHerLandingView` — a small landing hub (not just a team selector) with three persistent sections
+(This round · Last round · How players are chosen), plus an honest "all caught up" state when every
+followed team is exhausted this round → `KnowHerGameView` (intro→question→result, `Entry .play/.review`).
+Content is fully-automated (see `docs/know-her-game.md`). One featured player per followed team per round;
+hidden when no followed team has a featured player.
 
 ## NWSL Trivia
 
-⚠️ **Being REBUILT next week** (Daily → WEEKLY redesign, `docs/nwsl-trivia-weekly-redesign.md`) — treat the
-below as the CURRENT (soon-legacy) shape, and rebuild it into the **community family** (Know Her Game is the
-template). Today: 5 questions/day, one scored play per local day (Wordle-style gate); `TriviaStore`
-(streak/bestStreak/totalCorrect/accuracy); `TriviaService` throws on failure OR empty pool (online-only, no
-seed); results via the shared `CommunityResultsView` (indigo `dsGameTrivia`). The old league-wide best-streak
-board (`TriviaLeaderboardService`) is retired from the UI.
+**UI FACELIFT DONE, question-engine redesign STILL PARKED.** The interface was rebuilt onto the **community
+family** (Fan Zone v2 — Know Her Game is the template): `DailyTriviaView` now has an intro screen, progress
+DOTS, tap-to-answer with auto-advance (no Submit button), the shared `ScoreRing`, a score-based title, a
+"+N points" Superfan pill, and the shared `CommunityResultsView` panel (indigo `dsGameTrivia`) as the
+post-game payoff. **CADENCE IS UNCHANGED** — the separate **Daily → WEEKLY question-sourcing redesign**
+(`docs/nwsl-trivia-weekly-redesign.md`) is still to build; until it lands Trivia stays DAILY: 5 questions/day,
+one scored play per local day (Wordle-style gate), copy still daily ("Today's quiz", "day streak").
+`TriviaStore` (streak/bestStreak/totalCorrect/accuracy); `TriviaService` throws on failure OR empty pool
+(online-only, no seed). The old league-wide best-streak board (`TriviaLeaderboardService`) is retired from the UI.
 
 ## Sign-in & honesty
 
@@ -174,7 +184,10 @@ we don't have to run that report again" contract.)
 - Buttons → `DSButton`. Error/empty states → `RetryStateView` (retry renders through DSButton). Team
   colors → `Color.teamColor(for:liftOnDark:fallback:)`. Player avatars → `PlayerHeadshot` (ring + monogram
   are the caller's overlay). Voice pills → `CategoryPill`. The "how everyone did" panel →
-  `CommunityResultsView` (shared by both community games; takes the caller's accent).
+  `CommunityResultsView` (shared by both community games; takes the caller's accent). Team-color card
+  washes → `TeamWashBackground` (`Components/TeamColorWash.swift`, Fan Zone v2) — a subtle one- or two-team
+  color wash over a base surface; already on the Predict fixture/result cards + the per-team "Predictors"
+  leaderboard card, and `MatchCard` migrated onto it.
 - Surfaces + text via DS tokens ONLY: no `Color(.systemGroupedBackground)` / `.systemGray*` / `.separator`;
   no raw `.white` (→ `Color.dsFgPrimary`); no raw `.font(.system/.headline…)` for READABLE text (→
   `.dsFont`). **EXEMPT — keep `.font(.system)`:** monograms/badge letters inside fixed-size dots + fixed-

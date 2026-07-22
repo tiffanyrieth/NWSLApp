@@ -28,7 +28,13 @@ struct QuizAnswer {
 }
 
 /// The decoded community distribution for one edition (the proxy `/quiz-results` payload).
-/// When `revealed` is false (a still-open Trivia day) the aggregate fields are absent.
+/// When `revealed` is false (a still-open Trivia day) the aggregate fields are ABSENT —
+/// the payload is just `{game, editionKey, revealed:false}`. A CUSTOM decoder is required:
+/// Swift's synthesized `Decodable` IGNORES a property's default value and throws
+/// `keyNotFound` on a missing non-optional key, so the synthesized version failed to decode
+/// the sparse payload → the "how everyone did" panel showed a false "couldn't load" every
+/// day a fan played Trivia (looked broken). `decodeIfPresent` + fallbacks fixes it and also
+/// hardens the shared Know Her path against any future sparse payload.
 struct QuizResults: Decodable {
     let revealed: Bool
     var responders: Int = 0
@@ -45,6 +51,19 @@ struct QuizResults: Decodable {
 
         var id: String { questionId }
         func count(forOption index: Int) -> Int { optionCounts[String(index)] ?? 0 }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case revealed, responders, showPercent, avgCorrect, questions
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        revealed = try c.decode(Bool.self, forKey: .revealed)   // the one field always present
+        responders = try c.decodeIfPresent(Int.self, forKey: .responders) ?? 0
+        showPercent = try c.decodeIfPresent(Bool.self, forKey: .showPercent) ?? false
+        avgCorrect = try c.decodeIfPresent(Double.self, forKey: .avgCorrect)
+        questions = try c.decodeIfPresent([Question].self, forKey: .questions) ?? []
     }
 }
 

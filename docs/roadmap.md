@@ -92,9 +92,11 @@
 > - **Know Her Game → BIWEEKLY + landing page:** KHG now alternates the Fan Zone quiz slot with NWSL
 >   Trivia (Week 1 = KHG), editions numbered "Round N"; the old `KnowHerPickerView` is now the richer
 >   `KnowHerLandingView` (This round · Last round · How players are chosen + "all caught up" state).
-> - **NWSL Trivia FACELIFT:** `DailyTriviaView` rebuilt onto the Know Her Game community-family pattern
->   (intro, progress dots, tap-to-answer, shared `ScoreRing` + `CommunityResultsView`). ⚠️ UI ONLY —
->   the Daily→Weekly question-sourcing engine is still parked (see Pending, below).
+> - **NWSL Trivia FACELIFT:** the play screens were rebuilt onto the Know Her Game community-family
+>   pattern (intro, progress dots, tap-to-answer, shared `ScoreRing` + `CommunityResultsView`). ⚠️ That
+>   pass was PLAY-SCREENS ONLY and left the front door diverged — **superseded 2026-07-23** by the full
+>   round rebuild (`TriviaLandingView` + `TriviaRoundView`, biweekly rounds), which closed the remaining
+>   community-family drift. Only the question-generation pipeline is still parked (see Pending, below).
 > - **Team-color vibrancy (Predict + Player Detail):** new shared `TeamWashBackground`
 >   (`Components/TeamColorWash.swift`) on the Predict fixture/result + "Predictors" leaderboard cards,
 >   `MatchCard` migrated onto it; "Playing as" now a consistent below-nav strip across all games.
@@ -125,7 +127,16 @@ Pending work only (ALIVE > core > hardening); shipped work lives in git history 
 - **Home follow-ups:** spotlight no-repeat-per-season + opt-in weekly notif.
 - **Player headshots Phase B2 banners** — DEFERRED (licensing).
 - **Accessibility** — now a PRE-RELEASE GATE (see the ♿ callout above): VoiceOver + color-blind pass before launch.
-- **NWSL Trivia — Daily → WEEKLY question-sourcing redesign (PARKED)** — the v2 UI facelift shipped
+- **NWSL Trivia — question-generation pipeline (PARKED; STRUCTURE SHIPPED 2026-07-23)** — the biweekly
+  ROUND model, landing page, retention and cadence are all built and live; the app already asks for
+  "round N's 10 questions" and doesn't care where they come from. What remains is CONTENT ONLY: the
+  annual ~530-question generation (tuned prompt, evergreen vs season-bound tagging, per-round difficulty
+  stratification, fact-check pass) + its loader/routine. Until it lands the stocked 41-question pool
+  serves rounds with a deterministic slice — 4 unique rounds, then it repeats (accepted interim).
+  📄 The design doc is on the parked branch: `git show docs/nwsl-trivia-weekly-redesign:docs/nwsl-trivia-weekly-redesign.md`.
+  ⚠️ Read it for the CONTENT rules only (530-pool → 53 slots, evergreen tagging, difficulty mix,
+  annual regen). Its UI/cadence half is SUPERSEDED — it says "weekly / not yet built"; the app shipped
+  BIWEEKLY rounds + the landing page on 2026-07-23. Current truth: `docs/fan-zone.md`.
   (community family), but the engine rebuild (`docs/nwsl-trivia-weekly-redesign.md`: weekly cadence,
   10 questions/wk, 530-pool → 53 weeks, annual regen, stat-questions-in-code) is the next Fan Zone build.
 - **More team-color vibrancy (owner interested 2026-07-21)** — Predict cards + schedule `MatchCard` +

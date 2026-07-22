@@ -80,7 +80,11 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
 - **Content routes** (build + normalize to `[ContentCard]`/models): `/team-videos` (Home: YouTube +
   club OG news + club IG), `/feed` (Feed: Bluesky reporters/clubs + news RSS + player IG), `/spotlight`
   (app-side retired for Know Her Game — the proxy route + its Haiku builder are retained but currently unused),
-  `/trivia` (KV pool), `/national-teams` (data-driven NT Browse-all, deduped by FIFA, 24h), `/telemetry`
+  `/trivia` (KV pool), `/quiz-results` (community splits for BOTH quiz games — **always revealed since
+  2026-07-23**: Trivia's biweekly round keys ("2026-R08") retired the old wait-for-the-day-to-close rule,
+  so both games serve KHG's live model — counts grow from the first responder, `%` at N≥25; every edition
+  now serves at the 15-min live TTL, since an edition's end of life is the retention cron, not a
+  serve-time rule), `/national-teams` (data-driven NT Browse-all, deduped by FIFA, 24h), `/telemetry`
   (POST sink → KV), `/analytics` (POST sink, 2026-07-17: ANONYMOUS Level-3 usage counters — whitelisted
   `{event,param,n}` batches, one per app session, NO IDs/IP → `increment_counters` RPC → Supabase
   `analytics_counters` daily rollups; unknown event names dropped; RPC failure emits `analyticsRpcFail`).
@@ -139,20 +143,33 @@ Member" bug). `name_is_custom` marks a CONFIRMED name vs. a merely-present (Appl
 Zone gate (`hasChosenName`) makes the user confirm before it hits a public board. Added via
 `migration_profile_name_is_custom.sql` (defaults false, **no backfill** — existing testers confirm once).
 **Offline-first:** UserDefaults is the immediate cache; the app never blocks on the network to show
-follows. **Follows sync = RESTORE-ONLY launch reconcile + explicit per-toggle propagation.** Launch
-`reconcile` (`FollowSyncCoordinator`) NEVER deletes a server row: it restores the full server set to a
-wiped/un-onboarded device (`authoritative = (hasOnboarded && !local.isEmpty) ? local : remote`) and only
-UPLOADS local-only follows. **Unfollows propagate solely through `handleLocalChange.removeFollow`** — an
-explicit signed-in unfollow — so no launch-time race can prune. (This replaced the earlier
-"device-authoritative mirror" whose launch prune could delete server rows under the reinstall onboarding
-race: on reinstall the picker showed concurrently and its immediate `toggle` writes made `local` partial,
-so the launch prune wiped the rest. Removing the launch prune makes a destructive launch delete
-*impossible*, the hard invariant.) **Trade-off:** an unfollow made while signed-out/offline won't reach
-the server (the only thing the launch prune used to catch) and will reappear on the next reinstall —
-recoverable, and harmless to alerts (alerts live in `team_alert_preferences` with their OWN coordinator/
-prune; follows ≠ alerts). A returning signed-in user is restored + skips onboarding (`RootTabView` shows a
-brief "Restoring…" until `restoreResolved`, never the picker). Coordinators: `FollowSyncCoordinator`
-(+ competition follows), `TeamAlertSyncCoordinator` (alerts keep their own mirror; alerts ⊆ follows).
+follows. **Follows sync = UPWARD-ONLY (2026-07-23).** The DEVICE is the source of truth and Supabase is backend
+bookkeeping the user never hears about: there is **no restore-down at all**. Signing in never rewrites
+local follows, never completes onboarding, and never changes what's on screen.
+
+*Why the previous restore-down was deleted:* it existed so a returning user could skip onboarding — worth
+little (16 clubs, seconds to re-pick) — and it assumed "a signed-in user IS a returning user (onboarding
+precedes sign-in)". The Tier-2 alert-bell intercept made that false: signing in MID-onboarding hijacked
+the picker, jumped to Home, and (because `hasOnboarded` was still false) overwrote the clubs already
+tapped. What sign-in restores now is **game progress**, not follows (`fanzone_progress` — see
+`docs/fan-zone.md` §5).
+
+The decision is a pure, unit-tested function, `FollowSyncCoordinator.resolveFollowOps(local:remote:hasOnboarded:)`:
+- `hasOnboarded == false` (picker on screen, or a fresh/wiped install) → **add local-only rows, delete
+  NOTHING.** A partial set the user is still building must never look authoritative — pruning against it
+  is exactly the "only the oldest follow survives" data-loss bug.
+- `hasOnboarded == true` → the device is authoritative **both ways**: adds AND deletes, so
+  follow-16-then-unfollow-back-to-2 leaves the server holding 2.
+
+It runs on sign-in and once more when onboarding completes while signed in (via the
+`FollowingStore.onOnboardingCompleted` hook — the same optional-callback pattern as `onFollowsChanged`,
+so the store stays dependency-free). Live toggles still mirror through `handleLocalChange`
+(add/remove per change). The root gate is now simply `hasOnboarded` — the "Restoring…" state is gone,
+because with no restore there is no race to wait on. Coordinators: `FollowSyncCoordinator`
+(+ competition follows, same rule), `ProgressSyncCoordinator` (game progress),
+`TeamAlertSyncCoordinator` (alerts keep their own mirror; alerts ⊆ follows).
+**Trade-off (unchanged):** an unfollow made signed-out/offline never reaches the server; it now simply
+sits as a stale row until the next signed-in toggle corrects it, instead of reappearing in the UI.
 Trade-off: two devices on one account diverging offline → last writer wins (acceptable at current scale;
 upgrade to per-item `updated_at` last-write-wins if heavy multi-device curation appears). Schema at
 `supabase/schema.sql`. **Gotcha:** RLS alone isn't enough — a new per-user table needs
@@ -163,6 +180,31 @@ tier/percentile); world-readable `select` (`grant … to anon, authenticated`) s
 own-row `insert`/`update` only — the app (`SuperfanService`) reads/writes it DIRECTLY with **no
 proxy/service_role path** (contrast the watcher/proxy tables above, no Postgres function). Client built
 from gitignored `Secrets` (`Services/SupabaseManager.swift`).
+
+**Fan Zone v3 tables (applied 2026-07-23)** — full system doc: `docs/fan-zone.md`.
+- **`fanzone_progress`** (`migration_fanzone_progress.sql`, PK `(user_id, season)`) — the game-progress
+  SUMMARY row that makes a reinstall / replacement phone non-destructive. Owner-only RLS both ways (no
+  anon read, no service_role — progress is personal). Deliberately a summary, NOT history: `quiz_answers`
+  are pruned, so restore must not depend on them. ~150 B/row ⇒ ~20 MB at 100k users. Written by per-game
+  PARTIAL upserts (PostgREST merge-duplicates touches only supplied columns, so Trivia can't clobber KHG);
+  read + merged once at sign-in by `ProgressSyncCoordinator`.
+- **`predict_round_scores`** (`migration_predict_round_scores.sql`, PK `(user_id, team_abbreviation,
+  season, week)`) — the comp arena's ROUND clock: one row per club per soccer week (a 2-game week sums
+  into one round). Same public-read / own-row-write model and non-decreasing clamp as `prediction_scores`,
+  which keeps the season totals. `week` is CALENDAR-derived (`FanZoneCadence.soccerWeek`) on purpose —
+  it's a primary key, and counting only fixture weeks would renumber banked rows when a match is postponed.
+- **`bracket_user_edition_stats` + `final_rank`/`field_size`** (`migration_bracket_final_rank.sql`) —
+  stamped by the engine at edition close so "Finished #12 of 340" survives forever. Same migration adds
+  `grant select, delete on bracket_votes to service_role` — the prune is a NEW operation and the grant
+  must match the operation (the 42501 gotcha).
+- **Retention (`migration_retention_cron.sql`)** — pg_cron daily deletes: `quiz_answers` > 35 days,
+  `predict_round_scores` > 28 days (the owner's current-round + previous-round rule; 2-week rounds ⇒ ≤4
+  weeks of life). Runs INSIDE Postgres: Cloudflare requests are the metered resource, Supabase API calls
+  are unlimited, a database cron uses neither. Age-based rather than round-math so no anchor arithmetic is
+  duplicated into SQL and a key-format change can't break it (it also swept the legacy day-keyed Trivia
+  editions for free). **Bracket votes are the exception** — pruned by the engine at edition close, because
+  an edition's lifetime isn't calendar-shaped. The record book (`*_scores`, `*_stats`, `fanzone_progress`)
+  is never pruned: one tiny row per user.
 
 **Account deletion (right-to-be-forgotten / App Store requirement):** the client can't delete an
 `auth.users` row (needs the service-role key), so Profile → Delete Account calls the proxy

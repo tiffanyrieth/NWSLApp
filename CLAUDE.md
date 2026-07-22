@@ -234,16 +234,16 @@ app `NationalTeamFeed.all`, proxy `WOMENS_NT_FEEDS`+allowlist, and watcher `NT_L
 schedule's UPCOMING fixtures come only from these per-competition scoreboards — a new competition = add the
 slug to all three lists AND tag its `scope` in `ConfederationMap.swift`; untagged defaults to global/polled-
 for-everyone, fail-open). Full NT system doc: `docs/national-teams.md`.
-Per-user state in **Supabase**, offline-first (UserDefaults cache). **Follows sync = RESTORE-ONLY launch
-reconcile:** launch `reconcile` NEVER deletes a server row — a wiped/un-onboarded device restores the full
-server set, and only local-only follows upload. **Unfollows propagate solely via the explicit per-toggle
-`removeFollow`** (a signed-in unfollow), so no launch-time race can prune. (This replaced an earlier
-device-authoritative mirror whose launch prune deleted rows under the reinstall onboarding race — the
-"only the oldest follow survives" data-loss bug. A returning signed-in user is restored + skips onboarding;
-`RootTabView` shows a brief "Restoring…" until reconcile resolves, never the picker.) **Trade-off:** a
-signed-out/offline unfollow won't reach the server and reappears on reinstall — recoverable, and harmless
-to alerts (alerts are a separate table + coordinator; follows ≠ alerts). Two devices diverging offline →
-last writer wins (fine at current scale). **Gotcha (grants):** a new per-user table needs `grant … to
+Per-user state in **Supabase**, offline-first (UserDefaults cache). **Follows sync = UPWARD-ONLY
+(2026-07-23):** the DEVICE is the source of truth; Supabase is backend bookkeeping the user never hears
+about. There is **no restore-down** — signing in never rewrites follows, completes onboarding, or changes
+what's on screen (the old restore hijacked the picker when the alert-bell intercept let a user sign in
+MID-onboarding). Pure, tested `FollowSyncCoordinator.resolveFollowOps`: **adds always; deletes only once
+`hasOnboarded`** — a half-filled picker must never look authoritative (that was the "only the oldest
+follow survives" data-loss bug). Post-onboarding the device is authoritative both ways, so
+follow-16-then-unfollow-to-2 leaves the server holding 2. **What sign-in DOES restore is GAME PROGRESS**
+(`fanzone_progress`, keyed `user_id` never `device_id`) — see `docs/fan-zone.md`. Two devices diverging
+offline → last writer wins (fine at current scale). **Gotcha (grants):** a new per-user table needs `grant … to
 authenticated` or signed-in queries fail silently with `42501` (RLS ≠ privilege); **AND** any table a
 **Worker reads/writes as `service_role`** — the watcher (`device_tokens`, `*_preferences`,
 `team_alert_preferences`, `live_activity_*`) OR the proxy (`profiles`, for the SIWA `apple_refresh_token`)
@@ -262,8 +262,11 @@ with NWSL Trivia (Week 1 = KHG); gated on a COMMITTED `SEASON_ANCHOR` constant i
 (the routine UI has NO env-var field, so the constant is the source; `KHG_SEASON_ANCHOR` env var = test
 override only). Content-quality lints gate the routine's dry-run (`load_knowher.mjs` `validatePool`: ≥10 Qs/
 player, ≥6 human/≤5 stat, ≤65% "True" across T/F) + the pool is built in ~4-player batches (beats the 32k
-output cap).** Prompt template wording is **owner-owned — never
-edit without an explicit decision.** ⚠️ **Cloud routines egress-allowlist by default ("Trusted") →
+output cap). ⚠️ The routine writes **HUMAN-ONLY** questions — the 2 deterministic stat (`herGame`)
+questions per player are generated in CODE (`scripts/knowher-stat-questions.mjs` → merged by
+`inject_stat_questions.mjs` BEFORE the dry-run), because a stat answer IS a number the proxy already has
+and the model kept producing options a few units apart (a math test, not a quiz).** Prompt template
+wording is **owner-owned — never edit without an explicit decision.** ⚠️ **Cloud routines egress-allowlist by default ("Trusted") →
 `*.workers.dev` 403s `host_not_allowed`; the routine environment MUST be set to FULL network access**
 (the sourcing needs the open web anyway). Don't fan out per-player sub-agents (16× the session cost).
 Detail: `docs/know-her-game.md` §5d.
@@ -338,7 +341,7 @@ stats). Current parsed-vs-unparsed inventory: `docs/backend.md` (proxy § pass-t
 - **Stress-test gate = part of "done" for load-bearing features.** Any NEW or REBUILT feature/subsystem
   that adds or changes a **load path** (DB reads/writes, network, push fan-out, KV/storage, cron) must be
   run through the **`docs/stress-testing.md` §5** method and shown to **pass the 1k SIZE test** (+ note the
-  100k lever) BEFORE it's done — never ship/rebuild a section (e.g. the Trivia weekly redesign) that
+  100k lever) BEFORE it's done — never ship/rebuild a section that
   silently fails 1k/100k because we never re-tested it. Record the result in that doc's §6/§7. Pure
   UI/cosmetic changes with no new load path are exempt (the gate is about load, not pixels).
 - **Build bump ⇒ consider the update gate (don't auto-couple).** On a TestFlight/App Store build bump,
@@ -378,7 +381,7 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
   numeric columns exempt), correct/wrong = `dsSuccess`/`dsError`. **Fan Zone = two visual families**
   (competitive arena vs community cards) — the full contract auto-loads from `.claude/rules/fan-zone.md`
   (Design consistency §). Build future games WITH this, not around it — the Superfan Zone + team-color
-  washes already do; the NWSL Trivia weekly-engine rebuild is next.
+  washes already do, and the NWSL Trivia round rebuild (2026-07-23) closed the last community-family drift.
 - Persistent UI (tab/nav bars) never obscures scrollable content (respect safe areas); every drilled-in
   view has an explicit back affordance (don't rely on edge-swipe alone). Tabs keep their OWN nav stack
   across switches (**The Athletic model, owner-confirmed 2026-07**); re-tapping the ALREADY-active tab

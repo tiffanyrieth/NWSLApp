@@ -14,6 +14,11 @@ paths:
 
 # Fan Zone & game visibility rules
 
+> **This file = the BUILD RULES** (what you must/mustn't do). **`docs/fan-zone.md` = the SYSTEM DOC**
+> (how it all works: the two families, the cadence engine + its stagger, state ownership local-vs-server,
+> progress restore, retention, scoring). Read that when you need the machinery rather than the
+> constraints. Bracket ops: `.claude/rules/bracket-battle.md`.
+
 The Fan Zone leads Home (**top module**, above Club News) — the four games (Predict the XI, Bracket
 Battle, Know Her Game, NWSL Trivia) plus a cross-game Superfan summary. (Bracket Battle's own engine/ops
 live in `.claude/rules/bracket-battle.md`.)

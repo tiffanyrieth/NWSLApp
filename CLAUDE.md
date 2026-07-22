@@ -306,6 +306,30 @@ stats). Current parsed-vs-unparsed inventory: `docs/backend.md` (proxy § pass-t
   NO ids/IP ever, one batch per session — measures the product, never the person).
 - **Plan for scope:** a change touching 3+ files or a new pattern → present a plan + get approval first.
   No new dependency without explaining why the built-in won't work + approval.
+- **⚠️ CLOSE-OUT ROLL CALL (mandatory on any multi-item plan, design handoff, or numbered spec).** Before
+  claiming done, list EVERY deliverable the spec asked for BY NAME with a status: **built / skipped /
+  blocked**. Not a summary of what you built — a roll call of what was ASKED FOR. If an item is skipped
+  or blocked, say so in that list and why, in the same message. **Nothing may be silently omitted, and
+  no scoped item may be deferred on your own judgment — if you think something should be deferred, STOP
+  and ask.**
+  **Why this exists (the failure it targets):** the model rarely *decides* to defer. It sees a dependency
+  that isn't ready, silently reclassifies the item as "not yet actionable," and reports done on the rest
+  — believing it finished. So "don't defer" rules keep failing; they aim at a decision that never
+  consciously happens. A roll call makes omission impossible to do quietly: you must type "SKIPPED" next
+  to the item, which the owner can overrule in the same message instead of rediscovering it in the sim
+  three sessions later. Track record: a detailed Fan Zone design handoff had 4 of 5 items silently
+  dropped across three sessions; Trivia's round backbone was dropped a 4th time on 2026-07-23.
+- **BACKBONE IS NEVER DEFERRED FOR A MISSING FRONT END.** Build the structure AS IF the generator /
+  content pipeline / data source already works — the app should be waiting on the pipeline, never the
+  reverse. "The questions aren't generated biweekly yet" is NOT a reason to skip the round model, the
+  landing page, or the retention rule. (Owner's fiber analogy: you don't defer the main feeder lines
+  because no customers have signed up and the neighborhood nodes aren't placed — that reasoning can
+  never fire in favor of building backbone, so the backbone never gets built.) Deferral doesn't save
+  work either; it multiplies it — each skipped item costs a sim run to discover, a turn to report, and
+  a context rebuild, and still has to be written.
+- **Nothing stays pending past the day it's decided** — deploys especially. A merged-but-undeployed
+  change becomes a phantom bug the owner burns hours on weeks later. Merge and deploy same-day; if a
+  step can't happen today, say so explicitly in the roll call.
 - **No force-unwraps (`!`)** unless a comment explains why it's safe. Temp architecture-bending code
   carries a `TEMP` comment (what/why/when-removed).
 - **Before "done":** builds AND runs in the sim with no errors, **manually verified in-sim**

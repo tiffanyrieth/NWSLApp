@@ -253,11 +253,16 @@ the **operation**: the watcher's `pruneDeadTokens` DELETEs `device_tokens`, so a
 strands dead tokens — grant `select, delete`. And any secret the proxy signs into a JWT **raw** (SIWA
 `APPLE_TEAM_ID`/`SIWA_KEY_ID`) must be whitespace-clean — a trailing newline signs a JWT Apple rejects
 as `invalid_client`; set via **stdin, never copy-paste** (`printf '%s' … | wrangler secret put`).
-**Know Her Game content = fully-automated weekly (2026-07-13, proxy):** a **Claude cloud Routine**
+**Know Her Game content = fully-automated BIWEEKLY (proxy):** a **Claude cloud Routine**
 (claude.ai/code/routines, on the OWNER's subscription — $0 metered API) runs `scripts/knowher-weekly-
-routine.md` every Mon overnight → assembles the Rodman-faithful prompt (`assemble_knowher_prompt.mjs`
+routine.md` overnight → assembles the Rodman-faithful prompt (`assemble_knowher_prompt.mjs`
 from `/knowher/todo`) → generates the 16-player pool → `POST /knowher/ingest` (dedicated
-`KNOWHER_INGEST_KEY`, validate→KV→featured-ledger). Prompt template wording is **owner-owned — never
+`KNOWHER_INGEST_KEY`, validate→KV→featured-ledger). **Cadence: BIWEEKLY — alternates the Fan Zone quiz slot
+with NWSL Trivia (Week 1 = KHG); gated on a COMMITTED `SEASON_ANCHOR` constant in `assemble_knowher_prompt.mjs`
+(the routine UI has NO env-var field, so the constant is the source; `KHG_SEASON_ANCHOR` env var = test
+override only). Content-quality lints gate the routine's dry-run (`load_knowher.mjs` `validatePool`: ≥10 Qs/
+player, ≥6 human/≤5 stat, ≤65% "True" across T/F) + the pool is built in ~4-player batches (beats the 32k
+output cap).** Prompt template wording is **owner-owned — never
 edit without an explicit decision.** ⚠️ **Cloud routines egress-allowlist by default ("Trusted") →
 `*.workers.dev` 403s `host_not_allowed`; the routine environment MUST be set to FULL network access**
 (the sourcing needs the open web anyway). Don't fan out per-player sub-agents (16× the session cost).
@@ -341,13 +346,15 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
 
 - **Dark appearance app-wide**, no toggle (page `#1C1C1E`, cards `#2C2C2E`).
 - **Reuse the shared component library — don't re-roll** (pre-launch design pass, 2026-07-17): buttons →
-  `DSButton`; error/empty → `RetryStateView`; team colors → `Color.teamColor(…)`; player avatars →
+  `DSButton`; error/empty → `RetryStateView`; team colors → `Color.teamColor(…)`; team-color card washes →
+  `TeamWashBackground` (`TeamColorWash.swift`); player avatars →
   `PlayerHeadshot`; voice pills → `CategoryPill`; broadcast/platform colors → `BroadcastBrand`/`PlatformBrand`.
   Style via `ds*` tokens ONLY — no UIKit `Color(.systemGray*/.systemGroupedBackground/.separator)`, no raw
   `.white` (→ `dsFgPrimary`), no raw `.font` for readable text (→ `.dsFont`; fixed-size monograms/badges/
   numeric columns exempt), correct/wrong = `dsSuccess`/`dsError`. **Fan Zone = two visual families**
   (competitive arena vs community cards) — the full contract auto-loads from `.claude/rules/fan-zone.md`
-  (Design consistency §). Build future games (Superfan, the Trivia rebuild) WITH this, not around it.
+  (Design consistency §). Build future games WITH this, not around it — the Superfan Zone + team-color
+  washes already do; the NWSL Trivia weekly-engine rebuild is next.
 - Persistent UI (tab/nav bars) never obscures scrollable content (respect safe areas); every drilled-in
   view has an explicit back affordance (don't rely on edge-swipe alone). Tabs keep their OWN nav stack
   across switches (**The Athletic model, owner-confirmed 2026-07**); re-tapping the ALREADY-active tab

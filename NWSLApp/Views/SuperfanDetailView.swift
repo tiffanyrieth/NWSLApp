@@ -61,6 +61,16 @@ struct SuperfanDetailView: View {
         .background(Color.dsBgGrouped)
         .nativeBackButton(title: "Superfan")
         .task { await load() }
+        // Honest result when Game Center isn't signed in — never a silent dead tap (NO SILENT FAILURES),
+        // mirroring ProfileView. Bound to the GC singleton's @Observable flag.
+        .alert("Game Center unavailable", isPresented: Binding(
+            get: { GameCenterManager.shared.leaderboardsUnavailable },
+            set: { if !$0 { GameCenterManager.shared.leaderboardsUnavailable = false } })
+        ) {
+            Button("OK", role: .cancel) { GameCenterManager.shared.leaderboardsUnavailable = false }
+        } message: {
+            Text("Sign in to Game Center in iOS Settings to view the leaderboards.")
+        }
     }
 
     private func load() async {
@@ -230,7 +240,7 @@ struct SuperfanDetailView: View {
     // MARK: - Game Center
 
     private var gameCenterLink: some View {
-        Button { GameCenterManager.shared.showDashboard() } label: {
+        Button { GameCenterManager.shared.openLeaderboards() } label: {
             HStack(spacing: 12) {
                 Image(systemName: "gamecontroller.fill").font(.system(size: 15)).foregroundStyle(accent)
                 VStack(alignment: .leading, spacing: 1) {

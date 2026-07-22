@@ -9,11 +9,23 @@
 //  depends on it (it isn't even in the environment — RootTabView just holds it
 //  alive and calls `start()`).
 //
+//  ⚠️ UPWARD-ONLY (owner decision, 2026-07-23). Sync is one-directional: the DEVICE
+//  is the source of truth for follows and Supabase is backend bookkeeping the user
+//  never hears about. There is NO restore-down: signing in never rewrites local
+//  follows, never completes onboarding, and never changes what's on screen.
+//
+//  Why the old restore-down was removed: it existed to let a returning user skip
+//  onboarding, which buys nothing (16 clubs, ~2 seconds to re-pick) while the thing
+//  a user would actually mourn — Fan Zone progress — is restored separately by
+//  ProgressSyncService. Worse, it assumed "a signed-in user IS a returning user
+//  (onboarding precedes sign-in)", which the Tier-2 alert-bell intercept made false:
+//  signing in MID-onboarding hijacked the picker, skipped to Home, and overwrote the
+//  clubs already tapped.
+//
 //  Two jobs:
-//   1. Reconcile on sign-in — when `auth.currentUser` goes nil → a user, merge
-//      local + server follows (UNION, never delete), write the union back down to
-//      local (covers new-device restore), and push the union up to Supabase
-//      (covers first-sign-in upload). See the session doc §4.
+//   1. Reconcile on sign-in — push local → server (see `resolveFollowOps`). Adds
+//      always; deletes only once onboarding is finished, so a half-filled picker can
+//      never prune the server (the original "only the oldest follow survives" bug).
 //   2. Sync-up ongoing — once signed in, each local toggle mirrors the single
 //      changed team to Supabase via the FollowingStore.onFollowsChanged hook.
 //
@@ -49,12 +61,6 @@ final class FollowSyncCoordinator {
     /// nil → user (or user → different-user) transition, not on every observation.
     private var lastUserID: UUID?
 
-    /// True once the FOLLOWS reconcile has finished for this launch (success OR failure).
-    /// The root gate reads this so a signed-in user sees a brief "Restoring…" state until the
-    /// server set is known, instead of flashing the onboarding picker (which used to race the
-    /// restore). Stays true thereafter; only the first launch restore gates onboarding.
-    private(set) var restoreResolved = false
-
     init(following: FollowingStore, auth: AuthStore,
          service: FollowSyncService = FollowSyncService(),
          compService: CompetitionFollowSyncService = CompetitionFollowSyncService()) {
@@ -73,6 +79,11 @@ final class FollowSyncCoordinator {
         }
         following.onCompetitionFollowKeysChanged = { [weak self] keys in
             self?.handleCompetitionLocalChange(keys)
+        }
+        // Finishing the picker is the first moment the device may prune the server (see
+        // `resolveFollowOps`) — matters for the sign-in-mid-onboarding path.
+        following.onOnboardingCompleted = { [weak self] in
+            self?.onOnboardingCompleted()
         }
 
         // If a session was already restored on launch, reconcile now (the
@@ -113,66 +124,82 @@ final class FollowSyncCoordinator {
         // handleLocalChange's signed-out guard stops further pushes.
     }
 
-    // MARK: - Reconcile (sign-in / restore)
+    // MARK: - Reconcile (sign-in — UPWARD ONLY)
 
+    /// Decide which server rows to add/remove so the server matches the device. PURE (no store, no
+    /// network) so every branch is unit-tested — the untested inline version of this logic is exactly
+    /// what regressed. Mirrors `TeamAlertSyncCoordinator.authoritativeOnSet`, the twin that didn't.
+    ///
+    /// The `hasOnboarded` split is the whole safety property:
+    ///  • **false** — the picker is on screen (or a fresh/wiped install). `local` is a PARTIAL set that
+    ///    the user is still building, so ADD what's there but NEVER delete: pruning against a half-filled
+    ///    picker is the "only the oldest follow survives" data-loss bug.
+    ///  • **true** — onboarding is finished, so the device is authoritative and the server is made to
+    ///    match exactly, deletes included. Safe now only because the mid-onboarding case above can no
+    ///    longer reach this branch.
+    nonisolated static func resolveFollowOps(local: Set<String>, remote: Set<String>,
+                                             hasOnboarded: Bool) -> (add: Set<String>, remove: Set<String>) {
+        (add: local.subtracting(remote),
+         remove: hasOnboarded ? remote.subtracting(local) : [])
+    }
+
+    /// Push local follows up to the server. Never touches local state: signing in must not change a
+    /// single thing the user can see (no picker takeover, no onboarding skip, no re-checked clubs).
     private func reconcile(userID: UUID) {
         Task {
-            defer { restoreResolved = true }   // gate flips once the server set is known (success or fail)
             let local = following.followedIDs
             do {
                 let remote = try await service.fetchRemoteFollows(userID: userID)
-                // Launch reconcile is RESTORE-ONLY — it never deletes a server row. Unfollows
-                // propagate solely through `handleLocalChange` (an explicit signed-in unfollow),
-                // so no launch-time race can prune. The device is only authoritative once it has
-                // genuinely onboarded AND has a non-empty set; a wiped/reinstalled device
-                // (`hasOnboarded == false`) restores the FULL server set regardless of any
-                // onboarding-tap timing (the old `local.isEmpty ? …` latched onto a partial set
-                // mid-onboarding and pruned the rest — the reinstall data-loss bug).
-                let authoritative = (following.hasOnboarded && !local.isEmpty) ? local : remote
-                following.replace(ids: authoritative)   // sync-down / restore (no-op when device wins)
-                knownFollows = authoritative
-                for id in authoritative.subtracting(remote) {   // upload local-only adds (never deletes)
+                let ops = Self.resolveFollowOps(local: local, remote: remote,
+                                                hasOnboarded: following.hasOnboarded)
+                knownFollows = local
+                for id in ops.add {
                     do { try await service.addFollow(id, userID: userID) }
                     catch { Diagnostics.shared.record(.apiFailure, "follows reconcile add \(id): \(error.localizedDescription)") }
                 }
-                // NO prune here: removing a server row only ever happens via an explicit user
-                // unfollow (handleLocalChange.removeFollow), never on launch reconcile.
-                if !authoritative.isEmpty { following.completeOnboarding() }   // returning signed-in user → hub, not picker
+                for id in ops.remove {
+                    do { try await service.removeFollow(id, userID: userID) }
+                    catch { Diagnostics.shared.record(.apiFailure, "follows reconcile remove \(id): \(error.localizedDescription)") }
+                }
             } catch {
-                // Offline / transient: local state is already correct; we'll reconcile again
-                // on the next launch. NOT silent — flag it so a persistent sync failure (e.g.
-                // a missing RLS GRANT) surfaces instead of follows quietly never syncing.
+                // Offline / transient: local state is already correct (it's the source of truth), so
+                // there is nothing to repair — we just couldn't mirror it up. Reconciles again next
+                // launch. NOT silent: a persistent failure (e.g. a missing RLS GRANT) must surface.
                 Diagnostics.shared.record(.apiFailure, "follows reconcile: \(error.localizedDescription)")
-                knownFollows = following.followedIDs
-                // A signed-in user IS a returning user (onboarding precedes sign-in; a reinstall keeps the
-                // Keychain session but wipes local `hasOnboarded`). When the restore FAILS (offline) we
-                // can't read their server follows — but we must NOT drop them into the onboarding picker.
-                // Complete onboarding so they enter the app; the next successful reconcile restores their
-                // follows (local is still empty here, so the device-authoritative branch can't prune).
-                following.completeOnboarding()
+                knownFollows = local
             }
         }
         reconcileCompetitions(userID: userID)
     }
 
-    /// The competition twin of `reconcile` — same device-authoritative mirror against
-    /// the `competition_follows` table (national teams + the Champions Cup toggle).
+    /// Called when the user finishes onboarding while already signed in (the alert-bell intercept path:
+    /// sign in mid-picker, keep picking, then tap "Follow N teams"). Until that moment `resolveFollowOps`
+    /// deliberately withholds deletes, so this is the first point where the device may prune the server.
+    func onOnboardingCompleted() {
+        guard let userID = auth.userID else { return }
+        reconcile(userID: userID)
+    }
+
+    /// The competition twin of `reconcile` — same UPWARD-ONLY contract against the
+    /// `competition_follows` table (national teams + the Champions Cup toggle).
     private func reconcileCompetitions(userID: UUID) {
         Task {
             let local = following.competitionFollowKeys
             do {
                 let remote = try await compService.fetchRemoteFollows(userID: userID)
-                // Restore-only, same contract as `reconcile`: an un-onboarded/wiped device restores
-                // the full server set; never prune on launch (competition unfollows propagate via
-                // handleCompetitionLocalChange only).
-                let authoritative = (following.hasOnboarded && !local.isEmpty) ? local : remote
-                following.replaceCompetitionFollowKeys(authoritative)   // sync-down / restore
-                knownCompetitionFollows = authoritative
-                for key in authoritative.subtracting(remote) {   // upload local-only adds (never deletes)
+                // Same rule + same reasoning as `resolveFollowOps` (shared helper): add always, delete
+                // only once onboarding is done. Never writes back down — local is the source of truth.
+                let ops = Self.resolveFollowOps(local: local, remote: remote,
+                                                hasOnboarded: following.hasOnboarded)
+                knownCompetitionFollows = local
+                for key in ops.add {
                     do { try await compService.addFollow(key, userID: userID) }
                     catch { Diagnostics.shared.record(.apiFailure, "competition reconcile add \(key): \(error.localizedDescription)") }
                 }
-                // NO prune here (see reconcile): explicit unfollow only.
+                for key in ops.remove {
+                    do { try await compService.removeFollow(key, userID: userID) }
+                    catch { Diagnostics.shared.record(.apiFailure, "competition reconcile remove \(key): \(error.localizedDescription)") }
+                }
             } catch {
                 Diagnostics.shared.record(.apiFailure, "competition reconcile: \(error.localizedDescription)")
                 knownCompetitionFollows = following.competitionFollowKeys

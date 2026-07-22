@@ -56,6 +56,13 @@ final class FollowingStore {
     /// nil by default (signed-out / tests / previews behave exactly as before).
     var onCompetitionFollowKeysChanged: ((Set<String>) -> Void)?
 
+    /// Fired once when onboarding completes. FollowSyncCoordinator uses it to run the first
+    /// reconcile that is allowed to PRUNE the server: while the picker is up, sync deliberately
+    /// adds without deleting (a half-filled picker must never look authoritative), so finishing
+    /// onboarding is the moment the device becomes the full source of truth. Same optional-hook
+    /// pattern as `onFollowsChanged` — the store stays dependency-free and knows nothing of sync.
+    var onOnboardingCompleted: (() -> Void)?
+
     private let defaults: UserDefaults
     // Static so the DEBUG reset helper (which has no instance) shares the exact
     // same key names — one source of truth, no drift.
@@ -185,8 +192,11 @@ final class FollowingStore {
     /// Mark onboarding finished (the "Follow N teams" button). One-way: once
     /// onboarded, Home always opens onto the hub, not the picker.
     func completeOnboarding() {
+        let wasOnboarded = hasOnboarded
         hasOnboarded = true
         defaults.set(true, forKey: Self.onboardedKey)
+        // Only on the real transition — re-calling this must not re-trigger a sync pass.
+        if !wasOnboarded { onOnboardingCompleted?() }
     }
 
     #if DEBUG

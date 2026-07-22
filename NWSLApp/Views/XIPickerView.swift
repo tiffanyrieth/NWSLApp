@@ -66,8 +66,11 @@ struct XIPickerView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(picker.readOnly ? "Done" : "Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .topBarTrailing) { PlayingAsBadge(accent: accent) }
             }
+            // "Playing as {name}" as a right-aligned strip BELOW the nav bar — consistent with every
+            // other Fan Zone game (Bracket/Trivia/Know Her). The old trailing ToolbarItem was the lone
+            // holdout that rendered it as a nav-bar pill and pushed the centered title off-center.
+            .fanZonePlayingAs(accent: accent)
         }
         .task { await picker.load() }
         .sheet(item: $activeSlot) { ref in

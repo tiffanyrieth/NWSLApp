@@ -232,17 +232,10 @@ final class HomeViewModel {
             .filter { following.followedIDs.contains($0.id) }
             .map(\.abbreviation)
             .sorted()   // sort FIRST so the rotation is over a stable set, not directory order
-        return Self.rotated(sorted, by: clubRotation)
-    }
-
-    /// Rotate a stable club order so a different club leads. Pure + total: empty/single lists and
-    /// any offset (including huge ones) are safe. Rotation rather than a shuffle on purpose —
-    /// it guarantees every club leads exactly once per N refreshes instead of leaving it to chance,
-    /// which is the stronger form of "no club is favoured".
-    nonisolated static func rotated(_ abbreviations: [String], by offset: Int) -> [String] {
-        guard abbreviations.count > 1 else { return abbreviations }
-        let i = ((offset % abbreviations.count) + abbreviations.count) % abbreviations.count
-        return Array(abbreviations[i...] + abbreviations[..<i])
+        // Reuses the round-robin's own rotate (already used for the pull-to-refresh card windows) —
+        // rotation rather than a shuffle guarantees each club leads exactly once per N refreshes
+        // instead of leaving it to chance, which is the stronger form of "no club is favoured".
+        return ContentRoundRobin.rotate(sorted, by: clubRotation)
     }
 
     /// Followed clubs' abbreviations in the club directory's order — the order the

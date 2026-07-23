@@ -77,9 +77,20 @@ final class FeedViewModel {
     /// idle/loading/loaded/error are unchanged.
     var clubsState: ClubStore.State { clubStore?.state ?? .idle }
 
+    /// Which followed club leads the per-club balance. The clubs used to arrive in the directory's
+    /// fixed alphabetical order, so the same club led the Social feed on every launch and every
+    /// refresh — the equal-slot guarantee held, but the club you saw FIRST never changed. Same
+    /// thumb-on-the-scale the Home Club News module had.
+    ///
+    /// Seeded randomly per launch, advanced on each refresh. STATE rather than a `random()` inside
+    /// `items(_:preferences:)`, which the view calls while rendering — re-rolling per render would
+    /// reshuffle the feed under the user's thumb mid-scroll.
+    private(set) var clubRotation: Int = Int.random(in: 0..<1_000)
+
     /// (Re)load the shared directory, then the Feed cards. Used by pull-to-refresh + retry.
     func load(following: FollowingStore) async {
         guard let clubStore else { return }
+        clubRotation += 1   // a different followed club leads this time (see `clubRotation`)
         await clubStore.load()
         await store?.load(following: following, clubStore: clubStore)
     }
@@ -121,7 +132,13 @@ final class FeedViewModel {
             .filter { passesFilter($0) }
             .filter { passesPreferences($0, preferences) }
 
-        return Self.arranged(filtered, followedAbbreviations: followedClubs(following).map(\.abbreviation))
+        // Sort BEFORE rotating so the cycle runs over a stable set (the directory's order is itself
+        // alphabetical, but sorting makes the rotation independent of how the directory happens to
+        // be ordered). `arranged` stays pure — only the order handed to it changes, so slot counts
+        // and cross-club balance are untouched.
+        let rotatedClubs = ContentRoundRobin.rotate(
+            followedClubs(following).map(\.abbreviation).sorted(), by: clubRotation)
+        return Self.arranged(filtered, followedAbbreviations: rotatedClubs)
     }
 
     /// PURE arrangement (unit-tested): single per-club balance over the team-tagged cards

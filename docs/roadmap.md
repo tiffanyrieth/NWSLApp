@@ -17,6 +17,37 @@
 > loader. Until then the current stocked pool serves rounds with a deterministic slice (repeats
 > after ~4 rounds — acceptable interim, owner-approved).
 
+> ### 🏆 Bracket Battle → an OFFSEASON tentpole (owner 2026-07-23; scheduling redesign)
+> **Decision:** stop running Bracket Battle year-round on a fixed cadence. Make it primarily an
+> **offseason** feature, with maybe **1–2 editions during the season**.
+>
+> **Why — the content-calendar gap.** In season the Fan Zone is already full: KHG and Trivia alternate
+> biweekly (a new round every Monday, each playable for two weeks) and Predict the XI runs any week
+> with fixtures. That's plenty. But **both KHG and Predict are in-season ONLY** — KHG's featured
+> players are picked from season stats, and Predict needs a fixture inside its 28-day window (it hides
+> in a true offseason). So the offseason falls back to **Trivia alone**. Bracket is the natural filler:
+> it's the one game that needs no live fixtures, no season stats, and no new editorial content per
+> round — the engine generates it from the league pool. Offseason is exactly when the app most needs a
+> reason to open, and when Bracket has the least competition for attention.
+>
+> **What has to change (the current engine is built for a year-round loop):**
+> - **Seasonal windowing.** Auto mode currently regenerates forever: tally → advance → after
+>   `break_days` generate the next edition. It needs a concept of WHEN it should be running.
+>   `FanZoneCadence` has no "offseason" notion — it anchors to the season opener and counts weeks — so
+>   the signal has to come from somewhere. Cheapest honest option: reuse Predict's existing test
+>   ("is there any future fixture at all?"), which is already how the app decides a true offseason.
+> - **Pacing.** Today: `early_round_days=2`, `late_round_days=3`, `break_days=10` → roughly a
+>   3–4 week edition plus a ~10-day break, i.e. ~1 edition/month. A ~15-week offseason fits about
+>   three. Re-pick these for the offseason rhythm rather than inheriting the in-season numbers.
+> - **The in-season 1–2 editions** need to be *scheduled*, not incidental — probably operator-started
+>   from the admin portal rather than automatic, so they can land in a deliberate lull.
+>
+> **Already fixed (2026-07-23), don't re-diagnose:** the admin portal's AUTO/MANUAL switch wrote only
+> the global `bracket_config` key while each edition carries its OWN `mode`, so switching an in-flight
+> edition to AUTO silently did nothing (`handleAuto` skips a manual-mode edition). `setMode` now
+> carries the mode onto the active edition and stamps `round_opened_at`/`round_closes_at` so the
+> countdown starts. The ROUND SCHEDULE itself was never broken and is unit-tested (`bracket.spec.ts`).
+
 > ### ⏳ OWNER SETUP — analytics + alerting go-live steps (2026-07-17, ~15 min total)
 > The anonymous-analytics + ops-alerting code is MERGED + deployed; three one-time owner steps still
 > arm the alerting (each is a silent no-op until done — nothing breaks meanwhile):

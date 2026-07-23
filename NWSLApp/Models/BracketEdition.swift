@@ -148,7 +148,7 @@ struct BracketEntrant: Identifiable, Codable, Equatable {
     let jerseyNumber: Int?
     /// Join key → club crest + accent colour + name.
     let teamAbbreviation: String
-    /// Seed (1 = top). Drives "biggest upset" + "Cinderella" flavor. Optional so
+    /// Seed (1 = top). Drives the "biggest upset" flavor callout. Optional so
     /// older cached editions still decode; defaults high (unseeded) when absent.
     var seed: Int?
 }

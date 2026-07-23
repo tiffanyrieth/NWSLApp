@@ -62,12 +62,28 @@ final class HomeViewModel {
     private let calendar: Calendar
     private let now: () -> Date
 
+    /// Which followed club leads the round-robin. Equal representation isn't only about how MANY
+    /// slots each club gets (that's `slotsPerClub`) — it's also about WHICH club is seen first.
+    /// The club order used to be `.sorted()` by abbreviation, so a fan following LA + ORL + WAS saw
+    /// Angel City, then Pride, then Spirit, in that order, every launch and every refresh forever:
+    /// an alphabetical thumb on the scale. Rotating the starting club removes it while keeping the
+    /// round-robin's equal allowance exactly as it was.
+    ///
+    /// SEEDED RANDOMLY per launch (so a cold open genuinely varies) and ADVANCED by one on each
+    /// pull-to-refresh (so every followed club takes a turn at the top rather than re-rolling and
+    /// possibly repeating). It is STATE, not a `random()` call inside the ordering, because
+    /// `teamContent` is computed from `body` — re-randomising per render would reshuffle the feed
+    /// under the user's thumb mid-scroll.
+    private(set) var clubRotation: Int
+
     init(
         calendar: Calendar = .current,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        clubRotation: Int = Int.random(in: 0..<1_000)
     ) {
         self.calendar = calendar
         self.now = now
+        self.clubRotation = clubRotation
     }
 
     /// Retry a failed content/spotlight load (the per-module "tap to retry"). Forces a
@@ -84,6 +100,7 @@ final class HomeViewModel {
     func refresh(following: FollowingStore) async {
         guard let contentStore, let clubStore else { return }
         hasRefreshed = true   // article priority is first-load only — drop it from here on
+        clubRotation += 1     // a different followed club leads this time (see `clubRotation`)
         let previousIDs = Set(teamContentItems.map(\.id))
         await contentStore.reload(following: following, clubStore: clubStore)
         selectedTeam = nil
@@ -211,10 +228,21 @@ final class HomeViewModel {
     /// Followed clubs' abbreviations in a STABLE (alphabetical) order — the
     /// deterministic interleave order the round-robin needs.
     private func orderedFollowedAbbreviations(_ following: FollowingStore) -> [String] {
-        clubs
+        let sorted = clubs
             .filter { following.followedIDs.contains($0.id) }
             .map(\.abbreviation)
-            .sorted()
+            .sorted()   // sort FIRST so the rotation is over a stable set, not directory order
+        return Self.rotated(sorted, by: clubRotation)
+    }
+
+    /// Rotate a stable club order so a different club leads. Pure + total: empty/single lists and
+    /// any offset (including huge ones) are safe. Rotation rather than a shuffle on purpose —
+    /// it guarantees every club leads exactly once per N refreshes instead of leaving it to chance,
+    /// which is the stronger form of "no club is favoured".
+    nonisolated static func rotated(_ abbreviations: [String], by offset: Int) -> [String] {
+        guard abbreviations.count > 1 else { return abbreviations }
+        let i = ((offset % abbreviations.count) + abbreviations.count) % abbreviations.count
+        return Array(abbreviations[i...] + abbreviations[..<i])
     }
 
     /// Followed clubs' abbreviations in the club directory's order — the order the

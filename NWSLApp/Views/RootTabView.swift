@@ -242,6 +242,13 @@ struct RootTabView: View {
         .environment(notifications)
         .environment(teamAlerts)
         .task {
+            // What the notification stores actually LOADED off disk this launch, before any network
+            // or auth work can touch them. The reinstall-restore only engages on a device with no
+            // local choices, so "what did we boot with?" is the first question any restore
+            // investigation asks — and it was unanswerable during the 2026-07-22 sim runs.
+            NotifTrace.shared.log("prefs-boot", .ok,
+                "local=\(NotificationSyncCoordinator.describe(notifications.snapshot)) "
+                + "sentinel=\(notifications.hasAppliedAlertDefaults) bells=\(teamAlerts.enabledCount)")
             // Anonymous session counters — the UI is mounting, so a person is here (see
             // didCountSession above for why this is NOT in didFinishLaunching).
             if !didCountSession {

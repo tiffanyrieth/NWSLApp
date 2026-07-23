@@ -189,6 +189,34 @@ final class NotificationPreferencesStore {
         defaults.set(true, forKey: Self.appliedDefaultsKey)
     }
 
+    /// REINSTALL RESTORE: adopt the user's saved server row verbatim. Called once per install by
+    /// NotificationSyncCoordinator, and only when this device has never made a notification choice
+    /// (the `appliedDefaultsKey` sentinel is clear and nothing is on) — so it can never overwrite a
+    /// live selection. Verbatim matters: a type the user deliberately turned OFF before reinstalling
+    /// must come back OFF, which a blanket re-cascade would silently undo.
+    ///
+    /// Sets the sentinel, because after this the device HAS a considered state: a later bell tap must
+    /// not re-cascade the full bundle over the restored selection.
+    func applyRestored(_ snapshot: NotificationPreferencesSnapshot) {
+        dayBefore = snapshot.dayBefore
+        lineupPosted = snapshot.lineupPosted
+        kickoff = snapshot.kickoff
+        goals = snapshot.goals
+        halftime = snapshot.halftime
+        fullTime = snapshot.fullTime
+        substitutions = snapshot.substitutions
+        fanZoneRounds = snapshot.fanZoneRounds
+        playerSpotlight = snapshot.playerSpotlight
+        liveActivitiesEnabled = snapshot.liveActivitiesEnabled
+        defaults.set(true, forKey: Self.appliedDefaultsKey)
+    }
+
+    /// Has the first-bell bundle (or a restore) already been applied on this device? The
+    /// "this install has made a notification choice" predicate — read by the restore step to tell a
+    /// FRESH install (reinstall: pull the saved row down) from a returning one (device-authoritative,
+    /// hands off). Read-only; the two writers above own it.
+    var hasAppliedAlertDefaults: Bool { defaults.bool(forKey: Self.appliedDefaultsKey) }
+
     #if DEBUG
     /// Wipe notification first-run state so `-resetOnboarding` simulates a brand-NEW
     /// user. Clears every toggle (so `init` re-applies the fresh all-OFF opt-in defaults) and the
@@ -198,10 +226,16 @@ final class NotificationPreferencesStore {
         // The one-time Teams-tab "Manage your match alerts here" coach mark
         // (TeamsView @AppStorage) — clear so a reset re-shows it for a true new user.
         defaults.removeObject(forKey: "hasSeenTeamsAlertTooltip")
-        defaults.removeObject(forKey: appliedDefaultsKey)   // re-arm the first-bell cascade
+        // Write CLEARED sentinels, never `removeObject` — same CFPreferences-snapshot reason as
+        // `TeamAlertStore.debugResetState()` / `FollowingStore.debugResetState()`. A `removeObject`
+        // here vanishes from the on-disk plist but the store STILL loads the old value, so
+        // `-resetOnboarding` left every alert type silently ON in memory while looking clean on
+        // disk (sim-caught 2026-07-22: it made three reinstall-restore test runs unreadable —
+        // `wantsNotifs=true` on a "fresh" install was the tell).
+        defaults.set(false, forKey: appliedDefaultsKey)     // re-arm the first-bell cascade
         for key in ["dayBefore", "playerSpotlight", "fanZoneRounds", "kickoff", "goals",
                     "halftime", "fullTime", "lineupPosted", "substitutions", "liveActivitiesEnabled"] {
-            defaults.removeObject(forKey: prefix + key)
+            defaults.set(false, forKey: prefix + key)
         }
     }
     #endif

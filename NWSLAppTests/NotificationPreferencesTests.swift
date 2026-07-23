@@ -67,4 +67,72 @@ struct NotificationPreferencesTests {
         #expect(!store.playerSpotlight)
         #expect(!store.fanZoneRounds)
     }
+
+    // MARK: - Reinstall restore (applyRestored)
+
+    /// A restore adopts the saved row VERBATIM — including types the user deliberately turned OFF.
+    /// A blanket re-cascade would silently undo those edits, which is why the restore isn't one.
+    @Test func applyRestoredAdoptsRowVerbatim() {
+        let store = NotificationPreferencesStore(defaults: isolated("test.notif.restore"))
+        store.applyRestored(NotificationPreferencesSnapshot(
+            dayBefore: true, lineupPosted: true, kickoff: true, goals: false, halftime: true,
+            fullTime: true, substitutions: false, fanZoneRounds: true, playerSpotlight: false,
+            liveActivitiesEnabled: true))
+
+        #expect(store.dayBefore)
+        #expect(store.lineupPosted)
+        #expect(store.kickoff)
+        #expect(!store.goals)            // deliberately off before the reinstall → still off
+        #expect(store.halftime)
+        #expect(store.fullTime)
+        #expect(!store.substitutions)
+        #expect(store.fanZoneRounds)
+        #expect(!store.playerSpotlight)
+        #expect(store.liveActivitiesEnabled)
+    }
+
+    /// After a restore the device HAS a considered state, so the first-bell cascade must not fire
+    /// over it — otherwise turning on a second team would re-enable the type the user turned off.
+    @Test func restoreSetsSentinelSoCascadeCannotOverwriteIt() {
+        let store = NotificationPreferencesStore(defaults: isolated("test.notif.restore.sentinel"))
+        #expect(!store.hasAppliedAlertDefaults)
+
+        store.applyRestored(NotificationPreferencesSnapshot(
+            dayBefore: true, lineupPosted: false, kickoff: true, goals: false, halftime: false,
+            fullTime: false, substitutions: false, fanZoneRounds: false, playerSpotlight: false,
+            liveActivitiesEnabled: false))
+        #expect(store.hasAppliedAlertDefaults)
+
+        store.applyMatchAlertDefaultsIfFirstTime()
+        #expect(!store.goals)            // no-op: the restored selection stands
+        #expect(!store.lineupPosted)
+    }
+
+    /// The restore persists like any other edit (a relaunch reads the restored values back).
+    @Test func restorePersists() {
+        let suite = "test.notif.restore.persist"
+        let defaults = isolated(suite)
+        NotificationPreferencesStore(defaults: defaults).applyRestored(
+            NotificationPreferencesSnapshot(
+                dayBefore: false, lineupPosted: false, kickoff: true, goals: true, halftime: false,
+                fullTime: false, substitutions: false, fanZoneRounds: false, playerSpotlight: false,
+                liveActivitiesEnabled: false))
+
+        let reloaded = NotificationPreferencesStore(defaults: defaults)
+        #expect(reloaded.kickoff)
+        #expect(reloaded.goals)
+        #expect(!reloaded.halftime)
+        #expect(reloaded.hasAppliedAlertDefaults)
+    }
+
+    /// Account delete re-arms the restore/cascade: the sentinel is cleared alongside the toggles, so
+    /// the next account's first bell tap cascades again instead of landing on a dead all-off state.
+    @Test func resetClearsTheAppliedDefaultsSentinel() {
+        let store = NotificationPreferencesStore(defaults: isolated("test.notif.reset.sentinel"))
+        store.applyMatchAlertDefaultsIfFirstTime()
+        #expect(store.hasAppliedAlertDefaults)
+
+        store.resetServerPushTypes()
+        #expect(!store.hasAppliedAlertDefaults)
+    }
 }

@@ -283,6 +283,16 @@ struct RootTabView: View {
             }
             #endif
             await auth.restoreSession()
+            #if DEBUG
+            // `-signInAsTestFan <n>`: adopt a seeded Fan Zone identity (see AuthStore). AFTER restore,
+            // so it replaces whatever session was restored rather than being overwritten by it.
+            // Same `i + 1 < count` shape as AppRouter's `-debugOpenMatch`.
+            let debugArgs = ProcessInfo.processInfo.arguments
+            if let i = debugArgs.firstIndex(of: "-signInAsTestFan"), i + 1 < debugArgs.count,
+               let n = Int(debugArgs[i + 1]) {
+                await auth.debugSignInAsTestFan(index: n)
+            }
+            #endif
             // Mirror Supabase auth events for the app's lifetime (idempotent). Started AFTER
             // restore so the initial state is settled; catches explicit terminations the
             // running app would otherwise only notice at next launch.

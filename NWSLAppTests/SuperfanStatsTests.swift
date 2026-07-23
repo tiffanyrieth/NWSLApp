@@ -28,9 +28,19 @@ struct SuperfanStatsTests {
         #expect(SuperfanStanding(rank: 1, qualifying: 500).topPercent == 1)
     }
 
-    @Test func meaningfulOnlyWithEnoughQualifiers() {
-        #expect(SuperfanStanding(rank: 1, qualifying: 5).isMeaningful)   // at the threshold
-        #expect(!SuperfanStanding(rank: 1, qualifying: 4).isMeaningful)  // too few fans → building state
-        #expect(!SuperfanStanding(rank: 1, qualifying: 3).isMeaningful)
+    /// The standing line renders at EVERY field size (the old ≥5-qualifiers gate is gone — owner ruling
+    /// 2026-07-22: a first player has to see the shape of the feature). N=1 is the one special case:
+    /// `rank/qualifying` is 1.0 there, so a percentile would read "Top 100% of 1 fans".
+    @Test func standingTextAtEveryScale() {
+        #expect(SuperfanStanding(rank: 1, qualifying: 1).standingText == "#1 of 1 fan")
+        #expect(SuperfanStanding(rank: 1, qualifying: 2).standingText == "Top 50% of 2 fans")
+        #expect(SuperfanStanding(rank: 1, qualifying: 4).standingText == "Top 25% of 4 fans")
+        #expect(SuperfanStanding(rank: 12, qualifying: 100).standingText == "Top 12% of 100 fans")
+    }
+
+    /// The regression this guards: never render a percentile for a field of one, at any rank.
+    @Test func singleFanNeverShowsAPercentile() {
+        #expect(!SuperfanStanding(rank: 1, qualifying: 1).standingText.contains("%"))
+        #expect(!SuperfanStanding(rank: 1, qualifying: 0).standingText.contains("%"))
     }
 }

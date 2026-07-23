@@ -52,7 +52,12 @@ run it at BUILD time, not a review months later. Every item maps to a real bug t
    wedge? Make the retriable step idempotent (upsert-on-conflict) and gate the non-idempotent (scoring) step.
 
 Plus the standing hard rule: **ZERO fabricated data** — honest empty/loading, never fake rivals or padded
-counts. NOTE: this gate catches the "should never have shipped" 80%; the subtlest failure-TIMING bugs
+counts. ⚠️ Scope: this bans the APP inventing rivals. It does NOT ban the pre-launch BACKEND test
+population (proxy `scripts/seed_test_fans.mjs` → real `auth.users` under `@seed.nwslapp.test`, purged
+before launch, guarded by `health_check_seed_accounts.mjs`) — see `docs/fan-zone.md` §8. Related ruling
+(2026-07-22): **no Fan Zone surface hides itself at low scale** — Superfan's tier/ladder and the quiz
+percentages render from the first player, paired with raw counts so small-N can't overstate. Don't
+"restore" a minimum-participants gate. NOTE: this gate catches the "should never have shipped" 80%; the subtlest failure-TIMING bugs
 (a write dying between two specific steps) sometimes still need an adversarial logic review as the backstop
 — the gate is the build-time net, a periodic review is the safety net, not one or the other.
 

@@ -217,6 +217,24 @@ Because entry is gated, every downstream write is already authenticated.
 **ZERO fabricated data** is a hard rule: honest empty/loading states, never padded counts or invented
 rivals. A board with one real person shows one person and says so.
 
+**What the rule targets — and what it doesn't.** It forbids the APP inventing rivals client-side. It
+does NOT forbid a backend test population: `nwslapp-proxy/scripts/seed_test_fans.mjs` creates real
+`auth.users` accounts (`@seed.nwslapp.test`) that own real rows, so the app renders them exactly as it
+will render launch traffic and cannot tell the difference. Bracket seeds **votes only** — the real
+engine derives the winners, splits, scores and ranks, so a tally bug surfaces instead of hiding behind
+hand-written scores. Two guardrails make this safe: nothing seeding-related ships in the app binary
+(the `-signInAsTestFan` path is `#if DEBUG`), and `health_check_seed_accounts.mjs` FAILS the proxy
+healthcheck while any seed account exists. Purge with `--purge` — every per-user table cascades off
+`auth.users`, so deleting the accounts removes everything they own.
+
+**Nothing hides itself at low scale (owner ruling 2026-07-22).** Surfaces show their real shape from the
+first player, because the first players are the ones we need to come back. Superfan's tier/percentile/
+ladder no longer wait for 5 qualifying fans, and quiz percentages no longer wait for 25 responders —
+both now render alongside their raw counts, so a small-N number can't overstate. The one arithmetic
+special case is a field of ONE, where any percentile is 100% by definition: that reads as a rank. This
+is the same call that lifted the Trivia reveal gate — hiding a feature until a crowd arrives is how the
+crowd never arrives.
+
 **Game Center is purely additive** on top of the Supabase boards — every call no-ops silently when the
 player isn't authenticated. It is NOT a source of truth, and it works pre-publish (sandbox) — nothing
 about the ranked experience waits on App Store approval. ⚠️ The trivia achievement identifiers still say

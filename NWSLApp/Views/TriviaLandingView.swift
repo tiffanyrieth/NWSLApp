@@ -58,9 +58,9 @@ struct TriviaLandingView: View {
                     .multilineTextAlignment(.center)
             }
             .padding(20)
+            .fanZonePlayingAsHeader(accent: accent)
         }
         .nativeBackButton(title: "NWSL Trivia")
-        .fanZonePlayingAs(accent: accent)
         .background(Color.dsBgGrouped)
         .sheet(item: $activeEntry) { entry in
             NavigationStack {

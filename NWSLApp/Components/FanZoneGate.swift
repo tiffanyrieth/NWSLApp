@@ -142,11 +142,11 @@ struct PlayingAsBadge: View {
     }
 }
 
-/// In-content variant of `PlayingAsBadge` — a right-aligned strip pinned to the TOP of a game
-/// screen's content (below the nav bar). Keeps the "Playing as {name}" affordance OUT of the nav
+/// In-content variant of `PlayingAsBadge` — a right-aligned strip at the TOP of a game screen's
+/// scroll content (below the nav bar). Keeps the "Playing as {name}" affordance OUT of the nav
 /// bar, whose variable-width trailing item knocked the centered inline title off-center (the title
 /// drifted per game — "Know Her Game" left, "NWSL Trivia" right, etc.). No reserved space when
-/// signed out. Apply via `.fanZonePlayingAs(accent:)`.
+/// signed out. Apply via `.fanZonePlayingAsHeader(accent:)`.
 struct PlayingAsRow: View {
     @Environment(AuthStore.self) private var auth
     let accent: Color
@@ -159,16 +159,30 @@ struct PlayingAsRow: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 4)
-            .padding(.bottom, 8)
+            // Small: the scroll content it sits above brings its own top padding.
+            .padding(.bottom, 4)
         }
     }
 }
 
 extension View {
-    /// Pin the "Playing as {name}" chip to the top of a Fan Zone game screen's content instead of
-    /// the nav bar's trailing slot — so the centered `nativeBackButton` title stays centered.
-    func fanZonePlayingAs(accent: Color) -> some View {
-        safeAreaInset(edge: .top, spacing: 0) { PlayingAsRow(accent: accent) }
+    /// Put the "Playing as {name}" chip at the top of a Fan Zone game screen's SCROLL CONTENT —
+    /// apply to the outermost view INSIDE the `ScrollView`, after that content's own padding.
+    ///
+    /// It scrolls away with the content by design. It was a `safeAreaInset` (pinned below the nav
+    /// bar), which insets the scroll view's safe area but lets the content scroll UNDER it — so
+    /// headlines and body text visibly passed behind the chip on every game screen. It's an identity
+    /// stamp, not a control, so it has no reason to persist; putting it in the content also avoids a
+    /// permanent opaque band reading as a second toolbar. Still out of the nav bar, so the centered
+    /// `nativeBackButton` title stays centered.
+    /// `accent` is optional so a surface that deliberately omits the chip (a modal read of a game,
+    /// e.g. Bracket's "See the full bracket" sheet) can say so at the call site without branching
+    /// its whole view body.
+    func fanZonePlayingAsHeader(accent: Color?) -> some View {
+        VStack(spacing: 0) {
+            if let accent { PlayingAsRow(accent: accent) }
+            self
+        }
     }
 }
 

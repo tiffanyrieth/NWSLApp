@@ -68,11 +68,16 @@ xcrun simctl install <SIM_ID> <NWSLApp.app>
 xcrun simctl launch  <SIM_ID> com.tiffanyrieth.nwslapp.NWSLApp
 ```
 DEBUG args: `-resetOnboarding`, `-useESPNDirect`, `-startTab <home|schedule|standings|teams|feed>`,
-`-debugOpenMatch <espnEventID>` (deep-links a match detail tap-free — for in-sim verification; Xcode 27 killed idb HID).
-Decode-only tests read `NWSLAppTests/Fixtures/*.json` via `#filePath`. **Driving the sim:** `idb` is
-installed — start `idb_companion --udid <SIM>`, then `idb ui tap <x> <y>` (DEVICE points) + `idb ui
-describe-all` (element frames + a11y labels — exact for locating/measuring UI) are the reliable way to
-tap SwiftUI and verify layout. cliclick is fine for SCROLL drags + UIKit hit targets, but its synthetic
+`-debugOpenMatch <espnEventID>` (deep-links a match detail tap-free — for in-sim verification).
+Decode-only tests read `NWSLAppTests/Fixtures/*.json` via `#filePath`. **Driving the sim — idb HID WORKS
+again** (2026-07-22; Xcode 27 only MOVED `SimulatorKit` to `Contents/SharedFrameworks/`, where idb doesn't
+look — point it at 26.6, which still has it at the old path):
+`DEVELOPER_DIR=/Applications/Xcode-26.6.0.app/Contents/Developer idb_companion --udid <SIM>`, then
+`… idb --companion localhost:<port> ui tap <x> <y>` (the client's unix socket isn't created — read the port
+from the companion's `{"grpc_port":…}` line; coords are DEVICE points). ⚠️ SwiftUI **Toggles need
+`--duration 0.12`** — an instantaneous tap is swallowed; and `ui describe-all` frames report the element's
+**top**, so tap `y + height/2`. `describe-all` (frames + a11y labels) is exact for locating/measuring UI.
+cliclick is fine for SCROLL drags + UIKit hit targets, but its synthetic
 clicks get SWALLOWED by SwiftUI buttons inside a nested horizontal-scroll (e.g. a chip in the pinned
 Club News header) — don't trust it there. DEBUG deep-link/launch-arg scaffolds remain a fallback.
 
@@ -242,7 +247,13 @@ MID-onboarding). Pure, tested `FollowSyncCoordinator.resolveFollowOps`: **adds a
 `hasOnboarded`** — a half-filled picker must never look authoritative (that was the "only the oldest
 follow survives" data-loss bug). Post-onboarding the device is authoritative both ways, so
 follow-16-then-unfollow-to-2 leaves the server holding 2. **What sign-in DOES restore is GAME PROGRESS**
-(`fanzone_progress`, keyed `user_id` never `device_id`) — see `docs/fan-zone.md`. Two devices diverging
+(`fanzone_progress`, keyed `user_id` never `device_id`) — see `docs/fan-zone.md` — **and, on a REINSTALL
+only, the NOTIFICATION state** (2026-07-22): the per-team bells + the alert TYPES come back verbatim (a
+type deliberately turned off stays off), gated on a device that has made no notification choice at all;
+if there's nothing to restore but a bell is on, the default bundle cascades so a bell never sits on with
+nothing firing. Follows still don't restore — the user re-picks clubs, everything notification-related
+restores itself. Mechanism + the ⚠️ simulator trap (`simctl uninstall` does NOT clear the prefs domain —
+`defaults delete` does, else every "fresh install" test is a false negative): `docs/notifications.md` §1a. Two devices diverging
 offline → last writer wins (fine at current scale). **Gotcha (grants):** a new per-user table needs `grant … to
 authenticated` or signed-in queries fail silently with `42501` (RLS ≠ privilege); **AND** any table a
 **Worker reads/writes as `service_role`** — the watcher (`device_tokens`, `*_preferences`,

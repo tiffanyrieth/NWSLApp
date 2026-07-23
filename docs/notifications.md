@@ -58,11 +58,53 @@ default bundle** (day-before + kickoff + goals + HT + FT + lineups + Live Activi
 `applyMatchAlertDefaultsIfFirstTime`) — a complete feature makes the best first impression, and a
 bell-on-but-nothing-fires state is the banned "silent success." Because the bundle is mostly Tier 2, a
 **signed-out** bell tap presents Sign in with Apple first (success → enable + cascade + toast; cancel → bell
-stays off). Sign-out resets Tier-2 types (`resetServerPushTypes`). National-team alerts key by FIFA code in
-`competition_alert_preferences` (separate from the club-id `team_alert_preferences`).
+stays off). A plain sign-out **PRESERVES** the Tier-2 types (display-gated on auth, restored exactly on
+re-sign-in); only account delete wipes them (`resetServerPushTypes`). National-team alerts key by FIFA code
+in `competition_alert_preferences` (separate from the club-id `team_alert_preferences`).
 
 Prefs live in Supabase (offline-first, UserDefaults cache). App side: `NotificationPreferencesStore`,
 `TeamAlertStore`, `NotificationScheduler` (Tier 1 local scheduling).
+
+### 1a. Reinstall restore (the alert types) — added 2026-07-22
+
+A reinstall used to bring the per-team BELLS back (`TeamAlertSyncCoordinator` pulls
+`team_alert_preferences` down when local is empty) while every alert TYPE stayed off — the banned
+"alerts on, nothing can ever fire" state. Two causes, both fixed:
+
+1. `NotificationPrefsSyncService` was **push-only** — nothing ever read `notification_preferences` back.
+2. On sign-in the coordinator pushed the fresh install's **all-off** snapshot up, destroying the saved row
+   before anything could read it.
+
+**How it works now** (`NotificationSyncCoordinator.decideRestore`, pure + unit-tested):
+
+- **Only on a device with no local choices** — no toggle on AND the first-bell sentinel clear
+  (`needsRestore`). Everything else is device-authoritative: no pull, and the push is never gated.
+  ⚠️ Keep that gate this narrow. A first cut gated EVERY push on "the restore finished," which silently
+  blocked preference syncing for a whole session on a device that had toggles.
+- **Saved row with anything on ⇒ restore it VERBATIM.** A type the user deliberately turned off comes back
+  off. Device-proven 2026-07-22 (saved `goals=false` → restored `goals` off, everything else on).
+- **Nothing worth restoring but a team bell is on ⇒ cascade the default bundle** — never OVER an existing
+  selection (guarded on `anyServerPushEnabled`, so signing in via a "Match updates" tap keeps just that,
+  while the onboarding bell — Tier-1 day-before only, by design — still cascades).
+- **Bells can land after the pull** (separate coordinator, separate Task), so the coordinator observes
+  `teamAlerts.enabledTeamIDs` and re-checks the invariant whichever finishes first.
+- **Follows are NOT restored** (deliberate, upward-only). The user re-picks clubs; the bells for those
+  clubs and all alert types then restore themselves.
+- Companion fix: `TeamAlertSyncCoordinator` bails when alerts AND follows are both empty, and used to
+  never retry — so a reinstall whose Keychain session restores BEFORE onboarding never got its bells back.
+  It now marks only a reconcile that actually ran, and the follows-changed observation retries once.
+
+**Tracing it** (`NotifTrace`, visible in Notification Diagnostics): `prefs-boot` (what the stores loaded
+this launch) → `prefs-fetch` (what the SERVER holds + the decision inputs) → `prefs-restore`
+(restored / cascaded / skipped, with why) → `prefs-push` (what actually reached Supabase). Added because a
+push that never RAN looked identical to one that succeeded.
+
+⚠️ **Testing this in the simulator:** `simctl uninstall` deletes the app container but **NOT** the
+preferences domain — `cfprefsd` keeps serving it to the next install, so a "fresh install" boots with the
+old toggles on and the restore correctly steps aside. Clear it properly:
+`xcrun simctl spawn <UDID> defaults delete com.tiffanyrieth.nwslapp.NWSLApp`. (`-resetOnboarding` is fine
+too now — its notif reset writes cleared sentinels instead of `removeObject`, which had the same problem.)
+Three test rounds were misread before this was understood; `prefs-boot` is the tell (`local=none` = real).
 
 ## 2. Data source & the proxy
 

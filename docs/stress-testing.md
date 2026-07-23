@@ -171,6 +171,15 @@ For each subsystem, walk it explicitly:
 
 ## 7. Status ledger
 
+- **Alert-type reinstall restore (2026-07-22): ✅ passes 1k + 100k by construction.** One new READ
+  path: a single-row `select` on `notification_preferences`, gated on a device that has never made a
+  notification choice — so it fires **once per install per identity**, not per launch and not per
+  foreground (`NotificationSyncCoordinator.needsRestore`). A failed fetch retries on the next
+  foreground but is still bounded by that same gate. 1k: ≤1k one-time single-row selects, against
+  Supabase's unlimited-API-requests tier; adds no rows and no egress of note. 100k: identical shape,
+  linear in installs, no lever needed. The companion team-alert reconcile retry (follows arriving
+  after a restored session) reuses the existing per-identity reconcile — bounded to one extra run.
+
 - **Fan Zone v3 (rounds/retention/restore, 2026-07-23): ✅ passes 1k + 100k by construction.**
   Verified first against primary docs (supabase.com/pricing): Supabase has **UNLIMITED API requests**
   on every tier — the binding constraints are **DB size (free 500 MB / Pro 8 GB), MAU (50k/100k),

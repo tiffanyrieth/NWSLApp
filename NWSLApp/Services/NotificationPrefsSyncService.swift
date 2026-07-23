@@ -10,6 +10,11 @@
 //  `goals` off gets no goal push), so the app mirrors the nine Profile toggles up
 //  here. One row per user (user_id is the primary key), upserted whole.
 //
+//  Mostly WRITE-ONLY — the device owns intent. The one READ (`fetchPreferences`) exists
+//  for a single case: a REINSTALL, where the fresh install has no toggles at all and the
+//  server row is the user's last known selection (NotificationSyncCoordinator's restore
+//  step). Everything else stays device-authoritative.
+//
 
 import Foundation
 import Supabase
@@ -25,6 +30,52 @@ struct NotificationPrefsSyncService {
             .from("notification_preferences")
             .upsert(NotificationPreferencesRow(snapshot, userID: userID), onConflict: "user_id")
             .execute()
+    }
+
+    /// Read back the user's saved row — `nil` when they've never had one (a brand-new account).
+    /// ONLY used by the reinstall restore (a device with no local choices); the device is the
+    /// source of truth everywhere else, so this must never become a general "pull on launch".
+    /// RLS scopes the select to the caller; `schema.sql` already carries both the policy and the
+    /// `grant select … to authenticated` (without the grant this 42501s — RLS ≠ privilege).
+    func fetchPreferences(userID: UUID) async throws -> NotificationPreferencesSnapshot? {
+        let rows: [NotificationPreferencesReadRow] = try await client
+            .from("notification_preferences")
+            .select()
+            .eq("user_id", value: userID)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.snapshot
+    }
+}
+
+// The read twin of the write row. Separate type because the write side is `Encodable` with a
+// `user_id` we supply — here every flag is decoded and the id is irrelevant (RLS already scoped it).
+private struct NotificationPreferencesReadRow: Decodable {
+    let day_before: Bool
+    let lineup_posted: Bool
+    let kickoff: Bool
+    let goals: Bool
+    let halftime: Bool
+    let full_time: Bool
+    let substitutions: Bool
+    let fan_zone_rounds: Bool
+    let player_spotlight: Bool
+    let live_activities_enabled: Bool
+
+    var snapshot: NotificationPreferencesSnapshot {
+        NotificationPreferencesSnapshot(
+            dayBefore: day_before,
+            lineupPosted: lineup_posted,
+            kickoff: kickoff,
+            goals: goals,
+            halftime: halftime,
+            fullTime: full_time,
+            substitutions: substitutions,
+            fanZoneRounds: fan_zone_rounds,
+            playerSpotlight: player_spotlight,
+            liveActivitiesEnabled: live_activities_enabled
+        )
     }
 }
 

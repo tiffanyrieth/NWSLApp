@@ -56,7 +56,6 @@ struct TriviaRoundView: View {
             }
         }
         .nativeBackButton(title: "NWSL Trivia")
-        .fanZonePlayingAs(accent: accent)
         .background(Color.dsBgGrouped)
         // Mandatory sign-in + display name to play — gated at "Start the quiz", so the completion write
         // is always signed in. "Go back" cancels.
@@ -128,6 +127,7 @@ struct TriviaRoundView: View {
                     .multilineTextAlignment(.center).padding(.horizontal)
             }
             .padding(20)
+            .fanZonePlayingAsHeader(accent: accent)
         }
     }
 
@@ -185,11 +185,12 @@ struct TriviaRoundView: View {
                             optionRow(question: question, index: index)
                         }
                     }
-                    Text("Tap an answer — auto-advances")
-                        .dsFont(11).foregroundStyle(.tertiary)
-                        .frame(maxWidth: .infinity).multilineTextAlignment(.center)
+                    // No "tap an answer — auto-advances" hint: the tap target is self-evident, and
+                    // Know Her Game's question screen never had one (the two community games share
+                    // one grammar — see .claude/rules/fan-zone.md).
                 }
                 .padding(20)
+                .fanZonePlayingAsHeader(accent: accent)
             }
         }
     }
@@ -294,6 +295,7 @@ struct TriviaRoundView: View {
                     .multilineTextAlignment(.center).padding(.horizontal)
             }
             .padding(20)
+            .fanZonePlayingAsHeader(accent: accent)
         }
     }
 

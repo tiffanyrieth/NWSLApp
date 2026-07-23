@@ -48,7 +48,6 @@ struct BracketBattleView: View {
             }
         }
         .nativeBackButton(title: "Bracket Battle")
-        .fanZonePlayingAs(accent: accent)
         .background(Color.dsBgPrimary.ignoresSafeArea())
         .task {
             // Start Game Center auth here (a game screen) rather than at launch, so
@@ -131,6 +130,7 @@ struct BracketBattleView: View {
                         goodToKnow   // in the scroll (after "See the full bracket"), not pinned
                     }
                     .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 16)
+                    .fanZonePlayingAsHeader(accent: accent)
                 }
 
                 // The ONLY pinned element — gate trigger + subtext (current round · countdown,
@@ -144,8 +144,10 @@ struct BracketBattleView: View {
             }
             .sheet(isPresented: $showFullBracket) {
                 NavigationStack {
-                    overviewBody(banner: nil)
-                        .navigationTitle("The bracket so far")
+                    // No navigationTitle: the content's own header already says "The bracket so far"
+                    // (with the theme eyebrow + entrant counts), and a nav title repeated it verbatim
+                    // two lines above itself.
+                    overviewBody(banner: nil, showsPlayingAs: false)
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .cancellationAction) { Button("Done") { showFullBracket = false } }
@@ -363,6 +365,7 @@ struct BracketBattleView: View {
                     ForEach(viewModel.currentMatchups) { m in matchupVoteCard(m, round: round) }
                 }
                 .padding(.horizontal, 16).padding(.bottom, 16)
+                .fanZonePlayingAsHeader(accent: accent)
             }
             submitBar(allMade: allMade, made: made, total: total)
         }
@@ -493,6 +496,7 @@ struct BracketBattleView: View {
                     overviewContent(banner: nil)
                 }
                 .padding(.horizontal, 16).padding(.bottom, 32)
+                .fanZonePlayingAsHeader(accent: accent)
             }
         } else {
             overviewBody(banner: nil)
@@ -697,11 +701,14 @@ struct BracketBattleView: View {
 
     /// Standalone scrollable overview — the post-submit landing, with a banner.
     @ViewBuilder
-    private func overviewBody(banner: String?) -> some View {
+    /// `showsPlayingAs` is false ONLY for the "See the full bracket" SHEET, which is a modal read
+    /// of the bracket — not a screen you play from — and has its own Done chrome.
+    private func overviewBody(banner: String?, showsPlayingAs: Bool = true) -> some View {
         if viewModel.edition != nil {
             ScrollView {
                 overviewContent(banner: banner)
                     .padding(.horizontal, 16).padding(.bottom, 32)
+                    .fanZonePlayingAsHeader(accent: showsPlayingAs ? accent : nil)
             }
             .background(Color.dsBgPrimary.ignoresSafeArea())
         }

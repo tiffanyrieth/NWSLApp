@@ -69,7 +69,6 @@ struct KnowHerLandingView: View {
             }
         }
         .nativeBackButton(title: "Know Her Game")
-        .fanZonePlayingAs(accent: accent)
         .background(Color.dsBgGrouped)
         .task {
             GameCenterManager.shared.authenticate()
@@ -120,6 +119,7 @@ struct KnowHerLandingView: View {
                     .multilineTextAlignment(.center)
             }
             .padding(20)
+            .fanZonePlayingAsHeader(accent: accent)
         }
     }
 

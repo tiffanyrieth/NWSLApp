@@ -102,6 +102,36 @@ struct DebugResetStateTests {
         #expect(reloaded.teamsWithAlerts().isEmpty)
     }
 
+    // MARK: - Notification prefs (every toggle + the first-bell sentinel → false)
+
+    /// `-resetOnboarding` must produce a genuinely fresh notification state. This was the one reset
+    /// still using `removeObject`, which vanishes from the on-disk plist but leaves the store loading
+    /// the OLD value — so a "fresh" install came up with alert types silently ON, and the reinstall
+    /// restore correctly treated the device as having state and skipped (sim-caught 2026-07-22).
+    /// ⚠️ Honest scope: this pins the INTENT (reset ⇒ nothing on, sentinel clear) but cannot reproduce
+    /// the failure — the stale read is a cross-process CFPreferences-snapshot effect, and an isolated
+    /// in-process suite honors `removeObject` fine. Only a real sim run catches that one.
+    @Test func notificationPrefsResetClearsTogglesAndSentinel() {
+        let defaults = isolatedDefaults("test.reset.notifPrefs")
+        let store = NotificationPreferencesStore(defaults: defaults)
+        store.applyMatchAlertDefaultsIfFirstTime()          // the full bell bundle + the sentinel
+        #expect(store.snapshot.anyEnabled)
+        #expect(store.hasAppliedAlertDefaults)
+
+        NotificationPreferencesStore.debugResetState(defaults: defaults)
+
+        let reloaded = NotificationPreferencesStore(defaults: defaults)
+        // `anyEnabled` is what the launch reconcile reads as `wantsNotifs` — the exact signal that
+        // exposed the stale reset.
+        #expect(!reloaded.snapshot.anyEnabled)
+        #expect(!reloaded.hasAppliedAlertDefaults)
+        #expect(!reloaded.kickoff)
+        #expect(!reloaded.goals)
+        #expect(!reloaded.halftime)
+        #expect(!reloaded.dayBefore)
+        #expect(!reloaded.liveActivitiesEnabled)
+    }
+
     // MARK: - Bracket Battle (JSON keys → empty Data(), editionID → "")
 
     @Test func bracketResetClearsProgress() {

@@ -53,6 +53,16 @@ final class NotificationSyncCoordinator {
     private var lastPushedSnapshot: NotificationPreferencesSnapshot?
     private var lastUserID: UUID?
 
+    /// Reinstall-restore bookkeeping (see `restorePreferences`). `nil` = not yet attempted for the
+    /// current identity, which blocks the prefs push **while `needsRestore`** — a fresh install's
+    /// all-off snapshot must never reach the server before we've read the user's saved row (that
+    /// push is what erased it). Set to the user id once the attempt finishes — success or a benign
+    /// "nothing to restore". A FAILED fetch leaves it nil so the next `resync()` (every foreground)
+    /// retries; the push stays blocked meanwhile, which costs nothing because local is all-off.
+    private var restoredForUserID: UUID?
+    /// Guards against two overlapping restore Tasks (sync() is re-entrant via observation).
+    private var restoreInFlight = false
+
     init(
         auth: AuthStore,
         preferences: NotificationPreferencesStore,
@@ -85,14 +95,20 @@ final class NotificationSyncCoordinator {
 
     // MARK: - Observation
 
-    /// Re-arming observation of the three inputs: the signed-in user, the APNs
-    /// token (delivered asynchronously by AppDelegate → PushBridge), and the nine
-    /// toggles. Any change runs `sync()`, which is idempotent.
+    /// Re-arming observation of the four inputs: the signed-in user, the APNs
+    /// token (delivered asynchronously by AppDelegate → PushBridge), the nine
+    /// toggles, and the per-team bells. Any change runs `sync()`, which is idempotent.
+    ///
+    /// The bells are watched for the restore invariant only: TeamAlertSyncCoordinator restores them
+    /// on its OWN async Task, so they can land after our restore pass — observing them lets the
+    /// "a bell is on ⇒ the bundle has been applied" check re-run the moment they arrive, whichever
+    /// coordinator finishes first.
     private func observe() {
         withObservationTracking {
             _ = auth.userID
             _ = bridge.deviceToken
             _ = preferences.snapshot
+            _ = teamAlerts?.enabledTeamIDs
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -124,6 +140,7 @@ final class NotificationSyncCoordinator {
             lastUploadedToken = nil
             lastPushedSnapshot = nil
             lastUserID = newID
+            restoredForUserID = nil     // a new identity re-arms the reinstall restore
             // NOTE (involuntary-sign-out fix): the old `preferences.resetServerPushTypes()` on
             // sign-out is GONE — stored Tier-2 flags are now PRESERVED and merely display-gated
             // on auth (NotificationsView), so a re-sign-in restores the user's exact prior
@@ -160,17 +177,163 @@ final class NotificationSyncCoordinator {
             NotifTrace.shared.log("sync", .skip, "signed in, no APNs token yet (not registered?)")
         }
 
+        // REINSTALL RESTORE, before any prefs push — but ONLY on a device that has nothing to lose.
+        // The push is gated exclusively while `needsRestore` (a fresh install: no local choices, no
+        // sentinel), because that is the one state where pushing would overwrite the user's saved row
+        // with an all-off snapshot (the bug: bells restored ON, every alert type OFF, nothing fires).
+        //
+        // ⚠️ The gate MUST stay this narrow. A first cut gated EVERY push behind "the restore attempt
+        // finished for this identity", which silently blocked preference syncing for a whole session
+        // on a device that had real toggles (sim-caught 2026-07-22: the user's newly-enabled alert
+        // types never reached Supabase, so the next reinstall had nothing to restore). A device that
+        // already has state is device-authoritative — it must always be free to push.
+        if needsRestore {
+            guard restoredForUserID == userID else {
+                restorePreferences(for: userID)
+                return
+            }
+        } else if restoredForUserID != userID {
+            // Traced once per identity: the restore was never even attempted because this device
+            // already had state. Without this line a skipped restore is invisible — the exact gap
+            // that made the 2026-07-22 sim runs unreadable.
+            restoredForUserID = userID
+            NotifTrace.shared.log("prefs-restore", .skip,
+                "local has state — device-authoritative (local=\(Self.describe(preferences.snapshot)) "
+                + "sentinel=\(preferences.hasAppliedAlertDefaults))")
+        }
+
+        // The bells may have arrived after the restore pass (separate coordinator, separate Task) —
+        // re-check the invariant on every later pass. No-ops once the sentinel is set.
+        cascadeIfTeamBellsOnWithoutDefaults()
+
         let snapshot = preferences.snapshot
         if snapshot != lastPushedSnapshot {
             Task {
                 do {
                     try await prefsService.pushPreferences(snapshot, userID: userID)
                     lastPushedSnapshot = snapshot
+                    // Traced like `device-upsert`: without this, "did my toggles actually reach the
+                    // server?" is unanswerable from the field, and a push that never RAN looks
+                    // identical to one that succeeded (the 2026-07-22 blocked-push bug).
+                    NotifTrace.shared.log("prefs-push", .ok,
+                        "ko=\(snapshot.kickoff) goals=\(snapshot.goals) ht=\(snapshot.halftime) "
+                        + "ft=\(snapshot.fullTime) lineup=\(snapshot.lineupPosted) "
+                        + "day=\(snapshot.dayBefore) la=\(snapshot.liveActivitiesEnabled)")
                 } catch {
                     Diagnostics.shared.record(.apiFailure, "notif pushPreferences: \(error.localizedDescription)")
+                    NotifTrace.shared.log("prefs-push", .fail, error.localizedDescription)
                 }
             }
         }
+    }
+
+    // MARK: - Reinstall restore (the alert types)
+
+    /// Is this device in the ONE state a restore is for — a fresh install that has never made a
+    /// notification choice (no cascade, no manual edit, no earlier restore)? Everything else is
+    /// device-authoritative: no pull, and never a gated push. Cheap + local, so it's safe to read on
+    /// every sync pass.
+    private var needsRestore: Bool {
+        !preferences.hasAppliedAlertDefaults && !preferences.snapshot.anyEnabled
+    }
+
+    /// What to do with the server's saved prefs row on a given device state. Pure + `nonisolated` so
+    /// the whole decision is unit-testable without Supabase — same idiom as
+    /// `TeamAlertSyncCoordinator.authoritativeOnSet` / `FollowSyncCoordinator.resolveFollowOps`.
+    enum RestoreDecision: Equatable {
+        /// Device-authoritative: leave the local toggles exactly as they are. (Named `noRestore`,
+        /// not `none`, so `== .none` at a call site can't be read as `Optional.none`.)
+        case noRestore
+        /// Adopt the saved row verbatim (a deliberately-OFF type stays off).
+        case restore(NotificationPreferencesSnapshot)
+        /// Nothing worth restoring, but a team bell is on — cascade the default bundle, because a
+        /// bell with every type off is the banned "on but nothing fires" state.
+        case cascade
+    }
+
+    nonisolated static func decideRestore(
+        hasAppliedDefaults: Bool,
+        local: NotificationPreferencesSnapshot,
+        server: NotificationPreferencesSnapshot?,
+        teamBellsOn: Int
+    ) -> RestoreDecision {
+        // This install has already made a choice (a bell cascade, a manual edit, or an earlier
+        // restore) — the device owns intent, exactly as it does across a sign-out / sign-in.
+        guard !hasAppliedDefaults, !local.anyEnabled else { return .noRestore }
+        // A saved row only counts if it actually says something. An all-off row (or the row this
+        // very bug left behind) falls through to the bell invariant below.
+        if let server, server.anyEnabled { return .restore(server) }
+        return teamBellsOn > 0 ? .cascade : .noRestore
+    }
+
+    /// Compact one-line rendering of a snapshot for the trace (`-` = nil, no saved row).
+    nonisolated static func describe(_ s: NotificationPreferencesSnapshot?) -> String {
+        guard let s else { return "-" }
+        func f(_ label: String, _ on: Bool) -> String { on ? label : "" }
+        let flags = f("ko", s.kickoff) + f("go", s.goals) + f("ht", s.halftime) + f("ft", s.fullTime)
+            + f("ln", s.lineupPosted) + f("dy", s.dayBefore) + f("la", s.liveActivitiesEnabled)
+        return flags.isEmpty ? "none" : flags
+    }
+
+    /// Fetch the saved row once per identity and apply `decideRestore`. Marks the identity restored
+    /// (unblocking the prefs push) only when the attempt completes; a network/RLS failure records
+    /// Diagnostics and leaves it unmarked so the next foreground `resync()` retries — and, crucially,
+    /// so a fresh install's all-off snapshot is never pushed over the saved row in the meantime.
+    private func restorePreferences(for userID: UUID) {
+        guard !restoreInFlight else { return }
+        restoreInFlight = true
+        Task {
+            defer { restoreInFlight = false }
+            do {
+                let server = try await prefsService.fetchPreferences(userID: userID)
+                // The one line that makes a restore diagnosable in the field: what the SERVER holds,
+                // what the DEVICE holds, and the inputs to the decision. Without it, "restored",
+                // "cascaded" and "nothing there" are indistinguishable after the fact.
+                NotifTrace.shared.log("prefs-fetch", .ok,
+                    "server=\(Self.describe(server)) local=\(Self.describe(preferences.snapshot)) "
+                    + "sentinel=\(preferences.hasAppliedAlertDefaults) bells=\(teamAlerts?.enabledCount ?? -1)")
+                let decision = Self.decideRestore(
+                    hasAppliedDefaults: preferences.hasAppliedAlertDefaults,
+                    local: preferences.snapshot,
+                    server: server,
+                    teamBellsOn: teamAlerts?.enabledCount ?? 0
+                )
+                switch decision {
+                case .noRestore:
+                    NotifTrace.shared.log("prefs-restore", .skip, "device-authoritative or nothing to restore")
+                case .restore(let snapshot):
+                    preferences.applyRestored(snapshot)
+                    // We just adopted the server's own row — don't echo it straight back up.
+                    lastPushedSnapshot = snapshot
+                    NotifTrace.shared.log("prefs-restore", .ok, "restored saved alert types")
+                case .cascade:
+                    preferences.applyMatchAlertDefaultsIfFirstTime()
+                    NotifTrace.shared.log("prefs-restore", .ok, "no saved types + bells on → cascaded bundle")
+                }
+                restoredForUserID = userID
+                sync()      // resume the normal path (token upload + push) now that we're unblocked
+            } catch {
+                Diagnostics.shared.record(.apiFailure, "notif fetchPreferences: \(error.localizedDescription)")
+                NotifTrace.shared.log("prefs-restore", .fail, error.localizedDescription)
+            }
+        }
+    }
+
+    /// The standing invariant: **a team bell on ⇒ the alert-type bundle has been applied at least
+    /// once.** Only fires when the bundle has NEVER been applied on this device, so a bell restored
+    /// from the server can't land in the "on but every type off" state — and a user who later turns
+    /// types off keeps their edits (the sentinel is set by then).
+    private func cascadeIfTeamBellsOnWithoutDefaults() {
+        guard !preferences.hasAppliedAlertDefaults, (teamAlerts?.enabledCount ?? 0) > 0 else { return }
+        // Never cascade OVER a selection the user already made. Signing in by tapping "Match updates"
+        // enables those columns without the sentinel — blanket-enabling Goals/Lineups/Live Activities
+        // on top of that would be the app choosing for them. Only the genuinely broken state (a bell
+        // on with NO server-push type) gets the bundle. `anyServerPushEnabled` (not `anyEnabled`) so
+        // the onboarding bell — which sets only the Tier-1 day-before reminder, by design — still
+        // cascades the full bundle at sign-in, exactly as documented.
+        guard !preferences.snapshot.anyServerPushEnabled else { return }
+        preferences.applyMatchAlertDefaultsIfFirstTime()
+        NotifTrace.shared.log("prefs-restore", .ok, "bells arrived after restore → cascaded bundle")
     }
 
     // MARK: - Involuntary-sign-out desync sentinel

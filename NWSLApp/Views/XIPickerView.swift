@@ -67,10 +67,9 @@ struct XIPickerView: View {
                     Button(picker.readOnly ? "Done" : "Cancel") { dismiss() }
                 }
             }
-            // "Playing as {name}" as a right-aligned strip BELOW the nav bar — consistent with every
-            // other Fan Zone game (Bracket/Trivia/Know Her). The old trailing ToolbarItem was the lone
-            // holdout that rendered it as a nav-bar pill and pushed the centered title off-center.
-            .fanZonePlayingAs(accent: accent)
+            // NOTE: "Playing as {name}" is NOT a toolbar item — a variable-width trailing item pushed
+            // the centered title off-center. It rides the top of the scroll content instead
+            // (`fanZonePlayingAsHeader` in `content`), consistent with every other Fan Zone game.
         }
         .task { await picker.load() }
         .sheet(item: $activeSlot) { ref in
@@ -90,6 +89,7 @@ struct XIPickerView: View {
                 if !picker.readOnly { footerButtons }
             }
             .padding(20)
+            .fanZonePlayingAsHeader(accent: accent)
         }
     }
 

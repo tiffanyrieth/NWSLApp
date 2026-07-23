@@ -72,7 +72,6 @@ struct KnowHerGameView: View {
             }
         }
         .nativeBackButton(title: "Know Her Game")
-        .fanZonePlayingAs(accent: accent)
         .background(Color.dsBgGrouped)
         .task { GameCenterManager.shared.authenticate() }
         // Gate sign-in + display name at "Start the challenge", so the completion write is
@@ -126,6 +125,7 @@ struct KnowHerGameView: View {
                     .multilineTextAlignment(.center).padding(.horizontal)
             }
             .padding(20)
+            .fanZonePlayingAsHeader(accent: accent)
         }
     }
 
@@ -172,6 +172,7 @@ struct KnowHerGameView: View {
                     }
                 }
                 .padding(20)
+                .fanZonePlayingAsHeader(accent: accent)
             }
         }
     }
@@ -263,6 +264,7 @@ struct KnowHerGameView: View {
                 resultCTA
             }
             .padding(20)
+            .fanZonePlayingAsHeader(accent: accent)
         }
     }
 

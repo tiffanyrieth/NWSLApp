@@ -46,6 +46,12 @@ final class TeamAlertSyncCoordinator {
     private var knownNTFollows: Set<String>
     /// Last identity we reconciled for, so a sign-in / user switch re-pulls.
     private var lastUserID: UUID?
+    /// The identity a reconcile actually RAN for (got past the fully-empty bail), as opposed to one
+    /// it merely started. A reinstall whose Keychain session restores BEFORE onboarding reconciles
+    /// against zero follows and zero alerts, bails, and — because the identity never changes again —
+    /// never retries, so the user's saved bells stay silently unrestored once they pick their clubs.
+    /// Tracking the completed reconcile lets the follows-changed observation retry exactly once.
+    private var reconciledForUserID: UUID?
 
     init(
         auth: AuthStore,
@@ -115,6 +121,12 @@ final class TeamAlertSyncCoordinator {
                 if self.auth.userID != self.lastUserID {
                     self.lastUserID = self.auth.userID
                     self.reconcileIfSignedIn()
+                } else if let id = self.auth.userID, self.reconciledForUserID != id {
+                    // The follows just arrived for an identity whose reconcile bailed on an empty
+                    // device (reinstall + restored session, clubs picked afterwards). Retry now that
+                    // there's something to reconcile — idempotent, and self-limiting because a
+                    // reconcile that gets past the bail marks the identity done.
+                    self.reconcileIfSignedIn()
                 }
                 self.observe()
             }
@@ -173,7 +185,11 @@ final class TeamAlertSyncCoordinator {
             let ntFollows = following.followedNationalTeams
             let followed = clubFollows.union(ntFollows)
             let localOn = alerts.teamsWithAlerts()
+            // Nothing on the device yet (no alerts AND no follows): a not-yet-populated restore.
+            // Bail WITHOUT marking the identity reconciled, so the follows-changed observation
+            // retries once the picker lands — otherwise the saved bells never come back.
             guard !(localOn.isEmpty && followed.isEmpty) else { return }
+            reconciledForUserID = userID
             do {
                 // ── RESTORE branch (empty local ON set: reinstall / new device). ─────────────────
                 // RESTORE-ONLY, mirroring the follows contract: pull the full server set DOWN and

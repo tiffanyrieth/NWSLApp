@@ -30,17 +30,30 @@
 > round — the engine generates it from the league pool. Offseason is exactly when the app most needs a
 > reason to open, and when Bracket has the least competition for attention.
 >
-> **What has to change (the current engine is built for a year-round loop):**
-> - **Seasonal windowing.** Auto mode currently regenerates forever: tally → advance → after
->   `break_days` generate the next edition. It needs a concept of WHEN it should be running.
->   `FanZoneCadence` has no "offseason" notion — it anchors to the season opener and counts weeks — so
->   the signal has to come from somewhere. Cheapest honest option: reuse Predict's existing test
->   ("is there any future fixture at all?"), which is already how the app decides a true offseason.
-> - **Pacing.** Today: `early_round_days=2`, `late_round_days=3`, `break_days=10` → roughly a
->   3–4 week edition plus a ~10-day break, i.e. ~1 edition/month. A ~15-week offseason fits about
->   three. Re-pick these for the offseason rhythm rather than inheriting the in-season numbers.
-> - **The in-season 1–2 editions** need to be *scheduled*, not incidental — probably operator-started
->   from the admin portal rather than automatic, so they can land in a deliberate lull.
+> **The model (owner, 2026-07-23) — "semi-automatic":** the operator curates a LIBRARY of themes (jot
+> ideas down during the season, drop 3–4 in when the offseason arrives); **auto mode's only job is to
+> advance rounds when the timer runs down.** Editions are STARTED by hand from the library, not
+> generated on a break timer. Run it ~3–4 times a year, ~3 weeks each.
+>
+> **⚠️ Most of this already exists — don't rebuild it.** `bracket_creative_editions` /
+> `bracket_stats_editions` ARE the library: per-theme `status` (`ready` | `parked` | `used`) + a
+> `season` column that gates no-repeats, plus `used_themes_this_season` in `bracket_config` which
+> `generateNext` skips against. The admin portal already has Add creative theme, Edit title,
+> Park / Set ready, Delete, **Start specific**, Start next (rotation), and Clear used themes.
+>
+> **So the actual remaining work is a REDUCTION, not a build:**
+> - **Stop auto from auto-STARTING editions.** `handleAuto` currently generates a new edition once
+>   `break_days` elapses with none active. The wanted behaviour is advance-only: tally + advance while
+>   an edition is live, then STOP when it completes and wait for the operator. That also removes the
+>   need for any "is it the offseason?" signal — the operator's start IS the signal, which is far
+>   cheaper than teaching `FanZoneCadence` an offseason concept it doesn't have.
+> - **Re-pick the pacing** for a 3-week offseason edition (today `early_round_days=2`,
+>   `late_round_days=3`, `break_days=10` → ~3–4 weeks + a ~10-day break); `break_days` becomes
+>   irrelevant once editions are operator-started.
+> - **Admin-portal controls** adjusted to match (the start/advance emphasis, less mode-toggling).
+> - **💡 Fan-submitted theme ideas** (owner's "maybe have a way for people to recommend things") — a
+>   genuinely new piece, and a nice ALIVE/community hook: suggestions land in the library as `parked`
+>   for the operator to promote to `ready`. Needs a moderation path before it ships.
 >
 > **Already fixed (2026-07-23), don't re-diagnose:** the admin portal's AUTO/MANUAL switch wrote only
 > the global `bracket_config` key while each edition carries its OWN `mode`, so switching an in-flight

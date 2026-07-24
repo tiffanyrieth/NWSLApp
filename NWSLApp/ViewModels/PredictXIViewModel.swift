@@ -209,12 +209,19 @@ final class PredictXIViewModel {
         }
     }
 
-    /// Scored predictions, most recently played first.
+    /// Scored predictions inside the RECENT window (this soccer week + last), most recently played first —
+    /// the "Recent results" section. Older matches have been pruned to season aggregates server-side, so
+    /// this naturally shows "what happened recently" without needing historical detail (Batch 3).
     func resultItems(store: PredictionStore) -> [PredictionItem] {
-        store.scores.keys.compactMap { fixtureID -> PredictionItem? in
+        let currentWeek = FanZoneCadence.currentSoccerWeek()
+        return store.scores.keys.compactMap { fixtureID -> PredictionItem? in
             guard let prediction = store.prediction(for: fixtureID),
                   let event = eventsByID[prediction.eventID],
                   let fixture = fixture(from: event, yourTeam: prediction.teamAbbreviation) else { return nil }
+            // Retention window: keep a scored match only if its week is the current or previous soccer week.
+            // A pre-round-clock score (nil week) can't be windowed, so keep it (rare legacy case).
+            if let current = currentWeek, let week = store.score(for: fixtureID)?.soccerWeek,
+               week < current - 1 { return nil }
             let final: (home: Int, away: Int)? = {
                 guard let h = event.homeCompetitor?.score.flatMap({ Int($0) }),
                       let a = event.awayCompetitor?.score.flatMap({ Int($0) }) else { return nil }
@@ -224,6 +231,54 @@ final class PredictXIViewModel {
                                   score: store.score(for: fixtureID), finalScore: final, phase: .scored)
         }
         .sorted { $0.fixture.kickoff > $1.fixture.kickoff }
+    }
+
+    // MARK: - Match-result detail (Batch 3 — "See details" on a recent result)
+
+    /// The extra data the per-match result screen needs beyond the stored breakdown: the ACTUAL starting XI
+    /// (re-fetched from `/summary` — never persisted, matching the online-only stance), player names, and
+    /// the user's rank for that fixture's soccer WEEK (the finest-grained server rank we hold — Predict has
+    /// no per-single-match board; a match sits inside a round). nil on a fetch failure → the screen retries.
+    struct MatchResultDetail {
+        let actualStarters: [(id: String, group: PositionGroup)]   // the real XI, in lineup order
+        let actualFormation: String?
+        let names: [String: String]                                 // athleteID → full name
+        let roundRank: Int?
+        let roundTotal: Int
+        let weekLabel: String?
+    }
+
+    func matchResultDetail(for item: PredictionItem, store: PredictionStore, auth: AuthStore) async -> MatchResultDetail? {
+        guard let prediction = item.prediction, let final = item.finalScore else { return nil }
+        let team = prediction.teamAbbreviation
+        // Names: the team roster covers every predicted pick + actual starter (all this-season squad members).
+        let squad = await roster(forTeam: team)
+        let names = Dictionary(squad.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+        do {
+            let summary = try await service.fetchSummary(eventID: prediction.eventID)
+            guard let actual = ActualResult.make(from: summary, isHome: item.fixture.isHome,
+                                                 homeScore: final.home, awayScore: final.away) else { return nil }
+            var roundRank: Int?
+            var roundTotal = 0
+            var weekLabel: String?
+            if let week = item.score?.soccerWeek {
+                weekLabel = FanZoneCadence.weekLabel(week: week)
+                let weekPoints = store.points(forTeam: team, week: week)
+                roundTotal = await leaderboardService.roundTotal(
+                    teamAbbreviation: team, season: Self.currentSeason, week: week)
+                if auth.userID != nil {
+                    roundRank = await leaderboardService.roundRank(
+                        teamAbbreviation: team, season: Self.currentSeason, week: week, points: weekPoints)
+                }
+            }
+            return MatchResultDetail(
+                actualStarters: actual.starters.map { ($0.athleteID, $0.group) },
+                actualFormation: actual.formation, names: names,
+                roundRank: roundRank, roundTotal: max(roundTotal, roundRank ?? 0), weekLabel: weekLabel)
+        } catch {
+            Diagnostics.shared.record(.apiFailure, "predict result detail \(prediction.eventID): \(error.localizedDescription)")
+            return nil
+        }
     }
 
     // MARK: - Roster (lazy, cached per team)
@@ -265,6 +320,11 @@ final class PredictXIViewModel {
         let name: String
         let points: Int
         let isYou: Bool
+        /// SEASON board only: the player's average points per scored match + their match count — the
+        /// season leaderboard's ranking metric + credibility stat ("52.3 avg · 12 matches"). Nil on the
+        /// round board, which shows the week's raw `points` instead.
+        var avg: Double? = nil
+        var matches: Int? = nil
         /// True for the "You" row shown UNDER a divider because you rank past the
         /// visible top (`rank` is then your real position, e.g. 412). The view draws
         /// the separator; a normal in-window "You" row keeps this false.
@@ -284,6 +344,7 @@ final class PredictXIViewModel {
             for team in store.scoredTeams {
                 await leaderboardService.upsertScore(
                     teamAbbreviation: team, points: store.points(forTeam: team),
+                    matches: store.scoredMatchCount(forTeam: team),
                     displayName: auth.displayName, userID: userID, season: season)
                 // The round twin: push this team's week sums for the retained window (current +
                 // previous — anything older is pruned server-side, so pushing it would be waste).
@@ -310,21 +371,25 @@ final class PredictXIViewModel {
         var teamStandings: [String: TeamStanding] = [:]
         for team in teams {
             let standings = await leaderboardService.standings(teamAbbreviation: team, season: season)
-            // Only the signed-in user gets a "You" row — and only they need a rank lookup.
+            let myPoints = store.points(forTeam: team)
+            let myMatches = store.scoredMatchCount(forTeam: team)
+            let myAvg = myMatches > 0 ? Double(myPoints) / Double(myMatches) : 0
+            // Only the signed-in user gets a "You" row — and only they need a rank lookup. The SEASON board
+            // ranks by AVERAGE per match (Batch 3), so the rank query compares avg_points.
             var trueRank: Int?
             if auth.userID != nil {
                 trueRank = await leaderboardService.rank(
-                    teamAbbreviation: team, season: season, points: store.points(forTeam: team))
+                    teamAbbreviation: team, season: season, avgPoints: myAvg)
             }
             // The season card's "#N of M predictors" total (public — fetched regardless of sign-in).
             let total = await leaderboardService.totalPredictors(teamAbbreviation: team, season: season)
-            // Fix 6: the user always counts in their own denominator. A just-scored user can rank one past
-            // the server's predictor count (a "#15 of 14"); clamp the shown total up so rank ≤ total always.
+            // The user always counts in their own denominator. A just-scored user can rank one past the
+            // server's predictor count (a "#15 of 14"); clamp the shown total up so rank ≤ total always.
             let shownTotal = max(total, trueRank ?? 0)
             teamStandings[team] = TeamStanding(rank: trueRank, total: shownTotal)
             boards.append((team: team, rows: rankedRows(
                 team: team, standings: standings, trueRank: trueRank, store: store, auth: auth,
-                points: store.points(forTeam: team))))
+                points: myPoints, seasonAvg: myAvg, seasonMatches: myMatches)))
 
             // The round board: the current week once it has any of MY scores, else my latest scored
             // week (the just-finished round — "did I beat them Sunday"). No round-stamped score yet →
@@ -361,34 +426,45 @@ final class PredictXIViewModel {
     /// signed-in user spliced in at their TRUE position — inline when they're within
     /// the window, or as a below-fold "You" row (honest real rank) when they aren't.
     /// The user's own server row is dropped; we show their fresher local total instead.
+    /// `seasonAvg`/`seasonMatches` non-nil ⇒ the SEASON board: rows carry each player's average + match
+    /// count (the display metric) and the "You" splice uses the caller's live local average. Nil ⇒ the
+    /// round board: rows show the week's raw `points`.
     private func rankedRows(team: String, standings: [PredictLeaderboardService.Standing],
                             trueRank: Int?, store: PredictionStore, auth: AuthStore,
-                            points: Int) -> [LeaderboardRow] {
+                            points: Int, seasonAvg: Double? = nil, seasonMatches: Int? = nil) -> [LeaderboardRow] {
         let myID = auth.userID?.uuidString
         let myName = auth.displayName ?? "You"
         let myPoints = points   // season total OR one week's sum — the caller picks the clock
         let rivals = standings.filter { $0.userID != myID }
 
+        // A row for a RIVAL (server standing) — season carries their avg/matches, round just points.
+        func rivalRow(_ rank: Int, _ s: PredictLeaderboardService.Standing) -> LeaderboardRow {
+            LeaderboardRow(rank: rank, name: s.name, points: s.points, isYou: false,
+                           avg: seasonAvg == nil ? nil : s.avg,
+                           matches: seasonAvg == nil ? nil : s.matches)
+        }
+        // The "You" row — season carries the caller's live local avg/matches.
+        func youRow(_ rank: Int, belowFold: Bool = false) -> LeaderboardRow {
+            LeaderboardRow(rank: rank, name: myName, points: myPoints, isYou: true,
+                           avg: seasonAvg, matches: seasonMatches, isBelowFold: belowFold)
+        }
+
         switch LeaderboardRanking.placement(trueRank: trueRank, cappedRivalCount: rivals.count) {
         case .none:
             // Signed out: just the top rivals, no "You" row.
-            return rivals.enumerated().map {
-                LeaderboardRow(rank: $0 + 1, name: $1.name, points: $1.points, isYou: false)
-            }
+            return rivals.enumerated().map { rivalRow($0 + 1, $1) }
         case .inline(let slot):
             // Insert "You" at your slot, then number sequentially and cap to the window.
-            var names = rivals.map { (name: $0.name, points: $0.points, isYou: false) }
-            names.insert((name: myName, points: myPoints, isYou: true), at: min(slot, names.count))
-            return names.prefix(LeaderboardRanking.visibleLimit).enumerated().map {
-                LeaderboardRow(rank: $0 + 1, name: $1.name, points: $1.points, isYou: $1.isYou)
+            var rows = rivals.enumerated().map { rivalRow($0 + 1, $1) }
+            rows.insert(youRow(0), at: min(slot, rows.count))
+            return rows.prefix(LeaderboardRanking.visibleLimit).enumerated().map { i, row in
+                LeaderboardRow(rank: i + 1, name: row.name, points: row.points,
+                               isYou: row.isYou, avg: row.avg, matches: row.matches)
             }
         case .belowFold(let realRank):
             // Top of the board, then a separated "You" row at your real rank.
-            var rows = rivals.prefix(LeaderboardRanking.visibleLimit).enumerated().map {
-                LeaderboardRow(rank: $0 + 1, name: $1.name, points: $1.points, isYou: false)
-            }
-            rows.append(LeaderboardRow(rank: realRank, name: myName, points: myPoints,
-                                       isYou: true, isBelowFold: true))
+            var rows = rivals.prefix(LeaderboardRanking.visibleLimit).enumerated().map { rivalRow($0 + 1, $1) }
+            rows.append(youRow(realRank, belowFold: true))
             return rows
         }
     }

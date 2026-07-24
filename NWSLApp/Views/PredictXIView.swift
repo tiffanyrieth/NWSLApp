@@ -37,6 +37,8 @@ struct PredictXIView: View {
     /// it; defaults to the first board once loaded.
     @State private var selectedTeam: String?
     @State private var showHowTo = false
+    /// A scored match tapped in Recent Results → the per-match detail sheet (Batch 3).
+    @State private var detailItem: PredictXIViewModel.PredictionItem?
 
     private let accent = Color.dsGamePredict
 
@@ -70,6 +72,10 @@ struct PredictXIView: View {
                 loadRoster: { await viewModel.roster(forTeam: fixture.teamAbbreviation) },
                 club: { viewModel.club(forAbbreviation: $0) }
             )
+        }
+        // The per-match result detail (Batch 3), browsable signed-out — no gate.
+        .sheet(item: $detailItem) { item in
+            PredictMatchResultView(item: item, viewModel: viewModel)
         }
         // Mandatory sign-in + display name to play — gated at the open-fixture tap, so the
         // picker's submit is always signed in. "Go back" cancels (returns to the slate).
@@ -123,7 +129,7 @@ struct PredictXIView: View {
                 }
 
                 if !results.isEmpty {
-                    sectionLabel("Results")
+                    sectionLabel("Recent results")
                     ForEach(results) { resultCard($0) }
                 }
 
@@ -318,51 +324,38 @@ struct PredictXIView: View {
 
     // MARK: - Result card
 
+    /// Compact recent-result card (Batch 3): crests + FT, your total, a one-line summary, and "See details ›"
+    /// → the full per-match breakdown (predicted vs actual XI). The heavy inline breakdown moved to the
+    /// detail sheet so the landing stays scannable.
     private func resultCard(_ item: PredictXIViewModel.PredictionItem) -> some View {
         let score = item.score ?? .zero
         let colors = fixtureColors(item.fixture)
-        return VStack(alignment: .leading, spacing: 14) {
-            matchHeader(item.fixture, finalScore: item.finalScore)
-
-            HStack {
-                Text("You scored").dsFont(12).foregroundStyle(.secondary)
-                Spacer()
-                Text("\(score.total) pts").dsFont(17, weight: .bold).foregroundStyle(accent)
-            }
-
-            VStack(spacing: 8) {
-                breakdownRow("Correct players", detail: "\(score.correctPlayers)/11", points: score.playersPoints, earned: score.correctPlayers > 0)
-                breakdownRow("Right position", detail: "\(score.correctPositions)", points: score.positionsPoints, earned: score.correctPositions > 0)
-                breakdownRow("Formation", detail: score.formationCorrect ? "Correct" : "Missed", points: score.formationPoints, earned: score.formationCorrect)
-                breakdownRow("Exact score", detail: score.exactScoreline ? "Nailed it" : "Missed", points: score.scorelinePoints, earned: score.exactScoreline)
-                breakdownRow("Result (W/D/L)", detail: score.resultCorrect ? "Correct" : "Missed", points: score.resultPoints, earned: score.resultCorrect)
-                if score.perfectXI {
-                    breakdownRow("Perfect XI bonus", detail: "All 11!", points: score.perfectPoints, earned: true)
+        return Button { detailItem = item } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                matchHeader(item.fixture, finalScore: item.finalScore)
+                HStack(spacing: 8) {
+                    Text("\(score.total) / 88 pts").dsFont(16, weight: .bold).foregroundStyle(accent)
+                    Spacer()
+                    HStack(spacing: 3) {
+                        Text("See details").dsFont(13, weight: .semibold)
+                        Image(systemName: "chevron.right").dsFont(11, weight: .bold)
+                    }
+                    .foregroundStyle(accent)
                 }
+                Text(resultSummaryLine(score)).dsFont(12).foregroundStyle(.secondary)
             }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background { TeamWashBackground(base: .dsMdCard, home: colors.home, away: colors.away) }
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(Rectangle())
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background { TeamWashBackground(base: .dsMdCard, home: colors.home, away: colors.away) }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .buttonStyle(.plain)
     }
 
-    private func breakdownRow(_ title: String, detail: String, points: Int, earned: Bool) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: earned ? "checkmark.circle.fill" : "minus.circle")
-                .foregroundStyle(earned ? .green : .secondary)
-            Text(title).dsFont(15, weight: .semibold)
-            Spacer()
-            Text(detail).dsFont(12).foregroundStyle(.secondary)
-            Text(earned ? "+\(points)" : "+0")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(earned ? accent : .secondary)
-                .frame(width: 36, alignment: .trailing)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.dsMdPanelBottom)
-        .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
+    /// The one-line summary on a recent-result card: "8/11 starters · formation ✓ · score ✗".
+    private func resultSummaryLine(_ s: PredictionScore) -> String {
+        "\(s.correctPlayers)/11 starters · formation \(s.formationCorrect ? "✓" : "✗") · score \(s.exactScoreline ? "✓" : "✗")"
     }
 
     // MARK: - Shared match header
@@ -422,40 +415,43 @@ struct PredictXIView: View {
     /// covers the no-activity case.
     // MARK: - Season card + team chips (Competitive Redesign)
 
-    /// The competitive-identity card for the selected club: a season-accuracy ring, the club rank +
-    /// predictor count, points, and "↑ N since last match" movement. Accuracy is nil (shows "—") until a
-    /// prediction has been scored — never faked.
+    /// The competitive-identity card for the selected club: a season-AVERAGE ring (avg points per match,
+    /// as a share of the 88 max), the average + match count, the club rank, and "↑ N since last match"
+    /// movement. Average is nil (shows "—") until a prediction has been scored — never faked. (Batch 3:
+    /// the board + card moved off cumulative points, which inflate to four digits mid-season, onto the
+    /// per-match average, which stays comparable all season.)
     private func seasonCard(team: String) -> some View {
-        let accuracy = store.accuracy(forTeam: team)
         let standing = viewModel.standingByTeam[team]
         let points = store.points(forTeam: team)
+        let matches = store.scoredMatchCount(forTeam: team)
+        let avg: Double? = matches > 0 ? Double(points) / Double(matches) : nil
         let teamName = viewModel.teamLabel(team)
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 14) {
                 ZStack {
                     Circle().stroke(Color.dsBgTertiary, lineWidth: 5)
-                    Circle().trim(from: 0, to: accuracy ?? 0)
+                    Circle().trim(from: 0, to: (avg ?? 0) / 88)   // avg as a share of the 88-pt per-match max
                         .stroke(accent, style: StrokeStyle(lineWidth: 5, lineCap: .round))
                         .rotationEffect(.degrees(-90))
-                    Text(accuracy.map { "\(Int(($0 * 100).rounded()))%" } ?? "—")
-                        .dsFont(15, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
+                    Text(avg.map { "\(Int($0.rounded()))" } ?? "—")
+                        .dsFont(17, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
                 }
                 .frame(width: 56, height: 56)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("SEASON ACCURACY").dsFont(11, weight: .bold).tracking(1.2).foregroundStyle(accent)
-                    if let rank = standing?.rank, let total = standing?.total {
-                        Text("#\(rank) of \(total) predictor\(total == 1 ? "" : "s")")
-                            .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("SEASON AVERAGE").dsFont(11, weight: .bold).tracking(1.2).foregroundStyle(accent)
+                    if let avg {
+                        Text("\(String(format: "%.1f", avg)) avg · \(matches) match\(matches == 1 ? "" : "es")")
+                            .dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
+                        if let rank = standing?.rank, let total = standing?.total {
+                            Text("#\(rank) of \(total) \(teamName) predictor\(total == 1 ? "" : "s")")
+                                .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                        }
                     } else {
                         Text("Predict \(teamName)'s XI to join the board")
                             .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     }
                 }
                 Spacer(minLength: 0)
-                VStack(alignment: .trailing, spacing: 0) {
-                    Text("\(points)").dsFont(24, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
-                    Text("pts").dsFont(11).foregroundStyle(Color.dsFgSecondary)
-                }
             }
             if let movement = predictMovementText(store.rankMovement(forTeam: team)) {
                 Text(movement.text).dsFont(12, weight: .bold).foregroundStyle(movement.color)
@@ -518,6 +514,7 @@ struct PredictXIView: View {
                     Image(systemName: showHowTo ? "chevron.up" : "chevron.right").dsFont(13).foregroundStyle(Color.dsFgTertiary)
                 }
                 .padding(14)
+                .contentShape(Rectangle())   // Fix 4 — the Spacer's middle is a dead zone without this
             }
             .buttonStyle(.plain)
             if showHowTo {
@@ -538,7 +535,11 @@ struct PredictXIView: View {
                         predictPointRow("Most possible in one match", "88 pts", bold: true)
                     }
 
-                    Text("Points build up across every match you predict all season, and you're ranked on a per-club leaderboard — against other fans of your team, not the whole league.")
+                    // Fix 6 — the two score-related lines are easy to confuse, so spell out the difference.
+                    Text("Right result vs exact score: \u{201C}right result\u{201D} (+3) just means you called the winner or a draw — say WAS win and they win 3\u{2013}1, you get it. \u{201C}Exact score\u{201D} (+10) means you nailed the actual scoreline, like calling 2\u{2013}1 and it finishing 2\u{2013}1. They stack — an exact score is always the right result too, so it banks both.")
+                        .dsFont(12).foregroundStyle(Color.dsFgSecondary).fixedSize(horizontal: false, vertical: true)
+
+                    Text("Points build up across every match you predict all season, and you're ranked on a per-club leaderboard — by your average score per match, against other fans of your team, not the whole league.")
                         .dsFont(13).foregroundStyle(Color.dsFgSecondary).fixedSize(horizontal: false, vertical: true)
                     Text("Your season accuracy — correct player picks out of every XI slot you've predicted — feeds up to 25 of your 100 Superfan points.")
                         .dsFont(13).foregroundStyle(Color.dsFgSecondary).fixedSize(horizontal: false, vertical: true)
@@ -615,7 +616,18 @@ struct PredictXIView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                     Spacer()
-                    Text("\(row.points) pts").dsFont(15, weight: .semibold).foregroundStyle(.secondary)
+                    // Season board ranks by AVERAGE per match (+ match count as the credibility stat);
+                    // the round board shows the week's raw points (Batch 3).
+                    if let avg = row.avg {
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text(String(format: "%.1f avg", avg))
+                                .dsFont(15, weight: .semibold).foregroundStyle(row.isYou ? accent : .secondary)
+                            Text("\(row.matches ?? 0) match\(row.matches == 1 ? "" : "es")")
+                                .dsFont(11).foregroundStyle(.tertiary)
+                        }
+                    } else {
+                        Text("\(row.points) pts").dsFont(15, weight: .semibold).foregroundStyle(.secondary)
+                    }
                 }
                 .padding(.vertical, 8)
                 .padding(.horizontal, 10)

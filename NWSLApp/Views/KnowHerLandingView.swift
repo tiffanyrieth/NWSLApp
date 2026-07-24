@@ -313,7 +313,7 @@ struct KnowHerLandingView: View {
     /// once the user has a live streak. `weeklyStreak` is KHG's consecutive-rounds-played counter.
     @ViewBuilder
     private var streakLine: some View {
-        if store.weeklyStreak > 0 {
+        if store.weeklyStreak > 1 {
             HStack(spacing: 8) {
                 Image(systemName: "flame.fill").dsFont(13).foregroundStyle(.orange)
                 Text("\(store.weeklyStreak)-round streak — play every round to keep it")

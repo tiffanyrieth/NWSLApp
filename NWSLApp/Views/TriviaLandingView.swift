@@ -110,7 +110,7 @@ struct TriviaLandingView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .buttonStyle(.plain)   // a completed card stays tappable → the live community recap
-            if store.streak > 0 {
+            if store.streak > 1 {
                 HStack(spacing: 8) {
                     Image(systemName: "flame.fill").dsFont(13).foregroundStyle(.orange)
                     Text("\(store.streak)-round streak — play every round to keep it")

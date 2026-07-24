@@ -250,7 +250,7 @@ struct BracketLeaderboardView: View {
                 statTile("Longest streak", "\(longestStreak)")
             }
 
-            if let best, let label = roundLabel(best.0.bestRoundRaw) {
+            if let best, let label = roundLabel(best.0.bestRoundRaw, poolSize: best.0.fieldSize) {
                 bestRoundCallout(label: label, accuracy: best.1)
             }
 
@@ -398,11 +398,10 @@ struct BracketLeaderboardView: View {
 
     private func pct(_ v: Double) -> String { "\(Int((v * 100).rounded()))%" }
 
-    /// Round label for the best-round display — gracefully "—" for a round code this
-    /// build doesn't know (e.g. a qualifying code before the BracketRound qualifying
-    /// cases merge), so the screen never shows a blank.
-    private func roundLabel(_ raw: Int?) -> String? {
+    /// Round label for the best-round display — the user-facing positional name (needs the edition's pool
+    /// to number it; no "Round of X"). Gracefully "—" for a round code this build doesn't know.
+    private func roundLabel(_ raw: Int?, poolSize: Int?) -> String? {
         guard let raw else { return nil }
-        return BracketRound(rawValue: raw)?.shortLabel ?? "—"
+        return BracketRound(rawValue: raw)?.shortDisplayName(poolSize: poolSize) ?? "—"
     }
 }

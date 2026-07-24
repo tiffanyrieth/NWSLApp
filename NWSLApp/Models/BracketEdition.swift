@@ -65,7 +65,46 @@ enum BracketRound: Int, Codable, CaseIterable, Comparable {
         }
     }
 
-    /// Full title for headers ("Qualifying 1", "Round of 64", "Final").
+    // ── Display naming (Fan Zone Competitive Redesign) ──────────────────────────────────────────────
+    // The user-facing scheme is SEQUENTIAL for the early rounds ("Round 1", "Round 2", …) and TRADITIONAL
+    // for the last three (Quarterfinals / Semifinals / Final) — NO "Round of X" / "Qualifying" anywhere
+    // (owner ruling). The number is POSITIONAL: `roundOf16` is "Round 5" in a 128-pool (8 rounds) but
+    // "Round 3" in a 64-pool (6 rounds), so the display name needs the edition's round list (or pool size)
+    // — it can't be a standalone per-case constant. Internal raw values are UNCHANGED (the cross-repo
+    // engine contract). `title`/`shortLabel` are kept ONLY as the raw-structure debug/fallback labels.
+
+    /// Full user-facing name given the edition's ordered rounds. QF/SF/Final keep traditional names;
+    /// every earlier round is "Round N" by its 1-based position in `rounds`.
+    func displayName(in rounds: [BracketRound]) -> String {
+        switch self {
+        case .quarterfinal: return "Quarterfinals"
+        case .semifinal: return "Semifinals"
+        case .final: return "Final"
+        default: return "Round \((rounds.firstIndex(of: self) ?? 0) + 1)"
+        }
+    }
+
+    /// Compact user-facing label ("R3", "QF", "SF", "Final").
+    func shortDisplayName(in rounds: [BracketRound]) -> String {
+        switch self {
+        case .quarterfinal: return "QF"
+        case .semifinal: return "SF"
+        case .final: return "Final"
+        default: return "R\((rounds.firstIndex(of: self) ?? 0) + 1)"
+        }
+    }
+
+    /// Convenience for call sites that have the pool size but not the round list (e.g. a historical
+    /// leaderboard stat row): derives the rounds from the pool. Defaults to a 64-pool if unknown.
+    func displayName(poolSize: Int?) -> String {
+        displayName(in: BracketRound.rounds(forEntrants: poolSize ?? 64))
+    }
+    func shortDisplayName(poolSize: Int?) -> String {
+        shortDisplayName(in: BracketRound.rounds(forEntrants: poolSize ?? 64))
+    }
+
+    /// Raw structural labels (entrant-count based) — kept for debug/telemetry + as the last-resort
+    /// fallback. NOT for user-facing round names; use `displayName(in:)` (owner: no "Round of X").
     var title: String {
         switch self {
         case .qualifying1: return "Qualifying 1"
@@ -81,7 +120,7 @@ enum BracketRound: Int, Codable, CaseIterable, Comparable {
         }
     }
 
-    /// Compact label for pills/overview ("Q1", "Rd of 64", "QF", "SF", "Final").
+    /// Raw structural short label — see `title`. Use `shortDisplayName(in:)` for user-facing pills.
     var shortLabel: String {
         switch self {
         case .qualifying1: return "Q1"

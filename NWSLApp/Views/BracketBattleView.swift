@@ -137,7 +137,7 @@ struct BracketBattleView: View {
                 // "Voting open" in manual mode). Nothing below it, so there's no second scroll edge.
                 VStack(spacing: 8) {
                     Button { gateRequested = true } label: { Text("Let's Go").primaryButtonLabel(accent) }
-                    Text("\(edition.currentRound.title) · \(viewModel.closesInText ?? "Voting open")")
+                    Text("\(edition.currentRound.displayName(in: edition.rounds)) · \(viewModel.closesInText ?? "Voting open")")
                         .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                 }
                 .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 14)
@@ -261,7 +261,7 @@ struct BracketBattleView: View {
                         .frame(width: geo.size.width * widthFraction).frame(maxWidth: .infinity)
                     }
                     .frame(height: 18)
-                    Text("\(round.title) · \(round.matchupCount) matchups")
+                    Text("\(round.displayName(in: rounds)) · \(round.matchupCount) matchups")
                         .dsFont(10, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
                     if round != rounds.last { Rectangle().fill(Color.dsFgQuaternary).frame(width: 2, height: 8) }
                 }
@@ -332,6 +332,13 @@ struct BracketBattleView: View {
         }
     }
 
+    /// The loaded edition's ordered rounds — the context that turns a `BracketRound` into its user-facing
+    /// name (positional "Round N" + traditional QF/SF/Final; no "Round of X"). Falls back to a 64-pool
+    /// structure if the edition isn't loaded (rounds only render once it is).
+    private var editionRounds: [BracketRound] {
+        viewModel.edition?.rounds ?? BracketRound.rounds(forEntrants: 64)
+    }
+
     // MARK: - Screens 2 + 3: Voting + Save/Submit
 
     private var votingScreen: some View {
@@ -343,7 +350,7 @@ struct BracketBattleView: View {
             ScrollView {
                 VStack(spacing: 12) {
                     HStack(alignment: .firstTextBaseline) {
-                        sectionLabel("\(round.title) · \(viewModel.edition?.themeLabel.capitalized ?? "")").foregroundStyle(accent)
+                        sectionLabel("\(round.displayName(in: editionRounds)) · \(viewModel.edition?.themeLabel.capitalized ?? "")").foregroundStyle(accent)
                         Spacer()
                         // A null close time = manual mode (round stays open until advanced) → "Voting open".
                         Text(viewModel.closesInText ?? "Voting open")
@@ -472,7 +479,7 @@ struct BracketBattleView: View {
             ScrollView {
                 VStack(spacing: 12) {
                     VStack(spacing: 8) {
-                        sectionLabel("\(result.round.title) — that's a wrap").foregroundStyle(accent)
+                        sectionLabel("\(result.round.displayName(in: editionRounds)) — that's a wrap").foregroundStyle(accent)
                         Text("+\(pts)").dsFont(30, weight: .heavy).foregroundStyle(Color.dsFgPrimary)
                         Text("You called \(correct) of \(result.matchups.count). \(heroVoiceLine(correct, result.matchups.count))")
                             .dsFont(13).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center)
@@ -542,7 +549,7 @@ struct BracketBattleView: View {
                 .dsFont(13, weight: .bold).tracking(2).foregroundStyle(accent)
             Text(viewModel.edition?.title ?? "Bracket Battle")
                 .dsFont(20, weight: .bold).foregroundStyle(.white)
-            Text(round.title).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+            Text(round.displayName(in: editionRounds)).dsFont(13).foregroundStyle(Color.dsFgSecondary)
             Text("\(correct)/\(total)").dsFont(52, weight: .heavy).foregroundStyle(.white).padding(.top, 4)
             Text("called right · +\(pts) pts").dsFont(13).foregroundStyle(Color.dsFgSecondary)
             Text("NWSL · Bracket Battle").dsFont(11, weight: .semibold).foregroundStyle(Color.dsFgTertiary).padding(.top, 6)
@@ -743,7 +750,7 @@ struct BracketBattleView: View {
                         let st = edition.status(of: round)
                         HStack(spacing: 4) {
                             Circle().fill(statusColor(st)).frame(width: 6, height: 6)
-                            Text(round.shortLabel).dsFont(10, weight: .bold).foregroundStyle(statusColor(st))
+                            Text(round.shortDisplayName(in: edition.rounds)).dsFont(10, weight: .bold).foregroundStyle(statusColor(st))
                         }
                         .padding(.horizontal, 9).padding(.vertical, 6)
                         .background(st == .active ? accent.opacity(0.12) : Color.white.opacity(0.04))
@@ -797,7 +804,7 @@ struct BracketBattleView: View {
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Circle().fill(statusColor(status)).frame(width: 8, height: 8)
-                sectionLabel(round.title).foregroundStyle(statusColor(status))
+                sectionLabel(round.displayName(in: edition.rounds)).foregroundStyle(statusColor(status))
                 Text(statusNote(status)).dsFont(10).foregroundStyle(Color.dsFgSecondary)
             }
             VStack(spacing: 8) {

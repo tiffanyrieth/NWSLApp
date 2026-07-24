@@ -627,7 +627,8 @@ struct HomeView: View {
         let summary = bracket.summary
         let round = summary.flatMap { BracketRound(rawValue: $0.currentRoundRaw) }
         let theme = summary?.title ?? "Bracket Battle"
-        let context = round.map { "\(theme) · \($0.title)" } ?? theme
+        // Positional round name (no "Round of X") — the cached summary carries the pool size for numbering.
+        let context = round.map { "\(theme) · \($0.displayName(poolSize: summary?.poolSize))" } ?? theme
         var model = FanZoneCardModel(game: .bracket, title: "Bracket Battle", contextLine: context)
 
         let points = bracket.points

@@ -7,7 +7,7 @@ feature-specific context lives in `docs/` + `.claude/rules/` and loads **on dema
 ## ⚠️ What this app is — read first
 
 A women's soccer (NWSL) **fandom** app: follow your clubs, keep up with soccer voices (reporters,
-club + player social), play/share Fan Zone games (Bracket Battle, Predict the XI, Know Her Game, NWSL Trivia),
+club + player social), play/share Fan Zone games (The Bracket, Predict the XI, Know Her Game, NWSL Trivia),
 and check scores/schedule/standings. The **fandom** — community, the games, social sharing,
 live/"alive" content, personal connection — **is the product.** Scores/schedule/standings are
 table stakes that must work but are **not** the differentiator.

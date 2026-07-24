@@ -402,6 +402,6 @@ struct BracketLeaderboardView: View {
     /// to number it; no "Round of X"). Gracefully "—" for a round code this build doesn't know.
     private func roundLabel(_ raw: Int?, poolSize: Int?) -> String? {
         guard let raw else { return nil }
-        return BracketRound(rawValue: raw)?.shortDisplayName(poolSize: poolSize) ?? "—"
+        return BracketRound(rawValue: raw)?.displayName(poolSize: poolSize) ?? "—"
     }
 }

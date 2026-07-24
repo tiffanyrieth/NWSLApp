@@ -49,17 +49,14 @@ struct AchievementTests {
         #expect(!Achievement.isIronFan(consecutiveWeeksPlayed: 3))
     }
 
-    // Upset = the community advanced the lower-seeded (underdog) entrant AND the user picked it.
-    // Higher seed NUMBER = lower seed = underdog. (Seed-based, since a <40% majority winner is impossible.)
-    @Test func upsetWinNeedsCorrectPickOfTheUnderdog() {
-        #expect(Achievement.isUpsetWin(pickedWinner: true, winnerSeed: 30, loserSeed: 3))   // #30 beat #3
-        #expect(!Achievement.isUpsetWin(pickedWinner: true, winnerSeed: 3, loserSeed: 30))  // favorite won — not an upset
-        #expect(!Achievement.isUpsetWin(pickedWinner: false, winnerSeed: 30, loserSeed: 3)) // didn't call it
-        #expect(!Achievement.isUpsetWin(pickedWinner: true, winnerSeed: nil, loserSeed: 3)) // no seed data → no false award
-    }
-
-    @Test func bigUpsetNeedsAWideSeedGap() {
-        #expect(Achievement.isBigUpsetWin(pickedWinner: true, winnerSeed: 40, loserSeed: 1))   // gap 39
-        #expect(!Achievement.isBigUpsetWin(pickedWinner: true, winnerSeed: 10, loserSeed: 1))  // gap 9 < 16
+    // Upset = the user CALLED a winner the crowd advanced by a ≤10-point margin (winner's share ≤55%).
+    // Vote-margin, not seed — a <40% majority winner is impossible in a 2-way bracket (owner ruling 7/24).
+    @Test func upsetWinNeedsANarrowMarginAndACorrectCall() {
+        #expect(Achievement.isUpsetWin(pickedWinner: true, winnerPercent: 52))   // 52–48 nail-biter you called
+        #expect(Achievement.isUpsetWin(pickedWinner: true, winnerPercent: 55))   // exactly at the ceiling
+        #expect(!Achievement.isUpsetWin(pickedWinner: true, winnerPercent: 56))  // 56–44 → comfortable, not an upset
+        #expect(!Achievement.isUpsetWin(pickedWinner: true, winnerPercent: 70))  // runaway
+        #expect(!Achievement.isUpsetWin(pickedWinner: false, winnerPercent: 52)) // didn't call it
+        #expect(!Achievement.isUpsetWin(pickedWinner: true, winnerPercent: nil)) // no tally yet → no false award
     }
 }

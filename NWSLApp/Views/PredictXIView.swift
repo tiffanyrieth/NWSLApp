@@ -538,6 +538,16 @@ struct PredictXIView: View {
         // week" read); season otherwise. The user's tab choice sticks per team for the session.
         let clock = boardClock[team] ?? (round != nil ? .round : .season)
         let rows = (clock == .round ? round?.rows : nil) ?? seasonRows
+        // Fix 9 — the LANDING board is a compact preview: top 10 + your own row (owner: not the deep list).
+        // If you're outside the top 10, append your row under a divider so the jump reads honestly (reusing
+        // the below-fold treatment). The service still fetches up to `visibleLimit`; we just render the head.
+        let landingRows: [PredictXIViewModel.LeaderboardRow] = {
+            let top = Array(rows.prefix(10))
+            guard let you = rows.first(where: { $0.isYou }), !top.contains(where: { $0.isYou }) else { return top }
+            var youRow = you
+            youRow.isBelowFold = true
+            return top + [youRow]
+        }()
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 TeamLogo(urlString: viewModel.club(forAbbreviation: team)?.logoURL, teamAbbreviation: team, size: 22)
@@ -556,9 +566,9 @@ struct PredictXIView: View {
                     Spacer()
                 }
             }
-            ForEach(rows) { row in
+            ForEach(landingRows) { row in
                 // A below-fold "You" row means you rank past the visible top — separate it
-                // with a divider so the jump from #100 to your real rank reads honestly.
+                // with a divider so the jump from #10 to your real rank reads honestly.
                 if row.isBelowFold {
                     Divider().overlay(Color.secondary.opacity(0.4))
                         .padding(.horizontal, 6).padding(.vertical, 2)

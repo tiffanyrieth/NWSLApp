@@ -28,9 +28,11 @@ struct BracketBattleView: View {
     @State private var gateRequested = false
     /// Result matchups the user has expanded to reveal the vote stats (collapsed by default).
     @State private var expandedMatchups: Set<String> = []
-    @State private var expandedRounds: Set<BracketRound> = []
     @State private var expandedRules: Set<String> = []   // collapsible intro rule sections
-    @State private var showFullBracket = false
+    /// A past round whose results the user tapped in the stepping-stones → review sheet (Fix 1).
+    @State private var reviewRound: BracketRound?
+    /// "How to play" opens the rules content in a sheet (Fix 3) — not the removed full-bracket screen.
+    @State private var showRules = false
 
     private enum Stage { case intro, voting }
     private let accent = Color.dsGameBracket
@@ -142,18 +144,9 @@ struct BracketBattleView: View {
                         pointsTable(rounds: edition.rounds)
                         // Detailed rules = collapsible disclosures (collapsed by default) AFTER
                         // points, so the page stays short and detail is opt-in (updated mockup).
-                        rulesDisclosure("qualifying", "Qualifying rounds & byes", Self.qualifyingRules)
+                        rulesDisclosure("qualifying", "Early rounds & byes", Self.qualifyingRules)
                         rulesDisclosure("rounds", "How each round works", Self.roundRules)
-                        Button { showFullBracket = true } label: {
-                            Text("See the full bracket")
-                                .dsFont(15, weight: .semibold).foregroundStyle(accent)
-                                .frame(maxWidth: .infinity).padding(.vertical, 13)
-                                .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(accent.opacity(0.35), lineWidth: 1.5))
-                                // Full-width outlined CTA with no fill — make the whole bordered area
-                                // tappable, not just the centered text. (Tap-target audit.)
-                                .contentShape(Rectangle())
-                        }
-                        goodToKnow   // in the scroll (after "See the full bracket"), not pinned
+                        goodToKnow
                     }
                     .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 16)
                     .fanZonePlayingAsHeader(accent: accent)
@@ -167,18 +160,6 @@ struct BracketBattleView: View {
                         .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                 }
                 .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 14)
-            }
-            .sheet(isPresented: $showFullBracket) {
-                NavigationStack {
-                    // No navigationTitle: the content's own header already says "The bracket so far"
-                    // (with the theme eyebrow + entrant counts), and a nav title repeated it verbatim
-                    // two lines above itself.
-                    overviewBody(banner: nil, showsPlayingAs: false)
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) { Button("Done") { showFullBracket = false } }
-                        }
-                }
             }
         }
     }
@@ -383,11 +364,22 @@ struct BracketBattleView: View {
                 .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 24)
                 .fanZonePlayingAsHeader(accent: accent)
             }
-            .sheet(isPresented: $showFullBracket) {
+            // Tap a COMPLETED stepping-stone → review that round's results (Fix 1).
+            .sheet(item: $reviewRound) { round in
                 NavigationStack {
-                    overviewBody(banner: nil, showsPlayingAs: false)
+                    roundResultsReview(round: round)
+                        .navigationTitle(round.displayName(in: edition.rounds))
                         .navigationBarTitleDisplayMode(.inline)
-                        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { showFullBracket = false } } }
+                        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { reviewRound = nil } } }
+                }
+            }
+            // "How to play" → the rules content (Fix 3), not the removed full-bracket screen.
+            .sheet(isPresented: $showRules) {
+                NavigationStack {
+                    rulesSheet(edition: edition)
+                        .navigationTitle("How to play")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { showRules = false } } }
                 }
             }
         }
@@ -531,10 +523,6 @@ struct BracketBattleView: View {
                 ForEach(Array(edition.rounds.enumerated()), id: \.element) { i, round in
                     steppingStoneNode(edition: edition, round: round, isLast: i == edition.rounds.count - 1)
                 }
-                Button { showFullBracket = true } label: {
-                    Text("See full bracket ›").dsFont(12, weight: .semibold).foregroundStyle(accent)
-                        .frame(maxWidth: .infinity).padding(.top, 12)
-                }
             }
             .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
             .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -577,15 +565,22 @@ struct BracketBattleView: View {
                         .background(accent.opacity(0.18), in: Capsule())
                 }
                 Spacer(minLength: 0)
+                // Chevron signals the row is tappable (completed → results, active → voting).
+                if tappable { Image(systemName: "chevron.right").dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgTertiary) }
             }
             .frame(minHeight: 26)
-            .contentShape(Rectangle())
-            .onTapGesture { if active { gateRequested = true } }
+        }
+        // The WHOLE row (node + label) is the tap target: completed → that round's results review; active
+        // → voting (via the sign-in gate); upcoming → nothing. (Fix 1.)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if done { reviewRound = round }
+            else if active { gateRequested = true }
         }
     }
 
     private var howToPlayRow: some View {
-        Button { showFullBracket = true } label: {
+        Button { showRules = true } label: {
             HStack {
                 Text("How to play").dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                 Spacer()
@@ -605,6 +600,8 @@ struct BracketBattleView: View {
             let picks = store.picks(for: round)
             let correct = BracketScoring.correctCount(picks: picks, matchups: matchups)
             let pts = store.score(for: round) ?? BracketScoring.roundPoints(picks: picks, matchups: matchups)
+            let nextOpen = viewModel.phase(store: store) == .open
+            let nextName = edition.currentRound.displayName(in: edition.rounds)
             ScrollView {
                 VStack(spacing: 14) {
                     VStack(spacing: 3) {
@@ -623,6 +620,23 @@ struct BracketBattleView: View {
                     .background(LinearGradient(colors: [accent.opacity(0.15), .clear], startPoint: .top, endPoint: .bottom))
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(accent.opacity(0.4)))
+
+                    // Compact next-round CTA near the TOP — you never scroll past every matchup to find it (Fix 6).
+                    if nextOpen {
+                        Button { advanceFromResults(seenRound: round) } label: {
+                            HStack(spacing: 6) {
+                                Text("\(nextName) is open").dsFont(14, weight: .bold).foregroundStyle(accent)
+                                Spacer(minLength: 0)
+                                Text("Make your picks").dsFont(13, weight: .semibold).foregroundStyle(accent)
+                                Image(systemName: "arrow.right").dsFont(12, weight: .bold).foregroundStyle(accent)
+                            }
+                            .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                            .background(accent.opacity(0.14)).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(accent.opacity(0.4), lineWidth: 1))
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
 
                     resultsShareLink(round: round, correct: correct, total: matchups.count, pts: pts, edition: edition)
 
@@ -657,20 +671,67 @@ struct BracketBattleView: View {
         }
     }
 
-    /// The results screen's bottom CTA. Tapping records the round's movement (advancing the baseline) +
-    /// marks the results seen (so this screen shows ONCE), then routes: into voting if the next round is
-    /// open, else back to the returning landing.
+    /// Shared results→next action (top + bottom CTA both call it): record the round's movement (advancing
+    /// the baseline), mark the results seen (so this screen shows ONCE), then route into voting if the next
+    /// round is open, else fall through to the returning landing.
+    private func advanceFromResults(seenRound: BracketRound) {
+        if let rank = viewModel.standings.you?.rank { store.recordRoundMovement(currentRank: rank) }
+        store.markResultsSeen(seenRound)
+        if viewModel.phase(store: store) == .open { gateRequested = true }
+    }
+
+    /// The results screen's bottom CTA (full-width, for anyone who scrolled through every matchup).
     private func resultsBottomCTA(edition: BracketEdition, seenRound: BracketRound) -> some View {
         let nextOpen = viewModel.phase(store: store) == .open
         let nextName = edition.currentRound.displayName(in: edition.rounds)
-        return Button {
-            if let rank = viewModel.standings.you?.rank { store.recordRoundMovement(currentRank: rank) }
-            store.markResultsSeen(seenRound)
-            if nextOpen { gateRequested = true }
-        } label: {
+        return Button { advanceFromResults(seenRound: seenRound) } label: {
             Text(nextOpen ? "\(nextName) is now open — make your picks →" : "Back to the bracket")
                 .primaryButtonLabel(accent)
         }
+    }
+
+    // MARK: - Past-round review + rules sheets (Fix 1 + Fix 3)
+
+    /// Read-only review of a PAST round's results (tapped from a completed stepping-stone) — the same
+    /// per-matchup cards as the post-round screen, minus the once-only mark-seen + next-round CTA.
+    @ViewBuilder
+    private func roundResultsReview(round: BracketRound) -> some View {
+        if let edition = viewModel.edition {
+            let matchups = edition.matchups(in: round).filter { $0.isResolved }
+            let picks = store.picks(for: round)
+            let correct = BracketScoring.correctCount(picks: picks, matchups: matchups)
+            let pts = store.score(for: round) ?? BracketScoring.roundPoints(picks: picks, matchups: matchups)
+            ScrollView {
+                VStack(spacing: 14) {
+                    VStack(spacing: 8) {
+                        ScoreRing(score: correct, total: matchups.count, accent: accent, size: 96)
+                        if pts > 0 { Text("+\(pts) pts").dsFont(16, weight: .bold).foregroundStyle(Color.dsSuccess) }
+                    }
+                    .frame(maxWidth: .infinity).padding(16)
+                    .background(LinearGradient(colors: [accent.opacity(0.12), .clear], startPoint: .top, endPoint: .bottom))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    sectionLabel("Matchup Results").frame(maxWidth: .infinity, alignment: .leading)
+                    ForEach(matchups) { m in resultCard(m, yourPick: store.pick(matchupID: m.id, in: round)) }
+                }
+                .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 24)
+            }
+            .background(Color.dsBgPrimary)
+        }
+    }
+
+    /// The "How to play" rules content — reuses the first-time screen's How It Works + points table + the
+    /// two rule accordions.
+    private func rulesSheet(edition: BracketEdition) -> some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                howItWorks
+                pointsTable(rounds: edition.rounds)
+                rulesDisclosure("qualifying", "Early rounds & byes", Self.qualifyingRules)
+                rulesDisclosure("rounds", "How each round works", Self.roundRules)
+            }
+            .padding(20)
+        }
+        .background(Color.dsBgPrimary)
     }
 
     // MARK: - Share the round result (fresh, PR2 — score + rank movement + edition)
@@ -855,19 +916,14 @@ struct BracketBattleView: View {
     /// the surprises. (% is never shown until you open it — and never during voting.)
     private func resultCard(_ m: BracketMatchup, yourPick: String?) -> some View {
         let aWon = m.communityWinnerID == m.entrantA.id
-        let correct = yourPick != nil && yourPick == m.communityWinnerID
         let expanded = expandedMatchups.contains(m.id)
-        let winnerName = m.entrant(m.communityWinnerID ?? "")?.playerName ?? "her"
         return VStack(spacing: 8) {
             HStack(spacing: 0) {
                 resultSide(m.entrantA, won: aWon, isYour: yourPick == m.entrantA.id)
                 Text("VS").dsFont(10, weight: .bold).foregroundStyle(Color.dsFgQuaternary).padding(.horizontal, 2)
                 resultSide(m.entrantB, won: !aWon, isYour: yourPick == m.entrantB.id)
             }
-            Text(correct ? "Nice — you had \(winnerName). +\(m.round.points)"
-                 : (yourPick == nil ? "You sat this one out" : "Ouch — your pick went home"))
-                .dsFont(11, weight: .semibold)
-                .foregroundStyle(correct ? Color.dsSuccess : (yourPick == nil ? Color.dsFgTertiary : Color.dsError))
+            resultVerdict(m, yourPick: yourPick)
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     if expanded { expandedMatchups.remove(m.id) } else { expandedMatchups.insert(m.id) }
@@ -894,9 +950,38 @@ struct BracketBattleView: View {
                 .dsFont(10, weight: .semibold).foregroundStyle(isYour ? accent : Color.dsFgTertiary)
             if won { Text("ADVANCES").dsFont(10, weight: .bold).foregroundStyle(Color.dsSuccess) }
         }
+        // Fix 4: the teal wash + border marks YOUR PICK (regardless of outcome) so you can always see which
+        // side you were on; the LOSING side dims. Two independent channels — border = your selection,
+        // "ADVANCES" = who won. Opacity dims only the content, leaving a full-strength border on a lost pick.
+        .opacity(won ? 1 : 0.55)
         .frame(maxWidth: .infinity).padding(.vertical, 10).padding(.horizontal, 8)
-        .background(won ? accent.opacity(0.12) : .clear).opacity(won ? 1 : 0.55)
+        .background(isYour ? accent.opacity(0.12) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(isYour ? accent : Color.clear, lineWidth: 1.5))
+    }
+
+    /// Fix 5 — the one-line verdict under a result card. Leads with the MARGIN of the community vote
+    /// (Runaway / Comfortable / Solid / Nail-biter), then your outcome: "+N pts" if your pick advanced, or
+    /// the vote split ("62% vs your pick's 38%") if it went home. Sat-out matchups show the margin alone.
+    private func resultVerdict(_ m: BracketMatchup, yourPick: String?) -> some View {
+        let splitA = m.splitAPercent ?? 50
+        let winnerPct = m.winnerPercent ?? max(splitA, 100 - splitA)
+        let winnerName = m.entrant(m.communityWinnerID ?? "")?.playerName ?? "the winner"
+        let phrase: String
+        switch winnerPct {
+        case 90...:    phrase = "Runaway — \(winnerName) dominated"
+        case 70..<90:  phrase = "Comfortable — \(winnerName) cruised through"
+        case 55..<70:  phrase = "Solid — \(winnerName) took it"
+        default:       phrase = "Nail-biter — \(winnerName) barely survived"
+        }
+        let correct = yourPick != nil && yourPick == m.communityWinnerID
+        var line = Text(phrase).foregroundStyle(Color.dsFgSecondary)
+        if correct {
+            line = line + Text("  ·  +\(m.round.points) pts").foregroundStyle(Color.dsSuccess)
+        } else if yourPick != nil {
+            line = line + Text("  ·  \(winnerPct)% vs your pick's \(100 - winnerPct)%").foregroundStyle(Color.dsError)
+        }
+        return line.dsFont(11, weight: .semibold).multilineTextAlignment(.center).frame(maxWidth: .infinity)
     }
 
     /// The "See stats" reveal: a donut of the community split, the legend, the vote
@@ -961,7 +1046,7 @@ struct BracketBattleView: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "list.number").dsFont(13, weight: .semibold)
-                Text("Full leaderboard & your stats").dsFont(14, weight: .semibold)
+                Text("See full leaderboard").dsFont(14, weight: .semibold)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right").dsFont(12, weight: .semibold)
             }
@@ -972,175 +1057,6 @@ struct BracketBattleView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    // MARK: - Screen 5: Bracket Overview (the tournament story)
-
-    /// Standalone scrollable overview — the post-submit landing, with a banner.
-    @ViewBuilder
-    /// `showsPlayingAs` is false ONLY for the "See the full bracket" SHEET, which is a modal read
-    /// of the bracket — not a screen you play from — and has its own Done chrome.
-    private func overviewBody(banner: String?, showsPlayingAs: Bool = true) -> some View {
-        if viewModel.edition != nil {
-            ScrollView {
-                overviewContent(banner: banner)
-                    .padding(.horizontal, 16).padding(.bottom, 32)
-                    .fanZonePlayingAsHeader(accent: showsPlayingAs ? accent : nil)
-            }
-            .background(Color.dsBgPrimary.ignoresSafeArea())
-        }
-    }
-
-    /// The full bracket journey — every round as complete · active · upcoming so the
-    /// user sees what already happened, what's live, and what's coming. No own
-    /// ScrollView, so it also sits BELOW the results list.
-    @ViewBuilder
-    private func overviewContent(banner: String?) -> some View {
-        if let edition = viewModel.edition {
-            VStack(spacing: 16) {
-                if let banner {
-                    HStack(spacing: 10) {
-                        Image(systemName: "checkmark.seal.fill").dsFont(18).foregroundStyle(accent)
-                        Text(banner).dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(12).background(accent.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.35)))
-                }
-                VStack(spacing: 4) {
-                    Text(edition.themeLabel).dsFont(12, weight: .bold).tracking(2).foregroundStyle(accent)
-                    Text("The bracket so far").dsFont(20, weight: .bold).foregroundStyle(Color.dsFgPrimary)
-                    Text("\(edition.entrants.count) in · \(edition.rounds.count) rounds · 1 left standing")
-                        .dsFont(12).foregroundStyle(Color.dsFgSecondary)
-                }.padding(.top, 4)
-
-                // Legend: a dot + label per round, colored by status.
-                HStack(spacing: 6) {
-                    ForEach(edition.rounds, id: \.self) { round in
-                        let st = edition.status(of: round)
-                        HStack(spacing: 4) {
-                            Circle().fill(statusColor(st)).frame(width: 6, height: 6)
-                            Text(round.shortDisplayName(in: edition.rounds)).dsFont(10, weight: .bold).foregroundStyle(statusColor(st))
-                        }
-                        .padding(.horizontal, 9).padding(.vertical, 6)
-                        .background(st == .active ? accent.opacity(0.12) : Color.white.opacity(0.04))
-                        .clipShape(Capsule())
-                    }
-                }
-                ForEach(edition.rounds, id: \.self) { round in overviewRound(edition, round) }
-
-                fullLeaderboardLink
-
-                if viewModel.flavor == .nextEdition {
-                    calloutCard(icon: "calendar", title: "What's next",
-                                body: "Once this one crowns a champion, a fresh edition drops — new names, new chaos.")
-                }
-            }
-        }
-    }
-
-    /// A warm flavor callout (upset / closest call / next edition).
-    private func calloutCard(icon: String, title: String, body: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon).dsFont(18).foregroundStyle(accent)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).dsFont(11, weight: .bold).tracking(0.5).textCase(.uppercase).foregroundStyle(accent)
-                Text(body).dsFont(13).foregroundStyle(Color.dsFgSecondary).fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(12).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.25)))
-    }
-
-    private func overviewRound(_ edition: BracketEdition, _ round: BracketRound) -> some View {
-        let status = edition.status(of: round)
-        let ms = edition.matchups(in: round)
-        let cap = 6
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Circle().fill(statusColor(status)).frame(width: 8, height: 8)
-                sectionLabel(round.displayName(in: edition.rounds)).foregroundStyle(statusColor(status))
-                Text(statusNote(status)).dsFont(10).foregroundStyle(Color.dsFgSecondary)
-            }
-            VStack(spacing: 8) {
-                if ms.isEmpty {
-                    // Upcoming — show the bracket structure ahead as TBD slots.
-                    ForEach(0..<min(cap, round.matchupCount), id: \.self) { _ in tbdSlot }
-                    if round.matchupCount > cap { overflowNote(round.matchupCount - cap) }
-                } else {
-                    let expanded = expandedRounds.contains(round)
-                    ForEach(expanded ? Array(ms) : Array(ms.prefix(cap))) { m in overviewMatchup(m) }
-                    if ms.count > cap {
-                        Button {
-                            if expanded { expandedRounds.remove(round) } else { expandedRounds.insert(round) }
-                        } label: {
-                            Text(expanded ? "Show less" : "+\(ms.count - cap) more")
-                                .dsFont(11, weight: .semibold).foregroundStyle(accent)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                // Full-width row — tappable across its width, not just the leading text.
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            .padding(.leading, 16)
-            .overlay(Rectangle().fill(statusColor(status).opacity(0.3)).frame(width: 2), alignment: .leading)
-        }
-        .padding(.top, 4)
-    }
-
-    private func overflowNote(_ n: Int) -> some View {
-        Text("+\(n) more").dsFont(11).foregroundStyle(Color.dsFgSecondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var tbdSlot: some View {
-        HStack(spacing: 10) {
-            Text("TBD").dsFont(13, weight: .medium).foregroundStyle(Color.dsFgQuaternary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text("VS").dsFont(10, weight: .bold).foregroundStyle(Color.dsFgQuaternary)
-            Text("TBD").dsFont(13, weight: .medium).foregroundStyle(Color.dsFgQuaternary)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-        }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(Color.dsMdCard.opacity(0.4)).clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    /// A matchup row in the overview. Resolved rounds show winner (bold) + loser
-    /// (struck through, dimmed) with each side's vote %; the active round shows the
-    /// live pairing without a result yet.
-    private func overviewMatchup(_ m: BracketMatchup) -> some View {
-        let resolved = m.isResolved
-        let aWon = resolved && m.communityWinnerID == m.entrantA.id
-        let bWon = resolved && m.communityWinnerID == m.entrantB.id
-        let aPct = m.splitAPercent
-        return HStack(spacing: 10) {
-            overviewSide(m.entrantA, won: aWon, lost: resolved && !aWon,
-                         pct: resolved ? aPct : nil, alignTrailing: false)
-            Text("VS").dsFont(10, weight: .bold).foregroundStyle(Color.dsFgQuaternary)
-            overviewSide(m.entrantB, won: bWon, lost: resolved && !bWon,
-                         pct: resolved ? aPct.map { 100 - $0 } : nil, alignTrailing: true)
-        }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    private func overviewSide(_ e: BracketEntrant, won: Bool, lost: Bool, pct: Int?, alignTrailing: Bool) -> some View {
-        HStack(spacing: 6) {
-            if alignTrailing, let pct { pctText(pct, won: won) }
-            Text(e.playerName)
-                .dsFont(13, weight: won ? .bold : .medium)
-                .foregroundStyle(lost ? Color.dsFgTertiary : .dsFgPrimary).strikethrough(lost).lineLimit(1)
-            if !alignTrailing, let pct { pctText(pct, won: won) }
-        }
-        .frame(maxWidth: .infinity, alignment: alignTrailing ? .trailing : .leading)
-    }
-
-    private func pctText(_ p: Int, won: Bool) -> some View {
-        Text("\(p)%").dsFont(11, weight: won ? .bold : .regular)
-            .foregroundStyle(won ? accent : Color.dsFgTertiary)
     }
 
     // MARK: - Empty / error
@@ -1171,16 +1087,6 @@ struct BracketBattleView: View {
         Text(text).trackedCaps(color: accent)
     }
 
-    private func statusColor(_ s: BracketEdition.RoundStatus) -> Color {
-        switch s { case .complete: return Color.dsSuccess; case .active: return accent; case .upcoming: return Color.dsFgQuaternary }
-    }
-    private func statusNote(_ s: BracketEdition.RoundStatus) -> String {
-        switch s {
-        case .complete: return "· Complete"
-        case .active: return "· Voting now" + (viewModel.closesInText.map { " · " + $0.replacingOccurrences(of: "Closes in ", with: "") + " left" } ?? "")
-        case .upcoming: return "· Upcoming"
-        }
-    }
 }
 
 // A full-width pill button label in the bracket style.

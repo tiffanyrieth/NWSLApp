@@ -72,6 +72,7 @@ final class BracketViewModel {
             id: edition.id, title: edition.title,
             currentRoundRaw: edition.currentRound.rawValue,
             roundClosesAt: edition.roundClosesAt, isActive: true,
+            themeLabel: edition.themeLabel,
             poolSize: edition.entrants.count
         ))
         await scoreSettledRounds(edition: edition, store: store)

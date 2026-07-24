@@ -620,7 +620,12 @@ struct HomeView: View {
     private var bracketCardModel: FanZoneCardModel {
         let summary = bracket.summary
         let round = summary.flatMap { BracketRound(rawValue: $0.currentRoundRaw) }
-        let theme = summary?.title ?? "Bracket Battle"
+        // Compact theme for the carousel card (Fix 8): prefer the SHORT tracked-caps label ("TOP FORWARD",
+        // "STARE-DOWN") so a creative edition's long question-title doesn't truncate off the round name; fall
+        // back to the title with its redundant "· 2026" year tail trimmed for older cached summaries.
+        let theme = summary?.themeLabel?.capitalized
+            ?? (summary?.title ?? "Bracket Battle").components(separatedBy: " · ").first
+            ?? "Bracket Battle"
         // Positional round name (no "Round of X") — the cached summary carries the pool size for numbering.
         let context = round.map { "\(theme) · \($0.displayName(poolSize: summary?.poolSize))" } ?? theme
         var model = FanZoneCardModel(game: .bracket, title: "Bracket Battle", contextLine: context)

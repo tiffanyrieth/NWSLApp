@@ -30,6 +30,10 @@ final class BracketStore {
         let roundClosesAt: Date?
         /// False when there's no active/upcoming edition (the Fan Zone gate).
         let isActive: Bool
+        /// The SHORT tracked-caps theme label ("TOP FORWARD", "STARE-DOWN") — the Home card leads with this
+        /// instead of the long `title` so a creative edition's question doesn't truncate off the round name.
+        /// Optional so summaries cached before this field still decode (fall back to `title`).
+        var themeLabel: String?
         /// The edition's entrant-pool size — lets the Superfan accuracy denominator be computed locally
         /// (Σ matchups over tallied rounds). Optional so summaries cached before this field still decode;
         /// nil ⇒ the bracket contributes from the durable server counts only until the next live fetch.
@@ -139,7 +143,8 @@ final class BracketStore {
     func clearActiveEdition() {
         if var s = summary, s.isActive {
             s = EditionSummary(id: s.id, title: s.title, currentRoundRaw: s.currentRoundRaw,
-                               roundClosesAt: s.roundClosesAt, isActive: false, poolSize: s.poolSize)
+                               roundClosesAt: s.roundClosesAt, isActive: false,
+                               themeLabel: s.themeLabel, poolSize: s.poolSize)
             summary = s
             persist()
         }

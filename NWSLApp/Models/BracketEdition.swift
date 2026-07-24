@@ -30,7 +30,9 @@ import Foundation
 /// little more without an extreme "upset tax" (owner-set, v2). A perfect 64-pool
 /// bracket totals 81. The set generalises to any power-of-two pool: a 32-player
 /// edition just starts at `.roundOf32`.
-enum BracketRound: Int, Codable, CaseIterable, Comparable {
+enum BracketRound: Int, Codable, CaseIterable, Comparable, Identifiable {
+    var id: Int { rawValue }   // lets a round drive `.sheet(item:)` (past-round results review)
+
     // Main bracket — keyed by entrant count (64 → Round of 64 … 2 → Final).
     case roundOf64 = 64
     case roundOf32 = 32

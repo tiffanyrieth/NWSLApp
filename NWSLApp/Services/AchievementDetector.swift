@@ -62,11 +62,12 @@ enum AchievementDetector {
         await AchievementService().award(awards, seasonYear: season, userID: userID)
     }
 
-    /// Award the two upset badges from a loaded edition (per-round matchup seeds + the user's picks).
+    /// Award the two upset badges from a loaded edition (per-round community vote margins + the user's picks).
+    /// An upset = a called winner the crowd advanced with ≤55% of the vote (a ≤10-point nail-biter).
     static func checkBracket(edition: BracketEdition, store: BracketStore, userID: UUID, season: Int) async {
         var bestUpsetsInARound = 0
         var bestUpsetRound: BracketRound?
-        var hasBigUpset = false
+        var hasUpset = false
 
         for round in edition.rounds where round < edition.currentRound {
             let matchups = edition.matchups(in: round)
@@ -74,14 +75,11 @@ enum AchievementDetector {
             var upsets = 0
             for m in matchups {
                 guard let winnerID = m.communityWinnerID,
-                      store.pick(matchupID: m.id, in: round) == winnerID,   // the user called this winner
-                      let winner = m.entrant(winnerID) else { continue }
-                let loser = winner.id == m.entrantA.id ? m.entrantB : m.entrantA
-                if Achievement.isUpsetWin(pickedWinner: true, winnerSeed: winner.seed, loserSeed: loser.seed) {
+                      store.pick(matchupID: m.id, in: round) == winnerID   // the user called this winner
+                else { continue }
+                if Achievement.isUpsetWin(pickedWinner: true, winnerPercent: m.winnerPercent) {
                     upsets += 1
-                }
-                if Achievement.isBigUpsetWin(pickedWinner: true, winnerSeed: winner.seed, loserSeed: loser.seed) {
-                    hasBigUpset = true
+                    hasUpset = true
                 }
             }
             if upsets > bestUpsetsInARound { bestUpsetsInARound = upsets; bestUpsetRound = round }
@@ -92,7 +90,7 @@ enum AchievementDetector {
             let name = bestUpsetRound.map { $0.displayName(in: edition.rounds) } ?? "a round"
             awards.append((.darkHorse, "\(bestUpsetsInARound) upsets in \(name)"))
         }
-        if hasBigUpset { awards.append((.upsetRoyalty, nil)) }
+        if hasUpset { awards.append((.upsetRoyalty, nil)) }
         await AchievementService().award(awards, seasonYear: season, userID: userID)
     }
 }

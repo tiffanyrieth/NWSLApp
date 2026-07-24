@@ -9,11 +9,11 @@
 //  SwiftUI-free-detection so every rule is unit-testable (AchievementTests). Presentation (symbol/color)
 //  uses the shared DS tokens.
 //
-//  ⚠️ UPSET RULE (Dark Horse / Upset Royalty): the handoff defines an upset as "pick won with <40% / <30%
-//  community vote" — but Bracket Battle is a MAJORITY-WINS 2-way bracket, so a winner ALWAYS has >50% of
-//  the vote; a <40% winner is impossible. So detection uses the SEED gap instead: an upset is when the
-//  community advanced the lower-seeded (underdog) entrant and the user picked it. Documented for the owner
-//  to confirm/adjust the intended rule.
+//  ⚠️ UPSET RULE (Dark Horse / Upset Royalty), owner ruling 2026-07-24: the handoff's "<40% / <30% vote" is
+//  impossible in a MAJORITY-WINS 2-way bracket (a winner is always >50%), so an upset is defined by a narrow
+//  MARGIN: a win the user CALLED where the community advanced their pick with ≤55% of the vote (a ≤10-point
+//  nail-biter — the crowd barely favored them, so getting it right is the impressive part). Dark Horse = 3+
+//  such calls in one round; Upset Royalty = at least one. (Replaces the earlier seed-gap stopgap.)
 //
 
 import SwiftUI
@@ -99,7 +99,9 @@ extension Achievement {
     static let knowItAllScore = 8
     static let wellRoundedGames = 4
     static let ironFanWeeks = 4
-    static let bigUpsetSeedGap = 16
+    /// A win counts as an upset the user "called" when the community winner's vote share is at or below
+    /// this (⟺ a ≤10-point margin). Owner ruling 2026-07-24 — see the ⚠️ note at the top.
+    static let upsetWinnerVoteCeiling = 55
 
     static func isPerfectRound(correct: Int, outOf total: Int) -> Bool { total > 0 && correct == total }
     static func isLineupOracle(correctPlayers: Int) -> Bool { correctPlayers >= lineupOracleCorrect }
@@ -109,17 +111,11 @@ extension Achievement {
     static func isWellRounded(gamesWithSeasonPoints: Int) -> Bool { gamesWithSeasonPoints >= wellRoundedGames }
     static func isIronFan(consecutiveWeeksPlayed: Int) -> Bool { consecutiveWeeksPlayed >= ironFanWeeks }
 
-    /// An upset the user CALLED: the community advanced the lower-seeded (underdog) entrant and the user
-    /// picked it. (Seed-based — see the ⚠️ note at the top; "<40% vote" is impossible for a majority winner.)
-    /// Higher seed NUMBER = lower seed = underdog.
-    static func isUpsetWin(pickedWinner: Bool, winnerSeed: Int?, loserSeed: Int?) -> Bool {
-        guard pickedWinner, let w = winnerSeed, let l = loserSeed else { return false }
-        return w > l
-    }
-
-    /// A BIG upset (Upset Royalty): the underdog the user called was seeded far below its opponent.
-    static func isBigUpsetWin(pickedWinner: Bool, winnerSeed: Int?, loserSeed: Int?) -> Bool {
-        guard pickedWinner, let w = winnerSeed, let l = loserSeed else { return false }
-        return w - l >= bigUpsetSeedGap
+    /// An upset the user CALLED: their pick advanced AND the community winner squeaked through with a vote
+    /// share ≤ `upsetWinnerVoteCeiling` (a ≤10-point margin). `winnerPercent` is the advancing entrant's
+    /// share (0–100), i.e. `BracketMatchup.winnerPercent`. See the ⚠️ note at the top (vote-margin, not seed).
+    static func isUpsetWin(pickedWinner: Bool, winnerPercent: Int?) -> Bool {
+        guard pickedWinner, let p = winnerPercent else { return false }
+        return p <= upsetWinnerVoteCeiling
     }
 }

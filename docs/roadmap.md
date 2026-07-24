@@ -127,6 +127,21 @@
 > app source. The unit tests that reference `PostseasonSimulator.clinchTable` (`PlayoffClinchTests`) move
 > to inline fixtures at that point. Nothing auto-reminds — this note is the reminder.
 
+> ### 🧹 PRE-LAUNCH GATE — purge the Fan Zone seed test population (owner 2026-07-23)
+> The pre-launch seeder (`nwslapp-proxy/scripts/seed_test_fans.mjs`) creates real `@seed.nwslapp.test`
+> `auth.users` so the crowd-shaped surfaces (leaderboards, community splits, Superfan ladder) can be
+> designed against before there are real players. **Retention does NOT clean these up** — the cron only
+> prunes `quiz_answers` (>35d) and `predict_round_scores` (>28d); the record book it writes
+> (`prediction_scores`, `superfan_scores`, `profiles`) is kept FOREVER by design, and the `auth.users`
+> rows never expire. So the seed fans would rank on real leaderboards and count in real aggregates
+> permanently until explicitly torn down. **Before launch:**
+> - `node scripts/seed_test_fans.mjs --purge` — deletes the `@seed.nwslapp.test` accounts; `on delete
+>   cascade` sweeps all six seeded tables clean.
+> - Then run the **REVOKE block** at the bottom of `supabase/migration_seed_grants.sql` — returns the
+>   service_role key to exactly the reach it had before seeding.
+> Enforced, not remembered: `health_check_seed_accounts.mjs` FAILS the `npm run healthcheck` chain while
+> any seed account exists — that gate is why seeding against the prod project is safe at all.
+
 > ### ✅ SHIPPED — Fan Zone v2 (2026-07-22, merged to main)
 > The Fan Zone v2 batch is DONE + on main (detail in git + `.claude/rules/fan-zone.md`):
 > - **Superfan Zone:** the trailing "Superfan" carousel card is now TAPPABLE → `SuperfanDetailView`, a

@@ -58,7 +58,7 @@ struct BracketBattleView: View {
             if case .idle = viewModel.state {
                 await viewModel.load(store: store, userID: auth.userID, displayName: auth.displayName)
             }
-            // Award the upset badges from the loaded edition (per-round seeds + the user's picks).
+            // Award the upset badges from the loaded edition (per-round community vote margins + the user's picks).
             if let edition = viewModel.edition, let userID = auth.userID {
                 await AchievementDetector.checkBracket(edition: edition, store: store, userID: userID,
                                                        season: AppConfig.currentSeasonYear)

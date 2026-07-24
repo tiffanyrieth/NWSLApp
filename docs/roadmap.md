@@ -36,8 +36,8 @@
 > loader. Until then the current stocked pool serves rounds with a deterministic slice (repeats
 > after ~4 rounds — acceptable interim, owner-approved).
 
-> ### 🏆 Bracket Battle → an OFFSEASON tentpole (owner 2026-07-23; scheduling redesign)
-> **Decision:** stop running Bracket Battle year-round on a fixed cadence. Make it primarily an
+> ### 🏆 The Bracket → an OFFSEASON tentpole (owner 2026-07-23; scheduling redesign)
+> **Decision:** stop running The Bracket year-round on a fixed cadence. Make it primarily an
 > **offseason** feature, with maybe **1–2 editions during the season**.
 >
 > **Why — the content-calendar gap.** In season the Fan Zone is already full: KHG and Trivia alternate
@@ -195,7 +195,7 @@
 > this done.
 
 Pending work only (ALIVE > core > hardening); shipped work lives in git history + the File Map.
-- **Bracket Battle v2 — built, awaiting owner deploy:** run the 4 SQL files (`migration_bracket_v2`
+- **The Bracket v2 — built, awaiting owner deploy:** run the 4 SQL files (`migration_bracket_v2`
   → `migration_bracket_qualifying` → `seed_bracket_stats_editions` → `seed_bracket_creative_editions`)
   + `npm run deploy` (proxy) + the first-launch flow (`Reference/Bracket Battle/first-launch-checklist.md`).
   Optional later: more stat/creative themes; full bracket-TREE graphic.

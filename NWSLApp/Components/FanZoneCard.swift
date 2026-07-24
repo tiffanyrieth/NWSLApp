@@ -262,7 +262,7 @@ func compactCountdown(to target: Date, from now: Date = Date()) -> String? {
             ))
             FanZoneCarouselCard(model: FanZoneCardModel(
                 game: .bracket, title: "The Bracket",
-                contextLine: "Stare-Down · Round of 64"
+                contextLine: "Stare-Down · Round 1"
             ))
             FanZoneCarouselCard(model: FanZoneCardModel(
                 game: .trivia, title: "NWSL Trivia",

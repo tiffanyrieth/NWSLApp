@@ -10,7 +10,7 @@
 //  skippable model (FanZoneIntroView's one-time invite + an at-submit "Not now" prompt),
 //  under which users could fully play and submit signed-out and their results went nowhere.
 //
-//  Usage: `.fanZoneGate(isRequested: $flag, gameName: "Bracket Battle") { <run the action> }`.
+//  Usage: `.fanZoneGate(isRequested: $flag, gameName: "The Bracket") { <run the action> }`.
 //  Flip `isRequested` true when the user acts; `onAuthorized` runs exactly once they're
 //  signed in AND named — immediately (no sheet) if they already are; otherwise after the
 //  Sign-in → Display-name steps complete. Backing out never runs `onAuthorized`.

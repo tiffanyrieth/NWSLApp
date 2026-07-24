@@ -4,7 +4,10 @@ paths:
   - "**/*bracket*.sql"
 ---
 
-# Bracket Battle — operating rules
+# The Bracket — operating rules
+
+> User-facing name is **"The Bracket"** (renamed from "Bracket Battle" 2026-07-24). Internal ids stay
+> `.bracket` / `dsGameBracket` / GameCenter ids / storage keys.
 
 A **live community-voting elimination bracket** for the whole NWSL. Players are seeded into a
 themed bracket; each round the **community votes** who advances, and **you score by predicting the

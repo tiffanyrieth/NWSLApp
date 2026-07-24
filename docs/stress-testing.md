@@ -144,9 +144,12 @@ For each subsystem, walk it explicitly:
       country-followers; club watchers ~700). Fixed: watcher fixture-window polling (§7) + app
       confederation scoping (§7). Residual open item: model a FULL-SLATE matchday (6-7 NWSL games)
       against the per-user costs in the §7 ledger before launch.
-- [ ] **Supabase** — DB size, monthly egress, auth MAU, connection limits, RLS query cost;
+- [~] **Supabase** — DB size, monthly egress, auth MAU, connection limits, RLS query cost;
       `device_tokens` / `*_preferences` read volume per tick. Likely the *second* paid lever (~Pro tier)
       around ~30–50k users. **Verify current free-tier + Pro numbers against primary docs.**
+      **[x] DB SIZE + egress modelled 2026-07-24 (§7): free 500 MB HOLDS at 15k/7k (~170-280 MB year-1);
+      first wall ≈ year 3-4 record-book accumulation → Pro $25/mo; archival lever noted.** Still open:
+      connection limits + `device_tokens`/`*_preferences` per-tick read volume at watcher scale.
       - **[x] Fan Zone leaderboard reads — FIXED.** Bracket/Predict/Trivia boards fetched the whole scored
         set (no `.limit()`) and rendered eagerly — a 1k-scale global board = thousands of rows → hang +
         multi-MB fetch. Now capped at `LeaderboardRanking.visibleLimit` (top-100) + a COUNT-based true rank,

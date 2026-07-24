@@ -50,6 +50,20 @@ final class BracketStore {
     /// The edition the above belong to. Changing edition resets picks/scores.
     private(set) var editionID: String?
 
+    /// The rawValue of the most recent round whose RESULTS the user has already seen (nil = none yet) —
+    /// backs the "show the post-round results screen ONCE per tally" gate (Competitive Redesign). Local +
+    /// per-device (a cosmetic gate; a reinstall harmlessly re-shows the latest results). Reset on edition change.
+    private(set) var lastResultsSeenRound: Int?
+
+    /// The user's leaderboard rank as of the last round whose results they viewed (the baseline the next
+    /// round's movement is measured against). Local snapshot; nil until the first results view.
+    private(set) var lastSeenRank: Int?
+
+    /// The rank change from the most recently viewed round (positive = climbed) — persisted so the
+    /// returning landing shows "↑ N spots since last round" durably between rounds. nil until the second
+    /// results view (the first has no prior baseline).
+    private(set) var lastRoundRankDelta: Int?
+
     private let defaults: UserDefaults
 
     private enum Key {
@@ -58,6 +72,9 @@ final class BracketStore {
         static let submitted = "bracket.v2.submittedRounds"
         static let scores = "bracket.v2.roundScores"
         static let editionID = "bracket.v2.editionID"
+        static let lastResultsSeen = "bracket.v2.lastResultsSeenRound"
+        static let lastSeenRank = "bracket.v2.lastSeenRank"
+        static let lastRoundDelta = "bracket.v2.lastRoundRankDelta"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -67,6 +84,9 @@ final class BracketStore {
         self.submittedRounds = Set(Self.decode(defaults.data(forKey: Key.submitted)) ?? [Int]())
         self.roundScores = Self.decode(defaults.data(forKey: Key.scores)) ?? [:]
         self.editionID = defaults.string(forKey: Key.editionID)
+        self.lastResultsSeenRound = defaults.object(forKey: Key.lastResultsSeen) as? Int
+        self.lastSeenRank = defaults.object(forKey: Key.lastSeenRank) as? Int
+        self.lastRoundRankDelta = defaults.object(forKey: Key.lastRoundDelta) as? Int
     }
 
     // MARK: - Readers (Home / Profile)
@@ -108,6 +128,9 @@ final class BracketStore {
             picksByRound = [:]
             submittedRounds = []
             roundScores = [:]
+            lastResultsSeenRound = nil   // a fresh edition: no results seen, no prior rank/movement
+            lastSeenRank = nil
+            lastRoundRankDelta = nil
         }
         persist()
     }
@@ -144,6 +167,25 @@ final class BracketStore {
         persist()
     }
 
+    /// Mark a round's post-round results as seen (so the results screen shows ONCE per tally, then the
+    /// returning landing takes over). Monotonic in play order — never moves backward.
+    func markResultsSeen(_ round: BracketRound) {
+        if let seen = lastResultsSeenRound, let seenRound = BracketRound(rawValue: seen), !(seenRound < round) {
+            return   // already at or past this round
+        }
+        lastResultsSeenRound = round.rawValue
+        persist()
+    }
+
+    /// Record this round's rank movement at results-view time: the delta from the prior baseline (for the
+    /// landing's durable "↑ N since last round"), then advance the baseline to the current rank. The first
+    /// call (no baseline) just sets the baseline — no delta yet.
+    func recordRoundMovement(currentRank: Int) {
+        if let baseline = lastSeenRank { lastRoundRankDelta = baseline - currentRank }
+        lastSeenRank = currentRank
+        persist()
+    }
+
     // MARK: - Persistence
 
     private func persist() {
@@ -152,6 +194,9 @@ final class BracketStore {
         defaults.set(Self.encode(Array(submittedRounds)), forKey: Key.submitted)
         defaults.set(Self.encode(roundScores), forKey: Key.scores)
         defaults.set(editionID, forKey: Key.editionID)
+        defaults.set(lastResultsSeenRound, forKey: Key.lastResultsSeen)
+        defaults.set(lastSeenRank, forKey: Key.lastSeenRank)
+        defaults.set(lastRoundRankDelta, forKey: Key.lastRoundDelta)
     }
 
     /// Wipe all local Bracket Battle progress on account deletion — resets the
@@ -164,6 +209,9 @@ final class BracketStore {
         submittedRounds = []
         roundScores = [:]
         editionID = nil
+        lastResultsSeenRound = nil
+        lastSeenRank = nil
+        lastRoundRankDelta = nil
         persist()
     }
 
@@ -192,6 +240,9 @@ final class BracketStore {
         defaults.set(Data(), forKey: Key.submitted)
         defaults.set(Data(), forKey: Key.scores)
         defaults.set("", forKey: Key.editionID)
+        defaults.removeObject(forKey: Key.lastResultsSeen)
+        defaults.removeObject(forKey: Key.lastSeenRank)
+        defaults.removeObject(forKey: Key.lastRoundDelta)
     }
     #endif
 }

@@ -60,24 +60,45 @@ struct BracketBattleView: View {
         // Mandatory sign-in + display name to PLAY — gated at "Make your picks" (entry to
         // voting), so the submit downstream is always signed in. "Go back" cancels.
         .fanZoneGate(isRequested: $gateRequested, gameName: "Bracket Battle", accent: accent) { stage = .voting }
+        // A new round opening returns the player to the landing (not straight into voting from a stale
+        // `stage == .voting`); they re-enter voting via the landing's CTA.
+        .onChange(of: viewModel.currentRound) { stage = .intro }
     }
 
-    // MARK: - Routing by round phase
+    // MARK: - Routing (Competitive Redesign: first-time vs returning + show-results-once)
 
     @ViewBuilder
     private var loadedContent: some View {
         if viewModel.edition == nil {
             emptyState
+        } else if stage == .voting && viewModel.phase(store: store) == .open {
+            // Actively voting an open round. Guarded on `.open` so a submit (→ .submitted) falls through
+            // to the returning landing rather than sticking on the voting screen.
+            votingScreen
+        } else if !store.hasPlayed {
+            // Never played THIS edition → the rules-first first-time landing.
+            introScreen
+        } else if let round = pendingResultsRound {
+            // A round the user played has tallied and they haven't seen its results yet → show ONCE.
+            postRoundResults(round: round)
         } else {
-            switch viewModel.phase(store: store) {
-            case .open, .closed:
-                if stage == .intro { introScreen } else { votingScreen }
-            case .submitted:
-                overviewBody(banner: submittedBannerText)
-            case .scored:
-                resultsScreen
-            }
+            returningLanding
         }
+    }
+
+    /// The most recent round the user SUBMITTED that has resolved and whose results they haven't seen yet
+    /// (the "show the post-round results once" gate). `nil` once seen or if they skipped that round.
+    private var pendingResultsRound: BracketRound? {
+        guard let edition = viewModel.edition else { return nil }
+        for round in edition.rounds.reversed() where round < edition.currentRound && store.hasSubmitted(round) {
+            guard edition.matchups(in: round).contains(where: { $0.isResolved }) else { continue }
+            if let seen = store.lastResultsSeenRound, let seenRound = BracketRound(rawValue: seen),
+               !(seenRound < round) {
+                return nil   // already seen this round (or a later one) — seen is monotonic
+            }
+            return round
+        }
+        return nil
     }
 
     // MARK: - Screen 1: Edition Intro
@@ -337,6 +358,312 @@ struct BracketBattleView: View {
     /// structure if the edition isn't loaded (rounds only render once it is).
     private var editionRounds: [BracketRound] {
         viewModel.edition?.rounds ?? BracketRound.rounds(forEntrants: 64)
+    }
+
+    // MARK: - Returning-player landing (Competitive Redesign)
+
+    @ViewBuilder
+    private var returningLanding: some View {
+        if let edition = viewModel.edition {
+            ScrollView {
+                VStack(spacing: 16) {
+                    if let you = viewModel.standings.you {
+                        rankCard(you: you, total: viewModel.standings.total)
+                    }
+                    activeRoundCTA(edition: edition)
+                    neighborhoodBoard
+                    steppingStones(edition: edition)
+                    howToPlayRow
+                }
+                .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 24)
+                .fanZonePlayingAsHeader(accent: accent)
+            }
+            .sheet(isPresented: $showFullBracket) {
+                NavigationStack {
+                    overviewBody(banner: nil, showsPlayingAs: false)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { showFullBracket = false } } }
+                }
+            }
+        }
+    }
+
+    /// The "YOUR RANK" identity card — rank circle, accuracy + percentile, points, and round-over-round
+    /// movement (green up / red down / gray no-change).
+    private func rankCard(you: BracketStanding, total: Int) -> some View {
+        let topPercent = total > 0 ? max(1, Int((Double(you.rank) / Double(total) * 100).rounded())) : 100
+        let accuracyText = you.accuracy.map { "\(Int(($0 * 100).rounded()))% accurate" }
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle().fill(accent.opacity(0.18))
+                    Circle().strokeBorder(accent, lineWidth: 2.5)
+                    Text("#\(you.rank)").dsFont(20, weight: .heavy).foregroundStyle(accent)
+                }
+                .frame(width: 56, height: 56)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("YOUR RANK").dsFont(11, weight: .bold).tracking(1.2).foregroundStyle(accent)
+                    Text([accuracyText, "top \(topPercent)% of \(total) fan\(total == 1 ? "" : "s")"]
+                            .compactMap { $0 }.joined(separator: " · "))
+                        .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                }
+                Spacer(minLength: 0)
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text("\(you.points)").dsFont(24, weight: .heavy, design: .rounded).foregroundStyle(Color.dsFgPrimary)
+                    Text("pts").dsFont(11).foregroundStyle(Color.dsFgSecondary)
+                }
+            }
+            if let movement = movementText(delta: store.lastRoundRankDelta) {
+                Text(movement.text).dsFont(12, weight: .bold).foregroundStyle(movement.color)
+            }
+        }
+        .padding(EdgeInsets(top: 18, leading: 16, bottom: 18, trailing: 16))
+        .background(LinearGradient(colors: [accent.opacity(0.15), Color.dsMdCard], startPoint: .topLeading, endPoint: .bottomTrailing))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(accent.opacity(0.4)))
+    }
+
+    /// "↑ N spots since last round" text + color from a rank delta (positive = climbed). nil = no movement yet.
+    private func movementText(delta: Int?) -> (text: String, color: Color)? {
+        guard let delta else { return nil }
+        if delta > 0 { return ("↑ \(delta) spot\(delta == 1 ? "" : "s") since last round", .dsSuccess) }
+        if delta < 0 { return ("↓ \(-delta) spot\(delta == -1 ? "" : "s") since last round", .dsError) }
+        return ("No change since last round", .dsFgSecondary)
+    }
+
+    /// The active-round call-to-action, whose state depends on the current round's phase.
+    @ViewBuilder
+    private func activeRoundCTA(edition: BracketEdition) -> some View {
+        let round = edition.currentRound
+        let name = round.displayName(in: edition.rounds)
+        switch viewModel.phase(store: store) {
+        case .open:
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Circle().fill(accent).frame(width: 8, height: 8).shadow(color: accent, radius: 4)
+                    Text("ACTIVE").dsFont(11, weight: .bold).tracking(1.2).foregroundStyle(accent)
+                }
+                Text("\(name) · \(edition.themeLabel.capitalized)").dsFont(18, weight: .bold).foregroundStyle(Color.dsFgPrimary)
+                Text("\(viewModel.closesInText ?? "Voting open") · \(round.matchupCount) matchups")
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                Button { gateRequested = true } label: { Text("Let's Go →").primaryButtonLabel(accent) }
+                    .padding(.top, 8)
+            }
+            .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+            .background(accent.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(accent.opacity(0.5), lineWidth: 1.5))
+        case .submitted:
+            ctaMutedCard(title: "\(name) — picks locked in", subtitle: "Waiting for the community to vote.")
+        case .closed, .scored:
+            ctaMutedCard(title: "Next round opens soon", subtitle: "Come back when voting reopens.")
+        }
+    }
+
+    private func ctaMutedCard(title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).dsFont(16, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+            Text(subtitle).dsFont(13).foregroundStyle(Color.dsFgTertiary)
+        }
+        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    /// The 5-row "neighborhood" board (2 above / you / 2 below), or a compact summary when the user ranks
+    /// outside the visible top.
+    @ViewBuilder
+    private var neighborhoodBoard: some View {
+        let rows = viewModel.standings.rows
+        let total = viewModel.standings.total
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel("Leaderboard").foregroundStyle(Color.dsFgSecondary)
+            if let idx = rows.firstIndex(where: { $0.isYou }) {
+                let lower = max(0, idx - 2), upper = min(rows.count - 1, idx + 2)
+                VStack(spacing: 2) {
+                    ForEach(rows[lower...upper]) { row in neighborhoodRow(row) }
+                    fullLeaderboardLink
+                }
+                .padding(14).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            } else if let you = viewModel.standings.you {
+                // Outside the visible top → compact summary.
+                let topPercent = total > 0 ? max(1, Int((Double(you.rank) / Double(total) * 100).rounded())) : 100
+                VStack(spacing: 4) {
+                    Text("#\(you.rank) of \(total) fan\(total == 1 ? "" : "s") · top \(topPercent)%")
+                        .dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
+                    fullLeaderboardLink
+                }
+                .frame(maxWidth: .infinity).padding(14)
+                .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+        }
+    }
+
+    private func neighborhoodRow(_ row: BracketStanding) -> some View {
+        HStack(spacing: 10) {
+            Text("#\(row.rank)").dsFont(13, weight: row.isYou ? .heavy : .semibold)
+                .foregroundStyle(row.isYou ? accent : Color.dsFgTertiary)
+                .frame(width: 34, alignment: .trailing)
+            Text(row.isYou ? "You" : row.name).dsFont(14, weight: row.isYou ? .bold : .medium)
+                .foregroundStyle(row.isYou ? accent : Color.dsFgPrimary).lineLimit(1)
+            Spacer(minLength: 0)
+            Text("\(row.points) pts").dsFont(13, weight: row.isYou ? .bold : .semibold)
+                .foregroundStyle(row.isYou ? accent : Color.dsFgSecondary)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 8)
+        .background(row.isYou ? accent.opacity(0.14) : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .strokeBorder(row.isYou ? accent.opacity(0.3) : Color.clear, lineWidth: 1))
+    }
+
+    /// The vertical "stepping stones" round timeline — one node per round, tappable when played/active.
+    private func steppingStones(edition: BracketEdition) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel("Edition Progress").foregroundStyle(Color.dsFgSecondary)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(edition.themeLabel.capitalized).dsFont(15, weight: .bold).foregroundStyle(Color.dsFgPrimary)
+                Text("\(edition.entrants.count) players · \(edition.rounds.count) rounds")
+                    .dsFont(12).foregroundStyle(Color.dsFgSecondary).padding(.bottom, 10)
+                ForEach(Array(edition.rounds.enumerated()), id: \.element) { i, round in
+                    steppingStoneNode(edition: edition, round: round, isLast: i == edition.rounds.count - 1)
+                }
+                Button { showFullBracket = true } label: {
+                    Text("See full bracket ›").dsFont(12, weight: .semibold).foregroundStyle(accent)
+                        .frame(maxWidth: .infinity).padding(.top, 12)
+                }
+            }
+            .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
+            .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+    }
+
+    @ViewBuilder
+    private func steppingStoneNode(edition: BracketEdition, round: BracketRound, isLast: Bool) -> some View {
+        let status = edition.status(of: round)
+        let done = status == .complete
+        let active = status == .active
+        let tappable = done || active
+        HStack(alignment: .top, spacing: 10) {
+            VStack(spacing: 0) {
+                ZStack {
+                    if done {
+                        Circle().fill(accent).frame(width: 22, height: 22)
+                        Image(systemName: "checkmark").dsFont(11, weight: .heavy).foregroundStyle(.white)
+                    } else if active {
+                        Circle().fill(accent.opacity(0.22)).frame(width: 26, height: 26)
+                        Circle().strokeBorder(accent, lineWidth: 2.5).frame(width: 26, height: 26).shadow(color: accent.opacity(0.4), radius: 6)
+                        Circle().fill(accent).frame(width: 10, height: 10)
+                    } else {
+                        Circle().strokeBorder(Color.dsFgQuaternary, lineWidth: 1.5).frame(width: 18, height: 18)
+                    }
+                }
+                .frame(width: 26, height: 26)
+                if !isLast {
+                    Rectangle().fill(done ? accent : Color.dsFgQuaternary.opacity(0.5)).frame(width: 2, height: 18)
+                }
+            }
+            HStack(spacing: 8) {
+                Text(round.displayName(in: edition.rounds))
+                    .dsFont(15, weight: active ? .bold : done ? .semibold : .regular)
+                    .foregroundStyle(tappable ? Color.dsFgPrimary : Color.dsFgTertiary)
+                if done { Text("· \(round.matchupCount) matchups").dsFont(12).foregroundStyle(Color.dsFgSecondary) }
+                if active {
+                    Text("Voting now").dsFont(12, weight: .bold).foregroundStyle(accent)
+                        .padding(.horizontal, 10).padding(.vertical, 3)
+                        .background(accent.opacity(0.18), in: Capsule())
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: 26)
+            .contentShape(Rectangle())
+            .onTapGesture { if active { gateRequested = true } }
+        }
+    }
+
+    private var howToPlayRow: some View {
+        Button { showFullBracket = true } label: {
+            HStack {
+                Text("How to play").dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                Spacer()
+                Image(systemName: "chevron.right").dsFont(13).foregroundStyle(Color.dsFgTertiary)
+            }
+            .padding(14).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Post-round results (Competitive Redesign — shown ONCE per tally)
+
+    @ViewBuilder
+    private func postRoundResults(round: BracketRound) -> some View {
+        if let edition = viewModel.edition {
+            let matchups = edition.matchups(in: round).filter { $0.isResolved }
+            let picks = store.picks(for: round)
+            let correct = BracketScoring.correctCount(picks: picks, matchups: matchups)
+            let pts = store.score(for: round) ?? BracketScoring.roundPoints(picks: picks, matchups: matchups)
+            ScrollView {
+                VStack(spacing: 14) {
+                    VStack(spacing: 3) {
+                        sectionLabel("\(round.displayName(in: edition.rounds)) · Results").foregroundStyle(accent)
+                        Text(edition.themeLabel.capitalized).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                    }
+                    // Performance summary
+                    VStack(spacing: 10) {
+                        ScoreRing(score: correct, total: matchups.count, accent: accent, size: 110)
+                        Text("+\(pts) pts this round").dsFont(18, weight: .bold).foregroundStyle(Color.dsSuccess)
+                        if let you = viewModel.standings.you {
+                            resultsRankLine(currentRank: you.rank, total: viewModel.standings.total)
+                        }
+                    }
+                    .frame(maxWidth: .infinity).padding(20)
+                    .background(LinearGradient(colors: [accent.opacity(0.15), .clear], startPoint: .top, endPoint: .bottom))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(accent.opacity(0.4)))
+
+                    sectionLabel("Matchup Results").frame(maxWidth: .infinity, alignment: .leading)
+                    ForEach(matchups) { m in resultCard(m, yourPick: store.pick(matchupID: m.id, in: round)) }
+
+                    resultsBottomCTA(edition: edition, seenRound: round)
+                }
+                .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 24)
+                .fanZonePlayingAsHeader(accent: accent)
+            }
+        }
+    }
+
+    /// The rank line in the results summary: "Rank #26 → #19 ↑7 · top N%" from the pre-round baseline
+    /// (`lastSeenRank`, read BEFORE the CTA advances it) to the current rank.
+    @ViewBuilder
+    private func resultsRankLine(currentRank: Int, total: Int) -> some View {
+        let topPercent = total > 0 ? max(1, Int((Double(currentRank) / Double(total) * 100).rounded())) : 100
+        let delta = store.lastSeenRank.map { $0 - currentRank }
+        VStack(spacing: 4) {
+            HStack(spacing: 6) {
+                if let baseline = store.lastSeenRank, let delta, delta != 0 {
+                    Text("Rank #\(baseline) → #\(currentRank)").dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                    Text(delta > 0 ? "↑\(delta)" : "↓\(-delta)")
+                        .dsFont(13, weight: .bold).foregroundStyle(delta > 0 ? Color.dsSuccess : Color.dsError)
+                } else {
+                    Text("Rank #\(currentRank)").dsFont(13, weight: .bold).foregroundStyle(accent)
+                }
+            }
+            Text("You're in the top \(topPercent)%").dsFont(12).foregroundStyle(accent)
+        }
+    }
+
+    /// The results screen's bottom CTA. Tapping records the round's movement (advancing the baseline) +
+    /// marks the results seen (so this screen shows ONCE), then routes: into voting if the next round is
+    /// open, else back to the returning landing.
+    private func resultsBottomCTA(edition: BracketEdition, seenRound: BracketRound) -> some View {
+        let nextOpen = viewModel.phase(store: store) == .open
+        let nextName = edition.currentRound.displayName(in: edition.rounds)
+        return Button {
+            if let rank = viewModel.standings.you?.rank { store.recordRoundMovement(currentRank: rank) }
+            store.markResultsSeen(seenRound)
+            if nextOpen { gateRequested = true }
+        } label: {
+            Text(nextOpen ? "\(nextName) is now open — make your picks →" : "Back to the bracket")
+                .primaryButtonLabel(accent)
+        }
     }
 
     // MARK: - Screens 2 + 3: Voting + Save/Submit

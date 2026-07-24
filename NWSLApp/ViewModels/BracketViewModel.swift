@@ -32,6 +32,9 @@ final class BracketViewModel {
     private(set) var submitState: SubmitState = .idle
     private(set) var edition: BracketEdition?
     private(set) var leaderboard: [BracketLeaderboardRow] = []
+    /// The returning-player landing's rank card + neighborhood board data (rows + your true standing +
+    /// the real total for the percentile). Loaded alongside the leaderboard. Empty until loaded / signed out.
+    private(set) var standings: BracketStandingsResult = .empty
 
     private let service: BracketService
     private let now: () -> Date
@@ -75,6 +78,9 @@ final class BracketViewModel {
         leaderboard = await service.leaderboard(myPoints: store.points,
                                                 myName: displayName ?? "You", editionID: edition.id,
                                                 myUserID: userID)
+        // The returning landing's rank card + neighborhood board (rows + your standing + true total).
+        standings = await service.standings(editionID: edition.id, myUserID: userID,
+                                            myName: displayName ?? "You", myPoints: store.points)
         state = .loaded
     }
 

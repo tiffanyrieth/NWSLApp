@@ -19,8 +19,8 @@ paths:
 > progress restore, retention, scoring). Read that when you need the machinery rather than the
 > constraints. Bracket ops: `.claude/rules/bracket-battle.md`.
 
-The Fan Zone leads Home (**top module**, above Club News) — the four games (Predict the XI, Bracket
-Battle, Know Her Game, NWSL Trivia) plus a cross-game Superfan summary. (Bracket Battle's own engine/ops
+The Fan Zone leads Home (**top module**, above Club News) — the four games (Predict the XI, The Bracket,
+Know Her Game, NWSL Trivia) plus a cross-game Superfan summary. (The Bracket's own engine/ops
 live in `.claude/rules/bracket-battle.md`.)
 
 ## ⚠️ Building or CHANGING a game — the LOGIC GATE (run BEFORE "done")
@@ -114,7 +114,7 @@ game** (free mix). Unit-tested (`ContentRoundRobinTests`).
 | Game | Visible when | Hidden when |
 |---|---|---|
 | Predict the XI | a followed team has a fixture within `PredictionFixture.activeWindow` (28 days) | no FUTURE fixture at all (true offseason). A mid-season BREAK week shows the PAUSED state ("No NWSL matches this week — predictions open <date>") with boards browsable, never a hidden card |
-| Bracket Battle | `BracketStore.hasActiveEdition` | no active edition |
+| The Bracket | `BracketStore.hasActiveEdition` | no active edition |
 | NWSL Trivia | always | never |
 | Fan Zone section | ≥1 game visible | all games hidden (offseason) |
 
@@ -186,7 +186,7 @@ not around it. Reuse what's shared; never reintroduce raw UIKit colors/fonts.** 
 we don't have to run that report again" contract.)
 
 **Two visual families — the surface signals the mode before the copy does:**
-- **COMPETITIVE** (Predict the XI + Bracket Battle) = the ARENA look: `Color.dsBgPrimary` (black) page +
+- **COMPETITIVE** (Predict the XI + The Bracket) = the ARENA look: `Color.dsBgPrimary` (black) page +
   `Color.dsMdCard` (navy) cards. Reads "ranked / leaderboard."
 - **COMMUNITY** (NWSL Trivia + Know Her Game) = the CANONICAL app-card look: `Color.dsBgGrouped` page +
   `Color.dsBgCard` cards. Reads "play + compare / community stats."

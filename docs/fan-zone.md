@@ -22,7 +22,7 @@ A new game picks a family; it never invents a third.
 
 | | **COMMUNITY STATS** | **COMP ARENA** |
 |---|---|---|
-| Games | Know Her Game, NWSL Trivia | Predict the XI, Bracket Battle |
+| Games | Know Her Game, NWSL Trivia | Predict the XI, The Bracket |
 | The question it answers | "How did I do **compared to everyone**?" | "**Where do I rank**?" |
 | Ranked? | No | Yes — leaderboards + Game Center |
 | Payoff screen | `CommunityResultsView` (per-question splits) | Standings tables (top-100 + your true rank) |
@@ -95,11 +95,13 @@ aggregates, and restore.** Local writes always succeed first; every network step
 | KHG per-edition scores | `KnowHerGameStore.scores` (all season) | `fanzone_progress` (season totals) | + `previousPool` for last-round review |
 | Quiz per-question answers | — | `quiz_answers` | Feeds community splits; pruned >35d |
 | Predict lineups (the 11 picks) | `PredictionStore` | **never uploaded** | Deliberate — no value server-side |
-| Predict season points | `PredictionStore` | `prediction_scores` (user, team, season) | |
+| Predict season points + scored-match count | `PredictionStore` | `prediction_scores` (user, team, season) — `points`, `matches`, `avg_points` | Board ranks by `avg_points`; see §4 |
 | Predict round points | derived from `PredictionScore.soccerWeek` | `predict_round_scores` (+week) | Pruned >28d |
 | Bracket picks | `BracketStore` (per edition+round) | `bracket_votes` | Votes ARE the game mechanic |
 | Bracket points / stats / final rank | small cache | `bracket_scores`, `bracket_user_edition_stats` | Record book, kept forever |
-| Superfan total | **computed client-side** | `superfan_scores` (for ranking only) | See §6 |
+| Superfan counts + tier | — | `superfan_scores` (per-game correct/attempted counts + tier) | 0–100 economy; see §6 |
+| Season history (peak tier) | — | `season_history` (user, season_year) | Record book, kept forever |
+| Achievements | — | `user_achievements` (user, key, season) | Idempotent INSERT-only; see §6a |
 
 **Nothing syncs DOWN except progress restore (§5).** Follows sync is upward-only for the same reason —
 see the header of `Stores/FollowSyncCoordinator.swift`.
@@ -132,22 +134,45 @@ players ×3, positions ×2, formation 5, exact scoreline 10, result 3, perfect X
 
 **Two clocks** (owner's Overwatch framing — a season rank alone isn't competitive; you need a fresh
 weekly chance that *moves* your season position):
-- **This round** — that soccer week's points, ranked among fans of the same club.
-- **Season** — the running total.
+- **This round** — that soccer week's raw points, ranked among fans of the same club.
+- **Season** — ranked by **AVERAGE points per match** (`avg_points = points / scored matches`), NOT
+  cumulative total. Cumulative points inflate to four digits mid-season and can't compare players with
+  different match counts (500 over 20 matches is worse than 400 over 6). The average stays in the 0–88
+  per-match range all season — the batting-average model. The board shows "52.3 avg · 12 matches"; the
+  season card leads with the average (ring = avg/88). Server ranks by `avg_points` (indexed) + a HEAD-count
+  rank; the round board stays raw points (a round is only 1–2 matches, so averaging there is noise).
+
+**Recent results + per-match detail** (`PredictXIView` "Recent results" section, windowed to the current +
+previous soccer week). Each compact card (crests + FT + total + one-line summary) opens
+`PredictMatchResultView`: your predicted XI vs the ACTUAL XI (re-fetched from `/summary` on demand — never
+persisted, edge-cached), per-player ✓/✗ + "also started — you missed", formation + scoreline calls, the
+full point breakdown, and the fixture's round-week rank (Predict has no per-single-match board; a match
+sits inside a round).
 
 **Break weeks show a PAUSED state** ("No NWSL matches this week — predictions for X's next match open
 <date>"), with the boards still browsable. The card is only hidden in a true offseason (no future
 fixture at all).
 
-### Bracket Battle (comp arena)
+### The Bracket (comp arena)
+> Renamed from "Bracket Battle" (2026-07-24) — user-facing copy says **The Bracket**; internal ids stay
+> `.bracket`/`dsGameBracket`/GC-ids/keys.
+
 A community-voting elimination bracket; you score by **predicting the crowd**, not by picking who you
 like. Multi-round, one edition at a time; the engine (proxy `src/bracket-engine.ts`) runs the lifecycle.
-Scoring 1·1·2·2·3·3 by round. Full ops detail: `.claude/rules/bracket-battle.md`.
+Scoring 1·1·2·2·3·3 by round. **Round names are POSITIONAL** — "Round 1–5", Quarterfinals, Semifinals,
+Final (no "Round of X" / "Qualifying" in UI; internal raw round codes unchanged). Full ops detail:
+`.claude/rules/bracket-battle.md`.
+
+**Returning-player landing** = rank card + active-round CTA + neighborhood board + a **stepping-stones
+timeline** (one node per round: completed → tap to review that round's per-matchup results; active → tap to
+vote, or re-enter a locked-in round as a read-only review; upcoming → not tappable). A **post-round results
+screen** shows once per tally (margin-only verdicts — "Solid — J. Campbell took it · +2 pts", the exact
+vote split lives only in the expandable donut; your pick gets the teal border regardless of outcome).
 
 **At edition close** the engine stamps `final_rank` + `field_size` onto each player's stats row → "Finished
-#12 of 340" survives forever, and older editions' per-user votes are pruned (see §7). The Rankings tab can
-reopen the **previous completed edition** (the World Cup rule: a finished tournament's table stays
-inspectable).
+#12 of 340" survives forever. **Per-user votes are pruned at the NEXT edition's START** (not at close — owner
+rule 2026-07-24), so a finished edition stays fully browsable round-by-round through the between-editions
+review window (§7). The Rankings tab can reopen the **previous completed edition** (the World Cup rule).
 
 ---
 
@@ -176,16 +201,55 @@ back through the leaderboard reads.
 
 ---
 
-## 6. Superfan Zone
+## 6. Superfan Zone (the 0–100 accuracy economy)
 
-The cross-game total, **computed client-side** (`GameCenterScores.superfanTotal`) as the sum of four
-season-scoped numbers: Trivia correct + Predict season points + Bracket points + KHG banked points.
+> **Redesigned 2026-07-24.** The old model (an additive sum of mismatched units — Trivia correct + Predict
+> points + Bracket points + KHG points — with PERCENTILE tiers) is GONE. Superfan is now a normalized
+> **0–100 accuracy score with ABSOLUTE tiers.** `SuperfanScoring.swift` / `SuperfanStats.swift`.
 
-The server (`superfan_scores`) exists only so you can be **ranked**: one row per (user, season), upserted
-with a monotonic `max(total, serverTotal)` clamp — that clamp is precisely why a reinstall can't destroy
-a leaderboard standing. Tier comes from a percentile over qualifying fans (≥2 games): Fan → Rising (top
-50%) → All-Star (top 20%) → MVP (top 5%), and is **hidden below 5 qualifying fans** (no "top 50% of 3
-fans"). Rank/percentile are two `count: .exact, head: true` reads — zero rows transferred.
+**The score.** Each of the four games contributes **`accuracy × 25`**, summed to 0–100:
+- Predict = Σ correct XI players / Σ (11 × scored matches).
+- Bracket = correct picks / **edition-structure matchups over tallied rounds** (missed rounds = zeros —
+  this is the engine's `cumulativeMatchups` denominator that fixed the "100% accuracy with 4 points" bug).
+- KHG = Σ correct / Σ attempted quiz questions.
+- Trivia = accuracy + a streak bonus (+1 percentage-point per consecutive round, cap +10), clamped to 1.0.
+
+Playing only one game caps you at 25 — **breadth is the point**; higher tiers require multiple games.
+
+**Source of truth = per-game correct/attempted COUNTS** (`SuperfanCounts`, mirrored to `superfan_scores`
+columns), NOT the derived score. Accuracy/contribution/total are DERIVED, because accuracy legitimately
+*falls* (a bad game lowers it) while counts only grow. `SuperfanCounts.merged(with:)` takes the GREATEST
+of every count — that's what makes it reinstall-safe (a wiped device can't lower the server) while still
+letting a genuinely-changed accuracy recompute. (The old `max(total)` clamped the wrong thing.)
+
+**ABSOLUTE tiers** (`SuperfanTier.forScore`, even quartiles — NOT percentile): **Fan 0–24 → Rising 25–49
+→ All-Star 50–74 → MVP 75–100.** Each has a dedicated tier color (not a game color) + SF Symbol. The
+detail screen shows a progress bar to the next tier ("13 points to All-Star"). Tiers show from the FIRST
+player — nothing hides at low scale (§8).
+
+**Season reset at MARCH.** The season key is `AppConfig.currentSeasonYear` (`month < 3 ? year-1 : year`),
+so the season rolls at NWSL season start, not Jan 1 — offseason Trivia/Bracket play counts toward the
+current (just-ended) season until March, when the peak locks into `season_history` and a fresh 0–100 opens.
+(A Jan 1 reset would strand users at ≤25–50 through the Feb dead zone when KHG/Predict aren't active.)
+
+**Detail screen** (`SuperfanDetailView`, opened from the trailing carousel card): tier badge + 0–100 score
++ progress bar + per-game accuracy breakdown ("18.0 / 25" bars) + a collapsible **"How Superfan works"**
+explainer (what it measures, the 4×25 economy, the tier bands, why breadth matters, season reset, achievements)
++ **"Your Best Moments"** (§6a) + **Season History** (the record book — each past season's peak tier,
+monotonic; `season_history`, kept forever). The percentile "Top N% of N fans" line was REMOVED (the absolute
+tier + score speak for themselves). All reads are on-demand (screen open), bounded, HEAD-count where possible.
+
+## 6a. Achievements ("Your Best Moments")
+
+Nine badges (`Achievement.swift`), detected **client-side at game completion** (no Edge Functions), written
+to `user_achievements` (UNIQUE `(user, key, season)` → award is idempotent, INSERT-only — a badge is
+permanent). `AchievementDetector` runs `checkCumulative` (from the four stores on Superfan load) +
+`checkBracket` (from the loaded edition). The set: Perfect Round, **Dark Horse** (3+ upset calls in one
+bracket round), Streak Master, Lineup Oracle (9/11 in a Predict match), First Blood, Well-Rounded,
+**Upset Royalty** (≥1 upset call), Know It All, Iron Fan. ⚠️ **Upset badges are VOTE-MARGIN based** — an
+"upset" = a called winner the crowd advanced with **≤55% of the vote** (a ≤10-pt nail-biter), NOT seed-based
+(the handoff's "<40% vote" is impossible in a majority-wins 2-way bracket). "Your Best Moments" renders the
+earned set on the Superfan detail (hidden entirely when none — never an empty grid).
 
 ---
 
@@ -197,14 +261,15 @@ The app can't render anything older, so the database holding it is storage with 
 |---|---|---|
 | `quiz_answers` | ~35 days (current + previous round + margin) | pg_cron, daily |
 | `predict_round_scores` | ~28 days | pg_cron, daily |
-| `bracket_votes` | active + previous edition | the engine, at edition close |
-| Record book (`*_scores`, `*_stats`, `fanzone_progress`) | **forever** | never — one tiny row per user |
+| `bracket_votes` | current + finished edition (through the review window) | the engine, at the NEXT edition's START |
+| Record book (`*_scores`, `*_stats`, `fanzone_progress`, `superfan_scores`, `season_history`, `user_achievements`) | **forever** | never — one tiny row per user |
 
 **Why pg_cron:** it runs inside Postgres. Cloudflare requests are the metered resource; Supabase API
 calls are unlimited; a cron in the database uses neither. **Why age-based** rather than round math: no
 anchor arithmetic duplicated into SQL, and it's robust to key-format changes (it also swept the legacy
 day-keyed Trivia editions for free). Bracket is the exception because an edition's life isn't
-calendar-shaped.
+calendar-shaped — its votes prune when the NEXT edition starts (`pruneCompletedEditionVotes` in the engine's
+`writeEdition`), so a finished bracket stays fully browsable through the between-editions review window.
 
 ---
 
@@ -228,12 +293,11 @@ healthcheck while any seed account exists. Purge with `--purge` — every per-us
 `auth.users`, so deleting the accounts removes everything they own.
 
 **Nothing hides itself at low scale (owner ruling 2026-07-22).** Surfaces show their real shape from the
-first player, because the first players are the ones we need to come back. Superfan's tier/percentile/
-ladder no longer wait for 5 qualifying fans, and quiz percentages no longer wait for 25 responders —
-both now render alongside their raw counts, so a small-N number can't overstate. The one arithmetic
-special case is a field of ONE, where any percentile is 100% by definition: that reads as a rank. This
-is the same call that lifted the Trivia reveal gate — hiding a feature until a crowd arrives is how the
-crowd never arrives.
+first player, because the first players are the ones we need to come back. Superfan's **absolute** tier +
+0–100 score render from play #1 (the redesign's absolute quartile tiers removed the old percentile gate
+entirely — §6), and quiz percentages no longer wait for 25 responders (they render alongside their raw
+counts, so a small-N number can't overstate). This is the same call that lifted the Trivia reveal gate —
+hiding a feature until a crowd arrives is how the crowd never arrives.
 
 **Game Center is purely additive** on top of the Supabase boards — every call no-ops silently when the
 player isn't authenticated. It is NOT a source of truth, and it works pre-publish (sandbox) — nothing

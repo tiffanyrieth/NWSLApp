@@ -9,7 +9,7 @@
 //     that's a "have you ever…" over saved state (First Blood, Well-Rounded, Streak Master, Lineup Oracle,
 //     Perfect Round, Know It All, Iron Fan). Called when the Superfan screen loads (all stores in hand),
 //     so a badge shows the moment the fan next checks their Best Moments.
-//   • `checkBracket` reads a LOADED edition (matchups + seeds + the user's picks) for the two upset badges
+//   • `checkBracket` reads a LOADED edition (matchups + community vote margins + the user's picks) for the two upset badges
 //     (Dark Horse, Upset Royalty) — those need per-round matchup data the store doesn't cache. Called when
 //     Bracket Battle loads its edition.
 //

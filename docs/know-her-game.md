@@ -385,7 +385,7 @@ feature's PR.
 ## 11. Leaderboards & Superfan ✅ (leaderboard scope NARROWED — owner)
 
 **Principle (owner):** competitive leaderboards are only for the high-variation competitive games —
-**Predict the XI** + **Bracket Battle**. Quiz-style games (Daily Trivia, **Know Her Game**) are about a
+**Predict the XI** + **The Bracket**. Quiz-style games (Daily Trivia, **Know Her Game**) are about a
 **personal feel-good result** ("10/12 — you really know her!" / "1/12 — we all start somewhere 🌱") and
 learning the fact — NOT a competitive ranking (a leaderboard on "facts memorized" is hollow + less fun).
 

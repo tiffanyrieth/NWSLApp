@@ -33,6 +33,10 @@ struct PredictXIView: View {
     // tapped fixture is stashed and opened only once authorized.
     @State private var gateRequested = false
     @State private var pendingFixture: PredictionFixture?
+    /// The club the season card + board are showing (Competitive Redesign) — the team-filter chips switch
+    /// it; defaults to the first board once loaded.
+    @State private var selectedTeam: String?
+    @State private var showHowTo = false
 
     private let accent = Color.dsGamePredict
 
@@ -81,15 +85,30 @@ struct PredictXIView: View {
         if case .idle = matches.state { await matches.load() }
         if case .idle = clubs.state { await clubs.load() }
         await viewModel.load(matches: matches, clubs: clubs, following: following, store: store, auth: auth)
+        // Record each team's rank so the season card can show "↑ N since last match" (advances only when a
+        // NEW match has scored — see PredictionStore.recordRankSnapshot).
+        for (team, standing) in viewModel.standingByTeam {
+            if let rank = standing.rank { store.recordRankSnapshot(team: team, currentRank: rank) }
+        }
+        if selectedTeam == nil { selectedTeam = viewModel.leaderboards.first?.team }
     }
 
     // MARK: - Loaded
 
     private var loadedContent: some View {
-        ScrollView {
+        let teams = viewModel.leaderboards.map(\.team)
+        let selected = selectedTeam ?? teams.first
+        return ScrollView {
             VStack(spacing: 18) {
-                headerCard
-                rankedCallout
+                if let selected {
+                    // Returning: competitive identity first (season card + team chips), rules last.
+                    seasonCard(team: selected)
+                    if teams.count >= 2 { teamChips(teams: teams, selected: selected) }
+                } else {
+                    // First-timer (no board yet): the explainer header.
+                    headerCard
+                    rankedCallout
+                }
 
                 let open = viewModel.openItems(store: store)
                 let results = viewModel.resultItems(store: store)
@@ -108,13 +127,16 @@ struct PredictXIView: View {
                     ForEach(results) { resultCard($0) }
                 }
 
-                leaderboardSection
+                if let selected { selectedTeamBoard(team: selected) }
+
+                if selected != nil { howToPlayRow }
 
                 if store.hasPredicted {
                     resetButton
                 }
             }
             .padding(20)
+            .fanZonePlayingAsHeader(accent: accent)
         }
     }
 
@@ -398,12 +420,114 @@ struct PredictXIView: View {
     /// One standings card per team you're predicting or have scored in. Empty (shows
     /// nothing) when you have no active/scored team — the screen's own empty state
     /// covers the no-activity case.
-    @ViewBuilder
-    private var leaderboardSection: some View {
-        ForEach(viewModel.leaderboards, id: \.team) { board in
-            teamLeaderboardCard(team: board.team, seasonRows: board.rows,
-                                round: viewModel.roundBoards.first { $0.team == board.team })
+    // MARK: - Season card + team chips (Competitive Redesign)
+
+    /// The competitive-identity card for the selected club: a season-accuracy ring, the club rank +
+    /// predictor count, points, and "↑ N since last match" movement. Accuracy is nil (shows "—") until a
+    /// prediction has been scored — never faked.
+    private func seasonCard(team: String) -> some View {
+        let accuracy = store.accuracy(forTeam: team)
+        let standing = viewModel.standingByTeam[team]
+        let points = store.points(forTeam: team)
+        let teamName = viewModel.teamLabel(team)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle().stroke(Color.dsBgTertiary, lineWidth: 5)
+                    Circle().trim(from: 0, to: accuracy ?? 0)
+                        .stroke(accent, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Text(accuracy.map { "\(Int(($0 * 100).rounded()))%" } ?? "—")
+                        .dsFont(15, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
+                }
+                .frame(width: 56, height: 56)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("SEASON ACCURACY").dsFont(11, weight: .bold).tracking(1.2).foregroundStyle(accent)
+                    if let rank = standing?.rank, let total = standing?.total {
+                        Text("#\(rank) of \(total) predictor\(total == 1 ? "" : "s")")
+                            .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                    } else {
+                        Text("Predict \(teamName)'s XI to join the board")
+                            .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                    }
+                }
+                Spacer(minLength: 0)
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text("\(points)").dsFont(24, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
+                    Text("pts").dsFont(11).foregroundStyle(Color.dsFgSecondary)
+                }
+            }
+            if let movement = predictMovementText(store.rankMovement(forTeam: team)) {
+                Text(movement.text).dsFont(12, weight: .bold).foregroundStyle(movement.color)
+            }
         }
+        .padding(EdgeInsets(top: 18, leading: 16, bottom: 18, trailing: 16))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            LinearGradient(colors: [accent.opacity(0.15), Color.dsMdCard], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(accent.opacity(0.35)))
+    }
+
+    /// "↑ N since last match" / "↓ N …" — nil when there's no movement to show (no prior match, or no change).
+    private func predictMovementText(_ delta: Int?) -> (text: String, color: Color)? {
+        guard let delta, delta != 0 else { return nil }
+        return delta > 0
+            ? ("↑ \(delta) since last match", .dsSuccess)
+            : ("↓ \(-delta) since last match", .dsError)
+    }
+
+    /// Team-filter chips — only shown when the user follows/predicts 2+ clubs. Selects which club the
+    /// season card + board show.
+    private func teamChips(teams: [String], selected: String) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(teams, id: \.self) { team in
+                    let on = team == selected
+                    Button { selectedTeam = team } label: {
+                        Text(team).dsFont(12, weight: .bold)
+                            .foregroundStyle(on ? teamColor(team) : Color.dsFgSecondary)
+                            .padding(.horizontal, 14).padding(.vertical, 6)
+                            .background(on ? teamColor(team).opacity(0.22) : Color.dsBgTertiary, in: Capsule())
+                            .overlay(Capsule().strokeBorder(on ? teamColor(team).opacity(0.5) : Color.clear, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 1)
+        }
+    }
+
+    /// The selected club's leaderboard (only — the chips switch clubs, rather than stacking every board).
+    @ViewBuilder
+    private func selectedTeamBoard(team: String) -> some View {
+        if let board = viewModel.leaderboards.first(where: { $0.team == team }) {
+            teamLeaderboardCard(team: team, seasonRows: board.rows,
+                                round: viewModel.roundBoards.first { $0.team == team })
+        }
+    }
+
+    /// Collapsed "How to play" (rules-last for returning players) — expands the game explainer.
+    private var howToPlayRow: some View {
+        VStack(spacing: 0) {
+            Button { withAnimation(.easeInOut(duration: 0.2)) { showHowTo.toggle() } } label: {
+                HStack {
+                    Text("How to play").dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                    Spacer()
+                    Image(systemName: showHowTo ? "chevron.up" : "chevron.right").dsFont(13).foregroundStyle(Color.dsFgTertiary)
+                }
+                .padding(14)
+            }
+            .buttonStyle(.plain)
+            if showHowTo {
+                Text("Pick your team's starting XI, formation, and final score before kickoff. Save a draft, tweak it on team news, then submit to lock it in — submissions close 2 hours before kickoff. You're scored against every fan of your club.")
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(EdgeInsets(top: 0, leading: 14, bottom: 14, trailing: 14))
+            }
+        }
+        .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func teamLeaderboardCard(

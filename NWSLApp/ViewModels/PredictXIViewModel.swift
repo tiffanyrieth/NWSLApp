@@ -61,6 +61,11 @@ final class PredictXIViewModel {
     /// local total). Empty until loaded.
     private(set) var leaderboards: [(team: String, rows: [LeaderboardRow])] = []
 
+    /// The season card's per-team standing: the signed-in user's true rank (nil if signed out / unranked)
+    /// and the TOTAL predictor count for the "#N of M · top X%" line. Populated in `loadLeaderboards`.
+    struct TeamStanding: Equatable { let rank: Int?; let total: Int }
+    private(set) var standingByTeam: [String: TeamStanding] = [:]
+
     /// The ROUND boards — one per team, for that team's most relevant soccer week (the current week
     /// once it has scores, else the latest scored week — "how did I do in Sunday's round"). The
     /// comp arena's second clock; `weekLabel` is the honest date-range label ("Jun 22–28").
@@ -302,6 +307,7 @@ final class PredictXIViewModel {
 
         var boards: [(team: String, rows: [LeaderboardRow])] = []
         var rounds: [(team: String, week: Int, weekLabel: String, rows: [LeaderboardRow])] = []
+        var teamStandings: [String: TeamStanding] = [:]
         for team in teams {
             let standings = await leaderboardService.standings(teamAbbreviation: team, season: season)
             // Only the signed-in user gets a "You" row — and only they need a rank lookup.
@@ -310,6 +316,9 @@ final class PredictXIViewModel {
                 trueRank = await leaderboardService.rank(
                     teamAbbreviation: team, season: season, points: store.points(forTeam: team))
             }
+            // The season card's "#N of M predictors" total (public — fetched regardless of sign-in).
+            let total = await leaderboardService.totalPredictors(teamAbbreviation: team, season: season)
+            teamStandings[team] = TeamStanding(rank: trueRank, total: total)
             boards.append((team: team, rows: rankedRows(
                 team: team, standings: standings, trueRank: trueRank, store: store, auth: auth,
                 points: store.points(forTeam: team))))
@@ -334,6 +343,7 @@ final class PredictXIViewModel {
         }
         leaderboards = boards
         roundBoards = rounds
+        standingByTeam = teamStandings
     }
 
     /// Which soccer week a team's round board shows: the current week if I have scored points in it,

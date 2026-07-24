@@ -73,6 +73,64 @@ struct PredictionStorePerTeamTests {
         #expect(store.scoredTeams == ["WAS", "ORL"])
     }
 
+    // MARK: - Season-card accuracy (Competitive Redesign)
+
+    @Test func accuracyIsCorrectPlayersOverElevenTimesMatches() {
+        let store = freshStore()
+        store.saveDraft(XIPrediction(fixtureID: "e1-WAS", eventID: "e1", teamAbbreviation: "WAS"))
+        store.recordScore(score(players: 8), for: "e1-WAS")
+        // One scored match: 8 / 11.
+        #expect(abs((store.accuracy(forTeam: "WAS") ?? -1) - 8.0 / 11.0) < 0.0001)
+        store.saveDraft(XIPrediction(fixtureID: "e2-WAS", eventID: "e2", teamAbbreviation: "WAS"))
+        store.recordScore(score(players: 5), for: "e2-WAS")
+        // Two matches: 13 / 22.
+        #expect(abs((store.accuracy(forTeam: "WAS") ?? -1) - 13.0 / 22.0) < 0.0001)
+        #expect(store.scoredMatchCount(forTeam: "WAS") == 2)
+    }
+
+    @Test func accuracyIsNilUntilAMatchIsScored() {
+        let store = freshStore()
+        // A draft with no scored match yet → no accuracy (honest "—", never a faked 0%).
+        store.saveDraft(XIPrediction(fixtureID: "e1-WAS", eventID: "e1", teamAbbreviation: "WAS"))
+        #expect(store.accuracy(forTeam: "WAS") == nil)
+        #expect(store.accuracy(forTeam: "ORL") == nil)
+    }
+
+    // MARK: - Rank movement ("↑ N since last match")
+
+    @Test func rankMovementAdvancesOnlyWhenANewMatchScores() {
+        let store = freshStore()
+        // No baseline before any match is scored.
+        store.recordRankSnapshot(team: "WAS", currentRank: 9)
+        #expect(store.rankMovement(forTeam: "WAS") == nil)
+
+        // First scored match → baseline set, but no delta yet (nothing to compare to).
+        store.saveDraft(XIPrediction(fixtureID: "e1-WAS", eventID: "e1", teamAbbreviation: "WAS"))
+        store.recordScore(score(players: 6), for: "e1-WAS")
+        store.recordRankSnapshot(team: "WAS", currentRank: 5)
+        #expect(store.rankMovement(forTeam: "WAS") == nil)
+
+        // Viewing again WITHOUT a new match must NOT zero the (still-absent) movement.
+        store.recordRankSnapshot(team: "WAS", currentRank: 5)
+        #expect(store.rankMovement(forTeam: "WAS") == nil)
+
+        // A second scored match → movement is the rank change since the last match (5 → 3 = ↑2).
+        store.saveDraft(XIPrediction(fixtureID: "e2-WAS", eventID: "e2", teamAbbreviation: "WAS"))
+        store.recordScore(score(players: 9), for: "e2-WAS")
+        store.recordRankSnapshot(team: "WAS", currentRank: 3)
+        #expect(store.rankMovement(forTeam: "WAS") == 2)
+
+        // Re-viewing between matches keeps the same movement (persists, not re-zeroed).
+        store.recordRankSnapshot(team: "WAS", currentRank: 3)
+        #expect(store.rankMovement(forTeam: "WAS") == 2)
+
+        // A third match that drops the rank shows a negative delta (3 → 8 = ↓5).
+        store.saveDraft(XIPrediction(fixtureID: "e3-WAS", eventID: "e3", teamAbbreviation: "WAS"))
+        store.recordScore(score(players: 1), for: "e3-WAS")
+        store.recordRankSnapshot(team: "WAS", currentRank: 8)
+        #expect(store.rankMovement(forTeam: "WAS") == -5)
+    }
+
     @Test func bothSidesOfOneMatchScoreIndependently() {
         // Following both teams in a match yields two fixtures keyed by the same
         // event but different team abbreviations — they must not cross-contaminate.

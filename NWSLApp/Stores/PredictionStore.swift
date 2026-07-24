@@ -37,12 +37,25 @@ final class PredictionStore {
     /// ProfileView read. Recomputed whenever a score is recorded.
     private(set) var seasonPoints: Int
 
+    /// Per-team leaderboard-rank baseline for the season card's "↑ N since last match" movement. Keyed by
+    /// team abbr → the rank + the scored-match count AT that snapshot. The delta only advances when a NEW
+    /// match has scored (scoredCount grew), so viewing the landing repeatedly never zeroes the movement —
+    /// it reflects the LAST scored match and persists until the next. Local (the rank is server-derived,
+    /// but "did my rank move" is a per-device read); a reinstall simply starts a fresh baseline.
+    struct RankSnapshot: Codable, Equatable { let rank: Int; let scoredCount: Int }
+    private(set) var rankSnapshotByTeam: [String: RankSnapshot]
+    /// team → the rank delta from the most recent scored match (positive = climbed). Persisted so the card
+    /// shows it durably between the match scoring and the next.
+    private(set) var rankDeltaByTeam: [String: Int]
+
     private let defaults: UserDefaults
 
     private enum Key {
         static let predictions = "predict.v2.predictions"
         static let scores = "predict.v2.scores"
         static let seasonPoints = "predict.v2.seasonPoints"
+        static let rankSnapshots = "predict.v2.rankSnapshots"
+        static let rankDeltas = "predict.v2.rankDeltas"
     }
 
     /// `defaults` is injectable so tests/previews use an isolated store.
@@ -51,6 +64,8 @@ final class PredictionStore {
         self.predictions = Self.decode([String: XIPrediction].self, defaults.data(forKey: Key.predictions)) ?? [:]
         self.scores = Self.decode([String: PredictionScore].self, defaults.data(forKey: Key.scores)) ?? [:]
         self.seasonPoints = defaults.integer(forKey: Key.seasonPoints)
+        self.rankSnapshotByTeam = Self.decode([String: RankSnapshot].self, defaults.data(forKey: Key.rankSnapshots)) ?? [:]
+        self.rankDeltaByTeam = Self.decode([String: Int].self, defaults.data(forKey: Key.rankDeltas)) ?? [:]
     }
 
     // MARK: - Reads
@@ -71,6 +86,49 @@ final class PredictionStore {
         scores.reduce(0) { sum, entry in
             predictions[entry.key]?.teamAbbreviation == abbreviation ? sum + entry.value.total : sum
         }
+    }
+
+    /// How many of a team's predictions have been SCORED (a settled match graded). Drives the season
+    /// card's accuracy denominator + the rank-movement "a new match scored" trigger.
+    func scoredMatchCount(forTeam abbreviation: String) -> Int {
+        scores.keys.reduce(0) { count, key in
+            predictions[key]?.teamAbbreviation == abbreviation ? count + 1 : count
+        }
+    }
+
+    /// Season lineup accuracy for ONE team, 0…1 — Σ correct XI players / (11 × scored matches). `nil`
+    /// until at least one of that team's predictions has been scored (honest "no accuracy yet", never 0%
+    /// faked). The Superfan economy uses the same numerator/denominator across all a user's teams; this is
+    /// the per-club slice the season card shows.
+    func accuracy(forTeam abbreviation: String) -> Double? {
+        var correct = 0, matches = 0
+        for (key, score) in scores where predictions[key]?.teamAbbreviation == abbreviation {
+            correct += score.correctPlayers
+            matches += 1
+        }
+        guard matches > 0 else { return nil }
+        return Double(correct) / Double(matches * 11)
+    }
+
+    /// The rank movement to show for a team (positive = climbed, negative = dropped) — the change caused by
+    /// the most recent scored match, or `nil` before there's a prior baseline. Read by the season card.
+    func rankMovement(forTeam abbreviation: String) -> Int? { rankDeltaByTeam[abbreviation] }
+
+    /// Record the team's CURRENT server rank (the view passes it after the board loads). The movement delta
+    /// only advances when a NEW match has scored since the last snapshot — so repeated views don't zero it,
+    /// and it reflects the last match until the next one lands. No baseline until ≥1 match has scored
+    /// (movement is meaningless before the user is on the board with a real result).
+    func recordRankSnapshot(team abbreviation: String, currentRank: Int) {
+        let scored = scoredMatchCount(forTeam: abbreviation)
+        guard scored >= 1 else { return }
+        if let snap = rankSnapshotByTeam[abbreviation] {
+            guard scored > snap.scoredCount else { return }   // no new match → keep the existing delta
+            rankDeltaByTeam[abbreviation] = snap.rank - currentRank
+            rankSnapshotByTeam[abbreviation] = RankSnapshot(rank: currentRank, scoredCount: scored)
+        } else {
+            rankSnapshotByTeam[abbreviation] = RankSnapshot(rank: currentRank, scoredCount: scored)
+        }
+        persist()
     }
 
     /// Distinct teams the user has earned scored points in — drives which per-team
@@ -141,6 +199,8 @@ final class PredictionStore {
         predictions = [:]
         scores = [:]
         seasonPoints = 0
+        rankSnapshotByTeam = [:]
+        rankDeltaByTeam = [:]
         persist()
     }
 
@@ -150,6 +210,8 @@ final class PredictionStore {
         defaults.set(try? JSONEncoder().encode(predictions), forKey: Key.predictions)
         defaults.set(try? JSONEncoder().encode(scores), forKey: Key.scores)
         defaults.set(seasonPoints, forKey: Key.seasonPoints)
+        defaults.set(try? JSONEncoder().encode(rankSnapshotByTeam), forKey: Key.rankSnapshots)
+        defaults.set(try? JSONEncoder().encode(rankDeltaByTeam), forKey: Key.rankDeltas)
     }
 
     /// Wipe all local Predict-the-XI progress on account deletion — resets the
@@ -160,6 +222,8 @@ final class PredictionStore {
         predictions = [:]
         scores = [:]
         seasonPoints = 0
+        rankSnapshotByTeam = [:]
+        rankDeltaByTeam = [:]
         persist()
     }
 
@@ -184,6 +248,8 @@ final class PredictionStore {
         defaults.set(Data(), forKey: Key.predictions)
         defaults.set(Data(), forKey: Key.scores)
         defaults.set(0, forKey: Key.seasonPoints)
+        defaults.set(Data(), forKey: Key.rankSnapshots)
+        defaults.set(Data(), forKey: Key.rankDeltas)
     }
     #endif
 }

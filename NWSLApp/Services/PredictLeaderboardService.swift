@@ -120,6 +120,23 @@ struct PredictLeaderboardService {
         }
     }
 
+    /// Total predictors on a team's SEASON board — a `head: true, count: .exact` on all rows for the team
+    /// (no rows transferred), for the season card's "#N of M predictors · top X%". 0 on failure.
+    func totalPredictors(teamAbbreviation: String, season: String) async -> Int {
+        do {
+            let response = try await client
+                .from("prediction_scores")
+                .select("user_id", head: true, count: .exact)
+                .eq("team_abbreviation", value: teamAbbreviation)
+                .eq("season", value: season)
+                .execute()
+            return response.count ?? 0
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict total \(teamAbbreviation): \(error.localizedDescription)") }
+            return 0
+        }
+    }
+
     // MARK: - ROUND boards (predict_round_scores — the comp arena's second clock)
 
     /// Push the user's points for ONE team in ONE soccer week. The round value is a completed sum

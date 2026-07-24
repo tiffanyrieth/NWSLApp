@@ -30,6 +30,7 @@ struct SuperfanDetailView: View {
     /// The merged (local ↔ server) per-game counts — the source of the score, tier, and breakdown.
     @State private var counts: SuperfanCounts = .zero
     @State private var standing: SuperfanStanding?
+    @State private var seasonHistory: [SeasonHistoryEntry] = []
     @State private var didLoad = false
 
     private var season: Int { AppConfig.currentSeasonYear }
@@ -46,6 +47,7 @@ struct SuperfanDetailView: View {
                 hero
                 breakdownSection
                 bestMomentsSection
+                seasonHistorySection
                 gameCenterLink
             }
             .padding(20)
@@ -87,7 +89,11 @@ struct SuperfanDetailView: View {
         let service = SuperfanService()
         counts = await service.submit(counts: local, season: String(season),
                                       userID: userID, displayName: auth.displayName)
-        standing = await service.standing(season: String(season), total: SuperfanScoring.total(counts: counts))
+        let total = SuperfanScoring.total(counts: counts)
+        standing = await service.standing(season: String(season), total: total)
+        // Keep the current season's record book row current (peak monotonic), then read the arc.
+        await service.submitSeasonHistory(seasonYear: season, score: total, userID: userID)
+        seasonHistory = await service.seasonHistory(userID: userID)
     }
 
     // MARK: - Hero (tier badge + score + progress to next tier)
@@ -254,6 +260,34 @@ struct SuperfanDetailView: View {
                     }
                     .padding(12).frame(maxWidth: .infinity)
                     .background(Color.dsBgCard).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+            }
+        }
+    }
+
+    // MARK: - Season history (the permanent record book across seasons)
+
+    @ViewBuilder
+    private var seasonHistorySection: some View {
+        if !seasonHistory.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("SEASON HISTORY").dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
+                ForEach(seasonHistory) { entry in
+                    let isCurrent = entry.seasonYear == season
+                    HStack(spacing: 12) {
+                        TierBadge(tier: entry.peakTier, size: 28)
+                        Text(String(entry.seasonYear)).dsFont(14, weight: .semibold).foregroundStyle(.primary)
+                        Spacer()
+                        Text(isCurrent ? "\(entry.peakTier.label) · Current"
+                                       : "\(entry.peakTier.label) · \(entry.peakScore)")
+                            .dsFont(12, weight: isCurrent ? .bold : .regular)
+                            .foregroundStyle(isCurrent ? entry.peakTier.color : Color.dsFgSecondary)
+                    }
+                    .padding(12).frame(maxWidth: .infinity)
+                    .background(isCurrent ? entry.peakTier.color.opacity(0.14) : Color.dsBgCard)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(isCurrent ? entry.peakTier.color.opacity(0.3) : Color.clear, lineWidth: 1))
                 }
             }
         }

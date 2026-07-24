@@ -78,6 +78,57 @@ struct SuperfanService {
         }
     }
 
+    // MARK: - Season history (the permanent record book)
+
+    /// Maintain the CURRENT season's record row: `peak_score` is monotonic (GREATEST of the prior peak and
+    /// today's score), `final_score` tracks the latest. Best-effort. Called alongside the score submit so
+    /// the record book stays current without a rollover job.
+    func submitSeasonHistory(seasonYear: Int, score: Int, userID: UUID) async {
+        do {
+            let existingPeak = try await currentPeak(userID: userID, seasonYear: seasonYear)
+            let peak = max(score, existingPeak)
+            let row = SeasonHistoryUpsert(user_id: userID, season_year: seasonYear,
+                                          peak_tier: SuperfanTier.forScore(peak).rawValue,
+                                          peak_score: peak, final_score: score)
+            try await client.from("season_history")
+                .upsert(row, onConflict: "user_id,season_year")
+                .execute()
+        } catch {
+            Diagnostics.shared.record(.apiFailure, "season history submit: \(error.localizedDescription)")
+        }
+    }
+
+    /// The user's season records, newest first (empty on failure / signed out — never fabricated).
+    func seasonHistory(userID: UUID) async -> [SeasonHistoryEntry] {
+        do {
+            let rows: [SeasonHistoryRow] = try await client.from("season_history")
+                .select("season_year,peak_tier,peak_score,final_score")
+                .eq("user_id", value: userID)
+                .order("season_year", ascending: false)
+                .execute()
+                .value
+            return rows.map {
+                SeasonHistoryEntry(seasonYear: $0.season_year,
+                                   peakTier: SuperfanTier(rawValue: $0.peak_tier ?? "fan") ?? .fan,
+                                   peakScore: $0.peak_score, finalScore: $0.final_score)
+            }
+        } catch {
+            Diagnostics.shared.record(.apiFailure, "season history read: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    private func currentPeak(userID: UUID, seasonYear: Int) async throws -> Int {
+        let rows: [SeasonHistoryRow] = try await client.from("season_history")
+            .select("peak_score")
+            .eq("user_id", value: userID)
+            .eq("season_year", value: seasonYear)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.peak_score ?? 0
+    }
+
     /// The user's own current server counts (all-zero if no row yet) — the reinstall-safe merge floor.
     private func currentCounts(userID: UUID, season: String) async throws -> SuperfanCounts {
         let rows: [SuperfanRow] = try await client.from("superfan_scores")
@@ -126,4 +177,28 @@ private struct SuperfanRow: Decodable {
     let trivia_correct: Int
     let trivia_total: Int
     let trivia_streak: Int
+}
+
+/// One season's Superfan record (the detail screen's Season History). Peak tier/score persist across the
+/// season reset.
+struct SeasonHistoryEntry: Identifiable, Equatable {
+    let seasonYear: Int
+    let peakTier: SuperfanTier
+    let peakScore: Int
+    let finalScore: Int
+    var id: Int { seasonYear }
+}
+
+private struct SeasonHistoryUpsert: Encodable {
+    let user_id: UUID
+    let season_year: Int
+    let peak_tier: String
+    let peak_score: Int
+    let final_score: Int
+}
+private struct SeasonHistoryRow: Decodable {
+    let season_year: Int
+    let peak_tier: String?
+    let peak_score: Int
+    let final_score: Int
 }

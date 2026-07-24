@@ -432,13 +432,7 @@ struct HomeView: View {
                 // games PLAYED, not games currently visible.
                 if superfanBannerVisible {
                     NavigationLink { SuperfanDetailView() } label: {
-                        SuperfanCard(
-                            score: superfanScore,
-                            predictPoints: predict.seasonPoints,
-                            bracketPoints: bracket.points,
-                            triviaCorrect: trivia.seasonCorrect,
-                            knowHerPoints: knowHer.seasonPoints(year: AppConfig.currentSeasonYear)
-                        )
+                        SuperfanCard(score: superfanScore)
                     }
                     .buttonStyle(.plain)
                     .frame(width: 152)

@@ -306,12 +306,15 @@ struct BracketBattleView: View {
     ]
 
     private func pointsTable(rounds: [BracketRound]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        // The +1 tier spans every early round (qualifying + Round of 64/32) — always the FIRST N rounds in
+        // play order, so its count is the positional range. 128-pool → "Rounds 1–4"; 64-pool → "Rounds 1–2".
+        let earlyCount = rounds.filter { $0.points == 1 }.count
+        return VStack(alignment: .leading, spacing: 8) {
             sectionLabel("Points")
             VStack(spacing: 10) {
-                // Three onboarding tiers matching the engine's 1·1·2·2·3·3 (the +2 tier is the Round-of-16
-                // & Quarterfinals — named POSITIONALLY per this edition, never "Round of X").
-                pointsTier("Early rounds", "+1")
+                // Three onboarding tiers matching the engine's 1·1·2·2·3·3 (kept as-is; owner 2026-07-24).
+                // The +2 tier is the Round-of-16 & Quarterfinals — named POSITIONALLY, never "Round of X".
+                pointsTier(earlyCount <= 1 ? "Round 1" : "Rounds 1–\(earlyCount)", "+1")
                 pointsTier("\(BracketRound.roundOf16.displayName(in: rounds)) & Quarterfinals", "+2")
                 pointsTier("Semifinals & Final", "+3")
                 Divider().overlay(Color.dsFgQuaternary)

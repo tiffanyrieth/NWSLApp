@@ -78,9 +78,11 @@ struct BracketBattleView: View {
     private var loadedContent: some View {
         if viewModel.edition == nil {
             emptyState
-        } else if stage == .voting && viewModel.phase(store: store) == .open {
-            // Actively voting an open round. Guarded on `.open` so a submit (→ .submitted) falls through
-            // to the returning landing rather than sticking on the voting screen.
+        } else if stage == .voting && [.open, .submitted].contains(viewModel.phase(store: store)) {
+            // The current round's voting screen. `.open` = make/edit picks; `.submitted` = a READ-ONLY
+            // review of your locked-in picks (tapping the "Voting now" stepping-stone after you've locked
+            // in should still show them, not silently no-op). A FRESH submit routes back to the landing by
+            // resetting `stage` in the submit action — so a just-submitted round doesn't stick here.
             votingScreen
         } else if !store.hasPlayed {
             // Never played THIS edition → the rules-first first-time landing.
@@ -608,6 +610,7 @@ struct BracketBattleView: View {
             let pts = store.score(for: round) ?? BracketScoring.roundPoints(picks: picks, matchups: matchups)
             let nextOpen = viewModel.phase(store: store) == .open
             let nextName = edition.currentRound.displayName(in: edition.rounds)
+            let nextVerb = edition.currentRound.nameIsPlural ? "are" : "is"   // "Semifinals ARE open"
             ScrollView {
                 VStack(spacing: 14) {
                     VStack(spacing: 3) {
@@ -631,7 +634,7 @@ struct BracketBattleView: View {
                     if nextOpen {
                         Button { advanceFromResults(seenRound: round) } label: {
                             HStack(spacing: 6) {
-                                Text("\(nextName) is open").dsFont(14, weight: .bold).foregroundStyle(accent)
+                                Text("\(nextName) \(nextVerb) open").dsFont(14, weight: .bold).foregroundStyle(accent)
                                 Spacer(minLength: 0)
                                 Text("Make your picks").dsFont(13, weight: .semibold).foregroundStyle(accent)
                                 Image(systemName: "arrow.right").dsFont(12, weight: .bold).foregroundStyle(accent)
@@ -690,8 +693,9 @@ struct BracketBattleView: View {
     private func resultsBottomCTA(edition: BracketEdition, seenRound: BracketRound) -> some View {
         let nextOpen = viewModel.phase(store: store) == .open
         let nextName = edition.currentRound.displayName(in: edition.rounds)
+        let nextVerb = edition.currentRound.nameIsPlural ? "are" : "is"   // "Semifinals ARE now open"
         return Button { advanceFromResults(seenRound: seenRound) } label: {
-            Text(nextOpen ? "\(nextName) is now open — make your picks →" : "Back to the bracket")
+            Text(nextOpen ? "\(nextName) \(nextVerb) now open — make your picks →" : "Back to the bracket")
                 .primaryButtonLabel(accent)
         }
     }
@@ -803,6 +807,7 @@ struct BracketBattleView: View {
         let made = viewModel.picksMade(store: store)
         let total = viewModel.totalMatchups
         let allMade = viewModel.allPicksMade(store: store)
+        let locked = viewModel.phase(store: store) == .submitted   // re-entered a round you've locked in
         return VStack(spacing: 0) {
             ScrollView {
                 VStack(spacing: 12) {
@@ -810,29 +815,55 @@ struct BracketBattleView: View {
                         sectionLabel("\(round.displayName(in: editionRounds)) · \(viewModel.edition?.themeLabel.capitalized ?? "")").foregroundStyle(accent)
                         Spacer()
                         // A null close time = manual mode (round stays open until advanced) → "Voting open".
-                        Text(viewModel.closesInText ?? "Voting open")
+                        Text(locked ? "Picks locked in" : (viewModel.closesInText ?? "Voting open"))
                             .dsFont(11).foregroundStyle(Color.dsFgSecondary)
                     }
-                    VStack(spacing: 6) {
-                        HStack {
-                            Text("\(made) of \(total) picks made").dsFont(12).foregroundStyle(Color.dsFgSecondary)
-                            Spacer()
-                        }
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(Color.dsBgTertiary)
-                                Capsule().fill(accent).frame(width: geo.size.width * (total > 0 ? Double(made) / Double(total) : 0))
+                    if !locked {
+                        VStack(spacing: 6) {
+                            HStack {
+                                Text("\(made) of \(total) picks made").dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                                Spacer()
                             }
-                        }.frame(height: 5)
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    Capsule().fill(Color.dsBgTertiary)
+                                    Capsule().fill(accent).frame(width: geo.size.width * (total > 0 ? Double(made) / Double(total) : 0))
+                                }
+                            }.frame(height: 5)
+                        }
                     }
-                    if allMade { allPickedBanner }
-                    ForEach(viewModel.currentMatchups) { m in matchupVoteCard(m, round: round) }
+                    if locked { lockedBanner } else if allMade { allPickedBanner }
+                    ForEach(viewModel.currentMatchups) { m in matchupVoteCard(m, round: round, locked: locked) }
                 }
                 .padding(.horizontal, 16).padding(.bottom, 16)
                 .fanZonePlayingAsHeader(accent: accent)
             }
-            submitBar(allMade: allMade, made: made, total: total)
+            if locked { lockedBar } else { submitBar(allMade: allMade, made: made, total: total) }
         }
+    }
+
+    /// Shown when you re-enter a round you've already locked in (read-only review of your picks).
+    private var lockedBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "lock.fill").dsFont(18).foregroundStyle(accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Your picks are locked in").dsFont(14, weight: .bold).foregroundStyle(accent)
+                Text("Results drop when voting closes. No edits until then — good luck.")
+                    .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12).background(accent.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.35)))
+    }
+
+    /// The bottom bar for a locked round — just a way back to the bracket (no submit/draft).
+    private var lockedBar: some View {
+        Button { stage = .intro } label: {
+            Text("Back to the bracket").primaryButtonLabel(accent)
+        }
+        .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 24)
+        .background(LinearGradient(colors: [.clear, Color.dsBgPrimary], startPoint: .top, endPoint: .bottom))
     }
 
     private var allPickedBanner: some View {
@@ -849,17 +880,17 @@ struct BracketBattleView: View {
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.35)))
     }
 
-    private func matchupVoteCard(_ m: BracketMatchup, round: BracketRound) -> some View {
+    private func matchupVoteCard(_ m: BracketMatchup, round: BracketRound, locked: Bool) -> some View {
         let pick = store.pick(matchupID: m.id, in: round)
         return HStack(spacing: 0) {
-            choiceButton(m, m.entrantA, picked: pick == m.entrantA.id)
+            choiceButton(m, m.entrantA, picked: pick == m.entrantA.id, locked: locked)
             Text("VS").dsFont(10, weight: .bold).tracking(1).foregroundStyle(Color.dsFgQuaternary).padding(.horizontal, 2)
-            choiceButton(m, m.entrantB, picked: pick == m.entrantB.id)
+            choiceButton(m, m.entrantB, picked: pick == m.entrantB.id, locked: locked)
         }
         .padding(6).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    private func choiceButton(_ m: BracketMatchup, _ e: BracketEntrant, picked: Bool) -> some View {
+    private func choiceButton(_ m: BracketMatchup, _ e: BracketEntrant, picked: Bool, locked: Bool) -> some View {
         Button {
             viewModel.setPick(matchup: m, entrantID: e.id, store: store)
         } label: {
@@ -885,6 +916,7 @@ struct BracketBattleView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(locked)   // a locked round is a read-only review — picks can't change
     }
 
     private func submitBar(allMade: Bool, made: Int, total: Int) -> some View {
@@ -899,8 +931,13 @@ struct BracketBattleView: View {
                     .frame(maxWidth: .infinity)
             }
             Button {
-                // Entry was gated (Make your picks → voting), so we're always signed in here.
-                Task { await viewModel.submit(store: store, userID: auth.userID) }
+                // Entry was gated (Make your picks → voting), so we're always signed in here. On a
+                // successful lock-in, route back to the landing (the voting screen now allows re-entry
+                // for a submitted round, so it would otherwise stick here post-submit).
+                Task {
+                    await viewModel.submit(store: store, userID: auth.userID)
+                    if viewModel.phase(store: store) == .submitted { stage = .intro }
+                }
             } label: {
                 Text(submitting ? "Submitting…" : (allMade ? "Lock in my picks" : "Pick all \(total) first (\(made)/\(total))"))
                     .primaryButtonLabel(allMade ? accent : Color.dsBgTertiary, fg: allMade ? .dsFgPrimary : Color.dsFgTertiary)

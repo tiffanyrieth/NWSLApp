@@ -13,8 +13,10 @@
 -- robustness to key-format changes (it also silently clears the legacy day-keyed Trivia editions).
 --
 -- NOT covered here, by design:
---   • bracket_votes — pruned by the engine AT EDITION CLOSE (bracket-engine.ts pruneOldEditionVotes);
---     an edition's lifetime isn't calendar-shaped, so age is the wrong knife there.
+--   • bracket_votes — pruned by the engine AT NEXT EDITION START (bracket-engine.ts
+--     pruneCompletedEditionVotes, via writeEdition), so a finished edition stays fully browsable
+--     round-by-round through the between-editions review window; an edition's lifetime isn't
+--     calendar-shaped, so age is the wrong knife there.
 --   • prediction_scores / bracket_scores / *_stats / fanzone_progress — the RECORD BOOK: one tiny
 --     row per user, kept forever (season totals, stamped final ranks, restore summaries).
 --

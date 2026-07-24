@@ -202,8 +202,10 @@ from gitignored `Secrets` (`Services/SupabaseManager.swift`).
   weeks of life). Runs INSIDE Postgres: Cloudflare requests are the metered resource, Supabase API calls
   are unlimited, a database cron uses neither. Age-based rather than round-math so no anchor arithmetic is
   duplicated into SQL and a key-format change can't break it (it also swept the legacy day-keyed Trivia
-  editions for free). **Bracket votes are the exception** — pruned by the engine at edition close, because
-  an edition's lifetime isn't calendar-shaped. The record book (`*_scores`, `*_stats`, `fanzone_progress`)
+  editions for free). **Bracket votes are the exception** — pruned by the engine at the NEXT edition's START
+  (`pruneCompletedEditionVotes` in `writeEdition`, not at close), so a finished edition stays fully
+  browsable round-by-round through the between-editions review window (owner rule 2026-07-24); an edition's
+  lifetime isn't calendar-shaped. The record book (`*_scores`, `*_stats`, `fanzone_progress`)
   is never pruned: one tiny row per user.
 
 **Account deletion (right-to-be-forgotten / App Store requirement):** the client can't delete an

@@ -86,6 +86,10 @@ enum BracketRound: Int, Codable, CaseIterable, Comparable, Identifiable {
         }
     }
 
+    /// True when the round's user-facing name is grammatically PLURAL — "Quarterfinals"/"Semifinals" — so
+    /// copy reads "Quarterfinals ARE open", not "is". "Round N" and "Final" are singular.
+    var nameIsPlural: Bool { self == .quarterfinal || self == .semifinal }
+
     /// Compact user-facing label ("R3", "QF", "SF", "Final").
     func shortDisplayName(in rounds: [BracketRound]) -> String {
         switch self {

@@ -311,4 +311,43 @@ For each subsystem, walk it explicitly:
   as `metricKitDiagnostic` crumbs in the same telemetry sink (device-only delivery; TestFlight ✓).
   Both (a)+(b) no-op until the owner sets the secrets (RESEND_API_KEY + ALERT_EMAIL;
   HEALTHCHECK_URL).
+- **Fan Zone comp-arena redesign + Batch 1-3 (2026-07-24): ✅ passes 1k + 100k by construction.** Full
+  §5 sweep of every Fan Zone load path touched this session:
+  • **Predict AVERAGE leaderboard (Batch 3, the one genuinely new DB load path).** Unit of load = predictors
+    per team; the board is `standings` capped at `visibleLimit` (top-100), now `order(avg_points desc)` +
+    a new **btree index** `prediction_scores(team_abbreviation, season, avg_points desc)`; `rank`/`totalPredictors`/
+    the new `roundTotal` are all `head:true, count:.exact` HEAD counts (ZERO rows transferred). Same O(100)
+    shape as the points board that already passed — the switch to average moved the ORDER BY / COUNT onto an
+    indexed column, no new scan. `upsertScore` still = 1 own-row read + 1 write per scored team per screen
+    load (the `matches`/`avg_points` columns ride the SAME upsert; ~12 B/row added ⇒ negligible DB growth).
+    Reinstall-safe: `max(points)`/`max(matches)`, avg derived from the merged pair — never clobbers down.
+    **1k concentrated:** 300 one-club fans opening Predict post-match ≈ ~5 Supabase calls each (all capped/
+    HEAD) ≈ ~1.5k API calls — noise on Supabase's UNLIMITED-API tier. **Round board stays raw points** (a
+    round is 1-2 matches) — unchanged, already passed.
+  • **Match-result "See details" detail (Batch 3) — TAP-DRIVEN, not polled.** Per open: 1 proxy `/summary`
+    (a finished match is immutable ⇒ **edge-cached**, so repeat opens are cache HITs) + roster (session-cached)
+    + `roundTotal` + `roundRank` (2 HEAD counts). The ACTUAL XI is re-fetched, never persisted (online-only,
+    zero storage growth). Adds a row to the per-feature proxy ledger: **Predict match detail ≈ 1 proxy call
+    per unique detail open, edge-cached, user-tap-driven** (same class as roster/weather taps). 1k: bounded by
+    user taps, cache-collapsed per match. Fails honestly → `RetryStateView`.
+  • **Bracket Batch 1-3 (stepping-stone review, margin verdicts, voting re-entry, points-table copy) — ZERO
+    new server load:** every one reads the ALREADY-LOADED edition in memory or is pure UI. The voting-screen
+    re-entry for a submitted round renders local picks; no fetch.
+  • **Superfan detail — LOAD REDUCED.** Batch 2 removed the percentile `standing` call, so a detail open now
+    does 1 counts upsert (read-back + GREATEST merge) + 1 season-history upsert + 1 bounded history read +
+    1 earned-achievements read (≤9 rows) — two HEAD counts FEWER than before. On-demand, bounded.
+  • **Achievements (PR4) — on-demand, bounded.** Detection reads local stores + the loaded edition (no
+    server load); awards are idempotent INSERT-only upserts on a UNIQUE(user,key,season); `earned` = 1 read
+    of ≤9 rows. Per Superfan-open, not polled.
+  • **KHG / Trivia Batch 1-3 (streak display, rules copy) — ZERO new load** (UI/copy only; quiz_answers +
+    community aggregates unchanged, already pruned via pg_cron per the v3 entry above).
+  **Efficiency:** avg_points is STORED (indexed ORDER BY/COUNT, no per-query scan); the detail re-fetches an
+  edge-cached immutable summary instead of persisting history — no waste. **Cost:** no fixed monthly cost at
+  small scale; DB delta is ~bytes/row + one small index; the detail rides the existing proxy Free budget.
+  **100k levers (all pre-existing, unchanged):** Supabase Pro at the ~30-50k size/MAU line; Workers Paid
+  ($5/mo) at the ~10-15k proxy-request line for the /summary taps. **Failure modes:** board query fails
+  (incl. pre-migration missing column) → empty rivals + Diagnostics (own local score still shown); rank/total
+  COUNT fails → nil → inline splice; detail fails → retry; reinstall → max-clamp. NO SILENT FAILURES.
+  ⚠️ **Owner action for the board to populate:** apply `migration_predict_avg_leaderboard.sql` (roadmap) —
+  until then the season board's rivals degrade to empty (honest), the rest works.
 - (append as items resolve)

@@ -2,14 +2,20 @@
 //  SuperfanDetailView.swift
 //  NWSLApp
 //
-//  The Superfan Zone (Fan Zone v2, Priority #3) — a cross-game stats hub opened by tapping the Superfan
-//  card. Community-family surface. Your season total, your competitive TIER + percentile (computed from a
-//  count query across qualifying fans — SuperfanService), a per-game points BREAKDOWN, and "YOUR BEST
-//  MOMENTS" (personal highlights from each game). Season-scoped to the CURRENT year — never combines years.
+//  The Superfan Zone — a cross-game stats hub opened by tapping the Superfan card. Since the Fan Zone
+//  Competitive Redesign it shows the 0–100 accuracy economy: a big tier badge, the season score, a
+//  progress bar to the next tier, and a per-game accuracy breakdown (each game contributes accuracy × 25).
+//  Season-scoped to the CURRENT year — never combines years.
 //
-//  Honest at low scale: the tier/percentile shows only once the user qualifies (≥2 games) AND enough fans
-//  do; before that, a "building your Superfan season" line — no fake rank. Every best moment renders only
-//  if its data exists (zero fabrication).
+//  The score comes from per-game correct/attempted COUNTS assembled from the four stores
+//  (SuperfanCounts.fromStores) and GREATEST-merged into the durable `superfan_scores` row on load/refresh
+//  (SuperfanService.submit) — so a reinstall shows the server's preserved history, not an empty device.
+//  The competitive TIER is the absolute score band (Fan/Rising/All-Star/MVP); the percentile STANDING
+//  ("Top N% of N fans") is a separate rank query, shown when the server returns one.
+//
+//  NOTE: the full visual redesign (design handoff) lands with PR3; this is the data-correct foundation —
+//  a real 0–100 score with the right tier. "Your Best Moments" stays the existing local-highlights list
+//  (it renders only when there's real data — never an empty shell); PR4 replaces it with achievements.
 //
 
 import SwiftUI
@@ -21,41 +27,28 @@ struct SuperfanDetailView: View {
     @Environment(KnowHerGameStore.self) private var knowHer
     @Environment(AuthStore.self) private var auth
 
-    @State private var standing: SuperfanStanding?
+    /// The merged (local ↔ server) per-game counts — the source of the score, tier, and breakdown.
+    @State private var counts: SuperfanCounts = .zero
+    @State private var seasonHistory: [SeasonHistoryEntry] = []
+    @State private var achievements: [EarnedAchievement] = []
     @State private var didLoad = false
+    @State private var showHowItWorks = false
 
-    /// Superfan's own accent is system blue (the rosette/score) — NOT a game color (design §2).
-    private let accent = Color.dsAccent
     private var season: Int { AppConfig.currentSeasonYear }
 
-    // Season-scoped per-game values (the Superfan total never combines years).
-    private var predictPts: Int { predict.seasonPoints }
-    private var bracketPts: Int { bracket.points }
-    private var triviaPts: Int { trivia.seasonCorrect }
-    private var knowHerPts: Int { knowHer.seasonPoints(year: season) }
-    private var total: Int {
-        GameCenterScores.superfanTotal(triviaTotalCorrect: triviaPts, predictSeasonPoints: predictPts,
-                                       bracketPoints: bracketPts, knowHerPoints: knowHerPts)
-    }
-    private var gamesPlayed: Int {
-        [predict.hasPredicted, bracket.hasPlayed, trivia.totalAnswered > 0,
-         knowHer.playedInSeason(year: season)].filter { $0 }.count
-    }
-    /// Tier/percentile once the user qualifies (≥2 games) and we have a server standing. Deliberately
-    /// NOT gated on how many OTHER fans qualify (owner ruling 2026-07-22): a first or second player has
-    /// to see the shape of the feature or there's nothing to come back for. `gamesPlayed >= 2` stays —
-    /// that's about the user's OWN participation and its `buildingLine` copy is actionable.
-    private var showsTier: Bool {
-        gamesPlayed >= 2 && standing != nil
-    }
+    // Derived from the merged counts.
+    private var total: Int { SuperfanScoring.total(counts: counts) }
+    private var tier: SuperfanTier { SuperfanTier.forScore(total) }
+    private var breakdown: SuperfanBreakdown { SuperfanScoring.breakdown(counts: counts) }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
                 hero
                 breakdownSection
-                if showsTier { tierProgression }
+                howSuperfanWorks
                 bestMomentsSection
+                seasonHistorySection
                 gameCenterLink
             }
             .padding(20)
@@ -63,11 +56,7 @@ struct SuperfanDetailView: View {
         .background(Color.dsBgGrouped)
         .nativeBackButton(title: "Superfan")
         .task { await load() }
-        // A real retry for the "couldn't load your standing" state — the copy promises the gesture,
-        // so the gesture has to exist (NO SILENT FAILURES: never offer a dead affordance).
         .refreshable { await syncStanding() }
-        // Honest result when Game Center isn't signed in — never a silent dead tap (NO SILENT FAILURES),
-        // mirroring ProfileView. Bound to the GC singleton's @Observable flag.
         .alert("Game Center unavailable", isPresented: Binding(
             get: { GameCenterManager.shared.leaderboardsUnavailable },
             set: { if !$0 { GameCenterManager.shared.leaderboardsUnavailable = false } })
@@ -81,173 +70,257 @@ struct SuperfanDetailView: View {
     private func load() async {
         guard !didLoad else { return }
         didLoad = true
+        // Local counts first so the score renders immediately (even signed out), then merge with server.
+        counts = localCounts()
         GameCenterManager.shared.authenticate()
         await syncStanding()
     }
 
-    /// Push the season total, then read back the standing. Split out of `load()` (which fires once) so
-    /// pull-to-refresh can genuinely re-run it. Signed out → no server standing; local totals + best
-    /// moments still show.
-    private func syncStanding() async {
-        guard let userID = auth.userID else { return }
-        let service = SuperfanService()
-        await service.submit(total: total, gamesPlayed: gamesPlayed,
-                             season: String(season), userID: userID, displayName: auth.displayName)
-        standing = await service.standing(season: String(season), total: total)
+    /// The device's current per-game counts.
+    private func localCounts() -> SuperfanCounts {
+        SuperfanCounts.fromStores(season: season, predict: predict, bracket: bracket,
+                                  trivia: trivia, knowHer: knowHer)
     }
 
-    // MARK: - Hero
+    /// Merge local counts into the server row (reinstall-safe), adopt the merged result, then read back the
+    /// percentile standing. Signed out → local counts only; no server standing.
+    private func syncStanding() async {
+        let local = localCounts()
+        guard let userID = auth.userID else { counts = local; return }
+        let service = SuperfanService()
+        counts = await service.submit(counts: local, season: String(season),
+                                      userID: userID, displayName: auth.displayName)
+        let total = SuperfanScoring.total(counts: counts)
+        // Keep the current season's record book row current (peak monotonic), then read the arc.
+        await service.submitSeasonHistory(seasonYear: season, score: total, userID: userID)
+        seasonHistory = await service.seasonHistory(userID: userID)
+        // Detect + award any store-derivable achievements, then read the earned set for "Your Best Moments".
+        await AchievementDetector.checkCumulative(predict: predict, bracket: bracket, trivia: trivia,
+                                                  knowHer: knowHer, userID: userID, season: season)
+        achievements = await AchievementService().earned(userID: userID, seasonYear: season)
+    }
+
+    // MARK: - Hero (tier badge + score + progress to next tier)
 
     private var hero: some View {
-        VStack(spacing: 8) {
-            if showsTier, let s = standing {
-                let tier = s.tier
-                HStack(spacing: 6) {
-                    Image(systemName: tier.symbol).font(.system(size: 13))
-                    Text(tier.label.uppercased()).dsFont(12, weight: .bold)
-                }
-                .foregroundStyle(tier.color)
-                .padding(.horizontal, 12).padding(.vertical, 5)
-                .background(tier.color.opacity(0.16), in: Capsule())
-            }
+        let progress = TierProgress(score: total)
+        return VStack(spacing: 12) {
+            TierBadge(tier: tier, size: 80)
             Text("SUPERFAN · \(String(season)) SEASON")
-                .dsFont(11, weight: .bold).tracking(1).foregroundStyle(.secondary)
+                .dsFont(11, weight: .bold).tracking(1.5).foregroundStyle(.secondary)
             Text("\(total)")
-                .dsFont(44, weight: .heavy, design: .rounded).foregroundStyle(.primary)
-            if showsTier, let s = standing {
-                Text(s.standingText)
-                    .dsFont(13).foregroundStyle(.secondary)
-            } else {
-                Text(buildingLine)
-                    .dsFont(13).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                .dsFont(48, weight: .heavy, design: .rounded).foregroundStyle(.primary)
+
+            VStack(spacing: 6) {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.dsBgTertiary)
+                        Capsule().fill(tier.color)
+                            .frame(width: max(0, geo.size.width * progress.fraction))
+                    }
+                }
+                .frame(height: 6)
+                HStack {
+                    Text(tier.label).dsFont(11).foregroundStyle(.tertiary)
+                    Spacer()
+                    if let next = tier.next { Text(next.label).dsFont(11).foregroundStyle(.tertiary) }
+                }
+                Text(progress.caption).dsFont(13, weight: .semibold).foregroundStyle(tier.color)
             }
+            .padding(.horizontal, 8)
         }
         .frame(maxWidth: .infinity).padding(.top, 8)
     }
 
-    /// The remaining no-tier cases. None of them is "not enough fans yet" any more — that gate is gone,
-    /// so with ≥2 games played a missing tier can only mean we have no server standing. Those are two
-    /// different truths and they get two different lines: signed out is a state the user can act on,
-    /// a failed count read is our problem, not theirs.
-    private var buildingLine: String {
-        if gamesPlayed < 2 { return "Play a couple of Fan Zone games to earn your Superfan tier." }
-        return auth.isSignedIn
-            ? "Couldn't load your standing — pull to refresh."
-            : "Sign in to see where you rank."
-    }
-
-    // MARK: - Breakdown
+    // MARK: - Breakdown (per-game accuracy × 25)
 
     private var breakdownSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("BREAKDOWN").dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
-            breakdownRow("sportscourt.fill", .dsGamePredict, "Predict the XI", predictPts, "Season points")
-            breakdownRow("trophy.fill", .dsGameBracket, "Bracket Battle", bracketPts, "This edition")
-            breakdownRow("brain.head.profile", .dsGameTrivia, "NWSL Trivia", triviaPts, "Correct answers")
-            breakdownRow("person.fill.questionmark", .dsGameSpotlight, "Know Her Game", knowHerPts,
-                         "\(knowHer.seasonEditionsPlayed(year: season)) rounds played")
+            ForEach(SuperfanGame.allCases) { game in
+                breakdownRow(game)
+            }
         }
     }
 
-    private func breakdownRow(_ symbol: String, _ color: Color, _ name: String, _ points: Int, _ detail: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol).font(.system(size: 16)).foregroundStyle(color)
-                .frame(width: 36, height: 36)
-                .background(color.opacity(0.16), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            VStack(alignment: .leading, spacing: 1) {
-                Text(name).dsFont(14, weight: .semibold).foregroundStyle(.primary)
-                Text(detail).dsFont(11).foregroundStyle(.secondary)
+    /// View-layer game metadata (SuperfanGame is pure — no SwiftUI). Reuses the shared `dsGame*` accents.
+    private func meta(_ game: SuperfanGame) -> (symbol: String, color: Color, name: String) {
+        switch game {
+        case .predict: return ("sportscourt.fill", .dsGamePredict, "Predict the XI")
+        case .bracket: return ("trophy.fill", .dsGameBracket, "The Bracket")
+        case .khg:     return ("person.fill.questionmark", .dsGameSpotlight, "Know Her Game")
+        case .trivia:  return ("brain.head.profile", .dsGameTrivia, "NWSL Trivia")
+        }
+    }
+
+    private func breakdownRow(_ game: SuperfanGame) -> some View {
+        let m = meta(game)
+        let contribution = breakdown.contribution(for: game)
+        let accuracy = breakdown.accuracy(for: game)
+        let played = counts.pair(for: game).total > 0
+        return VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: m.symbol).font(.system(size: 16)).foregroundStyle(m.color)
+                    .frame(width: 28, height: 28)
+                    .background(m.color.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                Text(m.name).dsFont(14, weight: .semibold).foregroundStyle(.primary)
+                Spacer()
+                // No unlock gate (owner ruling): every game shows its contribution from play #1; before the
+                // first play there's simply nothing to show yet.
+                Text(played ? "\(Int((accuracy * 100).rounded()))% accuracy" : "Not played yet")
+                    .dsFont(12).foregroundStyle(.secondary)
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 0) {
-                Text("\(points)").dsFont(18, weight: .heavy, design: .rounded).foregroundStyle(color)
-                Text("pts").dsFont(9).foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.dsBgTertiary)
+                        Capsule().fill(m.color)
+                            .frame(width: max(0, geo.size.width * (contribution / SuperfanGame.maxContribution)))
+                    }
+                }
+                .frame(height: 5)
+                Text("\(oneDecimal(contribution)) / 25")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))   // fixed numeric column
+                    .foregroundStyle(m.color)
+                    .frame(width: 62, alignment: .trailing)
             }
         }
         .padding(12).frame(maxWidth: .infinity)
         .background(Color.dsBgCard).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
-    // MARK: - Tier progression
+    private func oneDecimal(_ value: Double) -> String {
+        String(format: "%.1f", value)
+    }
 
-    private var tierProgression: some View {
-        let tiers = SuperfanTier.allCases
-        let currentIndex = standing.flatMap { tiers.firstIndex(of: $0.tier) } ?? 0
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("TIER").dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
-            HStack(spacing: 8) {
-                ForEach(Array(tiers.enumerated()), id: \.offset) { i, tier in
-                    VStack(spacing: 4) {
-                        ZStack {
-                            Circle()
-                                .fill(i <= currentIndex ? tier.color : Color.dsBgTertiary)
-                                .frame(width: 28, height: 28)
-                            Image(systemName: tier.symbol).font(.system(size: 12))
-                                .foregroundStyle(i <= currentIndex ? Color.white : Color.dsFgTertiary)
-                        }
-                        Text(tier.label)
-                            .dsFont(9, weight: i == currentIndex ? .bold : .regular)
-                            .foregroundStyle(i == currentIndex ? tier.color : Color.dsFgTertiary)
-                    }
-                    .frame(maxWidth: .infinity)
+    // MARK: - How Superfan works (collapsible explainer — Batch-2 Fix 4E)
+
+    /// A collapsed "How Superfan works ›" card so a new user can decode the score / tier / breadth rule
+    /// without guessing. Tokens only; the tier bands mirror `SuperfanTier` exactly.
+    private var howSuperfanWorks: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button { withAnimation(.easeInOut(duration: 0.2)) { showHowItWorks.toggle() } } label: {
+                HStack {
+                    Text("How Superfan works").dsFont(14, weight: .semibold).foregroundStyle(.primary)
+                    Spacer()
+                    Image(systemName: showHowItWorks ? "chevron.up" : "chevron.right")
+                        .dsFont(13).foregroundStyle(.tertiary)
                 }
+                .padding(14)
+                .contentShape(Rectangle())
             }
-            .padding(12).frame(maxWidth: .infinity)
-            .background(Color.dsBgCard).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .buttonStyle(.plain)
+            if showHowItWorks {
+                VStack(alignment: .leading, spacing: 12) {
+                    explainerParagraph("What it measures",
+                        "Superfan is one score for how well-rounded you are across all four Fan Zone games.")
+                    explainerParagraph("How the score works",
+                        "Each game contributes up to 25 points based on your accuracy — four games, so 100 is the max. Playing only one game caps you at 25, so climbing takes breadth: the more games you play well, the higher you go.")
+                    tierLegend
+                    explainerParagraph("Season & history",
+                        "Tiers reset each season, but the highest tier you reach is saved for good in Season History below.")
+                    explainerParagraph("Your Best Moments",
+                        "Badges you earn for specific feats across the games — a perfect quiz, a called upset, a full lineup.")
+                }
+                .padding(EdgeInsets(top: 0, leading: 14, bottom: 14, trailing: 14))
+            }
+        }
+        .background(Color.dsBgCard).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func explainerParagraph(_ title: String, _ body: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).dsFont(13, weight: .bold).foregroundStyle(.primary)
+            Text(body).dsFont(13).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The four tier bands with their colors — mirrors `SuperfanTier` (Fan 0–24 … MVP 75–100).
+    private var tierLegend: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("The tiers").dsFont(13, weight: .bold).foregroundStyle(.primary)
+            tierRow(.fan, "0–24", "just getting started")
+            tierRow(.rising, "25–49", "building across games")
+            tierRow(.allStar, "50–74", "strong across multiple games")
+            tierRow(.mvp, "75–100", "elite across the full Fan Zone")
         }
     }
 
-    // MARK: - Your best moments (local highlights, zero-fabrication)
-
-    private struct Moment: Identifiable {
-        let symbol: String; let color: Color; let title: String; let value: String
-        var id: String { title }
+    private func tierRow(_ tier: SuperfanTier, _ range: String, _ blurb: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: tier.symbol).font(.system(size: 12)).foregroundStyle(tier.color)
+                .frame(width: 18)
+            Text(tier.label).dsFont(13, weight: .semibold).foregroundStyle(.primary)
+                .frame(width: 58, alignment: .leading)
+            Text(range).font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(tier.color)
+                .frame(width: 52, alignment: .leading)
+            Text(blurb).dsFont(12).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+        }
     }
 
-    private var bestMoments: [Moment] {
-        var out: [Moment] = []
-        let bestXI = predict.scores.values.map(\.correctPlayers).max() ?? 0
-        if predict.scores.values.contains(where: \.perfectXI) {
-            out.append(.init(symbol: "sportscourt.fill", color: .dsGamePredict, title: "Predict the XI",
-                             value: "Perfect XI — all 11 right!"))
-        } else if bestXI > 0 {
-            out.append(.init(symbol: "sportscourt.fill", color: .dsGamePredict, title: "Predict the XI",
-                             value: "Best: \(bestXI) of 11 players right"))
-        }
-        if bracketPts > 0 {
-            out.append(.init(symbol: "trophy.fill", color: .dsGameBracket, title: "Bracket Battle",
-                             value: "\(bracketPts) points this edition"))
-        }
-        let editions = knowHer.seasonEditionsPlayed(year: season)
-        if editions > 0 {
-            out.append(.init(symbol: "person.fill.questionmark", color: .dsGameSpotlight, title: "Know Her Game",
-                             value: "\(editions) player\(editions == 1 ? "" : "s") learned this season"))
-        }
-        if trivia.bestStreak > 0 {
-            out.append(.init(symbol: "brain.head.profile", color: .dsGameTrivia, title: "NWSL Trivia",
-                             value: "Longest streak: \(trivia.bestStreak) day\(trivia.bestStreak == 1 ? "" : "s")"))
-        }
-        return out
-    }
+    // MARK: - Your Best Moments (earned achievements — PR4)
 
+    /// The achievements list. HIDDEN ENTIRELY when there are none (owner rule: a section shows real badges
+    /// or doesn't appear — never an empty grid). Shows the 5 most recent + a "+N more" tail.
     @ViewBuilder
     private var bestMomentsSection: some View {
-        let moments = bestMoments
-        if !moments.isEmpty {
+        if !achievements.isEmpty {
+            let shown = Array(achievements.prefix(5))
             VStack(alignment: .leading, spacing: 10) {
                 Text("YOUR BEST MOMENTS").dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
-                ForEach(moments) { m in
+                ForEach(shown) { earned in achievementCard(earned) }
+                if achievements.count > shown.count {
+                    Text("+\(achievements.count - shown.count) more")
+                        .dsFont(12, weight: .semibold).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+        }
+    }
+
+    private func achievementCard(_ earned: EarnedAchievement) -> some View {
+        let color = earned.achievement.color
+        return HStack(spacing: 12) {
+            Image(systemName: earned.achievement.symbol).font(.system(size: 16)).foregroundStyle(color)
+                .frame(width: 36, height: 36)
+                .background(color.opacity(0.18), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(earned.achievement.title).dsFont(14, weight: .bold).foregroundStyle(.primary)
+                Text(earned.description).dsFont(12).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12).frame(maxWidth: .infinity)
+        .background(Color.dsBgCard).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    // MARK: - Season history (the permanent record book across seasons)
+
+    @ViewBuilder
+    private var seasonHistorySection: some View {
+        if !seasonHistory.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("SEASON HISTORY").dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
+                ForEach(seasonHistory) { entry in
+                    let isCurrent = entry.seasonYear == season
                     HStack(spacing: 12) {
-                        Image(systemName: m.symbol).font(.system(size: 15)).foregroundStyle(m.color)
-                            .frame(width: 32)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(m.title).dsFont(13, weight: .semibold).foregroundStyle(.primary)
-                            Text(m.value).dsFont(12).foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 0)
+                        TierBadge(tier: entry.peakTier, size: 28)
+                        Text(String(entry.seasonYear)).dsFont(14, weight: .semibold).foregroundStyle(.primary)
+                        Spacer()
+                        Text(isCurrent ? "\(entry.peakTier.label) · Current"
+                                       : "\(entry.peakTier.label) · \(entry.peakScore)")
+                            .dsFont(12, weight: isCurrent ? .bold : .regular)
+                            .foregroundStyle(isCurrent ? entry.peakTier.color : Color.dsFgSecondary)
                     }
                     .padding(12).frame(maxWidth: .infinity)
-                    .background(Color.dsBgCard).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(isCurrent ? entry.peakTier.color.opacity(0.14) : Color.dsBgCard)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(isCurrent ? entry.peakTier.color.opacity(0.3) : Color.clear, lineWidth: 1))
                 }
             }
         }
@@ -258,7 +331,7 @@ struct SuperfanDetailView: View {
     private var gameCenterLink: some View {
         Button { GameCenterManager.shared.openLeaderboards() } label: {
             HStack(spacing: 12) {
-                Image(systemName: "gamecontroller.fill").font(.system(size: 15)).foregroundStyle(accent)
+                Image(systemName: "gamecontroller.fill").font(.system(size: 15)).foregroundStyle(Color.dsAccent)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Game Center").dsFont(13, weight: .semibold).foregroundStyle(.primary)
                     Text("Compare with players everywhere").dsFont(11).foregroundStyle(.secondary)

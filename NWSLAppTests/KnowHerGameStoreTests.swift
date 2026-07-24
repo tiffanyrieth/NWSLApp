@@ -22,7 +22,7 @@ struct KnowHerGameStoreTests {
     @Test func editionKeyReadsAreWeekAgnostic() {
         let s = store()
         // Bank a score under LAST week's edition key.
-        s.recordCompletion(editionKey: "2026-W28-WAS-317423", weekKey: "2026-W28", correct: 6)
+        s.recordCompletion(editionKey: "2026-W28-WAS-317423", weekKey: "2026-W28", correct: 6, outOf: 10)
 
         // The raw edition read finds it regardless of the current week…
         #expect(s.score(editionKey: "2026-W28-WAS-317423") == 6)
@@ -48,13 +48,13 @@ struct KnowHerGameStoreTests {
 
     @Test func editionStreakContinuesAcrossBiweeklyGapAndResetsOnAMiss() {
         let s = store()
-        s.recordCompletion(editionKey: "2026-W27-WAS-1", weekKey: "2026-W27", correct: 5)
+        s.recordCompletion(editionKey: "2026-W27-WAS-1", weekKey: "2026-W27", correct: 5, outOf: 10)
         #expect(s.weeklyStreak == 1)
         // Next biweekly edition (2 weeks later) → streak continues.
-        s.recordCompletion(editionKey: "2026-W29-WAS-2", weekKey: "2026-W29", correct: 5)
+        s.recordCompletion(editionKey: "2026-W29-WAS-2", weekKey: "2026-W29", correct: 5, outOf: 10)
         #expect(s.weeklyStreak == 2)
         // A missed edition (4 weeks later = a 3+ week gap) → streak resets to 1.
-        s.recordCompletion(editionKey: "2026-W33-WAS-3", weekKey: "2026-W33", correct: 5)
+        s.recordCompletion(editionKey: "2026-W33-WAS-3", weekKey: "2026-W33", correct: 5, outOf: 10)
         #expect(s.weeklyStreak == 1)
     }
 }

@@ -125,14 +125,14 @@ struct ProgressSyncTests {
         // The baseline is a FLOOR (max), not an addend: local completions that were already part of
         // the server total must not stack on top of it.
         let store = KnowHerGameStore(defaults: isolatedDefaults("test.progress.khg.floor"))
-        store.recordCompletion(editionKey: "2026-W29-WAS-317423", weekKey: "2026-W29", correct: 8)
+        store.recordCompletion(editionKey: "2026-W29-WAS-317423", weekKey: "2026-W29", correct: 8, outOf: 10)
         store.restoreProgress(year: 2026, points: 8, editions: 1,
                               weekStreak: 1, bestWeekStreak: 1, lastWeek: "2026-W29")
         #expect(store.seasonPoints(year: 2026) == 8, "8 locally + baseline 8 (same play) = 8, not 16")
         #expect(store.seasonEditionsPlayed(year: 2026) == 1)
 
         // NEW play after the restore grows past the floor.
-        store.recordCompletion(editionKey: "2026-W31-WAS-999", weekKey: "2026-W31", correct: 6)
+        store.recordCompletion(editionKey: "2026-W31-WAS-999", weekKey: "2026-W31", correct: 6, outOf: 10)
         #expect(store.seasonPoints(year: 2026) == 14)
         #expect(store.seasonEditionsPlayed(year: 2026) == 2)
     }

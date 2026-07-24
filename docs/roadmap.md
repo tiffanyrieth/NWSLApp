@@ -1,5 +1,24 @@
 # Roadmap / What's Next
 
+> ### 🎚️ PRE-LAUNCH TUNING (flag only, owner 2026-07-24) — halve Predict per-match scoring
+> The Predict-the-XI per-match max is **88** (+3/starter ×11, +2/position ×11, +5 formation, +10 exact
+> score, +3 result, +15 perfect XI). The owner flagged this as oversized for a low-scoring sport — consider
+> **halving every value → max 44** pre-launch (relative weights unchanged, so rankings don't move). The
+> Batch-3 switch to an **average-per-match** leaderboard (users never see cumulative totals) made this
+> non-urgent. `+5 formation` is the specific worry (near-free for attentive fans — most clubs run a stable
+> shape). **No code change yet** — this is a deliberate pre-launch decision. Values live in
+> `Models/XIPrediction.swift` (`PredictionScore.*Points`); if halved, the `predictPointRow` rules text +
+> the season card's `/88` ring denominator + `RECENT_RESULTS` breakdown must move to `/44` in lockstep.
+
+
+> ### ⏳ OWNER SETUP — Predict average-leaderboard migration (Batch 3, 2026-07-24)
+> Paste `supabase/migration_predict_avg_leaderboard.sql` into the Supabase SQL editor + Run (idempotent,
+> additive: `prediction_scores` gains `matches` + `avg_points` + an index). Until it's applied, the Predict
+> SEASON board's rivals degrade to empty (honest — the season CARD, recent results, and round board all use
+> other data and keep working); after it's applied + a client sync, the board ranks by average per match.
+> The seeder (`nwslapp-proxy/scripts/seed_test_fans.mjs`) now writes the two columns, so `--purge` +
+> re-seed makes the seeded average board realistic for the visual pass.
+
 > ### ⏳ OWNER SETUP — Fan Zone v3 migrations (2026-07-23, ~5 min — required before the branch ships)
 > Four SQL files to paste into the Supabase SQL editor + Run, in any order (all idempotent):
 > `migration_fanzone_progress.sql` (game-progress restore), `migration_predict_round_scores.sql`

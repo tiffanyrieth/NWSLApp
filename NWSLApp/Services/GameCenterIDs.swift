@@ -46,17 +46,10 @@ enum GameCenterID {
     }
 }
 
-/// Pure cross-game score math (no GameKit, no stores) so it's directly testable.
+/// Pure cross-game score math (no GameKit, no stores) so it's directly testable. The combined Superfan
+/// figure is now the 0–100 accuracy score (`SuperfanScoring.total`), submitted from `GameCenterManager`;
+/// the old additive `superfanTotal` was removed with the Fan Zone Competitive Redesign.
 enum GameCenterScores {
-    /// The combined "Superfan" total (the one leaderboard the quiz games feed). Trivia
-    /// contributes lifetime correct answers and Know Her its banked edition points — both
-    /// cumulative + points-like — so all four terms sum as comparable engagement quantities.
-    /// `knowHerPoints` defaults to 0 so older call sites (and tests) stay valid.
-    static func superfanTotal(triviaTotalCorrect: Int, predictSeasonPoints: Int,
-                              bracketPoints: Int, knowHerPoints: Int = 0) -> Int {
-        triviaTotalCorrect + predictSeasonPoints + bracketPoints + knowHerPoints
-    }
-
     /// "Played All 3 Games" — true only once the user has engaged with every game.
     static func playedAllThree(playedTrivia: Bool, hasPredicted: Bool, playedBracket: Bool) -> Bool {
         playedTrivia && hasPredicted && playedBracket

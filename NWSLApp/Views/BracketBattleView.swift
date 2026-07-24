@@ -28,9 +28,11 @@ struct BracketBattleView: View {
     @State private var gateRequested = false
     /// Result matchups the user has expanded to reveal the vote stats (collapsed by default).
     @State private var expandedMatchups: Set<String> = []
-    @State private var expandedRounds: Set<BracketRound> = []
     @State private var expandedRules: Set<String> = []   // collapsible intro rule sections
-    @State private var showFullBracket = false
+    /// A past round whose results the user tapped in the stepping-stones → review sheet (Fix 1).
+    @State private var reviewRound: BracketRound?
+    /// "How to play" opens the rules content in a sheet (Fix 3) — not the removed full-bracket screen.
+    @State private var showRules = false
 
     private enum Stage { case intro, voting }
     private let accent = Color.dsGameBracket
@@ -47,7 +49,7 @@ struct BracketBattleView: View {
                 loadedContent
             }
         }
-        .nativeBackButton(title: "Bracket Battle")
+        .nativeBackButton(title: "The Bracket")
         .background(Color.dsBgPrimary.ignoresSafeArea())
         .task {
             // Start Game Center auth here (a game screen) rather than at launch, so
@@ -56,28 +58,56 @@ struct BracketBattleView: View {
             if case .idle = viewModel.state {
                 await viewModel.load(store: store, userID: auth.userID, displayName: auth.displayName)
             }
+            // Award the upset badges from the loaded edition (per-round seeds + the user's picks).
+            if let edition = viewModel.edition, let userID = auth.userID {
+                await AchievementDetector.checkBracket(edition: edition, store: store, userID: userID,
+                                                       season: AppConfig.currentSeasonYear)
+            }
         }
         // Mandatory sign-in + display name to PLAY — gated at "Make your picks" (entry to
         // voting), so the submit downstream is always signed in. "Go back" cancels.
-        .fanZoneGate(isRequested: $gateRequested, gameName: "Bracket Battle", accent: accent) { stage = .voting }
+        .fanZoneGate(isRequested: $gateRequested, gameName: "The Bracket", accent: accent) { stage = .voting }
+        // A new round opening returns the player to the landing (not straight into voting from a stale
+        // `stage == .voting`); they re-enter voting via the landing's CTA.
+        .onChange(of: viewModel.currentRound) { stage = .intro }
     }
 
-    // MARK: - Routing by round phase
+    // MARK: - Routing (Competitive Redesign: first-time vs returning + show-results-once)
 
     @ViewBuilder
     private var loadedContent: some View {
         if viewModel.edition == nil {
             emptyState
+        } else if stage == .voting && [.open, .submitted].contains(viewModel.phase(store: store)) {
+            // The current round's voting screen. `.open` = make/edit picks; `.submitted` = a READ-ONLY
+            // review of your locked-in picks (tapping the "Voting now" stepping-stone after you've locked
+            // in should still show them, not silently no-op). A FRESH submit routes back to the landing by
+            // resetting `stage` in the submit action — so a just-submitted round doesn't stick here.
+            votingScreen
+        } else if !store.hasPlayed {
+            // Never played THIS edition → the rules-first first-time landing.
+            introScreen
+        } else if let round = pendingResultsRound {
+            // A round the user played has tallied and they haven't seen its results yet → show ONCE.
+            postRoundResults(round: round)
         } else {
-            switch viewModel.phase(store: store) {
-            case .open, .closed:
-                if stage == .intro { introScreen } else { votingScreen }
-            case .submitted:
-                overviewBody(banner: submittedBannerText)
-            case .scored:
-                resultsScreen
-            }
+            returningLanding
         }
+    }
+
+    /// The most recent round the user SUBMITTED that has resolved and whose results they haven't seen yet
+    /// (the "show the post-round results once" gate). `nil` once seen or if they skipped that round.
+    private var pendingResultsRound: BracketRound? {
+        guard let edition = viewModel.edition else { return nil }
+        for round in edition.rounds.reversed() where round < edition.currentRound && store.hasSubmitted(round) {
+            guard edition.matchups(in: round).contains(where: { $0.isResolved }) else { continue }
+            if let seen = store.lastResultsSeenRound, let seenRound = BracketRound(rawValue: seen),
+               !(seenRound < round) {
+                return nil   // already seen this round (or a later one) — seen is monotonic
+            }
+            return round
+        }
+        return nil
     }
 
     // MARK: - Screen 1: Edition Intro
@@ -93,7 +123,7 @@ struct BracketBattleView: View {
                     VStack(spacing: 20) {
                         VStack(spacing: 8) {
                             Image(systemName: "trophy.fill").dsFont(34).foregroundStyle(accent)
-                            Text("Bracket Battle").dsFont(12, weight: .bold).tracking(2).textCase(.uppercase).foregroundStyle(accent)
+                            Text("The Bracket").dsFont(12, weight: .bold).tracking(2).textCase(.uppercase).foregroundStyle(accent)
                             // The GENERAL tagline is the hero (tells first-timers what the game is) —
                             // the live edition's theme + real player count is the secondary line below.
                             // (No hardcoded count here: pool size varies 64–192 by edition.)
@@ -116,18 +146,9 @@ struct BracketBattleView: View {
                         pointsTable(rounds: edition.rounds)
                         // Detailed rules = collapsible disclosures (collapsed by default) AFTER
                         // points, so the page stays short and detail is opt-in (updated mockup).
-                        rulesDisclosure("qualifying", "Qualifying rounds & byes", Self.qualifyingRules)
+                        rulesDisclosure("qualifying", "Early rounds & byes", Self.qualifyingRules)
                         rulesDisclosure("rounds", "How each round works", Self.roundRules)
-                        Button { showFullBracket = true } label: {
-                            Text("See the full bracket")
-                                .dsFont(15, weight: .semibold).foregroundStyle(accent)
-                                .frame(maxWidth: .infinity).padding(.vertical, 13)
-                                .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(accent.opacity(0.35), lineWidth: 1.5))
-                                // Full-width outlined CTA with no fill — make the whole bordered area
-                                // tappable, not just the centered text. (Tap-target audit.)
-                                .contentShape(Rectangle())
-                        }
-                        goodToKnow   // in the scroll (after "See the full bracket"), not pinned
+                        goodToKnow
                     }
                     .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 16)
                     .fanZonePlayingAsHeader(accent: accent)
@@ -137,22 +158,10 @@ struct BracketBattleView: View {
                 // "Voting open" in manual mode). Nothing below it, so there's no second scroll edge.
                 VStack(spacing: 8) {
                     Button { gateRequested = true } label: { Text("Let's Go").primaryButtonLabel(accent) }
-                    Text("\(edition.currentRound.title) · \(viewModel.closesInText ?? "Voting open")")
+                    Text("\(edition.currentRound.displayName(in: edition.rounds)) · \(viewModel.closesInText ?? "Voting open")")
                         .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                 }
                 .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 14)
-            }
-            .sheet(isPresented: $showFullBracket) {
-                NavigationStack {
-                    // No navigationTitle: the content's own header already says "The bracket so far"
-                    // (with the theme eyebrow + entrant counts), and a nav title repeated it verbatim
-                    // two lines above itself.
-                    overviewBody(banner: nil, showsPlayingAs: false)
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) { Button("Done") { showFullBracket = false } }
-                        }
-                }
             }
         }
     }
@@ -261,7 +270,7 @@ struct BracketBattleView: View {
                         .frame(width: geo.size.width * widthFraction).frame(maxWidth: .infinity)
                     }
                     .frame(height: 18)
-                    Text("\(round.title) · \(round.matchupCount) matchups")
+                    Text("\(round.displayName(in: rounds)) · \(round.matchupCount) matchups")
                         .dsFont(10, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
                     if round != rounds.last { Rectangle().fill(Color.dsFgQuaternary).frame(width: 2, height: 8) }
                 }
@@ -299,13 +308,16 @@ struct BracketBattleView: View {
     ]
 
     private func pointsTable(rounds: [BracketRound]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        // The +1 tier spans every early round (qualifying + Round of 64/32) — always the FIRST N rounds in
+        // play order, so its count is the positional range. 128-pool → "Rounds 1–4"; 64-pool → "Rounds 1–2".
+        let earlyCount = rounds.filter { $0.points == 1 }.count
+        return VStack(alignment: .leading, spacing: 8) {
             sectionLabel("Points")
             VStack(spacing: 10) {
-                // Simplified to three tiers for onboarding — the full per-round breakdown
-                // lives in the bracket overview / Your Stats.
-                pointsTier("Early rounds", "+1")
-                pointsTier("Round of 16 & Quarterfinals", "+2")
+                // Three onboarding tiers matching the engine's 1·1·2·2·3·3 (kept as-is; owner 2026-07-24).
+                // The +2 tier is the Round-of-16 & Quarterfinals — named POSITIONALLY, never "Round of X".
+                pointsTier(earlyCount <= 1 ? "Round 1" : "Rounds 1–\(earlyCount)", "+1")
+                pointsTier("\(BracketRound.roundOf16.displayName(in: rounds)) & Quarterfinals", "+2")
                 pointsTier("Semifinals & Final", "+3")
                 Divider().overlay(Color.dsFgQuaternary)
                 HStack {
@@ -317,6 +329,9 @@ struct BracketBattleView: View {
             .padding(14).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14))
             Text("Points increase each round — later picks are worth more because they're harder to predict")
                 .dsFont(11).foregroundStyle(Color.dsFgSecondary).frame(maxWidth: .infinity)
+            Text("Your accuracy across the whole edition — correct picks out of every matchup, including rounds you skip — feeds up to 25 of your 100 Superfan points.")
+                .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                .fixedSize(horizontal: false, vertical: true).padding(.top, 2)
             Text("This isn't a popularity contest — you're predicting who the crowd will pick, not who you like best. Your favorite might be the nicest person in the league, but if they're up against someone with serious stare-down energy, voting with your heart will cost you points.")
                 .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -332,6 +347,459 @@ struct BracketBattleView: View {
         }
     }
 
+    /// The loaded edition's ordered rounds — the context that turns a `BracketRound` into its user-facing
+    /// name (positional "Round N" + traditional QF/SF/Final; no "Round of X"). Falls back to a 64-pool
+    /// structure if the edition isn't loaded (rounds only render once it is).
+    private var editionRounds: [BracketRound] {
+        viewModel.edition?.rounds ?? BracketRound.rounds(forEntrants: 64)
+    }
+
+    // MARK: - Returning-player landing (Competitive Redesign)
+
+    @ViewBuilder
+    private var returningLanding: some View {
+        if let edition = viewModel.edition {
+            ScrollView {
+                VStack(spacing: 16) {
+                    if let you = viewModel.standings.you {
+                        rankCard(you: you, total: viewModel.standings.total)
+                    }
+                    activeRoundCTA(edition: edition)
+                    neighborhoodBoard
+                    steppingStones(edition: edition)
+                    howToPlayRow
+                }
+                .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 24)
+                .fanZonePlayingAsHeader(accent: accent)
+            }
+            // Tap a COMPLETED stepping-stone → review that round's results (Fix 1).
+            .sheet(item: $reviewRound) { round in
+                NavigationStack {
+                    roundResultsReview(round: round)
+                        .navigationTitle(round.displayName(in: edition.rounds))
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { reviewRound = nil } } }
+                }
+            }
+            // "How to play" → the rules content (Fix 3), not the removed full-bracket screen.
+            .sheet(isPresented: $showRules) {
+                NavigationStack {
+                    rulesSheet(edition: edition)
+                        .navigationTitle("How to play")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { showRules = false } } }
+                }
+            }
+        }
+    }
+
+    /// The "YOUR RANK" identity card — rank circle, accuracy + percentile, points, and round-over-round
+    /// movement (green up / red down / gray no-change).
+    private func rankCard(you: BracketStanding, total: Int) -> some View {
+        let topPercent = total > 0 ? max(1, Int((Double(you.rank) / Double(total) * 100).rounded())) : 100
+        let accuracyText = you.accuracy.map { "\(Int(($0 * 100).rounded()))% accurate" }
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle().fill(accent.opacity(0.18))
+                    Circle().strokeBorder(accent, lineWidth: 2.5)
+                    Text("#\(you.rank)").dsFont(20, weight: .heavy).foregroundStyle(accent)
+                }
+                .frame(width: 56, height: 56)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("YOUR RANK").dsFont(11, weight: .bold).tracking(1.2).foregroundStyle(accent)
+                    Text([accuracyText, "top \(topPercent)% of \(total) fan\(total == 1 ? "" : "s")"]
+                            .compactMap { $0 }.joined(separator: " · "))
+                        .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                }
+                Spacer(minLength: 0)
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text("\(you.points)").dsFont(24, weight: .heavy, design: .rounded).foregroundStyle(Color.dsFgPrimary)
+                    Text("pts").dsFont(11).foregroundStyle(Color.dsFgSecondary)
+                }
+            }
+            if let movement = movementText(delta: store.lastRoundRankDelta) {
+                Text(movement.text).dsFont(12, weight: .bold).foregroundStyle(movement.color)
+            }
+        }
+        .padding(EdgeInsets(top: 18, leading: 16, bottom: 18, trailing: 16))
+        .background(LinearGradient(colors: [accent.opacity(0.15), Color.dsMdCard], startPoint: .topLeading, endPoint: .bottomTrailing))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(accent.opacity(0.4)))
+    }
+
+    /// "↑ N spots since last round" text + color from a rank delta (positive = climbed). nil = no movement yet.
+    private func movementText(delta: Int?) -> (text: String, color: Color)? {
+        guard let delta else { return nil }
+        if delta > 0 { return ("↑ \(delta) spot\(delta == 1 ? "" : "s") since last round", .dsSuccess) }
+        if delta < 0 { return ("↓ \(-delta) spot\(delta == -1 ? "" : "s") since last round", .dsError) }
+        return ("No change since last round", .dsFgSecondary)
+    }
+
+    /// The active-round call-to-action, whose state depends on the current round's phase.
+    @ViewBuilder
+    private func activeRoundCTA(edition: BracketEdition) -> some View {
+        let round = edition.currentRound
+        let name = round.displayName(in: edition.rounds)
+        switch viewModel.phase(store: store) {
+        case .open:
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Circle().fill(accent).frame(width: 8, height: 8).shadow(color: accent, radius: 4)
+                    Text("ACTIVE").dsFont(11, weight: .bold).tracking(1.2).foregroundStyle(accent)
+                }
+                Text("\(name) · \(edition.themeLabel.capitalized)").dsFont(18, weight: .bold).foregroundStyle(Color.dsFgPrimary)
+                Text("\(viewModel.closesInText ?? "Voting open") · \(round.matchupCount) matchups")
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                Button { gateRequested = true } label: { Text("Let's Go →").primaryButtonLabel(accent) }
+                    .padding(.top, 8)
+            }
+            .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+            .background(accent.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(accent.opacity(0.5), lineWidth: 1.5))
+        case .submitted:
+            ctaMutedCard(title: "\(name) — picks locked in", subtitle: "Waiting for the community to vote.")
+        case .closed, .scored:
+            ctaMutedCard(title: "Next round opens soon", subtitle: "Come back when voting reopens.")
+        }
+    }
+
+    private func ctaMutedCard(title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).dsFont(16, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+            Text(subtitle).dsFont(13).foregroundStyle(Color.dsFgTertiary)
+        }
+        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    /// The 5-row "neighborhood" board (2 above / you / 2 below), or a compact summary when the user ranks
+    /// outside the visible top.
+    @ViewBuilder
+    private var neighborhoodBoard: some View {
+        let rows = viewModel.standings.rows
+        let total = viewModel.standings.total
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel("Leaderboard").foregroundStyle(Color.dsFgSecondary)
+            if let idx = rows.firstIndex(where: { $0.isYou }) {
+                let lower = max(0, idx - 2), upper = min(rows.count - 1, idx + 2)
+                VStack(spacing: 2) {
+                    ForEach(rows[lower...upper]) { row in neighborhoodRow(row) }
+                    fullLeaderboardLink
+                }
+                .padding(14).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            } else if let you = viewModel.standings.you {
+                // Outside the visible top → compact summary.
+                let topPercent = total > 0 ? max(1, Int((Double(you.rank) / Double(total) * 100).rounded())) : 100
+                VStack(spacing: 4) {
+                    Text("#\(you.rank) of \(total) fan\(total == 1 ? "" : "s") · top \(topPercent)%")
+                        .dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
+                    fullLeaderboardLink
+                }
+                .frame(maxWidth: .infinity).padding(14)
+                .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+        }
+    }
+
+    private func neighborhoodRow(_ row: BracketStanding) -> some View {
+        HStack(spacing: 10) {
+            Text("#\(row.rank)").dsFont(13, weight: row.isYou ? .heavy : .semibold)
+                .foregroundStyle(row.isYou ? accent : Color.dsFgTertiary)
+                .frame(width: 34, alignment: .trailing)
+            Text(row.isYou ? "You" : row.name).dsFont(14, weight: row.isYou ? .bold : .medium)
+                .foregroundStyle(row.isYou ? accent : Color.dsFgPrimary).lineLimit(1)
+            Spacer(minLength: 0)
+            Text("\(row.points) pts").dsFont(13, weight: row.isYou ? .bold : .semibold)
+                .foregroundStyle(row.isYou ? accent : Color.dsFgSecondary)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 8)
+        .background(row.isYou ? accent.opacity(0.14) : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .strokeBorder(row.isYou ? accent.opacity(0.3) : Color.clear, lineWidth: 1))
+    }
+
+    /// The vertical "stepping stones" round timeline — one node per round, tappable when played/active.
+    private func steppingStones(edition: BracketEdition) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel("Edition Progress").foregroundStyle(Color.dsFgSecondary)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(edition.themeLabel.capitalized).dsFont(15, weight: .bold).foregroundStyle(Color.dsFgPrimary)
+                Text("\(edition.entrants.count) players · \(edition.rounds.count) rounds")
+                    .dsFont(12).foregroundStyle(Color.dsFgSecondary).padding(.bottom, 10)
+                ForEach(Array(edition.rounds.enumerated()), id: \.element) { i, round in
+                    steppingStoneNode(edition: edition, round: round, isLast: i == edition.rounds.count - 1)
+                }
+            }
+            .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
+            .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+    }
+
+    @ViewBuilder
+    private func steppingStoneNode(edition: BracketEdition, round: BracketRound, isLast: Bool) -> some View {
+        let status = edition.status(of: round)
+        let done = status == .complete
+        let active = status == .active
+        let tappable = done || active
+        HStack(alignment: .top, spacing: 10) {
+            VStack(spacing: 0) {
+                ZStack {
+                    if done {
+                        Circle().fill(accent).frame(width: 22, height: 22)
+                        Image(systemName: "checkmark").dsFont(11, weight: .heavy).foregroundStyle(.white)
+                    } else if active {
+                        Circle().fill(accent.opacity(0.22)).frame(width: 26, height: 26)
+                        Circle().strokeBorder(accent, lineWidth: 2.5).frame(width: 26, height: 26).shadow(color: accent.opacity(0.4), radius: 6)
+                        Circle().fill(accent).frame(width: 10, height: 10)
+                    } else {
+                        Circle().strokeBorder(Color.dsFgQuaternary, lineWidth: 1.5).frame(width: 18, height: 18)
+                    }
+                }
+                .frame(width: 26, height: 26)
+                if !isLast {
+                    Rectangle().fill(done ? accent : Color.dsFgQuaternary.opacity(0.5)).frame(width: 2, height: 18)
+                }
+            }
+            HStack(spacing: 8) {
+                Text(round.displayName(in: edition.rounds))
+                    .dsFont(15, weight: active ? .bold : done ? .semibold : .regular)
+                    .foregroundStyle(tappable ? Color.dsFgPrimary : Color.dsFgTertiary)
+                if done { Text("· \(round.matchupCount) matchups").dsFont(12).foregroundStyle(Color.dsFgSecondary) }
+                if active {
+                    Text("Voting now").dsFont(12, weight: .bold).foregroundStyle(accent)
+                        .padding(.horizontal, 10).padding(.vertical, 3)
+                        .background(accent.opacity(0.18), in: Capsule())
+                }
+                Spacer(minLength: 0)
+                // Chevron signals the row is tappable (completed → results, active → voting).
+                if tappable { Image(systemName: "chevron.right").dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgTertiary) }
+            }
+            .frame(minHeight: 26)
+        }
+        // The WHOLE row (node + label) is the tap target: completed → that round's results review; active
+        // → voting (via the sign-in gate); upcoming → nothing. (Fix 1.)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if done { reviewRound = round }
+            else if active { gateRequested = true }
+        }
+    }
+
+    private var howToPlayRow: some View {
+        Button { showRules = true } label: {
+            HStack {
+                Text("How to play").dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                Spacer()
+                Image(systemName: "chevron.right").dsFont(13).foregroundStyle(Color.dsFgTertiary)
+            }
+            .padding(14).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Post-round results (Competitive Redesign — shown ONCE per tally)
+
+    @ViewBuilder
+    private func postRoundResults(round: BracketRound) -> some View {
+        if let edition = viewModel.edition {
+            let matchups = edition.matchups(in: round).filter { $0.isResolved }
+            let picks = store.picks(for: round)
+            let correct = BracketScoring.correctCount(picks: picks, matchups: matchups)
+            let pts = store.score(for: round) ?? BracketScoring.roundPoints(picks: picks, matchups: matchups)
+            let nextOpen = viewModel.phase(store: store) == .open
+            let nextName = edition.currentRound.displayName(in: edition.rounds)
+            let nextVerb = edition.currentRound.nameIsPlural ? "are" : "is"   // "Semifinals ARE open"
+            ScrollView {
+                VStack(spacing: 14) {
+                    VStack(spacing: 3) {
+                        sectionLabel("\(round.displayName(in: edition.rounds)) · Results").foregroundStyle(accent)
+                        Text(edition.themeLabel.capitalized).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                    }
+                    // Performance summary
+                    VStack(spacing: 10) {
+                        ScoreRing(score: correct, total: matchups.count, accent: accent, size: 110)
+                        Text("+\(pts) pts this round").dsFont(18, weight: .bold).foregroundStyle(Color.dsSuccess)
+                        if let you = viewModel.standings.you {
+                            resultsRankLine(currentRank: you.rank, total: viewModel.standings.total)
+                        }
+                    }
+                    .frame(maxWidth: .infinity).padding(20)
+                    .background(LinearGradient(colors: [accent.opacity(0.15), .clear], startPoint: .top, endPoint: .bottom))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(accent.opacity(0.4)))
+
+                    // Compact next-round CTA near the TOP — you never scroll past every matchup to find it (Fix 6).
+                    if nextOpen {
+                        Button { advanceFromResults(seenRound: round) } label: {
+                            HStack(spacing: 6) {
+                                Text("\(nextName) \(nextVerb) open").dsFont(14, weight: .bold).foregroundStyle(accent)
+                                Spacer(minLength: 0)
+                                Text("Make your picks").dsFont(13, weight: .semibold).foregroundStyle(accent)
+                                Image(systemName: "arrow.right").dsFont(12, weight: .bold).foregroundStyle(accent)
+                            }
+                            .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                            .background(accent.opacity(0.14)).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(accent.opacity(0.4), lineWidth: 1))
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    resultsShareLink(round: round, correct: correct, total: matchups.count, pts: pts, edition: edition)
+
+                    sectionLabel("Matchup Results").frame(maxWidth: .infinity, alignment: .leading)
+                    ForEach(matchups) { m in resultCard(m, yourPick: store.pick(matchupID: m.id, in: round)) }
+
+                    resultsBottomCTA(edition: edition, seenRound: round)
+                }
+                .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 24)
+                .fanZonePlayingAsHeader(accent: accent)
+            }
+        }
+    }
+
+    /// The rank line in the results summary: "Rank #26 → #19 ↑7 · top N%" from the pre-round baseline
+    /// (`lastSeenRank`, read BEFORE the CTA advances it) to the current rank.
+    @ViewBuilder
+    private func resultsRankLine(currentRank: Int, total: Int) -> some View {
+        let topPercent = total > 0 ? max(1, Int((Double(currentRank) / Double(total) * 100).rounded())) : 100
+        let delta = store.lastSeenRank.map { $0 - currentRank }
+        VStack(spacing: 4) {
+            HStack(spacing: 6) {
+                if let baseline = store.lastSeenRank, let delta, delta != 0 {
+                    Text("Rank #\(baseline) → #\(currentRank)").dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                    Text(delta > 0 ? "↑\(delta)" : "↓\(-delta)")
+                        .dsFont(13, weight: .bold).foregroundStyle(delta > 0 ? Color.dsSuccess : Color.dsError)
+                } else {
+                    Text("Rank #\(currentRank)").dsFont(13, weight: .bold).foregroundStyle(accent)
+                }
+            }
+            Text("You're in the top \(topPercent)%").dsFont(12).foregroundStyle(accent)
+        }
+    }
+
+    /// Shared results→next action (top + bottom CTA both call it): record the round's movement (advancing
+    /// the baseline), mark the results seen (so this screen shows ONCE), then route into voting if the next
+    /// round is open, else fall through to the returning landing.
+    private func advanceFromResults(seenRound: BracketRound) {
+        if let rank = viewModel.standings.you?.rank { store.recordRoundMovement(currentRank: rank) }
+        store.markResultsSeen(seenRound)
+        if viewModel.phase(store: store) == .open { gateRequested = true }
+    }
+
+    /// The results screen's bottom CTA (full-width, for anyone who scrolled through every matchup).
+    private func resultsBottomCTA(edition: BracketEdition, seenRound: BracketRound) -> some View {
+        let nextOpen = viewModel.phase(store: store) == .open
+        let nextName = edition.currentRound.displayName(in: edition.rounds)
+        let nextVerb = edition.currentRound.nameIsPlural ? "are" : "is"   // "Semifinals ARE now open"
+        return Button { advanceFromResults(seenRound: seenRound) } label: {
+            Text(nextOpen ? "\(nextName) \(nextVerb) now open — make your picks →" : "Back to the bracket")
+                .primaryButtonLabel(accent)
+        }
+    }
+
+    // MARK: - Past-round review + rules sheets (Fix 1 + Fix 3)
+
+    /// Read-only review of a PAST round's results (tapped from a completed stepping-stone) — the same
+    /// per-matchup cards as the post-round screen, minus the once-only mark-seen + next-round CTA.
+    @ViewBuilder
+    private func roundResultsReview(round: BracketRound) -> some View {
+        if let edition = viewModel.edition {
+            let matchups = edition.matchups(in: round).filter { $0.isResolved }
+            let picks = store.picks(for: round)
+            let correct = BracketScoring.correctCount(picks: picks, matchups: matchups)
+            let pts = store.score(for: round) ?? BracketScoring.roundPoints(picks: picks, matchups: matchups)
+            ScrollView {
+                VStack(spacing: 14) {
+                    VStack(spacing: 8) {
+                        ScoreRing(score: correct, total: matchups.count, accent: accent, size: 96)
+                        if pts > 0 { Text("+\(pts) pts").dsFont(16, weight: .bold).foregroundStyle(Color.dsSuccess) }
+                    }
+                    .frame(maxWidth: .infinity).padding(16)
+                    .background(LinearGradient(colors: [accent.opacity(0.12), .clear], startPoint: .top, endPoint: .bottom))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    sectionLabel("Matchup Results").frame(maxWidth: .infinity, alignment: .leading)
+                    ForEach(matchups) { m in resultCard(m, yourPick: store.pick(matchupID: m.id, in: round)) }
+                }
+                .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 24)
+            }
+            .background(Color.dsBgPrimary)
+        }
+    }
+
+    /// The "How to play" rules content — reuses the first-time screen's How It Works + points table + the
+    /// two rule accordions.
+    private func rulesSheet(edition: BracketEdition) -> some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                howItWorks
+                pointsTable(rounds: edition.rounds)
+                rulesDisclosure("qualifying", "Early rounds & byes", Self.qualifyingRules)
+                rulesDisclosure("rounds", "How each round works", Self.roundRules)
+            }
+            .padding(20)
+        }
+        .background(Color.dsBgPrimary)
+    }
+
+    // MARK: - Share the round result (fresh, PR2 — score + rank movement + edition)
+
+    /// A "Share your result" button that renders a card (score, rank movement, edition) to an image and
+    /// hands it to the system share sheet. Built for THIS results screen (not the old invisible share flow).
+    private func resultsShareLink(round: BracketRound, correct: Int, total: Int, pts: Int, edition: BracketEdition) -> some View {
+        let rank = viewModel.standings.you?.rank
+        // Live movement from the pre-round baseline (the CTA advances the baseline after; read it now).
+        let delta = (store.lastSeenRank).flatMap { base in rank.map { base - $0 } }
+        let img = resultsShareImage(round: round, correct: correct, total: total, pts: pts,
+                                    edition: edition, rank: rank, movementDelta: delta)
+        return ShareLink(item: img, preview: SharePreview("My result in The Bracket", image: img)) {
+            HStack(spacing: 6) {
+                Image(systemName: "square.and.arrow.up").dsFont(14, weight: .semibold)
+                Text("Share your result")
+            }
+            .dsFont(15, weight: .semibold).foregroundStyle(accent)
+            .frame(maxWidth: .infinity).padding(.vertical, 13)
+            .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(accent.opacity(0.4), lineWidth: 1.5))
+            .contentShape(Rectangle())
+        }
+    }
+
+    @MainActor
+    private func resultsShareImage(round: BracketRound, correct: Int, total: Int, pts: Int,
+                                   edition: BracketEdition, rank: Int?, movementDelta: Int?) -> Image {
+        let renderer = ImageRenderer(content: resultsShareCard(round: round, correct: correct, total: total,
+                                                               pts: pts, edition: edition, rank: rank, movementDelta: movementDelta))
+        renderer.scale = 3
+        if let ui = renderer.uiImage { return Image(uiImage: ui) }
+        return Image(systemName: "trophy.fill")
+    }
+
+    private func resultsShareCard(round: BracketRound, correct: Int, total: Int, pts: Int,
+                                  edition: BracketEdition, rank: Int?, movementDelta: Int?) -> some View {
+        VStack(spacing: 6) {
+            Text(edition.themeLabel).dsFont(13, weight: .bold).tracking(2).foregroundStyle(accent)
+            Text(edition.title).dsFont(19, weight: .bold).foregroundStyle(.white)
+            Text("\(round.displayName(in: edition.rounds)) · Results").dsFont(12).foregroundStyle(Color.dsFgSecondary)
+            Text("\(correct) / \(total)").dsFont(52, weight: .heavy).foregroundStyle(.white).padding(.top, 6)
+            Text("called right · +\(pts) pts").dsFont(13).foregroundStyle(Color.dsFgSecondary)
+            if let rank {
+                HStack(spacing: 6) {
+                    if let d = movementDelta, d != 0 {
+                        Text(d > 0 ? "↑\(d)" : "↓\(-d)")
+                            .dsFont(14, weight: .bold).foregroundStyle(d > 0 ? Color.dsSuccess : Color.dsError)
+                    }
+                    Text("now #\(rank)").dsFont(14, weight: .semibold).foregroundStyle(accent)
+                }
+                .padding(.top, 4)
+            }
+            Text("NWSL · The Bracket").dsFont(11, weight: .semibold).foregroundStyle(Color.dsFgTertiary).padding(.top, 8)
+        }
+        .padding(28).frame(width: 320)
+        .background(LinearGradient(colors: [accent.opacity(0.18), Color.dsBgPrimary], startPoint: .top, endPoint: .bottom))
+    }
+
     // MARK: - Screens 2 + 3: Voting + Save/Submit
 
     private var votingScreen: some View {
@@ -339,36 +807,63 @@ struct BracketBattleView: View {
         let made = viewModel.picksMade(store: store)
         let total = viewModel.totalMatchups
         let allMade = viewModel.allPicksMade(store: store)
+        let locked = viewModel.phase(store: store) == .submitted   // re-entered a round you've locked in
         return VStack(spacing: 0) {
             ScrollView {
                 VStack(spacing: 12) {
                     HStack(alignment: .firstTextBaseline) {
-                        sectionLabel("\(round.title) · \(viewModel.edition?.themeLabel.capitalized ?? "")").foregroundStyle(accent)
+                        sectionLabel("\(round.displayName(in: editionRounds)) · \(viewModel.edition?.themeLabel.capitalized ?? "")").foregroundStyle(accent)
                         Spacer()
                         // A null close time = manual mode (round stays open until advanced) → "Voting open".
-                        Text(viewModel.closesInText ?? "Voting open")
+                        Text(locked ? "Picks locked in" : (viewModel.closesInText ?? "Voting open"))
                             .dsFont(11).foregroundStyle(Color.dsFgSecondary)
                     }
-                    VStack(spacing: 6) {
-                        HStack {
-                            Text("\(made) of \(total) picks made").dsFont(12).foregroundStyle(Color.dsFgSecondary)
-                            Spacer()
-                        }
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(Color.dsBgTertiary)
-                                Capsule().fill(accent).frame(width: geo.size.width * (total > 0 ? Double(made) / Double(total) : 0))
+                    if !locked {
+                        VStack(spacing: 6) {
+                            HStack {
+                                Text("\(made) of \(total) picks made").dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                                Spacer()
                             }
-                        }.frame(height: 5)
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    Capsule().fill(Color.dsBgTertiary)
+                                    Capsule().fill(accent).frame(width: geo.size.width * (total > 0 ? Double(made) / Double(total) : 0))
+                                }
+                            }.frame(height: 5)
+                        }
                     }
-                    if allMade { allPickedBanner }
-                    ForEach(viewModel.currentMatchups) { m in matchupVoteCard(m, round: round) }
+                    if locked { lockedBanner } else if allMade { allPickedBanner }
+                    ForEach(viewModel.currentMatchups) { m in matchupVoteCard(m, round: round, locked: locked) }
                 }
                 .padding(.horizontal, 16).padding(.bottom, 16)
                 .fanZonePlayingAsHeader(accent: accent)
             }
-            submitBar(allMade: allMade, made: made, total: total)
+            if locked { lockedBar } else { submitBar(allMade: allMade, made: made, total: total) }
         }
+    }
+
+    /// Shown when you re-enter a round you've already locked in (read-only review of your picks).
+    private var lockedBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "lock.fill").dsFont(18).foregroundStyle(accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Your picks are locked in").dsFont(14, weight: .bold).foregroundStyle(accent)
+                Text("Results drop when voting closes. No edits until then — good luck.")
+                    .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12).background(accent.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.35)))
+    }
+
+    /// The bottom bar for a locked round — just a way back to the bracket (no submit/draft).
+    private var lockedBar: some View {
+        Button { stage = .intro } label: {
+            Text("Back to the bracket").primaryButtonLabel(accent)
+        }
+        .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 24)
+        .background(LinearGradient(colors: [.clear, Color.dsBgPrimary], startPoint: .top, endPoint: .bottom))
     }
 
     private var allPickedBanner: some View {
@@ -385,17 +880,17 @@ struct BracketBattleView: View {
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.35)))
     }
 
-    private func matchupVoteCard(_ m: BracketMatchup, round: BracketRound) -> some View {
+    private func matchupVoteCard(_ m: BracketMatchup, round: BracketRound, locked: Bool) -> some View {
         let pick = store.pick(matchupID: m.id, in: round)
         return HStack(spacing: 0) {
-            choiceButton(m, m.entrantA, picked: pick == m.entrantA.id)
+            choiceButton(m, m.entrantA, picked: pick == m.entrantA.id, locked: locked)
             Text("VS").dsFont(10, weight: .bold).tracking(1).foregroundStyle(Color.dsFgQuaternary).padding(.horizontal, 2)
-            choiceButton(m, m.entrantB, picked: pick == m.entrantB.id)
+            choiceButton(m, m.entrantB, picked: pick == m.entrantB.id, locked: locked)
         }
         .padding(6).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    private func choiceButton(_ m: BracketMatchup, _ e: BracketEntrant, picked: Bool) -> some View {
+    private func choiceButton(_ m: BracketMatchup, _ e: BracketEntrant, picked: Bool, locked: Bool) -> some View {
         Button {
             viewModel.setPick(matchup: m, entrantID: e.id, store: store)
         } label: {
@@ -421,6 +916,7 @@ struct BracketBattleView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(locked)   // a locked round is a read-only review — picks can't change
     }
 
     private func submitBar(allMade: Bool, made: Int, total: Int) -> some View {
@@ -435,8 +931,13 @@ struct BracketBattleView: View {
                     .frame(maxWidth: .infinity)
             }
             Button {
-                // Entry was gated (Make your picks → voting), so we're always signed in here.
-                Task { await viewModel.submit(store: store, userID: auth.userID) }
+                // Entry was gated (Make your picks → voting), so we're always signed in here. On a
+                // successful lock-in, route back to the landing (the voting screen now allows re-entry
+                // for a submitted round, so it would otherwise stick here post-submit).
+                Task {
+                    await viewModel.submit(store: store, userID: auth.userID)
+                    if viewModel.phase(store: store) == .submitted { stage = .intro }
+                }
             } label: {
                 Text(submitting ? "Submitting…" : (allMade ? "Lock in my picks" : "Pick all \(total) first (\(made)/\(total))"))
                     .primaryButtonLabel(allMade ? accent : Color.dsBgTertiary, fg: allMade ? .dsFgPrimary : Color.dsFgTertiary)
@@ -453,122 +954,19 @@ struct BracketBattleView: View {
         .background(LinearGradient(colors: [.clear, Color.dsBgPrimary], startPoint: .top, endPoint: .bottom))
     }
 
-    // MARK: - Submitted state → straight into the bracket overview (with a banner)
-
-    /// The post-submit confirmation shown inline atop the overview — no dead-end screen.
-    private var submittedBannerText: String {
-        let when = viewModel.closesInText.map { $0.replacingOccurrences(of: "Closes in ", with: "in ") } ?? "soon"
-        return "Picks locked in — results drop when voting closes \(when)."
-    }
-
-    // MARK: - Screen 4: Results
-
-    @ViewBuilder
-    private var resultsScreen: some View {
-        if let result = viewModel.completedResults() {
-            let picks = store.picks(for: result.round)
-            let correct = BracketScoring.correctCount(picks: picks, matchups: result.matchups)
-            let pts = store.score(for: result.round) ?? BracketScoring.roundPoints(picks: picks, matchups: result.matchups)
-            ScrollView {
-                VStack(spacing: 12) {
-                    VStack(spacing: 8) {
-                        sectionLabel("\(result.round.title) — that's a wrap").foregroundStyle(accent)
-                        Text("+\(pts)").dsFont(30, weight: .heavy).foregroundStyle(Color.dsFgPrimary)
-                        Text("You called \(correct) of \(result.matchups.count). \(heroVoiceLine(correct, result.matchups.count))")
-                            .dsFont(13).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity).padding(20)
-                    .background(LinearGradient(colors: [accent.opacity(0.12), .clear], startPoint: .top, endPoint: .bottom))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(accent.opacity(0.35)))
-
-                    shareButton(round: result.round, correct: correct, total: result.matchups.count, pts: pts)
-
-                    if viewModel.flavor == .upsetClosest { upsetClosestCallout }
-
-                    sectionLabel("How the league voted").frame(maxWidth: .infinity, alignment: .leading)
-                    ForEach(result.matchups) { m in resultCard(m, yourPick: picks[m.id]) }
-                    leaderboardCard
-                    fullLeaderboardLink
-
-                    // The bracket journey lives right below the results (CONCEPT-v2).
-                    Divider().overlay(Color.dsFgQuaternary).padding(.vertical, 4)
-                    overviewContent(banner: nil)
-                }
-                .padding(.horizontal, 16).padding(.bottom, 32)
-                .fanZonePlayingAsHeader(accent: accent)
-            }
-        } else {
-            overviewBody(banner: nil)
-        }
-    }
-
-    /// A warm one-liner under the score, keyed to how well you read the crowd.
-    private func heroVoiceLine(_ correct: Int, _ total: Int) -> String {
-        let ratio = total > 0 ? Double(correct) / Double(total) : 0
-        switch ratio {
-        case 0.85...: return "You're basically the league hivemind."
-        case 0.6..<0.85: return "You read the room nicely."
-        case 0.4..<0.6: return "The bracket had other plans."
-        default: return "Chaos won this round — regroup."
-        }
-    }
-
-    // MARK: - Share your card (ImageRenderer → ShareLink)
-
-    private func shareButton(round: BracketRound, correct: Int, total: Int, pts: Int) -> some View {
-        let img = shareCardImage(round: round, correct: correct, total: total, pts: pts)
-        return ShareLink(item: img, preview: SharePreview("My Bracket Battle card", image: img)) {
-            HStack(spacing: 6) {
-                Image(systemName: "square.and.arrow.up").dsFont(14, weight: .semibold)
-                Text("Share your card")
-            }
-            .dsFont(14, weight: .semibold).foregroundStyle(accent)
-            .frame(maxWidth: .infinity).padding(.vertical, 12)
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.35), lineWidth: 1.5))
-        }
-    }
-
-    @MainActor private func shareCardImage(round: BracketRound, correct: Int, total: Int, pts: Int) -> Image {
-        let renderer = ImageRenderer(content: shareCard(round: round, correct: correct, total: total, pts: pts))
-        renderer.scale = 3
-        if let ui = renderer.uiImage { return Image(uiImage: ui) }
-        return Image(systemName: "trophy.fill")
-    }
-
-    private func shareCard(round: BracketRound, correct: Int, total: Int, pts: Int) -> some View {
-        VStack(spacing: 8) {
-            Text(viewModel.edition?.themeLabel ?? "BRACKET BATTLE")
-                .dsFont(13, weight: .bold).tracking(2).foregroundStyle(accent)
-            Text(viewModel.edition?.title ?? "Bracket Battle")
-                .dsFont(20, weight: .bold).foregroundStyle(.white)
-            Text(round.title).dsFont(13).foregroundStyle(Color.dsFgSecondary)
-            Text("\(correct)/\(total)").dsFont(52, weight: .heavy).foregroundStyle(.white).padding(.top, 4)
-            Text("called right · +\(pts) pts").dsFont(13).foregroundStyle(Color.dsFgSecondary)
-            Text("NWSL · Bracket Battle").dsFont(11, weight: .semibold).foregroundStyle(Color.dsFgTertiary).padding(.top, 6)
-        }
-        .padding(28).frame(width: 320)
-        .background(LinearGradient(colors: [accent.opacity(0.18), Color.dsBgPrimary], startPoint: .top, endPoint: .bottom))
-    }
-
     /// Collapsed by default — just who advanced + your call. The vote split stays
     /// hidden behind "See how the league voted" so you scan winners fast, then dig into
     /// the surprises. (% is never shown until you open it — and never during voting.)
     private func resultCard(_ m: BracketMatchup, yourPick: String?) -> some View {
         let aWon = m.communityWinnerID == m.entrantA.id
-        let correct = yourPick != nil && yourPick == m.communityWinnerID
         let expanded = expandedMatchups.contains(m.id)
-        let winnerName = m.entrant(m.communityWinnerID ?? "")?.playerName ?? "her"
         return VStack(spacing: 8) {
             HStack(spacing: 0) {
                 resultSide(m.entrantA, won: aWon, isYour: yourPick == m.entrantA.id)
                 Text("VS").dsFont(10, weight: .bold).foregroundStyle(Color.dsFgQuaternary).padding(.horizontal, 2)
                 resultSide(m.entrantB, won: !aWon, isYour: yourPick == m.entrantB.id)
             }
-            Text(correct ? "Nice — you had \(winnerName). +\(m.round.points)"
-                 : (yourPick == nil ? "You sat this one out" : "Ouch — your pick went home"))
-                .dsFont(11, weight: .semibold)
-                .foregroundStyle(correct ? Color.dsSuccess : (yourPick == nil ? Color.dsFgTertiary : Color.dsError))
+            resultVerdict(m, yourPick: yourPick)
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     if expanded { expandedMatchups.remove(m.id) } else { expandedMatchups.insert(m.id) }
@@ -595,9 +993,41 @@ struct BracketBattleView: View {
                 .dsFont(10, weight: .semibold).foregroundStyle(isYour ? accent : Color.dsFgTertiary)
             if won { Text("ADVANCES").dsFont(10, weight: .bold).foregroundStyle(Color.dsSuccess) }
         }
+        // Fix 4: the teal wash + border marks YOUR PICK (regardless of outcome) so you can always see which
+        // side you were on; the LOSING side dims. Two independent channels — border = your selection,
+        // "ADVANCES" = who won. Opacity dims only the content, leaving a full-strength border on a lost pick.
+        .opacity(won ? 1 : 0.55)
         .frame(maxWidth: .infinity).padding(.vertical, 10).padding(.horizontal, 8)
-        .background(won ? accent.opacity(0.12) : .clear).opacity(won ? 1 : 0.55)
+        .background(isYour ? accent.opacity(0.12) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(isYour ? accent : Color.clear, lineWidth: 1.5))
+    }
+
+    /// Fix 5 — the one-line verdict under a result card. Leads with the MARGIN of the community vote
+    /// (Runaway / Comfortable / Solid / Nail-biter), then your outcome: "+N pts" if your pick advanced, or
+    /// the vote split ("62% vs your pick's 38%") if it went home. Sat-out matchups show the margin alone.
+    private func resultVerdict(_ m: BracketMatchup, yourPick: String?) -> some View {
+        let splitA = m.splitAPercent ?? 50
+        let winnerPct = m.winnerPercent ?? max(splitA, 100 - splitA)
+        let winnerName = m.entrant(m.communityWinnerID ?? "")?.playerName ?? "the winner"
+        let phrase: String
+        switch winnerPct {
+        case 90...:    phrase = "Runaway — \(winnerName) dominated"
+        case 70..<90:  phrase = "Comfortable — \(winnerName) cruised through"
+        case 55..<70:  phrase = "Solid — \(winnerName) took it"
+        default:       phrase = "Nail-biter — \(winnerName) barely survived"
+        }
+        let correct = yourPick != nil && yourPick == m.communityWinnerID
+        // Margin phrase is the WHOLE quick-read (Batch-2 Fix 1): no inline percentages — the exact vote
+        // split lives only inside the expandable "See how the league voted" donut. Green when you called it
+        // (+ the points), red when your pick went home, neutral when you sat out.
+        let color: Color = correct ? .dsSuccess : (yourPick == nil ? .dsFgSecondary : .dsError)
+        let text = correct ? "\(phrase)  ·  +\(m.round.points) pts" : phrase
+        return Text(text)
+            .dsFont(11, weight: .semibold)
+            .foregroundStyle(color)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
     }
 
     /// The "See stats" reveal: a donut of the community split, the legend, the vote
@@ -653,28 +1083,6 @@ struct BracketBattleView: View {
             .background(color.opacity(0.14)).clipShape(Capsule())
     }
 
-    private var leaderboardCard: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            sectionLabel("Leaderboard").padding(.bottom, 6)
-            ForEach(viewModel.leaderboard) { row in
-                // Below-fold "You" row (you rank past the visible top): separate it so the
-                // jump from the top list to your real rank reads honestly.
-                if row.isBelowFold {
-                    Divider().overlay(Color.dsFgTertiary).padding(.vertical, 2)
-                }
-                HStack(spacing: 12) {
-                    Text("\(row.rank)").dsFont(13, weight: .bold).foregroundStyle(row.isYou ? accent : Color.dsFgTertiary).frame(width: 32, alignment: .trailing)
-                    Text(row.name).dsFont(14, weight: row.isYou ? .bold : .medium).foregroundStyle(row.isYou ? accent : .dsFgPrimary)
-                    Spacer()
-                    Text("\(row.points) pts").dsFont(13, weight: .semibold).foregroundStyle(row.isYou ? accent : Color.dsFgSecondary)
-                }
-                .padding(.vertical, 8).padding(.horizontal, 4)
-                .background(row.isYou ? accent.opacity(0.10) : .clear).clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-        }
-        .padding(16).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-
     /// Entry point to the standalone Leaderboard (Rankings + Your Stats), pushed onto
     /// Home's NavigationStack from the results + overview.
     private var fullLeaderboardLink: some View {
@@ -684,7 +1092,7 @@ struct BracketBattleView: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "list.number").dsFont(13, weight: .semibold)
-                Text("Full leaderboard & your stats").dsFont(14, weight: .semibold)
+                Text("See full leaderboard").dsFont(14, weight: .semibold)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right").dsFont(12, weight: .semibold)
             }
@@ -695,189 +1103,6 @@ struct BracketBattleView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    // MARK: - Screen 5: Bracket Overview (the tournament story)
-
-    /// Standalone scrollable overview — the post-submit landing, with a banner.
-    @ViewBuilder
-    /// `showsPlayingAs` is false ONLY for the "See the full bracket" SHEET, which is a modal read
-    /// of the bracket — not a screen you play from — and has its own Done chrome.
-    private func overviewBody(banner: String?, showsPlayingAs: Bool = true) -> some View {
-        if viewModel.edition != nil {
-            ScrollView {
-                overviewContent(banner: banner)
-                    .padding(.horizontal, 16).padding(.bottom, 32)
-                    .fanZonePlayingAsHeader(accent: showsPlayingAs ? accent : nil)
-            }
-            .background(Color.dsBgPrimary.ignoresSafeArea())
-        }
-    }
-
-    /// The full bracket journey — every round as complete · active · upcoming so the
-    /// user sees what already happened, what's live, and what's coming. No own
-    /// ScrollView, so it also sits BELOW the results list.
-    @ViewBuilder
-    private func overviewContent(banner: String?) -> some View {
-        if let edition = viewModel.edition {
-            VStack(spacing: 16) {
-                if let banner {
-                    HStack(spacing: 10) {
-                        Image(systemName: "checkmark.seal.fill").dsFont(18).foregroundStyle(accent)
-                        Text(banner).dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(12).background(accent.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.35)))
-                }
-                VStack(spacing: 4) {
-                    Text(edition.themeLabel).dsFont(12, weight: .bold).tracking(2).foregroundStyle(accent)
-                    Text("The bracket so far").dsFont(20, weight: .bold).foregroundStyle(Color.dsFgPrimary)
-                    Text("\(edition.entrants.count) in · \(edition.rounds.count) rounds · 1 left standing")
-                        .dsFont(12).foregroundStyle(Color.dsFgSecondary)
-                }.padding(.top, 4)
-
-                // Legend: a dot + label per round, colored by status.
-                HStack(spacing: 6) {
-                    ForEach(edition.rounds, id: \.self) { round in
-                        let st = edition.status(of: round)
-                        HStack(spacing: 4) {
-                            Circle().fill(statusColor(st)).frame(width: 6, height: 6)
-                            Text(round.shortLabel).dsFont(10, weight: .bold).foregroundStyle(statusColor(st))
-                        }
-                        .padding(.horizontal, 9).padding(.vertical, 6)
-                        .background(st == .active ? accent.opacity(0.12) : Color.white.opacity(0.04))
-                        .clipShape(Capsule())
-                    }
-                }
-                ForEach(edition.rounds, id: \.self) { round in overviewRound(edition, round) }
-
-                fullLeaderboardLink
-
-                if viewModel.flavor == .nextEdition {
-                    calloutCard(icon: "calendar", title: "What's next",
-                                body: "Once this one crowns a champion, a fresh edition drops — new names, new chaos.")
-                }
-            }
-        }
-    }
-
-    /// A warm flavor callout (upset / closest call / next edition).
-    private func calloutCard(icon: String, title: String, body: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon).dsFont(18).foregroundStyle(accent)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).dsFont(11, weight: .bold).tracking(0.5).textCase(.uppercase).foregroundStyle(accent)
-                Text(body).dsFont(13).foregroundStyle(Color.dsFgSecondary).fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(12).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.25)))
-    }
-
-    @ViewBuilder
-    private var upsetClosestCallout: some View {
-        VStack(spacing: 8) {
-            if let upset = viewModel.biggestUpset {
-                calloutCard(icon: "bolt.fill", title: "Biggest upset",
-                            body: "\(upset.winner.playerName) sent \(upset.loser.playerName) home. The bracket is chaos and we're here for it.")
-            }
-            if let close = viewModel.closestCall {
-                calloutCard(icon: "scalemass.fill", title: "Too close to call",
-                            body: "\(close.matchup.entrantA.playerName) vs \(close.matchup.entrantB.playerName) came down to \(close.winnerPct)–\(100 - close.winnerPct). Brutal.")
-            }
-        }
-    }
-
-    private func overviewRound(_ edition: BracketEdition, _ round: BracketRound) -> some View {
-        let status = edition.status(of: round)
-        let ms = edition.matchups(in: round)
-        let cap = 6
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Circle().fill(statusColor(status)).frame(width: 8, height: 8)
-                sectionLabel(round.title).foregroundStyle(statusColor(status))
-                Text(statusNote(status)).dsFont(10).foregroundStyle(Color.dsFgSecondary)
-            }
-            VStack(spacing: 8) {
-                if ms.isEmpty {
-                    // Upcoming — show the bracket structure ahead as TBD slots.
-                    ForEach(0..<min(cap, round.matchupCount), id: \.self) { _ in tbdSlot }
-                    if round.matchupCount > cap { overflowNote(round.matchupCount - cap) }
-                } else {
-                    let expanded = expandedRounds.contains(round)
-                    ForEach(expanded ? Array(ms) : Array(ms.prefix(cap))) { m in overviewMatchup(m) }
-                    if ms.count > cap {
-                        Button {
-                            if expanded { expandedRounds.remove(round) } else { expandedRounds.insert(round) }
-                        } label: {
-                            Text(expanded ? "Show less" : "+\(ms.count - cap) more")
-                                .dsFont(11, weight: .semibold).foregroundStyle(accent)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                // Full-width row — tappable across its width, not just the leading text.
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            .padding(.leading, 16)
-            .overlay(Rectangle().fill(statusColor(status).opacity(0.3)).frame(width: 2), alignment: .leading)
-        }
-        .padding(.top, 4)
-    }
-
-    private func overflowNote(_ n: Int) -> some View {
-        Text("+\(n) more").dsFont(11).foregroundStyle(Color.dsFgSecondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var tbdSlot: some View {
-        HStack(spacing: 10) {
-            Text("TBD").dsFont(13, weight: .medium).foregroundStyle(Color.dsFgQuaternary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text("VS").dsFont(10, weight: .bold).foregroundStyle(Color.dsFgQuaternary)
-            Text("TBD").dsFont(13, weight: .medium).foregroundStyle(Color.dsFgQuaternary)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-        }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(Color.dsMdCard.opacity(0.4)).clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    /// A matchup row in the overview. Resolved rounds show winner (bold) + loser
-    /// (struck through, dimmed) with each side's vote %; the active round shows the
-    /// live pairing without a result yet.
-    private func overviewMatchup(_ m: BracketMatchup) -> some View {
-        let resolved = m.isResolved
-        let aWon = resolved && m.communityWinnerID == m.entrantA.id
-        let bWon = resolved && m.communityWinnerID == m.entrantB.id
-        let aPct = m.splitAPercent
-        return HStack(spacing: 10) {
-            overviewSide(m.entrantA, won: aWon, lost: resolved && !aWon,
-                         pct: resolved ? aPct : nil, alignTrailing: false)
-            Text("VS").dsFont(10, weight: .bold).foregroundStyle(Color.dsFgQuaternary)
-            overviewSide(m.entrantB, won: bWon, lost: resolved && !bWon,
-                         pct: resolved ? aPct.map { 100 - $0 } : nil, alignTrailing: true)
-        }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    private func overviewSide(_ e: BracketEntrant, won: Bool, lost: Bool, pct: Int?, alignTrailing: Bool) -> some View {
-        HStack(spacing: 6) {
-            if alignTrailing, let pct { pctText(pct, won: won) }
-            Text(e.playerName)
-                .dsFont(13, weight: won ? .bold : .medium)
-                .foregroundStyle(lost ? Color.dsFgTertiary : .dsFgPrimary).strikethrough(lost).lineLimit(1)
-            if !alignTrailing, let pct { pctText(pct, won: won) }
-        }
-        .frame(maxWidth: .infinity, alignment: alignTrailing ? .trailing : .leading)
-    }
-
-    private func pctText(_ p: Int, won: Bool) -> some View {
-        Text("\(p)%").dsFont(11, weight: won ? .bold : .regular)
-            .foregroundStyle(won ? accent : Color.dsFgTertiary)
     }
 
     // MARK: - Empty / error
@@ -908,16 +1133,6 @@ struct BracketBattleView: View {
         Text(text).trackedCaps(color: accent)
     }
 
-    private func statusColor(_ s: BracketEdition.RoundStatus) -> Color {
-        switch s { case .complete: return Color.dsSuccess; case .active: return accent; case .upcoming: return Color.dsFgQuaternary }
-    }
-    private func statusNote(_ s: BracketEdition.RoundStatus) -> String {
-        switch s {
-        case .complete: return "· Complete"
-        case .active: return "· Voting now" + (viewModel.closesInText.map { " · " + $0.replacingOccurrences(of: "Closes in ", with: "") + " left" } ?? "")
-        case .upcoming: return "· Upcoming"
-        }
-    }
 }
 
 // A full-width pill button label in the bracket style.

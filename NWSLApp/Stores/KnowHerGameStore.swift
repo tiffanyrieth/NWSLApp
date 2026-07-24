@@ -25,6 +25,12 @@ final class KnowHerGameStore {
     /// editionKey ("{weekKey}-{team}-{athleteId}") → score (correct count). Present ⇒ completed.
     private(set) var scores: [String: Int]
 
+    /// editionKey → questions ATTEMPTED that edition — the DENOMINATOR for the Superfan accuracy economy
+    /// (accuracy = correct / attempted). Added with the 0–100 redesign; travels 1:1 with `scores` (same
+    /// keys, same lifecycle). Season-scoped by the year embedded in the key, like `scores`. The durable
+    /// reinstall copy is `superfan_scores.khg_total`.
+    private(set) var attempts: [String: Int]
+
     /// Weekly streak (§14): consecutive Mon–Sun windows in which ≥1 player was completed.
     private(set) var weeklyStreak: Int
     private(set) var bestWeeklyStreak: Int
@@ -61,6 +67,7 @@ final class KnowHerGameStore {
 
     private enum Key {
         static let scores = "knowher.v1.scores"
+        static let attempts = "knowher.v1.attempts"
         static let weeklyStreak = "knowher.v1.weeklyStreak"
         static let bestWeeklyStreak = "knowher.v1.bestWeeklyStreak"
         static let lastCompletedWeek = "knowher.v1.lastCompletedWeek"
@@ -72,6 +79,7 @@ final class KnowHerGameStore {
         self.defaults = defaults
         self.service = service
         self.scores = Self.decode([String: Int].self, defaults.data(forKey: Key.scores)) ?? [:]
+        self.attempts = Self.decode([String: Int].self, defaults.data(forKey: Key.attempts)) ?? [:]
         self.weeklyStreak = defaults.integer(forKey: Key.weeklyStreak)
         self.bestWeeklyStreak = defaults.integer(forKey: Key.bestWeeklyStreak)
         self.lastCompletedWeek = defaults.string(forKey: Key.lastCompletedWeek)
@@ -175,8 +183,8 @@ final class KnowHerGameStore {
     var playedCount: Int { players.filter { isPlayed($0) }.count }
     var allPlayed: Bool { hasContent && unplayedPlayers.isEmpty }
 
-    /// Superfan contribution (docs §11): the sum of every banked edition score. Cumulative,
-    /// points-like — comparable to Trivia's lifetime-correct in `GameCenterScores.superfanTotal`.
+    /// The sum of every banked edition score (correct answers). Still used by the carousel breakdown dots;
+    /// the Superfan accuracy economy uses `seasonCorrectAnswers`/`seasonAnswered` instead.
     var totalPoints: Int { scores.values.reduce(0, +) }
 
     /// Banked edition points from a given NWSL season only (the edition's weekKey year == `year`), for the
@@ -194,6 +202,45 @@ final class KnowHerGameStore {
     /// Whether any edition from `year` was banked (for the Superfan "games played this season" count).
     func playedInSeason(year: Int) -> Bool {
         seasonEditionsPlayed(year: year) > 0
+    }
+
+    // MARK: - Achievement backing (Competitive Redesign)
+
+    /// True if any played edition was PERFECT (every question right). Needs the per-edition `attempts`
+    /// (added with the accuracy economy) — a pre-attempts edition can't be verified, so it doesn't count.
+    func hasPerfectRound() -> Bool {
+        scores.contains { key, correct in
+            if let total = attempts[key], total > 0 { return correct == total }
+            return false
+        }
+    }
+
+    /// How many DISTINCT players the user has scored ≥ `threshold` on (the "Know It All" badge). The
+    /// editionKey is "{weekKey}-{team}-{athleteId}" (weekKey itself has a dash), so the athlete id is the
+    /// LAST component.
+    func distinctPlayersScored(atLeast threshold: Int) -> Int {
+        var players = Set<String>()
+        for (key, correct) in scores where correct >= threshold {
+            if let athleteID = key.split(separator: "-").last { players.insert(String(athleteID)) }
+        }
+        return players.count
+    }
+
+    /// RAW local correct answers this season (Σ scores whose weekKey year == `year`, no baseline floor) —
+    /// the accuracy NUMERATOR. Paired with `seasonAnswered(year:)` so the local (correct, attempted) pair
+    /// is always internally consistent; reinstall durability comes from `superfan_scores`, not the baseline.
+    func seasonCorrectAnswers(year: Int) -> Int {
+        scores.reduce(0) { sum, entry in
+            (entry.key.split(separator: "-").first.flatMap { Int($0) }) == year ? sum + entry.value : sum
+        }
+    }
+
+    /// RAW local questions attempted this season (Σ attempts whose weekKey year == `year`) — the accuracy
+    /// DENOMINATOR for the Superfan economy.
+    func seasonAnswered(year: Int) -> Int {
+        attempts.reduce(0) { sum, entry in
+            (entry.key.split(separator: "-").first.flatMap { Int($0) }) == year ? sum + entry.value : sum
+        }
     }
 
     /// How many editions were banked in `year` (the Superfan "N players learned this season" highlight).
@@ -233,10 +280,12 @@ final class KnowHerGameStore {
     // MARK: - Mutation
 
     /// Bank a completed edition and bump the weekly streak (§14). Idempotent per edition —
-    /// re-recording a completed edition does nothing (no replay, no double-count).
-    func recordCompletion(editionKey: String, weekKey: String, correct: Int) {
+    /// re-recording a completed edition does nothing (no replay, no double-count). `outOf` is the number of
+    /// questions in that player quiz — the accuracy denominator (Superfan 0–100 economy).
+    func recordCompletion(editionKey: String, weekKey: String, correct: Int, outOf total: Int) {
         guard scores[editionKey] == nil else { return }
         scores[editionKey] = correct
+        attempts[editionKey] = total
 
         // Edition streak: continue if the last completed edition was the immediately-prior one (biweekly =
         // 1–2 ISO weeks back), else (re)start at 1. The first completion in a NEW edition bumps it; later
@@ -277,6 +326,7 @@ final class KnowHerGameStore {
 
     private func persist() {
         defaults.set(try? JSONEncoder().encode(scores), forKey: Key.scores)
+        defaults.set(try? JSONEncoder().encode(attempts), forKey: Key.attempts)
         defaults.set(weeklyStreak, forKey: Key.weeklyStreak)
         defaults.set(bestWeeklyStreak, forKey: Key.bestWeeklyStreak)
         defaults.set(lastCompletedWeek, forKey: Key.lastCompletedWeek)
@@ -286,6 +336,7 @@ final class KnowHerGameStore {
     /// `quiz_answers` rows are removed by the account-delete cascade; this clears the cache.
     func resetForAccountDeletion() {
         scores = [:]
+        attempts = [:]
         weeklyStreak = 0
         bestWeeklyStreak = 0
         lastCompletedWeek = nil
@@ -307,6 +358,7 @@ final class KnowHerGameStore {
     /// TriviaStore.debugResetState).
     static func debugResetState(defaults: UserDefaults = .standard) {
         defaults.set(Data(), forKey: Key.scores)
+        defaults.set(Data(), forKey: Key.attempts)
         defaults.set(0, forKey: Key.weeklyStreak)
         defaults.set(0, forKey: Key.bestWeeklyStreak)
         defaults.set("", forKey: Key.lastCompletedWeek)

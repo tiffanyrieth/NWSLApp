@@ -282,6 +282,7 @@ struct XIPickerView: View {
                 didSubmit = true
                 store.saveDraft(picker.toPrediction())   // persist the latest as a draft…
                 store.submit(fixtureID: fixture.id)       // …then flip it to submitted (one-way)
+                FanZoneActivity.recordPlay()              // Iron Fan: played a Fan Zone game this week
                 // Game Center (additive): "First Prediction" — idempotent, so firing
                 // on every submit is harmless. No-ops when not signed in.
                 GameCenterManager.shared.report(GameCenterID.Achievement.firstPrediction)

@@ -25,30 +25,38 @@ struct PredictLeaderboardService {
     private var client: SupabaseClient { SupabaseManager.client }
 
     /// One other player's standing for a team (the signed-in user is excluded by
-    /// the caller and spliced in from their live local total instead).
+    /// the caller and spliced in from their live local total instead). `matches`/`avg`
+    /// populate for the SEASON board (ranked by average per match); the round board
+    /// leaves them at 0 (it ranks by the week's raw points — a round is 1–2 matches).
     struct Standing {
         let userID: String
         let name: String
         let points: Int
+        var matches: Int = 0
+        var avg: Double = 0
     }
 
     /// Push the user's season total for ONE team. Best-effort: a failure leaves the
     /// local score intact and the next load retries the push. Signed-in only (the
     /// caller guards on `userID`).
-    func upsertScore(teamAbbreviation: String, points: Int,
+    func upsertScore(teamAbbreviation: String, points: Int, matches: Int,
                      displayName: String?, userID: UUID, season: String) async {
         do {
-            // Guard against a DOWNWARD clobber. A season total is monotonic (Σ of scored fixtures, and
-            // a scored fixture never re-scores lower), but the local store is UserDefaults-only and
-            // resets to ~0 on a reinstall. A plain overwrite upsert would then replace the server's
-            // accumulated total (e.g. 300) with the small post-reinstall local value (e.g. 40) —
-            // silent, permanent standing loss. So read the user's current server total first and push
-            // the GREATER of the two: the server can only ever go UP. Also improves the two-device case
-            // (max-writer-wins instead of last-writer-wins). If the READ fails we skip the push (throws
-            // → caught → retried next load) rather than risk a clobber.
-            let serverPoints = try await currentPoints(teamAbbreviation: teamAbbreviation, userID: userID, season: season)
+            // Guard against a DOWNWARD clobber. Both `points` and `matches` are monotonic (Σ of scored
+            // fixtures; a scored fixture never un-scores), but the local store is UserDefaults-only and
+            // resets to ~0 on a reinstall. A plain overwrite upsert would replace the server's accumulated
+            // values (e.g. 300 pts / 15 matches) with the small post-reinstall local values — silent,
+            // permanent standing loss. So read the user's current server pair first and push the GREATER of
+            // each: the server can only ever go UP. `avg_points` is derived from the merged pair so the
+            // board can ORDER BY it (and the rank COUNT can compare it) with no rows transferred. If the
+            // READ fails we skip the push (throws → caught → retried next load) rather than risk a clobber.
+            let server = try await currentScore(teamAbbreviation: teamAbbreviation, userID: userID, season: season)
+            let mergedPoints = max(points, server.points)
+            let mergedMatches = max(matches, server.matches)
+            let avg = mergedMatches > 0 ? Double(mergedPoints) / Double(mergedMatches) : 0
             let row = ScoreUpsert(user_id: userID, team_abbreviation: teamAbbreviation,
-                                  season: season, display_name: displayName, points: max(points, serverPoints))
+                                  season: season, display_name: displayName,
+                                  points: mergedPoints, matches: mergedMatches, avg_points: avg)
             try await client
                 .from("prediction_scores")
                 .upsert(row, onConflict: "user_id,team_abbreviation,season")
@@ -60,20 +68,20 @@ struct PredictLeaderboardService {
         }
     }
 
-    /// The signed-in user's OWN current server total for a team this season (0 if no row yet). Used to
-    /// clamp `upsertScore` to a non-decreasing value. Throws on a read failure so the caller skips the
-    /// push and retries next load — never worse than the old unconditional overwrite.
-    private func currentPoints(teamAbbreviation: String, userID: UUID, season: String) async throws -> Int {
+    /// The signed-in user's OWN current server (points, matches) for a team this season (0/0 if no row yet).
+    /// Used to clamp `upsertScore` to a non-decreasing pair. Throws on a read failure so the caller skips
+    /// the push and retries next load — never worse than the old unconditional overwrite.
+    private func currentScore(teamAbbreviation: String, userID: UUID, season: String) async throws -> (points: Int, matches: Int) {
         let rows: [ScoreRow] = try await client
             .from("prediction_scores")
-            .select("user_id, display_name, points")
+            .select("user_id, display_name, points, matches")
             .eq("user_id", value: userID)
             .eq("team_abbreviation", value: teamAbbreviation)
             .eq("season", value: season)
             .limit(1)
             .execute()
             .value
-        return rows.first?.points ?? 0
+        return (rows.first?.points ?? 0, rows.first?.matches ?? 0)
     }
 
     /// The TOP of a team's board this season — capped at `visibleLimit` so a giant
@@ -84,14 +92,15 @@ struct PredictLeaderboardService {
         do {
             let rows: [ScoreRow] = try await client
                 .from("prediction_scores")
-                .select("user_id, display_name, points")
+                .select("user_id, display_name, points, matches, avg_points")
                 .eq("team_abbreviation", value: teamAbbreviation)
                 .eq("season", value: season)
-                .order("points", ascending: false)
+                .order("avg_points", ascending: false)   // Batch 3: rank by AVERAGE, not cumulative
                 .limit(LeaderboardRanking.visibleLimit)
                 .execute()
                 .value
-            return rows.map { Standing(userID: $0.user_id, name: $0.display_name ?? "Fan", points: $0.points) }
+            return rows.map { Standing(userID: $0.user_id, name: $0.display_name ?? "Fan",
+                                       points: $0.points, matches: $0.matches ?? 0, avg: $0.avg_points ?? 0) }
         } catch {
             // Caller still shows the user's own live total (honest degrade); flag the read
             // failure so a down board isn't silently invisible to the owner.
@@ -100,23 +109,40 @@ struct PredictLeaderboardService {
         }
     }
 
-    /// The signed-in user's TRUE 1-based rank on a team's board, computed with a COUNT
-    /// (rows scoring strictly higher, +1) — no rows transferred. `nil` on failure, so
-    /// the caller falls back to an inline splice rather than a wrong number. Ties break
-    /// in the user's favour (strictly-greater only), matching the on-device sort.
-    func rank(teamAbbreviation: String, season: String, points: Int) async -> Int? {
+    /// The signed-in user's TRUE 1-based SEASON rank on a team's board, by AVERAGE per match, computed with
+    /// a COUNT (rows averaging strictly higher, +1) — no rows transferred. `nil` on failure, so the caller
+    /// falls back to an inline splice rather than a wrong number. Ties break in the user's favour
+    /// (strictly-greater only), matching the on-device sort.
+    func rank(teamAbbreviation: String, season: String, avgPoints: Double) async -> Int? {
         do {
             let response = try await client
                 .from("prediction_scores")
                 .select("user_id", head: true, count: .exact)
                 .eq("team_abbreviation", value: teamAbbreviation)
                 .eq("season", value: season)
-                .gt("points", value: points)
+                .gt("avg_points", value: avgPoints)
                 .execute()
             return (response.count ?? 0) + 1
         } catch {
             await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict rank \(teamAbbreviation): \(error.localizedDescription)") }
             return nil
+        }
+    }
+
+    /// Total predictors on a team's SEASON board — a `head: true, count: .exact` on all rows for the team
+    /// (no rows transferred), for the season card's "#N of M predictors · top X%". 0 on failure.
+    func totalPredictors(teamAbbreviation: String, season: String) async -> Int {
+        do {
+            let response = try await client
+                .from("prediction_scores")
+                .select("user_id", head: true, count: .exact)
+                .eq("team_abbreviation", value: teamAbbreviation)
+                .eq("season", value: season)
+                .execute()
+            return response.count ?? 0
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict total \(teamAbbreviation): \(error.localizedDescription)") }
+            return 0
         }
     }
 
@@ -178,6 +204,24 @@ struct PredictLeaderboardService {
         }
     }
 
+    /// Total predictors on a team's ROUND board for one soccer week — the "#N of M this round" denominator
+    /// on the match-result detail. `head: true, count: .exact`, 0 on failure.
+    func roundTotal(teamAbbreviation: String, season: String, week: Int) async -> Int {
+        do {
+            let response = try await client
+                .from("predict_round_scores")
+                .select("user_id", head: true, count: .exact)
+                .eq("team_abbreviation", value: teamAbbreviation)
+                .eq("season", value: season)
+                .eq("week", value: week)
+                .execute()
+            return response.count ?? 0
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict round total \(teamAbbreviation) w\(week): \(error.localizedDescription)") }
+            return 0
+        }
+    }
+
     /// True 1-based rank on a round board — the COUNT pattern of `rank`, week-scoped.
     func roundRank(teamAbbreviation: String, season: String, week: Int, points: Int) async -> Int? {
         do {
@@ -198,10 +242,14 @@ struct PredictLeaderboardService {
 }
 
 // snake_case to match the Postgres column names exactly (PostgREST maps 1:1).
+// `matches`/`avg_points` are optional-decoded so a round-board row (which selects
+// only points) and pre-migration rows still decode.
 private struct ScoreRow: Decodable {
     let user_id: String
     let display_name: String?
     let points: Int
+    let matches: Int?
+    let avg_points: Double?
 }
 
 private struct ScoreUpsert: Encodable {
@@ -210,6 +258,8 @@ private struct ScoreUpsert: Encodable {
     let season: String
     let display_name: String?
     let points: Int
+    let matches: Int
+    let avg_points: Double
 }
 
 private struct RoundScoreUpsert: Encodable {

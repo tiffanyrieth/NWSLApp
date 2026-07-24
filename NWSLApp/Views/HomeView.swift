@@ -432,12 +432,7 @@ struct HomeView: View {
                 // games PLAYED, not games currently visible.
                 if superfanBannerVisible {
                     NavigationLink { SuperfanDetailView() } label: {
-                        SuperfanCard(
-                            predictPoints: predict.seasonPoints,
-                            bracketPoints: bracket.points,
-                            triviaCorrect: trivia.seasonCorrect,
-                            knowHerPoints: knowHer.seasonPoints(year: AppConfig.currentSeasonYear)
-                        )
+                        SuperfanCard(score: superfanScore)
                     }
                     .buttonStyle(.plain)
                     .frame(width: 152)
@@ -448,18 +443,21 @@ struct HomeView: View {
         .scrollTargetBehavior(.viewAligned)
     }
 
+    /// The 0–100 Superfan accuracy score (Fan Zone Competitive Redesign), computed locally from the four
+    /// stores — matches what the detail screen shows. Card + gate read this so the number is consistent.
+    private var superfanScore: Int {
+        SuperfanScoring.total(counts: SuperfanCounts.fromStores(
+            season: AppConfig.currentSeasonYear, predict: predict, bracket: bracket,
+            trivia: trivia, knowHer: knowHer))
+    }
+
     /// Show the Superfan banner only once the user has genuine scores in ≥2 games AND a
     /// non-zero total — never a meaningless "0" for a new user (handoff visibility rule).
     private var superfanBannerVisible: Bool {
         let season = AppConfig.currentSeasonYear
         let played = [predict.hasPredicted, bracket.hasPlayed, trivia.totalAnswered > 0,
                       knowHer.playedInSeason(year: season)].filter { $0 }.count
-        let total = GameCenterScores.superfanTotal(
-            triviaTotalCorrect: trivia.seasonCorrect,
-            predictSeasonPoints: predict.seasonPoints,
-            bracketPoints: bracket.points,
-            knowHerPoints: knowHer.seasonPoints(year: season))
-        return played >= 2 && total > 0
+        return played >= 2 && superfanScore > 0
     }
 
     @ViewBuilder
@@ -622,9 +620,15 @@ struct HomeView: View {
     private var bracketCardModel: FanZoneCardModel {
         let summary = bracket.summary
         let round = summary.flatMap { BracketRound(rawValue: $0.currentRoundRaw) }
-        let theme = summary?.title ?? "Bracket Battle"
-        let context = round.map { "\(theme) · \($0.title)" } ?? theme
-        var model = FanZoneCardModel(game: .bracket, title: "Bracket Battle", contextLine: context)
+        // Compact theme for the carousel card (Fix 8): prefer the SHORT tracked-caps label ("TOP FORWARD",
+        // "STARE-DOWN") so a creative edition's long question-title doesn't truncate off the round name; fall
+        // back to the title with its redundant "· 2026" year tail trimmed for older cached summaries.
+        let theme = summary?.themeLabel?.capitalized
+            ?? (summary?.title ?? "The Bracket").components(separatedBy: " · ").first
+            ?? "The Bracket"
+        // Positional round name (no "Round of X") — the cached summary carries the pool size for numbering.
+        let context = round.map { "\(theme) · \($0.displayName(poolSize: summary?.poolSize))" } ?? theme
+        var model = FanZoneCardModel(game: .bracket, title: "The Bracket", contextLine: context)
 
         let points = bracket.points
         if points > 0 { model.badge = "\(points)" }

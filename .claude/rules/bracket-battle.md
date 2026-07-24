@@ -42,7 +42,7 @@ lifetime stats; ranked via Game Center + Supabase `bracket_scores`.
 
 ## iOS
 
-`BracketEdition.swift` (`BracketRound` main 64→2 + qualifying q1–q4 negative codes; flat Codable) ·
+`BracketEdition.swift` (`BracketRound` main 64→2 + qualifying q1–q4 negative codes; flat Codable — internal raw values are the cross-repo CONTRACT, never renamed. **User-facing round names are POSITIONAL** (Competitive Redesign, owner ruling): `displayName(in: edition.rounds)` = "Round N" for early rounds by play-order position + traditional QF/SF/Final; NO "Round of X"/"Qualifying" anywhere. `title`/`shortLabel` are raw structural/debug labels ONLY. The proxy emits no user-facing round names — the app owns display naming) ·
 `BracketScoring.swift` (pure, rule-derived max; unit-tested) · `BracketService.swift`
 (`currentEdition`/`results`/`leaderboard`/`submit` + `standings`/`myEditionStats`; throw or
 honest-empty) · `BracketStore.swift` (durable picks/submit/scores, `bracket.v2.*`) ·

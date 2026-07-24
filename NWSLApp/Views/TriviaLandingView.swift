@@ -37,11 +37,12 @@ struct TriviaLandingView: View {
 
     private let accent = Color.dsGameTrivia
 
-    /// Plain-English round rules ("How it works") — the cadence contract, in fan language.
+    /// Plain-English round rules ("How it works") — cadence + scoring, in fan language (Batch-2 Fix 4D).
     private let rules = [
-        "A fresh 10-question round every two weeks",
-        "One attempt per round — points add to your Superfan total",
-        "Play every round to build your streak",
+        "10 league-wide questions each round — a fresh round every two weeks, all year",
+        "+1 point per correct answer, 10 max — one attempt per round, no retakes",
+        "Play consecutive rounds to build a streak (a small Superfan bonus)",
+        "Your accuracy across every round — plus the streak bonus — feeds up to 25 of your 100 Superfan points",
     ]
 
     var body: some View {
@@ -86,7 +87,7 @@ struct TriviaLandingView: View {
                         .frame(width: 52, height: 52)
                         .background(accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("League knowledge, 10 questions")
+                        Text("10 questions")
                             .dsFont(17, weight: .semibold).foregroundStyle(.primary)
                         Text(store.hasPlayedCurrentRound ? "Played · \(closesLine)" : "New round · \(closesLine)")
                             .dsFont(15)
@@ -109,7 +110,7 @@ struct TriviaLandingView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .buttonStyle(.plain)   // a completed card stays tappable → the live community recap
-            if store.streak > 0 {
+            if store.streak > 1 {
                 HStack(spacing: 8) {
                     Image(systemName: "flame.fill").dsFont(13).foregroundStyle(.orange)
                     Text("\(store.streak)-round streak — play every round to keep it")

@@ -243,7 +243,46 @@ For each subsystem, walk it explicitly:
   time (~2–8 min/match), ONE POST per channel = **follower-independent** → flat at 1k and 100k. The one
   unknown = Apple's undocumented broadcast throttle at minute cadence (§6 open item) — **device-verify
   pending build 26** on a real stoppage window before calling it done.
-- **Supabase sizing:** ⏳ not yet run through §5 (numbers to verify).
+- **Supabase DB SIZING (2026-07-24): ✅ run through §5 — free tier (500 MB) HOLDS at the 15k/7k target
+  with room; the first wall is multi-year record-book accumulation, ~year 3-4, lever = Pro $25/mo.**
+  Modelled 15k total users / 7k semi-regular players across Predict+KHG+Trivia+Bracket, mid-season year 1,
+  during a MATURE bracket edition (worst case), at ~150-180 B/row incl. indexes:
+  | Table | Retention | Rows @ 15k/7k | ~Size |
+  |---|---|---|---|
+  | `bracket_votes` | pruned at **next edition START** (2026-07-24 rule) | ~4k voters × ~60 matchups = 240k | ~36 MB (up to ~130 MB if all 7k vote every matchup) |
+  | `quiz_answers` (KHG+Trivia) | pruned **>35d** → plateaus | ~7k × ~20 × ~2.5 rounds = 350k | ~53 MB |
+  | `predict_round_scores` | pruned **>28d** → plateaus | ~7k × 2 teams × ~4 weeks = 56k | ~10 MB |
+  | `prediction_scores` (season avg) | **kept**/season | ~7k × 2 = 14k | ~2.5 MB |
+  | `bracket_scores` + `_stats` | **kept forever** (+~6 MB/yr) | ~4k × ~6 editions = 24k×2 | ~7 MB |
+  | `superfan_scores` / `fanzone_progress` / `season_history` / `trivia_scores` | **kept**/season | 7k each | ~4.7 MB |
+  | `user_achievements` | **kept**/season | ~7k × ~5 | ~5 MB |
+  | `profiles` + `device_tokens` + prefs | kept | 15k + tokens | ~11 MB |
+  | `auth.users` | kept | 15k | ~30 MB |
+  | **Total, year-1 peak** | | | **~170 MB typical · ~280 MB worst-case bracket** |
+  **Verdict:** solidly under 500 MB with ~220-330 MB headroom in year 1; MAU (free 50k) fine at 15k; egress
+  (free 5 GB/mo) is the other axis but most heavy reads (feeds/images) go through the PROXY not Supabase, so
+  Fan Zone egress is ~1-3 GB/mo — under cap. **Pruning never touches season-average data** — averages live in
+  the KEPT aggregate rows (`prediction_scores`/`superfan_scores`); only raw per-question answers (>35d) + old
+  round boards (>28d) are pruned, which the app can't render past current+previous round anyway. **Watch-items
+  (none is a year-1 blocker):** (1) `bracket_votes` peak scales with voters×matchups — transient (pruned each
+  edition start), the largest single table; (2) the kept record book grows ~15-25 MB/season FOREVER, so at a
+  steady 15k the cumulative record book (~60-100 MB by year 3-4) + transient peaks approach the 500 MB line
+  around **year 3-4**, or sooner past ~20k users; (3) prune windows are already as tight as the current+prev
+  display allows — can't prune more without breaking the "last round" views. **100k / headroom lever:**
+  Supabase Pro (8 GB DB / 250 GB egress, **$25/mo**) — the documented ~30-50k line; at 15k, donation revenue
+  (~$3k/yr) covers it many times over, so it's a clean bridge, not a day-one cost.
+- **Record-book archival (year 3-4 headroom option, noted 2026-07-24):** the ONLY thing that grows unbounded
+  is the kept record book (`prediction_scores`/`bracket_scores`/`bracket_user_edition_stats`/`superfan_scores`/
+  `season_history`/`user_achievements`), ~15-25 MB/season forever by design (the permanent record). Before it
+  matters (~year 3-4 at 15k, or on Pro), archive seasons older than N (e.g. keep 2 live + the `season_history`
+  peak row, move older per-season rows to a cold table or an exported snapshot). This is a HEADROOM lever, not
+  a 1k/launch need — do NOT build it prematurely; `season_history` already preserves each past season's peak
+  tier/score, so archiving the bulky per-team/per-edition rows loses nothing a user can see.
+- **Bracket-votes prune timing (2026-07-24): ✅ moved close → next-edition-START, load-neutral.** Owner rule:
+  a finished edition stays fully browsable (full bracket, your picks, per-matchup results) through the
+  between-editions review window; votes prune when the NEXT edition begins (`writeEdition` →
+  `pruneCompletedEditionVotes`, best-effort, idempotent). Record book (scores/stats/final ranks) untouched.
+  Same number of DELETEs, just later in the lifecycle — no new load path, no 1k/100k impact.
 - **Know Her Game weekly automation (2026-07-13):** ✅ **passes 1k + 100k by construction — content is
   LEAGUE-WIDE, not per-user,** so load is user-count-independent. New load paths, all once-weekly: the
   routine's 16× `/knowher/todo` calls (each its OWN invocation ≈30 ESPN subrequests — under the 50/
@@ -311,4 +350,43 @@ For each subsystem, walk it explicitly:
   as `metricKitDiagnostic` crumbs in the same telemetry sink (device-only delivery; TestFlight ✓).
   Both (a)+(b) no-op until the owner sets the secrets (RESEND_API_KEY + ALERT_EMAIL;
   HEALTHCHECK_URL).
+- **Fan Zone comp-arena redesign + Batch 1-3 (2026-07-24): ✅ passes 1k + 100k by construction.** Full
+  §5 sweep of every Fan Zone load path touched this session:
+  • **Predict AVERAGE leaderboard (Batch 3, the one genuinely new DB load path).** Unit of load = predictors
+    per team; the board is `standings` capped at `visibleLimit` (top-100), now `order(avg_points desc)` +
+    a new **btree index** `prediction_scores(team_abbreviation, season, avg_points desc)`; `rank`/`totalPredictors`/
+    the new `roundTotal` are all `head:true, count:.exact` HEAD counts (ZERO rows transferred). Same O(100)
+    shape as the points board that already passed — the switch to average moved the ORDER BY / COUNT onto an
+    indexed column, no new scan. `upsertScore` still = 1 own-row read + 1 write per scored team per screen
+    load (the `matches`/`avg_points` columns ride the SAME upsert; ~12 B/row added ⇒ negligible DB growth).
+    Reinstall-safe: `max(points)`/`max(matches)`, avg derived from the merged pair — never clobbers down.
+    **1k concentrated:** 300 one-club fans opening Predict post-match ≈ ~5 Supabase calls each (all capped/
+    HEAD) ≈ ~1.5k API calls — noise on Supabase's UNLIMITED-API tier. **Round board stays raw points** (a
+    round is 1-2 matches) — unchanged, already passed.
+  • **Match-result "See details" detail (Batch 3) — TAP-DRIVEN, not polled.** Per open: 1 proxy `/summary`
+    (a finished match is immutable ⇒ **edge-cached**, so repeat opens are cache HITs) + roster (session-cached)
+    + `roundTotal` + `roundRank` (2 HEAD counts). The ACTUAL XI is re-fetched, never persisted (online-only,
+    zero storage growth). Adds a row to the per-feature proxy ledger: **Predict match detail ≈ 1 proxy call
+    per unique detail open, edge-cached, user-tap-driven** (same class as roster/weather taps). 1k: bounded by
+    user taps, cache-collapsed per match. Fails honestly → `RetryStateView`.
+  • **Bracket Batch 1-3 (stepping-stone review, margin verdicts, voting re-entry, points-table copy) — ZERO
+    new server load:** every one reads the ALREADY-LOADED edition in memory or is pure UI. The voting-screen
+    re-entry for a submitted round renders local picks; no fetch.
+  • **Superfan detail — LOAD REDUCED.** Batch 2 removed the percentile `standing` call, so a detail open now
+    does 1 counts upsert (read-back + GREATEST merge) + 1 season-history upsert + 1 bounded history read +
+    1 earned-achievements read (≤9 rows) — two HEAD counts FEWER than before. On-demand, bounded.
+  • **Achievements (PR4) — on-demand, bounded.** Detection reads local stores + the loaded edition (no
+    server load); awards are idempotent INSERT-only upserts on a UNIQUE(user,key,season); `earned` = 1 read
+    of ≤9 rows. Per Superfan-open, not polled.
+  • **KHG / Trivia Batch 1-3 (streak display, rules copy) — ZERO new load** (UI/copy only; quiz_answers +
+    community aggregates unchanged, already pruned via pg_cron per the v3 entry above).
+  **Efficiency:** avg_points is STORED (indexed ORDER BY/COUNT, no per-query scan); the detail re-fetches an
+  edge-cached immutable summary instead of persisting history — no waste. **Cost:** no fixed monthly cost at
+  small scale; DB delta is ~bytes/row + one small index; the detail rides the existing proxy Free budget.
+  **100k levers (all pre-existing, unchanged):** Supabase Pro at the ~30-50k size/MAU line; Workers Paid
+  ($5/mo) at the ~10-15k proxy-request line for the /summary taps. **Failure modes:** board query fails
+  (incl. pre-migration missing column) → empty rivals + Diagnostics (own local score still shown); rank/total
+  COUNT fails → nil → inline splice; detail fails → retry; reinstall → max-clamp. NO SILENT FAILURES.
+  ⚠️ **Owner action for the board to populate:** apply `migration_predict_avg_leaderboard.sql` (roadmap) —
+  until then the season board's rivals degrade to empty (honest), the rest works.
 - (append as items resolve)

@@ -113,7 +113,7 @@ struct BracketLeaderboardView: View {
             editionSwitcher
         }
         if editionID == nil && previousEdition == nil {
-            emptyCard("No active edition", "Rankings appear once a Bracket Battle is live.")
+            emptyCard("No active edition", "Rankings appear once The Bracket is live.")
         } else if !loaded {
             loadingCard
         } else if standings.isEmpty && you == nil {
@@ -202,8 +202,8 @@ struct BracketLeaderboardView: View {
             Text(s.name).dsFont(14, weight: s.isYou ? .bold : .medium)
                 .foregroundStyle(s.isYou ? accent : .dsFgPrimary).lineLimit(1).minimumScaleFactor(0.8)
             Spacer(minLength: 8)
-            Text(s.accuracy.map(pct) ?? "—").dsFont(12, monospacedDigit: true)
-                .foregroundStyle(Color.dsFgSecondary).frame(width: 48, alignment: .trailing)
+            // Points are the ranking metric; accuracy is demoted off the board (Competitive Redesign
+            // item 13 — it lives in the your-position banner + the Your Stats tab, not the primary table).
             Text("\(s.points)").dsFont(13, weight: .semibold, monospacedDigit: true)
                 .foregroundStyle(s.isYou ? accent : .dsFgPrimary).frame(width: 44, alignment: .trailing)
         }
@@ -250,7 +250,7 @@ struct BracketLeaderboardView: View {
                 statTile("Longest streak", "\(longestStreak)")
             }
 
-            if let best, let label = roundLabel(best.0.bestRoundRaw) {
+            if let best, let label = roundLabel(best.0.bestRoundRaw, poolSize: best.0.fieldSize) {
                 bestRoundCallout(label: label, accuracy: best.1)
             }
 
@@ -398,11 +398,10 @@ struct BracketLeaderboardView: View {
 
     private func pct(_ v: Double) -> String { "\(Int((v * 100).rounded()))%" }
 
-    /// Round label for the best-round display — gracefully "—" for a round code this
-    /// build doesn't know (e.g. a qualifying code before the BracketRound qualifying
-    /// cases merge), so the screen never shows a blank.
-    private func roundLabel(_ raw: Int?) -> String? {
+    /// Round label for the best-round display — the user-facing positional name (needs the edition's pool
+    /// to number it; no "Round of X"). Gracefully "—" for a round code this build doesn't know.
+    private func roundLabel(_ raw: Int?, poolSize: Int?) -> String? {
         guard let raw else { return nil }
-        return BracketRound(rawValue: raw)?.shortLabel ?? "—"
+        return BracketRound(rawValue: raw)?.displayName(poolSize: poolSize) ?? "—"
     }
 }

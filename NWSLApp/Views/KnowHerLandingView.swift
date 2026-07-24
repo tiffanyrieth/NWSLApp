@@ -56,6 +56,14 @@ struct KnowHerLandingView: View {
         "Each player is only featured once per season — no repeats",
     ]
 
+    /// Scoring + cadence rules ("How it works") — Batch-2 Fix 4C, mirroring the Trivia landing.
+    private let howItWorksRules = [
+        "10 questions about one featured player — a new player for each of your teams every two weeks",
+        "+1 point per correct answer, 10 max",
+        "Play every round to build your streak",
+        "Your accuracy across every player quiz feeds up to 25 of your 100 Superfan points",
+    ]
+
     var body: some View {
         Group {
             switch store.loadState {
@@ -107,10 +115,13 @@ struct KnowHerLandingView: View {
                     thisRoundSection(available: available, exhausted: exhausted)  // Cases 1 & 2
                 }
 
+                streakLine                                     // Fix 7 — matches Trivia's streak indicator
+
                 if store.hasPreviousWeek {
                     lastRoundSection()
                 }
 
+                howItWorks()                                   // Fix 4C — scoring, before "how players are chosen"
                 howPlayersAreChosen()
 
                 Text("A new round every two weeks.")
@@ -296,13 +307,41 @@ struct KnowHerLandingView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: - Streak (Fix 7 — parity with the Trivia landing)
+
+    /// A streak indicator matching Trivia's ("X-round streak — play every round to keep it"), shown only
+    /// once the user has a live streak. `weeklyStreak` is KHG's consecutive-rounds-played counter.
+    @ViewBuilder
+    private var streakLine: some View {
+        if store.weeklyStreak > 1 {
+            HStack(spacing: 8) {
+                Image(systemName: "flame.fill").dsFont(13).foregroundStyle(.orange)
+                Text("\(store.weeklyStreak)-round streak — play every round to keep it")
+                    .dsFont(12).foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 4)
+        }
+    }
+
+    // MARK: - How it works (scoring — Fix 4C)
+
+    private func howItWorks() -> some View {
+        rulesCard(header: "HOW IT WORKS", rules: howItWorksRules)
+    }
+
     // MARK: - How players are chosen
 
     private func howPlayersAreChosen() -> some View {
+        rulesCard(header: "HOW PLAYERS ARE CHOSEN", rules: selectionRules)
+    }
+
+    /// Shared numbered-rules card (both "How it works" scoring + "How players are chosen" use it).
+    private func rulesCard(header: String, rules: [String]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("HOW PLAYERS ARE CHOSEN")
+            Text(header)
                 .dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(accent)
-            ForEach(Array(selectionRules.enumerated()), id: \.offset) { index, rule in
+            ForEach(Array(rules.enumerated()), id: \.offset) { index, rule in
                 HStack(alignment: .top, spacing: 10) {
                     Text("\(index + 1)")
                         .dsFont(11, weight: .bold).foregroundStyle(accent)

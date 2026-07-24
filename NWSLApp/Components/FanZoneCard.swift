@@ -164,65 +164,51 @@ struct FanZoneCarouselCard: View {
 // MARK: - Trailing Superfan card
 
 /// The cross-game "Superfan" summary — the LAST card in the Fan Zone row (design decision:
-/// zero added vertical height, sits right where the points are earned). Display-only: the
-/// number is computed locally via `GameCenterScores.superfanTotal`; the actual Game Center
-/// submission already happens in `GameCenterManager.syncAll`. Not tappable.
+/// zero added vertical height, sits right where the points are earned). Display-only: `score` is the
+/// 0–100 accuracy total (Fan Zone Competitive Redesign); the tier + progress bar derive from it. A 1.5px
+/// tier-color border + tier-tinted wash set it apart from the game cards. Tap → SuperfanDetailView.
 struct SuperfanCard: View {
-    let predictPoints: Int
-    let bracketPoints: Int
-    let triviaCorrect: Int
-    var knowHerPoints: Int = 0
+    /// The 0–100 Superfan score (accuracy × 25 across the four games).
+    let score: Int
 
-    private var total: Int {
-        GameCenterScores.superfanTotal(
-            triviaTotalCorrect: triviaCorrect,
-            predictSeasonPoints: predictPoints,
-            bracketPoints: bracketPoints,
-            knowHerPoints: knowHerPoints
-        )
-    }
+    private var tier: SuperfanTier { SuperfanTier.forScore(score) }
+    private var progress: TierProgress { TierProgress(score: score) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            GameIcon(systemName: "rosette", accent: .dsAccent)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Superfan").trackedCaps(size: 10, color: .dsFgSecondary)
-                Text("\(total)")
-                    .dsFont(24, weight: .heavy, monospacedDigit: true)
+            TierBadge(tier: tier, size: 24)
+            Text("Superfan").trackedCaps(size: 10, color: .dsFgSecondary)
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Text("\(score)")
+                    .dsFont(22, weight: .heavy, monospacedDigit: true)
                     .foregroundStyle(Color.dsFgPrimary)
+                Text(tier.label).dsFont(11, weight: .semibold).foregroundStyle(tier.color)
             }
             Spacer(minLength: 6)
-            HStack(spacing: 8) {
-                breakdownDot(.dsGamePredict, predictPoints)
-                breakdownDot(.dsGameBracket, bracketPoints)
-                breakdownDot(.dsGameTrivia, triviaCorrect)
-                if knowHerPoints > 0 { breakdownDot(.dsGameSpotlight, knowHerPoints) }
+            // Mini progress bar toward the next tier (full at MVP).
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.dsBgTertiary)
+                    Capsule().fill(tier.color).frame(width: max(0, geo.size.width * progress.fraction))
+                }
             }
+            .frame(height: 4)
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 128, alignment: .leading)
         .background(
             LinearGradient(
-                colors: [Color.dsBgCard, Color.dsBgTertiary],
+                colors: [tier.color.opacity(0.12), Color.dsBgCard],
                 startPoint: .topLeading, endPoint: .bottomTrailing
             )
         )
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.dsFgQuaternary, lineWidth: 1)
+                .strokeBorder(tier.color.opacity(0.40), lineWidth: 1.5)
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Superfan score \(total)")
-    }
-
-    private func breakdownDot(_ color: Color, _ value: Int) -> some View {
-        HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 5, height: 5)
-            Text("\(value)")
-                .dsFont(11, weight: .semibold, monospacedDigit: true)
-                .foregroundStyle(Color.dsFgSecondary)
-        }
+        .accessibilityLabel("Superfan score \(score), \(tier.label) tier")
     }
 }
 
@@ -275,7 +261,7 @@ func compactCountdown(to target: Date, from now: Date = Date()) -> String? {
                 countdown: "2d 14h"
             ))
             FanZoneCarouselCard(model: FanZoneCardModel(
-                game: .bracket, title: "Bracket Battle",
+                game: .bracket, title: "The Bracket",
                 contextLine: "Stare-Down · Round of 64"
             ))
             FanZoneCarouselCard(model: FanZoneCardModel(
@@ -287,7 +273,7 @@ func compactCountdown(to target: Date, from now: Date = Date()) -> String? {
                 game: .knowHer, title: "Know Her Game",
                 contextLine: "Trinity Rodman · WAS"
             ))
-            SuperfanCard(predictPoints: 68, bracketPoints: 22, triviaCorrect: 143, knowHerPoints: 8)
+            SuperfanCard(score: 62)
         }
         .frame(height: 128)
         .padding(16)

@@ -31,9 +31,9 @@ final class BracketViewModel {
     private(set) var state: State = .idle
     private(set) var submitState: SubmitState = .idle
     private(set) var edition: BracketEdition?
-    private(set) var leaderboard: [BracketLeaderboardRow] = []
     /// The returning-player landing's rank card + neighborhood board data (rows + your true standing +
-    /// the real total for the percentile). Loaded alongside the leaderboard. Empty until loaded / signed out.
+    /// the real total for the percentile). Empty until loaded / signed out. (The standalone Leaderboard
+    /// screen loads its own richer standings; this drives the in-game landing.)
     private(set) var standings: BracketStandingsResult = .empty
 
     private let service: BracketService
@@ -75,9 +75,6 @@ final class BracketViewModel {
             poolSize: edition.entrants.count
         ))
         await scoreSettledRounds(edition: edition, store: store)
-        leaderboard = await service.leaderboard(myPoints: store.points,
-                                                myName: displayName ?? "You", editionID: edition.id,
-                                                myUserID: userID)
         // The returning landing's rank card + neighborhood board (rows + your standing + true total).
         standings = await service.standings(editionID: edition.id, myUserID: userID,
                                             myName: displayName ?? "You", myPoints: store.points)
@@ -207,29 +204,6 @@ final class BracketViewModel {
     var flavor: FandomFlavor {
         guard let id = edition?.id else { return .upsetClosest }
         return Self.stableHash(id) % 2 == 0 ? .upsetClosest : .nextEdition
-    }
-
-    /// Biggest upset of the most-recent completed round: the community winner who was
-    /// the lower seed, by the largest seed gap. Nil if no upset (or no seeds/results).
-    var biggestUpset: (winner: BracketEntrant, loser: BracketEntrant)? {
-        guard let ms = completedResults()?.matchups else { return nil }
-        var best: (winner: BracketEntrant, loser: BracketEntrant, gap: Int)?
-        for m in ms {
-            guard let winnerID = m.communityWinnerID, let winner = m.entrant(winnerID) else { continue }
-            let loser = winner.id == m.entrantA.id ? m.entrantB : m.entrantA
-            guard let ws = winner.seed, let ls = loser.seed, ws > ls else { continue }
-            let gap = ws - ls
-            if best == nil || gap > best!.gap { best = (winner, loser, gap) }
-        }
-        return best.map { ($0.winner, $0.loser) }
-    }
-
-    /// Closest call of the most-recent completed round (winner % nearest 50).
-    var closestCall: (matchup: BracketMatchup, winnerPct: Int)? {
-        guard let ms = completedResults()?.matchups else { return nil }
-        return ms.compactMap { m in m.winnerPercent.map { (m, $0) } }
-            .min { abs($0.1 - 50) < abs($1.1 - 50) }
-            .map { (matchup: $0.0, winnerPct: $0.1) }
     }
 
     /// A stable (launch-independent) hash for deterministic flavor selection.

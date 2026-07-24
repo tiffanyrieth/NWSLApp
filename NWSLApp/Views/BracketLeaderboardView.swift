@@ -202,8 +202,8 @@ struct BracketLeaderboardView: View {
             Text(s.name).dsFont(14, weight: s.isYou ? .bold : .medium)
                 .foregroundStyle(s.isYou ? accent : .dsFgPrimary).lineLimit(1).minimumScaleFactor(0.8)
             Spacer(minLength: 8)
-            Text(s.accuracy.map(pct) ?? "—").dsFont(12, monospacedDigit: true)
-                .foregroundStyle(Color.dsFgSecondary).frame(width: 48, alignment: .trailing)
+            // Points are the ranking metric; accuracy is demoted off the board (Competitive Redesign
+            // item 13 — it lives in the your-position banner + the Your Stats tab, not the primary table).
             Text("\(s.points)").dsFont(13, weight: .semibold, monospacedDigit: true)
                 .foregroundStyle(s.isYou ? accent : .dsFgPrimary).frame(width: 44, alignment: .trailing)
         }

@@ -619,6 +619,8 @@ struct BracketBattleView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(accent.opacity(0.4)))
 
+                    resultsShareLink(round: round, correct: correct, total: matchups.count, pts: pts, edition: edition)
+
                     sectionLabel("Matchup Results").frame(maxWidth: .infinity, alignment: .leading)
                     ForEach(matchups) { m in resultCard(m, yourPick: store.pick(matchupID: m.id, in: round)) }
 
@@ -664,6 +666,62 @@ struct BracketBattleView: View {
             Text(nextOpen ? "\(nextName) is now open — make your picks →" : "Back to the bracket")
                 .primaryButtonLabel(accent)
         }
+    }
+
+    // MARK: - Share the round result (fresh, PR2 — score + rank movement + edition)
+
+    /// A "Share your result" button that renders a card (score, rank movement, edition) to an image and
+    /// hands it to the system share sheet. Built for THIS results screen (not the old invisible share flow).
+    private func resultsShareLink(round: BracketRound, correct: Int, total: Int, pts: Int, edition: BracketEdition) -> some View {
+        let rank = viewModel.standings.you?.rank
+        // Live movement from the pre-round baseline (the CTA advances the baseline after; read it now).
+        let delta = (store.lastSeenRank).flatMap { base in rank.map { base - $0 } }
+        let img = resultsShareImage(round: round, correct: correct, total: total, pts: pts,
+                                    edition: edition, rank: rank, movementDelta: delta)
+        return ShareLink(item: img, preview: SharePreview("My Bracket Battle result", image: img)) {
+            HStack(spacing: 6) {
+                Image(systemName: "square.and.arrow.up").dsFont(14, weight: .semibold)
+                Text("Share your result")
+            }
+            .dsFont(15, weight: .semibold).foregroundStyle(accent)
+            .frame(maxWidth: .infinity).padding(.vertical, 13)
+            .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(accent.opacity(0.4), lineWidth: 1.5))
+            .contentShape(Rectangle())
+        }
+    }
+
+    @MainActor
+    private func resultsShareImage(round: BracketRound, correct: Int, total: Int, pts: Int,
+                                   edition: BracketEdition, rank: Int?, movementDelta: Int?) -> Image {
+        let renderer = ImageRenderer(content: resultsShareCard(round: round, correct: correct, total: total,
+                                                               pts: pts, edition: edition, rank: rank, movementDelta: movementDelta))
+        renderer.scale = 3
+        if let ui = renderer.uiImage { return Image(uiImage: ui) }
+        return Image(systemName: "trophy.fill")
+    }
+
+    private func resultsShareCard(round: BracketRound, correct: Int, total: Int, pts: Int,
+                                  edition: BracketEdition, rank: Int?, movementDelta: Int?) -> some View {
+        VStack(spacing: 6) {
+            Text(edition.themeLabel).dsFont(13, weight: .bold).tracking(2).foregroundStyle(accent)
+            Text(edition.title).dsFont(19, weight: .bold).foregroundStyle(.white)
+            Text("\(round.displayName(in: edition.rounds)) · Results").dsFont(12).foregroundStyle(Color.dsFgSecondary)
+            Text("\(correct) / \(total)").dsFont(52, weight: .heavy).foregroundStyle(.white).padding(.top, 6)
+            Text("called right · +\(pts) pts").dsFont(13).foregroundStyle(Color.dsFgSecondary)
+            if let rank {
+                HStack(spacing: 6) {
+                    if let d = movementDelta, d != 0 {
+                        Text(d > 0 ? "↑\(d)" : "↓\(-d)")
+                            .dsFont(14, weight: .bold).foregroundStyle(d > 0 ? Color.dsSuccess : Color.dsError)
+                    }
+                    Text("now #\(rank)").dsFont(14, weight: .semibold).foregroundStyle(accent)
+                }
+                .padding(.top, 4)
+            }
+            Text("NWSL · Bracket Battle").dsFont(11, weight: .semibold).foregroundStyle(Color.dsFgTertiary).padding(.top, 8)
+        }
+        .padding(28).frame(width: 320)
+        .background(LinearGradient(colors: [accent.opacity(0.18), Color.dsBgPrimary], startPoint: .top, endPoint: .bottom))
     }
 
     // MARK: - Screens 2 + 3: Voting + Save/Submit
@@ -787,104 +845,6 @@ struct BracketBattleView: View {
         .background(LinearGradient(colors: [.clear, Color.dsBgPrimary], startPoint: .top, endPoint: .bottom))
     }
 
-    // MARK: - Submitted state → straight into the bracket overview (with a banner)
-
-    /// The post-submit confirmation shown inline atop the overview — no dead-end screen.
-    private var submittedBannerText: String {
-        let when = viewModel.closesInText.map { $0.replacingOccurrences(of: "Closes in ", with: "in ") } ?? "soon"
-        return "Picks locked in — results drop when voting closes \(when)."
-    }
-
-    // MARK: - Screen 4: Results
-
-    @ViewBuilder
-    private var resultsScreen: some View {
-        if let result = viewModel.completedResults() {
-            let picks = store.picks(for: result.round)
-            let correct = BracketScoring.correctCount(picks: picks, matchups: result.matchups)
-            let pts = store.score(for: result.round) ?? BracketScoring.roundPoints(picks: picks, matchups: result.matchups)
-            ScrollView {
-                VStack(spacing: 12) {
-                    VStack(spacing: 8) {
-                        sectionLabel("\(result.round.displayName(in: editionRounds)) — that's a wrap").foregroundStyle(accent)
-                        Text("+\(pts)").dsFont(30, weight: .heavy).foregroundStyle(Color.dsFgPrimary)
-                        Text("You called \(correct) of \(result.matchups.count). \(heroVoiceLine(correct, result.matchups.count))")
-                            .dsFont(13).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity).padding(20)
-                    .background(LinearGradient(colors: [accent.opacity(0.12), .clear], startPoint: .top, endPoint: .bottom))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(accent.opacity(0.35)))
-
-                    shareButton(round: result.round, correct: correct, total: result.matchups.count, pts: pts)
-
-                    if viewModel.flavor == .upsetClosest { upsetClosestCallout }
-
-                    sectionLabel("How the league voted").frame(maxWidth: .infinity, alignment: .leading)
-                    ForEach(result.matchups) { m in resultCard(m, yourPick: picks[m.id]) }
-                    leaderboardCard
-                    fullLeaderboardLink
-
-                    // The bracket journey lives right below the results (CONCEPT-v2).
-                    Divider().overlay(Color.dsFgQuaternary).padding(.vertical, 4)
-                    overviewContent(banner: nil)
-                }
-                .padding(.horizontal, 16).padding(.bottom, 32)
-                .fanZonePlayingAsHeader(accent: accent)
-            }
-        } else {
-            overviewBody(banner: nil)
-        }
-    }
-
-    /// A warm one-liner under the score, keyed to how well you read the crowd.
-    private func heroVoiceLine(_ correct: Int, _ total: Int) -> String {
-        let ratio = total > 0 ? Double(correct) / Double(total) : 0
-        switch ratio {
-        case 0.85...: return "You're basically the league hivemind."
-        case 0.6..<0.85: return "You read the room nicely."
-        case 0.4..<0.6: return "The bracket had other plans."
-        default: return "Chaos won this round — regroup."
-        }
-    }
-
-    // MARK: - Share your card (ImageRenderer → ShareLink)
-
-    private func shareButton(round: BracketRound, correct: Int, total: Int, pts: Int) -> some View {
-        let img = shareCardImage(round: round, correct: correct, total: total, pts: pts)
-        return ShareLink(item: img, preview: SharePreview("My Bracket Battle card", image: img)) {
-            HStack(spacing: 6) {
-                Image(systemName: "square.and.arrow.up").dsFont(14, weight: .semibold)
-                Text("Share your card")
-            }
-            .dsFont(14, weight: .semibold).foregroundStyle(accent)
-            .frame(maxWidth: .infinity).padding(.vertical, 12)
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.35), lineWidth: 1.5))
-        }
-    }
-
-    @MainActor private func shareCardImage(round: BracketRound, correct: Int, total: Int, pts: Int) -> Image {
-        let renderer = ImageRenderer(content: shareCard(round: round, correct: correct, total: total, pts: pts))
-        renderer.scale = 3
-        if let ui = renderer.uiImage { return Image(uiImage: ui) }
-        return Image(systemName: "trophy.fill")
-    }
-
-    private func shareCard(round: BracketRound, correct: Int, total: Int, pts: Int) -> some View {
-        VStack(spacing: 8) {
-            Text(viewModel.edition?.themeLabel ?? "BRACKET BATTLE")
-                .dsFont(13, weight: .bold).tracking(2).foregroundStyle(accent)
-            Text(viewModel.edition?.title ?? "Bracket Battle")
-                .dsFont(20, weight: .bold).foregroundStyle(.white)
-            Text(round.displayName(in: editionRounds)).dsFont(13).foregroundStyle(Color.dsFgSecondary)
-            Text("\(correct)/\(total)").dsFont(52, weight: .heavy).foregroundStyle(.white).padding(.top, 4)
-            Text("called right · +\(pts) pts").dsFont(13).foregroundStyle(Color.dsFgSecondary)
-            Text("NWSL · Bracket Battle").dsFont(11, weight: .semibold).foregroundStyle(Color.dsFgTertiary).padding(.top, 6)
-        }
-        .padding(28).frame(width: 320)
-        .background(LinearGradient(colors: [accent.opacity(0.18), Color.dsBgPrimary], startPoint: .top, endPoint: .bottom))
-    }
-
     /// Collapsed by default — just who advanced + your call. The vote split stays
     /// hidden behind "See how the league voted" so you scan winners fast, then dig into
     /// the surprises. (% is never shown until you open it — and never during voting.)
@@ -987,28 +947,6 @@ struct BracketBattleView: View {
             .background(color.opacity(0.14)).clipShape(Capsule())
     }
 
-    private var leaderboardCard: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            sectionLabel("Leaderboard").padding(.bottom, 6)
-            ForEach(viewModel.leaderboard) { row in
-                // Below-fold "You" row (you rank past the visible top): separate it so the
-                // jump from the top list to your real rank reads honestly.
-                if row.isBelowFold {
-                    Divider().overlay(Color.dsFgTertiary).padding(.vertical, 2)
-                }
-                HStack(spacing: 12) {
-                    Text("\(row.rank)").dsFont(13, weight: .bold).foregroundStyle(row.isYou ? accent : Color.dsFgTertiary).frame(width: 32, alignment: .trailing)
-                    Text(row.name).dsFont(14, weight: row.isYou ? .bold : .medium).foregroundStyle(row.isYou ? accent : .dsFgPrimary)
-                    Spacer()
-                    Text("\(row.points) pts").dsFont(13, weight: .semibold).foregroundStyle(row.isYou ? accent : Color.dsFgSecondary)
-                }
-                .padding(.vertical, 8).padding(.horizontal, 4)
-                .background(row.isYou ? accent.opacity(0.10) : .clear).clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-        }
-        .padding(16).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-
     /// Entry point to the standalone Leaderboard (Rankings + Your Stats), pushed onto
     /// Home's NavigationStack from the results + overview.
     private var fullLeaderboardLink: some View {
@@ -1108,20 +1046,6 @@ struct BracketBattleView: View {
         }
         .padding(12).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.25)))
-    }
-
-    @ViewBuilder
-    private var upsetClosestCallout: some View {
-        VStack(spacing: 8) {
-            if let upset = viewModel.biggestUpset {
-                calloutCard(icon: "bolt.fill", title: "Biggest upset",
-                            body: "\(upset.winner.playerName) sent \(upset.loser.playerName) home. The bracket is chaos and we're here for it.")
-            }
-            if let close = viewModel.closestCall {
-                calloutCard(icon: "scalemass.fill", title: "Too close to call",
-                            body: "\(close.matchup.entrantA.playerName) vs \(close.matchup.entrantB.playerName) came down to \(close.winnerPct)–\(100 - close.winnerPct). Brutal.")
-            }
-        }
     }
 
     private func overviewRound(_ edition: BracketEdition, _ round: BracketRound) -> some View {

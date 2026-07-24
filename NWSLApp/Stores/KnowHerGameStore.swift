@@ -204,6 +204,28 @@ final class KnowHerGameStore {
         seasonEditionsPlayed(year: year) > 0
     }
 
+    // MARK: - Achievement backing (Competitive Redesign)
+
+    /// True if any played edition was PERFECT (every question right). Needs the per-edition `attempts`
+    /// (added with the accuracy economy) — a pre-attempts edition can't be verified, so it doesn't count.
+    func hasPerfectRound() -> Bool {
+        scores.contains { key, correct in
+            if let total = attempts[key], total > 0 { return correct == total }
+            return false
+        }
+    }
+
+    /// How many DISTINCT players the user has scored ≥ `threshold` on (the "Know It All" badge). The
+    /// editionKey is "{weekKey}-{team}-{athleteId}" (weekKey itself has a dash), so the athlete id is the
+    /// LAST component.
+    func distinctPlayersScored(atLeast threshold: Int) -> Int {
+        var players = Set<String>()
+        for (key, correct) in scores where correct >= threshold {
+            if let athleteID = key.split(separator: "-").last { players.insert(String(athleteID)) }
+        }
+        return players.count
+    }
+
     /// RAW local correct answers this season (Σ scores whose weekKey year == `year`, no baseline floor) —
     /// the accuracy NUMERATOR. Paired with `seasonAnswered(year:)` so the local (correct, attempted) pair
     /// is always internally consistent; reinstall durability comes from `superfan_scores`, not the baseline.

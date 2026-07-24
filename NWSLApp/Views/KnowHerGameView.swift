@@ -337,6 +337,7 @@ struct KnowHerGameView: View {
         viewModel.finish()
         store.recordCompletion(editionKey: viewModel.editionKey, weekKey: weekKey,
                                correct: viewModel.score, outOf: viewModel.questionCount)
+        FanZoneActivity.recordPlay()   // Iron Fan: played a Fan Zone game this week
         // Signed in (gated at Start) → persist the per-question answers to the community aggregate,
         // and push the progress summary (the reinstall-restore row — partial columns, KHG's only).
         if let userID = auth.userID {

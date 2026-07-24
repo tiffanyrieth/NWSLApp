@@ -31,6 +31,7 @@ struct SuperfanDetailView: View {
     @State private var counts: SuperfanCounts = .zero
     @State private var standing: SuperfanStanding?
     @State private var seasonHistory: [SeasonHistoryEntry] = []
+    @State private var achievements: [EarnedAchievement] = []
     @State private var didLoad = false
 
     private var season: Int { AppConfig.currentSeasonYear }
@@ -94,6 +95,10 @@ struct SuperfanDetailView: View {
         // Keep the current season's record book row current (peak monotonic), then read the arc.
         await service.submitSeasonHistory(seasonYear: season, score: total, userID: userID)
         seasonHistory = await service.seasonHistory(userID: userID)
+        // Detect + award any store-derivable achievements, then read the earned set for "Your Best Moments".
+        await AchievementDetector.checkCumulative(predict: predict, bracket: bracket, trivia: trivia,
+                                                  knowHer: knowHer, userID: userID, season: season)
+        achievements = await AchievementService().earned(userID: userID, seasonYear: season)
     }
 
     // MARK: - Hero (tier badge + score + progress to next tier)
@@ -209,60 +214,41 @@ struct SuperfanDetailView: View {
         String(format: "%.1f", value)
     }
 
-    // MARK: - Your best moments (local highlights, zero-fabrication — replaced by achievements in PR4)
+    // MARK: - Your Best Moments (earned achievements — PR4)
 
-    private struct Moment: Identifiable {
-        let symbol: String; let color: Color; let title: String; let value: String
-        var id: String { title }
-    }
-
-    private var bestMoments: [Moment] {
-        var out: [Moment] = []
-        let bestXI = predict.scores.values.map(\.correctPlayers).max() ?? 0
-        if predict.scores.values.contains(where: \.perfectXI) {
-            out.append(.init(symbol: "sportscourt.fill", color: .dsGamePredict, title: "Predict the XI",
-                             value: "Perfect XI — all 11 right!"))
-        } else if bestXI > 0 {
-            out.append(.init(symbol: "sportscourt.fill", color: .dsGamePredict, title: "Predict the XI",
-                             value: "Best: \(bestXI) of 11 players right"))
-        }
-        if bracket.points > 0 {
-            out.append(.init(symbol: "trophy.fill", color: .dsGameBracket, title: "Bracket Battle",
-                             value: "\(bracket.points) points this edition"))
-        }
-        let editions = knowHer.seasonEditionsPlayed(year: season)
-        if editions > 0 {
-            out.append(.init(symbol: "person.fill.questionmark", color: .dsGameSpotlight, title: "Know Her Game",
-                             value: "\(editions) player\(editions == 1 ? "" : "s") learned this season"))
-        }
-        if trivia.bestStreak > 0 {
-            out.append(.init(symbol: "brain.head.profile", color: .dsGameTrivia, title: "NWSL Trivia",
-                             value: "Longest streak: \(trivia.bestStreak) round\(trivia.bestStreak == 1 ? "" : "s")"))
-        }
-        return out
-    }
-
+    /// The achievements list. HIDDEN ENTIRELY when there are none (owner rule: a section shows real badges
+    /// or doesn't appear — never an empty grid). Shows the 5 most recent + a "+N more" tail.
     @ViewBuilder
     private var bestMomentsSection: some View {
-        let moments = bestMoments
-        if !moments.isEmpty {
+        if !achievements.isEmpty {
+            let shown = Array(achievements.prefix(5))
             VStack(alignment: .leading, spacing: 10) {
                 Text("YOUR BEST MOMENTS").dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
-                ForEach(moments) { m in
-                    HStack(spacing: 12) {
-                        Image(systemName: m.symbol).font(.system(size: 15)).foregroundStyle(m.color)
-                            .frame(width: 32)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(m.title).dsFont(13, weight: .semibold).foregroundStyle(.primary)
-                            Text(m.value).dsFont(12).foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(12).frame(maxWidth: .infinity)
-                    .background(Color.dsBgCard).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                ForEach(shown) { earned in achievementCard(earned) }
+                if achievements.count > shown.count {
+                    Text("+\(achievements.count - shown.count) more")
+                        .dsFont(12, weight: .semibold).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
                 }
             }
         }
+    }
+
+    private func achievementCard(_ earned: EarnedAchievement) -> some View {
+        let color = earned.achievement.color
+        return HStack(spacing: 12) {
+            Image(systemName: earned.achievement.symbol).font(.system(size: 16)).foregroundStyle(color)
+                .frame(width: 36, height: 36)
+                .background(color.opacity(0.18), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(earned.achievement.title).dsFont(14, weight: .bold).foregroundStyle(.primary)
+                Text(earned.description).dsFont(12).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12).frame(maxWidth: .infinity)
+        .background(Color.dsBgCard).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     // MARK: - Season history (the permanent record book across seasons)

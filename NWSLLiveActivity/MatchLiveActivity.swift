@@ -251,15 +251,24 @@ private struct LockScreenBanner: View {
     @ViewBuilder
     private var minute: some View {
         if state.phase.isClockRunning, let stoppage = state.stoppageDisplay {
-            Text(stoppage).font(.system(size: 11, weight: .semibold)).foregroundStyle(LA.clock)
+            Text(stoppage).font(.system(size: 14, weight: .semibold)).foregroundStyle(LA.clock)
+                // VoiceOver: "90'+2'" reads as punctuation soup — speak the plain meaning instead.
+                .accessibilityLabel("Stoppage time")
         } else if state.phase.isClockRunning, let epoch = state.clockStartEpoch {
+            // .fixedSize() (not a maxWidth frame): Text(timerInterval:) renders leading-aligned
+            // inside a reserved box, which floated the visible digits LEFT of the centered
+            // score/pill column — hugging the content keeps the clock truly centered.
+            // No accessibilityLabel here: VoiceOver reads Apple's timer text natively and keeps
+            // it current; a static label would replace the live value with stale text.
             Text(timerInterval: Date(timeIntervalSince1970: epoch)...Date.distantFuture, countsDown: false, showsHours: false)
-                .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                .font(.system(size: 14, weight: .semibold).monospacedDigit())
                 .foregroundStyle(LA.clock)
-                .frame(maxWidth: 60)
+                .fixedSize()
         } else if state.phase != .fulltime, let label = state.staticLabel {
             // At full-time the top pill already shows "FT" — don't repeat it in the clock slot.
-            Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(LA.clock)
+            Text(label).font(.system(size: 14, weight: .semibold)).foregroundStyle(LA.clock)
+                // VoiceOver spells "HT" letter-by-letter; other labels (kickoff time) read fine.
+                .accessibilityLabel(label == "HT" ? "Halftime" : label)
         }
     }
 

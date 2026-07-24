@@ -236,6 +236,31 @@ final class AuthStore {
     func debugSimulateLostSession() async {
         try? await client.auth.signOut(scope: .local)
     }
+
+    /// `-signInAsTestFan <n>`: sign in as one of the synthetic Fan Zone accounts created by the proxy
+    /// repo's `scripts/seed_test_fans.mjs`, so the app can be EXPERIENCED as another fan (ranked
+    /// mid-table, a different club's board) instead of only observed from the owner's account.
+    ///
+    /// DEBUG-ONLY, and deliberately so: this is the one auth path that doesn't go through Sign in with
+    /// Apple, and it must not exist in a shipped binary. It works only against seeded accounts — the
+    /// address is derived from the index, and those accounts exist solely in the pre-launch test
+    /// population that `health_check_seed_accounts.mjs` requires to be purged before launch.
+    ///
+    /// Requires the Supabase Email provider to be enabled (with signups DISABLED, so the only
+    /// email/password accounts are the admin-created seed ones).
+    func debugSignInAsTestFan(index: Int) async {
+        let email = String(format: "seed+%04d@seed.nwslapp.test", index)
+        do {
+            let session = try await client.auth.signIn(email: email, password: "seed-fan-not-for-production")
+            currentUser = session.user
+            await hydrateProfile()
+            NotifTrace.shared.log("debug-test-fan", .ok, "signed in as \(email)")
+        } catch {
+            // Fail LOUD in dev — a silently-failed test sign-in would look like "the seed data is
+            // broken" when the real cause is usually the Email provider being disabled.
+            Diagnostics.shared.record(.apiFailure, "test-fan sign-in \(email): \(error.localizedDescription)")
+        }
+    }
     #endif
 
     /// Configure the Apple ID request — called from SignInWithAppleButton's

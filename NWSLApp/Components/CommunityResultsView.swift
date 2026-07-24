@@ -4,11 +4,13 @@
 //
 //  The NYT-style "how everyone did" panel — SHARED by NWSL Trivia + Know Her Game
 //  (docs §11b), the leaderboard REPLACEMENT for the quiz games. Shows the community
-//  average, per-question "% who got it right" (once enough fans have played), and what
-//  everyone picked. Honest at every N: truthful COUNTS always ("4 of 6 fans nailed this"),
-//  percentages layer in only at N ≥ 25. Shown from the FIRST responder — a live board that grows
-//  (no "you're the first" gate; the honest "1 fan played" IS the live-stats hook). Reveal timing is
-//  server-decided (Trivia post-close, Know Her live weekly) — the one thing still gated (`!revealed`).
+//  average, per-question "% who got it right", and what everyone picked. Honest at every N by
+//  showing BOTH numbers together ("67% · 2 of 3 fans nailed this") rather than either/or: the
+//  percentage can't overstate because its denominator is right beside it, and a first player sees
+//  the real shape of the panel instead of waiting for a crowd. (Until 2026-07-22 percentages were
+//  withheld below 25 responders — owner ruling: showing the potential is what brings players back.)
+//  Shown from the FIRST responder — a live board that grows (the honest "1 fan played" IS the
+//  live-stats hook). Reveal timing is server-decided — the one thing still gated (`!revealed`).
 //
 //  The caller passes a flat list of its questions (prompt + options + correct index) so this
 //  one component renders both games' models. It fetches the aggregate from the proxy edge
@@ -150,13 +152,18 @@ struct CommunityResultsView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
+    /// Percentage AND count, always. It used to be either/or — a bare "67% got it right" above 25
+    /// responders, a bare count below. Showing both means the percentage is never unanchored from how
+    /// many people it represents (so it can't overstate at small N), and the shape of the feature is
+    /// visible from the very first responder instead of appearing only once a crowd arrives.
+    /// `showPercent` is now vestigial server-side (the proxy sends it true from N=1) but is still
+    /// honoured, so an older payload can't produce a misleading standalone percentage.
     private func gotItRightLine(correct: Int, total: Int, showPercent: Bool) -> String {
         guard total > 0 else { return "No answers yet" }
-        if showPercent {
-            let pct = Int((Double(correct) / Double(total) * 100).rounded())
-            return "\(pct)% got it right"
-        }
-        return "\(correct) of \(total) fans nailed this"
+        let noun = total == 1 ? "fan" : "fans"
+        guard showPercent else { return "\(correct) of \(total) \(noun) nailed this" }
+        let pct = Int((Double(correct) / Double(total) * 100).rounded())
+        return "\(pct)% · \(correct) of \(total) \(noun) nailed this"
     }
 
     private func optionBar(label: String, count: Int, total: Int, isCorrect: Bool, showPercent: Bool) -> some View {
@@ -177,10 +184,13 @@ struct CommunityResultsView: View {
                 }
             }
             .frame(width: 60, height: 6)
+            // Percent per option, at any scale. Safe to show unanchored HERE because the line directly
+            // above spells out the count ("67% · 2 of 3 fans nailed this") and the summary row carries
+            // the responder total — so the reader always has the denominator in view.
             Text(showPercent ? "\(Int((fraction * 100).rounded()))%" : "\(count)")
                 .font(.caption2.weight(.semibold).monospacedDigit())
                 .foregroundStyle(.secondary)
-                .frame(width: 34, alignment: .trailing)
+                .frame(width: 40, alignment: .trailing)
         }
     }
 

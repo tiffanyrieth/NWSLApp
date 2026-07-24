@@ -737,11 +737,6 @@ struct BracketBattleView: View {
                         .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                 }.padding(.top, 4)
 
-                if viewModel.flavor == .cinderella, let c = viewModel.cinderella, let seed = c.seed {
-                    calloutCard(icon: "sparkles", title: "Cinderella watch",
-                                body: "#\(seed) \(c.playerName) (\(c.teamAbbreviation)) is still dancing — nobody saw this run coming.")
-                }
-
                 // Legend: a dot + label per round, colored by status.
                 HStack(spacing: 6) {
                     ForEach(edition.rounds, id: \.self) { round in
@@ -767,7 +762,7 @@ struct BracketBattleView: View {
         }
     }
 
-    /// A warm flavor callout (upset / closest call / Cinderella / next edition).
+    /// A warm flavor callout (upset / closest call / next edition).
     private func calloutCard(icon: String, title: String, body: String) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon).dsFont(18).foregroundStyle(accent)

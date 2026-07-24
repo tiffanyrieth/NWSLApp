@@ -190,17 +190,16 @@ final class BracketViewModel {
 
     // MARK: - Rotating fandom flavor (one per edition, deterministic)
 
-    enum FandomFlavor { case upsetClosest, cinderella, nextEdition }
+    /// (A `cinderella` case was removed 2026-07-23 — the callout wasn't earning its space on the
+    /// overview. The underlying idea needs a longer run to land, and the qualifying rounds of a
+    /// 128-pool bracket surface a "lowest seed alive" that changes too often to feel like a story.)
+    enum FandomFlavor { case upsetClosest, nextEdition }
 
     /// The single flavor feature this edition surfaces — stable across all its rounds,
     /// rotating each new edition. Deterministic by edition id so everyone sees the same.
     var flavor: FandomFlavor {
         guard let id = edition?.id else { return .upsetClosest }
-        switch Self.stableHash(id) % 3 {
-        case 0: return .upsetClosest
-        case 1: return .cinderella
-        default: return .nextEdition
-        }
+        return Self.stableHash(id) % 2 == 0 ? .upsetClosest : .nextEdition
     }
 
     /// Biggest upset of the most-recent completed round: the community winner who was
@@ -224,14 +223,6 @@ final class BracketViewModel {
         return ms.compactMap { m in m.winnerPercent.map { (m, $0) } }
             .min { abs($0.1 - 50) < abs($1.1 - 50) }
             .map { (matchup: $0.0, winnerPct: $0.1) }
-    }
-
-    /// Lowest-ranked entrant still alive (a Cinderella run) — "alive" = in a current-
-    /// round matchup. Highest seed *number* = lowest rank.
-    var cinderella: BracketEntrant? {
-        guard let edition else { return nil }
-        let alive = edition.matchups(in: edition.currentRound).flatMap { [$0.entrantA, $0.entrantB] }
-        return alive.max { ($0.seed ?? 0) < ($1.seed ?? 0) }
     }
 
     /// A stable (launch-independent) hash for deterministic flavor selection.

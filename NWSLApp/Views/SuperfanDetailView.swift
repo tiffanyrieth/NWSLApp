@@ -41,10 +41,12 @@ struct SuperfanDetailView: View {
         [predict.hasPredicted, bracket.hasPlayed, trivia.totalAnswered > 0,
          knowHer.playedInSeason(year: season)].filter { $0 }.count
     }
-    /// Tier/percentile only when the user qualifies (≥2 games) AND enough fans do (honest at low scale).
+    /// Tier/percentile once the user qualifies (≥2 games) and we have a server standing. Deliberately
+    /// NOT gated on how many OTHER fans qualify (owner ruling 2026-07-22): a first or second player has
+    /// to see the shape of the feature or there's nothing to come back for. `gamesPlayed >= 2` stays —
+    /// that's about the user's OWN participation and its `buildingLine` copy is actionable.
     private var showsTier: Bool {
-        guard gamesPlayed >= 2, let s = standing else { return false }
-        return s.isMeaningful
+        gamesPlayed >= 2 && standing != nil
     }
 
     var body: some View {
@@ -61,6 +63,9 @@ struct SuperfanDetailView: View {
         .background(Color.dsBgGrouped)
         .nativeBackButton(title: "Superfan")
         .task { await load() }
+        // A real retry for the "couldn't load your standing" state — the copy promises the gesture,
+        // so the gesture has to exist (NO SILENT FAILURES: never offer a dead affordance).
+        .refreshable { await syncStanding() }
         // Honest result when Game Center isn't signed in — never a silent dead tap (NO SILENT FAILURES),
         // mirroring ProfileView. Bound to the GC singleton's @Observable flag.
         .alert("Game Center unavailable", isPresented: Binding(
@@ -77,7 +82,13 @@ struct SuperfanDetailView: View {
         guard !didLoad else { return }
         didLoad = true
         GameCenterManager.shared.authenticate()
-        // Signed out → no server standing (the honest "building" state); local totals + best moments show.
+        await syncStanding()
+    }
+
+    /// Push the season total, then read back the standing. Split out of `load()` (which fires once) so
+    /// pull-to-refresh can genuinely re-run it. Signed out → no server standing; local totals + best
+    /// moments still show.
+    private func syncStanding() async {
         guard let userID = auth.userID else { return }
         let service = SuperfanService()
         await service.submit(total: total, gamesPlayed: gamesPlayed,
@@ -104,7 +115,7 @@ struct SuperfanDetailView: View {
             Text("\(total)")
                 .dsFont(44, weight: .heavy, design: .rounded).foregroundStyle(.primary)
             if showsTier, let s = standing {
-                Text("Top \(s.topPercent)% of \(s.qualifying) fans")
+                Text(s.standingText)
                     .dsFont(13).foregroundStyle(.secondary)
             } else {
                 Text(buildingLine)
@@ -114,10 +125,15 @@ struct SuperfanDetailView: View {
         .frame(maxWidth: .infinity).padding(.top, 8)
     }
 
+    /// The remaining no-tier cases. None of them is "not enough fans yet" any more — that gate is gone,
+    /// so with ≥2 games played a missing tier can only mean we have no server standing. Those are two
+    /// different truths and they get two different lines: signed out is a state the user can act on,
+    /// a failed count read is our problem, not theirs.
     private var buildingLine: String {
-        gamesPlayed < 2
-            ? "Play a couple of Fan Zone games to earn your Superfan tier."
-            : "Building your Superfan season — your tier appears as more fans play."
+        if gamesPlayed < 2 { return "Play a couple of Fan Zone games to earn your Superfan tier." }
+        return auth.isSignedIn
+            ? "Couldn't load your standing — pull to refresh."
+            : "Sign in to see where you rank."
     }
 
     // MARK: - Breakdown

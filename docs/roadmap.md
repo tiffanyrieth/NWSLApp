@@ -17,6 +17,50 @@
 > loader. Until then the current stocked pool serves rounds with a deterministic slice (repeats
 > after ~4 rounds — acceptable interim, owner-approved).
 
+> ### 🏆 Bracket Battle → an OFFSEASON tentpole (owner 2026-07-23; scheduling redesign)
+> **Decision:** stop running Bracket Battle year-round on a fixed cadence. Make it primarily an
+> **offseason** feature, with maybe **1–2 editions during the season**.
+>
+> **Why — the content-calendar gap.** In season the Fan Zone is already full: KHG and Trivia alternate
+> biweekly (a new round every Monday, each playable for two weeks) and Predict the XI runs any week
+> with fixtures. That's plenty. But **both KHG and Predict are in-season ONLY** — KHG's featured
+> players are picked from season stats, and Predict needs a fixture inside its 28-day window (it hides
+> in a true offseason). So the offseason falls back to **Trivia alone**. Bracket is the natural filler:
+> it's the one game that needs no live fixtures, no season stats, and no new editorial content per
+> round — the engine generates it from the league pool. Offseason is exactly when the app most needs a
+> reason to open, and when Bracket has the least competition for attention.
+>
+> **The model (owner, 2026-07-23) — "semi-automatic":** the operator curates a LIBRARY of themes (jot
+> ideas down during the season, drop 3–4 in when the offseason arrives); **auto mode's only job is to
+> advance rounds when the timer runs down.** Editions are STARTED by hand from the library, not
+> generated on a break timer. Run it ~3–4 times a year, ~3 weeks each.
+>
+> **⚠️ Most of this already exists — don't rebuild it.** `bracket_creative_editions` /
+> `bracket_stats_editions` ARE the library: per-theme `status` (`ready` | `parked` | `used`) + a
+> `season` column that gates no-repeats, plus `used_themes_this_season` in `bracket_config` which
+> `generateNext` skips against. The admin portal already has Add creative theme, Edit title,
+> Park / Set ready, Delete, **Start specific**, Start next (rotation), and Clear used themes.
+>
+> **So the actual remaining work is a REDUCTION, not a build:**
+> - **Stop auto from auto-STARTING editions.** `handleAuto` currently generates a new edition once
+>   `break_days` elapses with none active. The wanted behaviour is advance-only: tally + advance while
+>   an edition is live, then STOP when it completes and wait for the operator. That also removes the
+>   need for any "is it the offseason?" signal — the operator's start IS the signal, which is far
+>   cheaper than teaching `FanZoneCadence` an offseason concept it doesn't have.
+> - **Re-pick the pacing** for a 3-week offseason edition (today `early_round_days=2`,
+>   `late_round_days=3`, `break_days=10` → ~3–4 weeks + a ~10-day break); `break_days` becomes
+>   irrelevant once editions are operator-started.
+> - **Admin-portal controls** adjusted to match (the start/advance emphasis, less mode-toggling).
+> - **💡 Fan-submitted theme ideas** (owner's "maybe have a way for people to recommend things") — a
+>   genuinely new piece, and a nice ALIVE/community hook: suggestions land in the library as `parked`
+>   for the operator to promote to `ready`. Needs a moderation path before it ships.
+>
+> **Already fixed (2026-07-23), don't re-diagnose:** the admin portal's AUTO/MANUAL switch wrote only
+> the global `bracket_config` key while each edition carries its OWN `mode`, so switching an in-flight
+> edition to AUTO silently did nothing (`handleAuto` skips a manual-mode edition). `setMode` now
+> carries the mode onto the active edition and stamps `round_opened_at`/`round_closes_at` so the
+> countdown starts. The ROUND SCHEDULE itself was never broken and is unit-tested (`bracket.spec.ts`).
+
 > ### ⏳ OWNER SETUP — analytics + alerting go-live steps (2026-07-17, ~15 min total)
 > The anonymous-analytics + ops-alerting code is MERGED + deployed; three one-time owner steps still
 > arm the alerting (each is a silent no-op until done — nothing breaks meanwhile):
@@ -82,6 +126,21 @@
 > `PostseasonSimulator.swift` (or delete the sim harness) so no hard-coded 2025 bracket lingers in the
 > app source. The unit tests that reference `PostseasonSimulator.clinchTable` (`PlayoffClinchTests`) move
 > to inline fixtures at that point. Nothing auto-reminds — this note is the reminder.
+
+> ### 🧹 PRE-LAUNCH GATE — purge the Fan Zone seed test population (owner 2026-07-23)
+> The pre-launch seeder (`nwslapp-proxy/scripts/seed_test_fans.mjs`) creates real `@seed.nwslapp.test`
+> `auth.users` so the crowd-shaped surfaces (leaderboards, community splits, Superfan ladder) can be
+> designed against before there are real players. **Retention does NOT clean these up** — the cron only
+> prunes `quiz_answers` (>35d) and `predict_round_scores` (>28d); the record book it writes
+> (`prediction_scores`, `superfan_scores`, `profiles`) is kept FOREVER by design, and the `auth.users`
+> rows never expire. So the seed fans would rank on real leaderboards and count in real aggregates
+> permanently until explicitly torn down. **Before launch:**
+> - `node scripts/seed_test_fans.mjs --purge` — deletes the `@seed.nwslapp.test` accounts; `on delete
+>   cascade` sweeps all six seeded tables clean.
+> - Then run the **REVOKE block** at the bottom of `supabase/migration_seed_grants.sql` — returns the
+>   service_role key to exactly the reach it had before seeding.
+> Enforced, not remembered: `health_check_seed_accounts.mjs` FAILS the `npm run healthcheck` chain while
+> any seed account exists — that gate is why seeding against the prod project is safe at all.
 
 > ### ✅ SHIPPED — Fan Zone v2 (2026-07-22, merged to main)
 > The Fan Zone v2 batch is DONE + on main (detail in git + `.claude/rules/fan-zone.md`):

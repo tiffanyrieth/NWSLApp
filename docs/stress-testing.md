@@ -159,6 +159,13 @@ For each subsystem, walk it explicitly:
         (the client shows only the count, not a rows list). Same read shape as the Predict/Bracket boards,
         which already pass 1k. **100k lever:** the two count queries ride the same pattern as the existing
         boards — no new bottleneck; the season-partition PK keeps each count scoped to the current year.
+      - **[ ] Bracket tally's own reads — UNBOUNDED, pre-existing.** `accumulateScores` /
+        `accumulateUserStats` / `stampFinalRanks` each `select` EVERY row for the edition with no
+        `.limit()` (`bracket_scores?edition_id=eq.…`, `bracket_user_edition_stats?…`). That's one row per
+        PLAYER, so a 100k-player edition pulls 100k rows into a Worker on a round close — inside the CPU/
+        memory budget of a cron tick. Not a 1k blocker (1k rows is trivial) and NOT introduced by the
+        2026-07-22 display_name change (which is chunked); logged here so it isn't rediscovered as a
+        surprise. Fix when it matters: paginate, or move the accumulate to a Postgres function.
 - [ ] **APNs pacing / connection reuse** — HTTP/2 throughput of raw sends at hundreds/batch (relevant to
       the Queues consumer's per-invocation batch size).
 - [ ] **iOS local-notification 64 pending cap** — day-before is already windowed to the next 2 fixtures
@@ -170,6 +177,24 @@ For each subsystem, walk it explicitly:
 - [ ] (expand as subsystems are examined)
 
 ## 7. Status ledger
+
+- **Bracket `display_name` stamp (2026-07-22): ✅ passes 1k + 100k by construction.** One new READ path
+  in the tally (`accumulateScores` → `profiles?id=in.(…)&select=id,display_name`), added because nothing
+  had EVER written `bracket_scores.display_name`, so every rival rendered as the `?? "Fan"` fallback.
+  Chunked at 200 ids (`PROFILE_LOOKUP_CHUNK`) — the filter travels in the URL, so the unchunked version
+  would have been an unbounded URL and a hard failure at exactly the scale we're sizing for. Frequency
+  is **per edition-round, not per user request**: it runs inside the 5-min cron tick only when a round
+  actually closes. 1k voters ⇒ 5 chunked selects per round; 100k ⇒ 500, still bounded, still off the
+  user-facing path, against Supabase's unlimited-API-request tier. No lever needed. NOTE the pre-existing
+  unbounded `bracket_scores?edition_id=eq.…` select in the same function is untouched by this change —
+  logged in §6 as its own item rather than silently widened here.
+
+- **Pre-launch seed population (2026-07-22): not a production load path.** `seed_test_fans.mjs` is an
+  operator script, never invoked by the app or a cron, and the accounts it creates are purged before
+  launch (guarded by `health_check_seed_accounts.mjs`). It DOES exercise the real read paths at ~120
+  users, which is the first time the top-100 cap, the below-fold rank splice and the community
+  aggregates have run against a non-trivial field — a cheap partial rehearsal of the 1k test, not a
+  substitute for it.
 
 - **Alert-type reinstall restore (2026-07-22): ✅ passes 1k + 100k by construction.** One new READ
   path: a single-row `select` on `notification_preferences`, gated on a device that has never made a

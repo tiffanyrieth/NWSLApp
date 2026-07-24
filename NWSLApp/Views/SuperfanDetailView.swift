@@ -147,7 +147,7 @@ struct SuperfanDetailView: View {
     private func meta(_ game: SuperfanGame) -> (symbol: String, color: Color, name: String) {
         switch game {
         case .predict: return ("sportscourt.fill", .dsGamePredict, "Predict the XI")
-        case .bracket: return ("trophy.fill", .dsGameBracket, "Bracket Battle")
+        case .bracket: return ("trophy.fill", .dsGameBracket, "The Bracket")
         case .khg:     return ("person.fill.questionmark", .dsGameSpotlight, "Know Her Game")
         case .trivia:  return ("brain.head.profile", .dsGameTrivia, "NWSL Trivia")
         }

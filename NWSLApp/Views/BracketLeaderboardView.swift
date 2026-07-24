@@ -113,7 +113,7 @@ struct BracketLeaderboardView: View {
             editionSwitcher
         }
         if editionID == nil && previousEdition == nil {
-            emptyCard("No active edition", "Rankings appear once a Bracket Battle is live.")
+            emptyCard("No active edition", "Rankings appear once The Bracket is live.")
         } else if !loaded {
             loadingCard
         } else if standings.isEmpty && you == nil {

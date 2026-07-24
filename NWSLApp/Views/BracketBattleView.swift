@@ -49,7 +49,7 @@ struct BracketBattleView: View {
                 loadedContent
             }
         }
-        .nativeBackButton(title: "Bracket Battle")
+        .nativeBackButton(title: "The Bracket")
         .background(Color.dsBgPrimary.ignoresSafeArea())
         .task {
             // Start Game Center auth here (a game screen) rather than at launch, so
@@ -66,7 +66,7 @@ struct BracketBattleView: View {
         }
         // Mandatory sign-in + display name to PLAY — gated at "Make your picks" (entry to
         // voting), so the submit downstream is always signed in. "Go back" cancels.
-        .fanZoneGate(isRequested: $gateRequested, gameName: "Bracket Battle", accent: accent) { stage = .voting }
+        .fanZoneGate(isRequested: $gateRequested, gameName: "The Bracket", accent: accent) { stage = .voting }
         // A new round opening returns the player to the landing (not straight into voting from a stale
         // `stage == .voting`); they re-enter voting via the landing's CTA.
         .onChange(of: viewModel.currentRound) { stage = .intro }
@@ -123,7 +123,7 @@ struct BracketBattleView: View {
                     VStack(spacing: 20) {
                         VStack(spacing: 8) {
                             Image(systemName: "trophy.fill").dsFont(34).foregroundStyle(accent)
-                            Text("Bracket Battle").dsFont(12, weight: .bold).tracking(2).textCase(.uppercase).foregroundStyle(accent)
+                            Text("The Bracket").dsFont(12, weight: .bold).tracking(2).textCase(.uppercase).foregroundStyle(accent)
                             // The GENERAL tagline is the hero (tells first-timers what the game is) —
                             // the live edition's theme + real player count is the secondary line below.
                             // (No hardcoded count here: pool size varies 64–192 by edition.)
@@ -754,7 +754,7 @@ struct BracketBattleView: View {
         let delta = (store.lastSeenRank).flatMap { base in rank.map { base - $0 } }
         let img = resultsShareImage(round: round, correct: correct, total: total, pts: pts,
                                     edition: edition, rank: rank, movementDelta: delta)
-        return ShareLink(item: img, preview: SharePreview("My Bracket Battle result", image: img)) {
+        return ShareLink(item: img, preview: SharePreview("My result in The Bracket", image: img)) {
             HStack(spacing: 6) {
                 Image(systemName: "square.and.arrow.up").dsFont(14, weight: .semibold)
                 Text("Share your result")
@@ -794,7 +794,7 @@ struct BracketBattleView: View {
                 }
                 .padding(.top, 4)
             }
-            Text("NWSL · Bracket Battle").dsFont(11, weight: .semibold).foregroundStyle(Color.dsFgTertiary).padding(.top, 8)
+            Text("NWSL · The Bracket").dsFont(11, weight: .semibold).foregroundStyle(Color.dsFgTertiary).padding(.top, 8)
         }
         .padding(28).frame(width: 320)
         .background(LinearGradient(colors: [accent.opacity(0.18), Color.dsBgPrimary], startPoint: .top, endPoint: .bottom))

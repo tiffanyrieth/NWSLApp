@@ -166,7 +166,9 @@ struct PredictXIView: View {
                 .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("\(store.seasonPoints) season points")
+            // First-timer hero: a CTA, not a stat. No "season points" — the board runs on averages, and a
+            // new player has nothing to show (this is the no-board-yet explainer).
+            Text("Make your first prediction")
                 .dsFont(13, weight: .semibold)
                 .foregroundStyle(accent)
                 .padding(.top, 2)

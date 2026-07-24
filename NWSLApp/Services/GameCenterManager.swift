@@ -185,12 +185,13 @@ final class GameCenterManager {
         // and Know Her feed only the combined Superfan total.
         submit(predict.seasonPoints, to: GameCenterID.Leaderboard.predictSeasonPoints)
         submit(bracket.points, to: GameCenterID.Leaderboard.bracketTotalPoints)
-        submit(GameCenterScores.superfanTotal(
-                    triviaTotalCorrect: trivia.totalCorrect,
-                    predictSeasonPoints: predict.seasonPoints,
-                    bracketPoints: bracket.points,
-                    knowHerPoints: knowHer.totalPoints),
-               to: GameCenterID.Leaderboard.superfanTotal)
+        // The Superfan board now carries the 0–100 accuracy score (Fan Zone Competitive Redesign), not the
+        // old additive sum. Local counts are fine here — Game Center is the additive native skin; the
+        // Supabase `superfan_scores` row (server-merged) is the authoritative board.
+        let superfanCounts = SuperfanCounts.fromStores(
+            season: AppConfig.currentSeasonYear, predict: predict, bracket: bracket,
+            trivia: trivia, knowHer: knowHer)
+        submit(SuperfanScoring.total(counts: superfanCounts), to: GameCenterID.Leaderboard.superfanTotal)
 
         if predict.hasPredicted { report(GameCenterID.Achievement.firstPrediction) }
         if trivia.bestStreak >= 7  { report(GameCenterID.Achievement.triviaStreak7) }

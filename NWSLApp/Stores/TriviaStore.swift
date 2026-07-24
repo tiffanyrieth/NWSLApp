@@ -50,7 +50,11 @@ final class TriviaStore {
     /// Correct answers in the CURRENT NWSL season only (zeroes at the season boundary), for the season-
     /// scoped Superfan total — which never combines years. Distinct from lifetime `totalCorrect`.
     private(set) var seasonCorrect: Int
-    /// The season `seasonCorrect` belongs to; a new season zeroes the counter.
+    /// Attempted answers in the CURRENT NWSL season — the DENOMINATOR for the Superfan accuracy economy
+    /// (accuracy = seasonCorrect / seasonAnswered). Added with the 0–100 redesign; travels with
+    /// `seasonCorrect` (same season-zeroing). The durable reinstall copy is `superfan_scores.trivia_total`.
+    private(set) var seasonAnswered: Int
+    /// The season `seasonCorrect`/`seasonAnswered` belong to; a new season zeroes the counters.
     private var counterSeason: Int
 
     /// editionKey ("2026-R08") → score, for the CURRENT + PREVIOUS round only (pruned on write).
@@ -81,6 +85,7 @@ final class TriviaStore {
         static let totalCorrect = "trivia.totalCorrect"
         static let totalAnswered = "trivia.totalAnswered"
         static let seasonCorrect = "trivia.seasonCorrect"
+        static let seasonAnswered = "trivia.seasonAnswered"
         static let counterSeason = "trivia.counterSeason"
     }
 
@@ -99,6 +104,7 @@ final class TriviaStore {
         self.totalCorrect = defaults.integer(forKey: Key.totalCorrect)
         self.totalAnswered = defaults.integer(forKey: Key.totalAnswered)
         self.seasonCorrect = defaults.integer(forKey: Key.seasonCorrect)
+        self.seasonAnswered = defaults.integer(forKey: Key.seasonAnswered)
         self.counterSeason = defaults.integer(forKey: Key.counterSeason)
         self.lastCompletedRound = defaults.integer(forKey: Key.lastCompletedRound)
         self.roundScores = Self.decodeDict(defaults.data(forKey: Key.roundScores)) ?? [:]
@@ -109,8 +115,16 @@ final class TriviaStore {
         if defaults.object(forKey: Key.counterSeason) == nil {
             counterSeason = seasonNow
             seasonCorrect = totalCorrect
+            seasonAnswered = totalAnswered
             defaults.set(seasonCorrect, forKey: Key.seasonCorrect)
+            defaults.set(seasonAnswered, forKey: Key.seasonAnswered)
             defaults.set(counterSeason, forKey: Key.counterSeason)
+        } else if defaults.object(forKey: Key.seasonAnswered) == nil {
+            // The season-answered counter was added after seasonCorrect (0–100 redesign): back-fill it for
+            // an existing install so the denominator isn't stuck at 0. `totalAnswered` is the best floor we
+            // have (lifetime ≥ this season); the durable server copy corrects it on the next Superfan sync.
+            seasonAnswered = totalAnswered
+            defaults.set(seasonAnswered, forKey: Key.seasonAnswered)
         }
     }
 
@@ -182,8 +196,9 @@ final class TriviaStore {
         totalAnswered += total
         // Season-scoped counter (the Superfan total never combines years): a new season zeroes it first.
         let season = seasonNow
-        if counterSeason != season { seasonCorrect = 0; counterSeason = season }
+        if counterSeason != season { seasonCorrect = 0; seasonAnswered = 0; counterSeason = season }
         seasonCorrect += correct
+        seasonAnswered += total
 
         roundScores[editionKey] = correct
         roundPicks[editionKey] = picks
@@ -235,6 +250,7 @@ final class TriviaStore {
         defaults.set(totalCorrect, forKey: Key.totalCorrect)
         defaults.set(totalAnswered, forKey: Key.totalAnswered)
         defaults.set(seasonCorrect, forKey: Key.seasonCorrect)
+        defaults.set(seasonAnswered, forKey: Key.seasonAnswered)
         defaults.set(counterSeason, forKey: Key.counterSeason)
         defaults.set(lastCompletedRound, forKey: Key.lastCompletedRound)
         defaults.set(try? JSONEncoder().encode(roundScores), forKey: Key.roundScores)
@@ -261,6 +277,7 @@ final class TriviaStore {
         totalCorrect = 0
         totalAnswered = 0
         seasonCorrect = 0
+        seasonAnswered = 0
         counterSeason = 0
         roundScores = [:]
         roundPicks = [:]
@@ -284,6 +301,8 @@ final class TriviaStore {
         defaults.set(0, forKey: Key.bestStreak)
         defaults.set(0, forKey: Key.totalCorrect)
         defaults.set(0, forKey: Key.totalAnswered)
+        defaults.set(0, forKey: Key.seasonCorrect)
+        defaults.set(0, forKey: Key.seasonAnswered)
         defaults.set(0, forKey: Key.lastCompletedRound)
         defaults.set(Data(), forKey: Key.roundScores)
         defaults.set(Data(), forKey: Key.roundPicks)

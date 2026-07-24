@@ -39,13 +39,8 @@ struct GameCenterIDsTests {
         #expect(ids.allSatisfy { $0.hasPrefix(prefix) })     // all namespaced
     }
 
-    @Test func superfanTotalSumsTheGames() {
-        // Four terms now: trivia lifetime-correct + predict + bracket + Know Her banked points.
-        #expect(GameCenterScores.superfanTotal(triviaTotalCorrect: 40, predictSeasonPoints: 84, bracketPoints: 12, knowHerPoints: 9) == 145)
-        // knowHerPoints defaults to 0 → older three-arg call sites/behavior preserved.
-        #expect(GameCenterScores.superfanTotal(triviaTotalCorrect: 40, predictSeasonPoints: 84, bracketPoints: 12) == 136)
-        #expect(GameCenterScores.superfanTotal(triviaTotalCorrect: 0, predictSeasonPoints: 0, bracketPoints: 0) == 0)
-    }
+    // The combined Superfan figure is now the 0–100 accuracy score (SuperfanScoringTests covers the math);
+    // the old additive `superfanTotal` was removed with the Fan Zone Competitive Redesign.
 
     @Test func playedAllThreeNeedsEveryGame() {
         #expect(GameCenterScores.playedAllThree(playedTrivia: true, hasPredicted: true, playedBracket: true))

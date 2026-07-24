@@ -68,7 +68,8 @@ final class BracketViewModel {
         store.adopt(summary: .init(
             id: edition.id, title: edition.title,
             currentRoundRaw: edition.currentRound.rawValue,
-            roundClosesAt: edition.roundClosesAt, isActive: true
+            roundClosesAt: edition.roundClosesAt, isActive: true,
+            poolSize: edition.entrants.count
         ))
         await scoreSettledRounds(edition: edition, store: store)
         leaderboard = await service.leaderboard(myPoints: store.points,

@@ -30,6 +30,10 @@ final class BracketStore {
         let roundClosesAt: Date?
         /// False when there's no active/upcoming edition (the Fan Zone gate).
         let isActive: Bool
+        /// The edition's entrant-pool size — lets the Superfan accuracy denominator be computed locally
+        /// (Σ matchups over tallied rounds). Optional so summaries cached before this field still decode;
+        /// nil ⇒ the bracket contributes from the durable server counts only until the next live fetch.
+        var poolSize: Int?
     }
 
     private(set) var summary: EditionSummary?
@@ -112,7 +116,7 @@ final class BracketStore {
     func clearActiveEdition() {
         if var s = summary, s.isActive {
             s = EditionSummary(id: s.id, title: s.title, currentRoundRaw: s.currentRoundRaw,
-                               roundClosesAt: s.roundClosesAt, isActive: false)
+                               roundClosesAt: s.roundClosesAt, isActive: false, poolSize: s.poolSize)
             summary = s
             persist()
         }

@@ -164,23 +164,18 @@ struct FanZoneCarouselCard: View {
 // MARK: - Trailing Superfan card
 
 /// The cross-game "Superfan" summary — the LAST card in the Fan Zone row (design decision:
-/// zero added vertical height, sits right where the points are earned). Display-only: the
-/// number is computed locally via `GameCenterScores.superfanTotal`; the actual Game Center
-/// submission already happens in `GameCenterManager.syncAll`. Not tappable.
+/// zero added vertical height, sits right where the points are earned). Display-only: `score` is the
+/// 0–100 accuracy total (Fan Zone Competitive Redesign) computed by the caller from the game counts; the
+/// per-game dots still show raw engagement. The full card redesign (tier badge + progress) lands in PR3.
 struct SuperfanCard: View {
+    /// The 0–100 Superfan score (accuracy × 25 across the four games).
+    let score: Int
     let predictPoints: Int
     let bracketPoints: Int
     let triviaCorrect: Int
     var knowHerPoints: Int = 0
 
-    private var total: Int {
-        GameCenterScores.superfanTotal(
-            triviaTotalCorrect: triviaCorrect,
-            predictSeasonPoints: predictPoints,
-            bracketPoints: bracketPoints,
-            knowHerPoints: knowHerPoints
-        )
-    }
+    private var total: Int { score }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -287,7 +282,7 @@ func compactCountdown(to target: Date, from now: Date = Date()) -> String? {
                 game: .knowHer, title: "Know Her Game",
                 contextLine: "Trinity Rodman · WAS"
             ))
-            SuperfanCard(predictPoints: 68, bracketPoints: 22, triviaCorrect: 143, knowHerPoints: 8)
+            SuperfanCard(score: 62, predictPoints: 68, bracketPoints: 22, triviaCorrect: 143, knowHerPoints: 8)
         }
         .frame(height: 128)
         .padding(16)

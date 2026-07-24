@@ -9,8 +9,10 @@
 
 import SwiftUI
 
-/// The competitive tier from the user's Superfan percentile (design table). Fan (everyone) → Rising (top
-/// 50%) → All-Star (top 20%) → MVP (top 5%). Each keeps its own SF Symbol + accent.
+/// The competitive tier from the user's ABSOLUTE 0–100 Superfan score (Fan Zone Competitive Redesign):
+/// even quartiles — Fan 0–24 → Rising 25–49 → All-Star 50–74 → MVP 75–100 (one tier per game's worth of
+/// the 4×25 economy). Replaced the old percentile model (top 5% = MVP), which made "13 points to All-Star"
+/// meaningless. Each tier keeps its own SF Symbol + a DEDICATED tier color (not a game color).
 enum SuperfanTier: String, CaseIterable {
     case fan, rising, allStar, mvp
 
@@ -33,22 +35,74 @@ enum SuperfanTier: String, CaseIterable {
         }
     }
 
+    /// Dedicated tier palette (design tokens, not game colors): Fan gray, Rising green, All-Star blue,
+    /// MVP gold. Maps to existing DS tokens — no raw hex (fan-zone rule: add a token, never a hex).
     var color: Color {
         switch self {
-        case .fan: return .dsFgSecondary
-        case .rising: return .dsGameTrivia    // indigo
-        case .allStar: return .dsGameBracket  // teal
-        case .mvp: return .dsGamePredict      // pink
+        case .fan: return .dsFgSecondary   // gray  #8E8E93
+        case .rising: return .dsSuccess     // green #30D158
+        case .allStar: return .dsAccent     // blue  #0A84FF
+        case .mvp: return .dsWarning        // gold  #FFD60A
         }
     }
 
-    /// The tier for a top-fraction (0 = the very top, 1 = the bottom): top 5% → MVP, top 20% → All-Star,
-    /// top 50% → Rising, else Fan (thresholds inclusive).
-    static func forTopFraction(_ f: Double) -> SuperfanTier {
-        if f <= 0.05 { return .mvp }
-        if f <= 0.20 { return .allStar }
-        if f <= 0.50 { return .rising }
+    /// The inclusive lower bound of this tier on the 0–100 scale (Fan 0, Rising 25, All-Star 50, MVP 75).
+    var threshold: Int {
+        switch self {
+        case .fan: return 0
+        case .rising: return 25
+        case .allStar: return 50
+        case .mvp: return 75
+        }
+    }
+
+    /// The tier for an absolute 0–100 score (quartile bands).
+    static func forScore(_ score: Int) -> SuperfanTier {
+        if score >= 75 { return .mvp }
+        if score >= 50 { return .allStar }
+        if score >= 25 { return .rising }
         return .fan
+    }
+
+    /// The next tier up (nil at MVP — the top).
+    var next: SuperfanTier? {
+        switch self {
+        case .fan: return .rising
+        case .rising: return .allStar
+        case .allStar: return .mvp
+        case .mvp: return nil
+        }
+    }
+}
+
+/// The progress toward the next tier for the Superfan detail bar. Pure so it's testable.
+struct TierProgress: Equatable {
+    let current: SuperfanTier
+    let score: Int
+
+    init(score: Int) {
+        self.score = score
+        self.current = SuperfanTier.forScore(score)
+    }
+
+    /// 0…1 fill: (score − currentThreshold) / (nextThreshold − currentThreshold). MVP fills to 1.0.
+    var fraction: Double {
+        guard let next = current.next else { return 1.0 }
+        let span = Double(next.threshold - current.threshold)
+        guard span > 0 else { return 1.0 }
+        return min(1.0, max(0.0, Double(score - current.threshold) / span))
+    }
+
+    /// Points remaining to the next tier (0 at MVP).
+    var pointsToNext: Int {
+        guard let next = current.next else { return 0 }
+        return max(0, next.threshold - score)
+    }
+
+    /// The bar's caption: "13 points to All-Star" — or the MVP terminal line.
+    var caption: String {
+        guard let next = current.next else { return "MVP — you've reached the top" }
+        return "\(pointsToNext) point\(pointsToNext == 1 ? "" : "s") to \(next.label)"
     }
 }
 
@@ -71,7 +125,9 @@ struct SuperfanStanding {
     /// "Top N%" — at least 1 (being #1 of many is "Top 1%", never "Top 0%").
     var topPercent: Int { max(1, Int((topFraction * 100).rounded())) }
 
-    var tier: SuperfanTier { SuperfanTier.forTopFraction(topFraction) }
+    // NOTE: the competitive TIER is no longer derived from the percentile — it comes from the absolute
+    // 0–100 score (`SuperfanTier.forScore`). The standing stays purely about rank/percentile: "Top N% of
+    // N fans" and where you sit on the board, which is a DIFFERENT axis than the tier.
 
     /// The standing line under the season total. A field of ONE has no meaningful percentile (every
     /// fraction is 100%), so it reads as a rank; every larger field gets the real percentile. Owns the

@@ -39,4 +39,29 @@ enum BracketScoring {
     static func maxPoints(rounds: [BracketRound]) -> Int {
         rounds.reduce(0) { $0 + $1.matchupCount * $1.points }
     }
+
+    // MARK: - Superfan accuracy backing (0–100 economy)
+
+    /// The accuracy DENOMINATOR for the Superfan economy: matchups across every TALLIED (resolved) round
+    /// of an edition — the rounds BEFORE the currently-open one in play order. Missed rounds are INCLUDED.
+    /// This is the behavior fix for the "100% accuracy with 4 points" bug — a player who skipped rounds
+    /// gets those rounds' matchups counted as zeros in the denominator, not excluded. `currentRoundRaw` is
+    /// a `BracketRound` raw value; `poolSize` is the edition's entrant count.
+    static func talliedMatchupDenominator(poolSize: Int, currentRoundRaw: Int) -> Int {
+        guard let current = BracketRound(rawValue: currentRoundRaw) else { return 0 }
+        return BracketRound.rounds(forEntrants: poolSize)
+            .filter { $0 < current }
+            .reduce(0) { $0 + $1.matchupCount }
+    }
+
+    /// Correct picks banked across an edition, recovered from the per-round POINTS the store holds
+    /// (points = correct × round.points ⇒ correct = points / round.points). Rounds the user skipped are
+    /// simply absent ⇒ contribute 0 correct — the "missed = zero" numerator that pairs with the
+    /// structure denominator above.
+    static func correctPicks(fromRoundScores roundScores: [Int: Int]) -> Int {
+        roundScores.reduce(0) { sum, entry in
+            guard let round = BracketRound(rawValue: entry.key), round.points > 0 else { return sum }
+            return sum + entry.value / round.points
+        }
+    }
 }

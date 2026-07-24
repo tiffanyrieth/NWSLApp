@@ -150,6 +150,15 @@ struct RootTabView: View {
     // "a person opened the app" signal.
     @State private var didCountSession = false
 
+    #if DEBUG
+    // DEBUG launch arg `-debugOpenSuperfan`: present SuperfanDetailView at launch (over onboarding too),
+    // so in-sim screenshot verification of the Superfan 0–100 screen doesn't depend on played-game state
+    // or the swallowed carousel-card tap. A testing affordance like `-debugOpenMatch`; compiled out of
+    // release. Seed a couple of game counters first (e.g. trivia.season*) to see a non-zero score/tier.
+    @State private var showDebugSuperfan =
+        ProcessInfo.processInfo.arguments.contains("-debugOpenSuperfan")
+    #endif
+
     var body: some View {
         @Bindable var router = router
         // A custom selection binding so we can detect a re-tap of the ALREADY-active
@@ -241,6 +250,19 @@ struct RootTabView: View {
         .environment(auth)
         .environment(notifications)
         .environment(teamAlerts)
+        #if DEBUG
+        // DEBUG-only: force the Superfan screen for in-sim verification (re-inject the stores it reads,
+        // since a cover's content doesn't reliably inherit the @Observable environment across the sheet
+        // boundary). See `showDebugSuperfan`.
+        .fullScreenCover(isPresented: $showDebugSuperfan) {
+            NavigationStack { SuperfanDetailView() }
+                .environment(predict)
+                .environment(bracket)
+                .environment(trivia)
+                .environment(knowHer)
+                .environment(auth)
+        }
+        #endif
         .task {
             // What the notification stores actually LOADED off disk this launch, before any network
             // or auth work can touch them. The reinstall-restore only engages on a device with no

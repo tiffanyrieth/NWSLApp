@@ -433,6 +433,7 @@ struct HomeView: View {
                 if superfanBannerVisible {
                     NavigationLink { SuperfanDetailView() } label: {
                         SuperfanCard(
+                            score: superfanScore,
                             predictPoints: predict.seasonPoints,
                             bracketPoints: bracket.points,
                             triviaCorrect: trivia.seasonCorrect,
@@ -448,18 +449,21 @@ struct HomeView: View {
         .scrollTargetBehavior(.viewAligned)
     }
 
+    /// The 0–100 Superfan accuracy score (Fan Zone Competitive Redesign), computed locally from the four
+    /// stores — matches what the detail screen shows. Card + gate read this so the number is consistent.
+    private var superfanScore: Int {
+        SuperfanScoring.total(counts: SuperfanCounts.fromStores(
+            season: AppConfig.currentSeasonYear, predict: predict, bracket: bracket,
+            trivia: trivia, knowHer: knowHer))
+    }
+
     /// Show the Superfan banner only once the user has genuine scores in ≥2 games AND a
     /// non-zero total — never a meaningless "0" for a new user (handoff visibility rule).
     private var superfanBannerVisible: Bool {
         let season = AppConfig.currentSeasonYear
         let played = [predict.hasPredicted, bracket.hasPlayed, trivia.totalAnswered > 0,
                       knowHer.playedInSeason(year: season)].filter { $0 }.count
-        let total = GameCenterScores.superfanTotal(
-            triviaTotalCorrect: trivia.seasonCorrect,
-            predictSeasonPoints: predict.seasonPoints,
-            bracketPoints: bracket.points,
-            knowHerPoints: knowHer.seasonPoints(year: season))
-        return played >= 2 && total > 0
+        return played >= 2 && superfanScore > 0
     }
 
     @ViewBuilder

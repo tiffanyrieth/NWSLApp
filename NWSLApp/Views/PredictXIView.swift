@@ -521,13 +521,44 @@ struct PredictXIView: View {
             }
             .buttonStyle(.plain)
             if showHowTo {
-                Text("Pick your team's starting XI, formation, and final score before kickoff. Save a draft, tweak it on team news, then submit to lock it in — submissions close 2 hours before kickoff. You're scored against every fan of your club.")
-                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(EdgeInsets(top: 0, leading: 14, bottom: 14, trailing: 14))
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Pick your team's starting XI, formation, and final score before kickoff. Save a draft, tweak it on team news, then submit to lock it in — submissions close 2 hours before kickoff.")
+                        .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text("HOW POINTS WORK").dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(accent)
+                    VStack(spacing: 6) {
+                        predictPointRow("Each correct starter", "+3")
+                        predictPointRow("Right position band for a correct pick", "+2")
+                        predictPointRow("Correct formation", "+5")
+                        predictPointRow("Exact final score", "+10")
+                        predictPointRow("Right result (win / draw / loss)", "+3")
+                        predictPointRow("Perfect XI — all 11 right", "+15")
+                        Divider().overlay(Color.dsFgQuaternary)
+                        predictPointRow("Most possible in one match", "88 pts", bold: true)
+                    }
+
+                    Text("Points build up across every match you predict all season, and you're ranked on a per-club leaderboard — against other fans of your team, not the whole league.")
+                        .dsFont(13).foregroundStyle(Color.dsFgSecondary).fixedSize(horizontal: false, vertical: true)
+                    Text("Your season accuracy — correct player picks out of every XI slot you've predicted — feeds up to 25 of your 100 Superfan points.")
+                        .dsFont(13).foregroundStyle(Color.dsFgSecondary).fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(EdgeInsets(top: 0, leading: 14, bottom: 14, trailing: 14))
             }
         }
         .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    /// One "how points work" row for the Predict rules (label — value). Values transcribed from
+    /// `PredictionScore` (Batch-2 Fix 4B — rules match the scorer, not a guess).
+    private func predictPointRow(_ label: String, _ value: String, bold: Bool = false) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label).dsFont(13, weight: bold ? .semibold : .regular)
+                .foregroundStyle(bold ? Color.dsFgPrimary : Color.dsFgSecondary)
+            Spacer(minLength: 8)
+            Text(value).dsFont(13, weight: .bold).foregroundStyle(accent)
+        }
     }
 
     private func teamLeaderboardCard(
@@ -553,7 +584,7 @@ struct PredictXIView: View {
                 TeamLogo(urlString: viewModel.club(forAbbreviation: team)?.logoURL, teamAbbreviation: team, size: 22)
                 Text(viewModel.teamLabel(team)).dsFont(17, weight: .semibold)
                 Spacer()
-                Text("Predictors").dsFont(12).foregroundStyle(.secondary)
+                Text("Leaderboard").dsFont(12).foregroundStyle(.secondary)
             }
             if let round {
                 // The two clocks. "This round" carries the honest date-range label (never a

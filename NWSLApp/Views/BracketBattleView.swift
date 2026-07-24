@@ -309,10 +309,10 @@ struct BracketBattleView: View {
         VStack(alignment: .leading, spacing: 8) {
             sectionLabel("Points")
             VStack(spacing: 10) {
-                // Simplified to three tiers for onboarding — the full per-round breakdown
-                // lives in the bracket overview / Your Stats.
+                // Three onboarding tiers matching the engine's 1·1·2·2·3·3 (the +2 tier is the Round-of-16
+                // & Quarterfinals — named POSITIONALLY per this edition, never "Round of X").
                 pointsTier("Early rounds", "+1")
-                pointsTier("Round of 16 & Quarterfinals", "+2")
+                pointsTier("\(BracketRound.roundOf16.displayName(in: rounds)) & Quarterfinals", "+2")
                 pointsTier("Semifinals & Final", "+3")
                 Divider().overlay(Color.dsFgQuaternary)
                 HStack {
@@ -324,6 +324,9 @@ struct BracketBattleView: View {
             .padding(14).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14))
             Text("Points increase each round — later picks are worth more because they're harder to predict")
                 .dsFont(11).foregroundStyle(Color.dsFgSecondary).frame(maxWidth: .infinity)
+            Text("Your accuracy across the whole edition — correct picks out of every matchup, including rounds you skip — feeds up to 25 of your 100 Superfan points.")
+                .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                .fixedSize(horizontal: false, vertical: true).padding(.top, 2)
             Text("This isn't a popularity contest — you're predicting who the crowd will pick, not who you like best. Your favorite might be the nicest person in the league, but if they're up against someone with serious stare-down energy, voting with your heart will cost you points.")
                 .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -975,13 +978,16 @@ struct BracketBattleView: View {
         default:       phrase = "Nail-biter — \(winnerName) barely survived"
         }
         let correct = yourPick != nil && yourPick == m.communityWinnerID
-        var line = Text(phrase).foregroundStyle(Color.dsFgSecondary)
-        if correct {
-            line = line + Text("  ·  +\(m.round.points) pts").foregroundStyle(Color.dsSuccess)
-        } else if yourPick != nil {
-            line = line + Text("  ·  \(winnerPct)% vs your pick's \(100 - winnerPct)%").foregroundStyle(Color.dsError)
-        }
-        return line.dsFont(11, weight: .semibold).multilineTextAlignment(.center).frame(maxWidth: .infinity)
+        // Margin phrase is the WHOLE quick-read (Batch-2 Fix 1): no inline percentages — the exact vote
+        // split lives only inside the expandable "See how the league voted" donut. Green when you called it
+        // (+ the points), red when your pick went home, neutral when you sat out.
+        let color: Color = correct ? .dsSuccess : (yourPick == nil ? .dsFgSecondary : .dsError)
+        let text = correct ? "\(phrase)  ·  +\(m.round.points) pts" : phrase
+        return Text(text)
+            .dsFont(11, weight: .semibold)
+            .foregroundStyle(color)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
     }
 
     /// The "See stats" reveal: a donut of the community split, the legend, the vote

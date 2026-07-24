@@ -29,10 +29,10 @@ struct SuperfanDetailView: View {
 
     /// The merged (local ↔ server) per-game counts — the source of the score, tier, and breakdown.
     @State private var counts: SuperfanCounts = .zero
-    @State private var standing: SuperfanStanding?
     @State private var seasonHistory: [SeasonHistoryEntry] = []
     @State private var achievements: [EarnedAchievement] = []
     @State private var didLoad = false
+    @State private var showHowItWorks = false
 
     private var season: Int { AppConfig.currentSeasonYear }
 
@@ -40,13 +40,13 @@ struct SuperfanDetailView: View {
     private var total: Int { SuperfanScoring.total(counts: counts) }
     private var tier: SuperfanTier { SuperfanTier.forScore(total) }
     private var breakdown: SuperfanBreakdown { SuperfanScoring.breakdown(counts: counts) }
-    private var gamesPlayed: Int { counts.gamesPlayed }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
                 hero
                 breakdownSection
+                howSuperfanWorks
                 bestMomentsSection
                 seasonHistorySection
                 gameCenterLink
@@ -91,7 +91,6 @@ struct SuperfanDetailView: View {
         counts = await service.submit(counts: local, season: String(season),
                                       userID: userID, displayName: auth.displayName)
         let total = SuperfanScoring.total(counts: counts)
-        standing = await service.standing(season: String(season), total: total)
         // Keep the current season's record book row current (peak monotonic), then read the arc.
         await service.submitSeasonHistory(seasonYear: season, score: total, userID: userID)
         seasonHistory = await service.seasonHistory(userID: userID)
@@ -129,28 +128,8 @@ struct SuperfanDetailView: View {
                 Text(progress.caption).dsFont(13, weight: .semibold).foregroundStyle(tier.color)
             }
             .padding(.horizontal, 8)
-
-            standingLine
         }
         .frame(maxWidth: .infinity).padding(.top, 8)
-    }
-
-    /// The percentile line under the score — shown when we have a server standing and the user qualifies
-    /// (≥2 games); otherwise an honest, actionable prompt. Separate from the tier (which the score gives).
-    @ViewBuilder
-    private var standingLine: some View {
-        if let s = standing, gamesPlayed >= 2 {
-            Text(s.standingText).dsFont(13).foregroundStyle(.secondary)
-        } else if gamesPlayed < 2 {
-            Text("Play a couple of Fan Zone games to build your Superfan season.")
-                .dsFont(13).foregroundStyle(.secondary).multilineTextAlignment(.center)
-        } else if auth.isSignedIn {
-            Text("Couldn't load your standing — pull to refresh.")
-                .dsFont(13).foregroundStyle(.secondary).multilineTextAlignment(.center)
-        } else {
-            Text("Sign in to see where you rank.")
-                .dsFont(13).foregroundStyle(.secondary).multilineTextAlignment(.center)
-        }
     }
 
     // MARK: - Breakdown (per-game accuracy × 25)
@@ -212,6 +191,74 @@ struct SuperfanDetailView: View {
 
     private func oneDecimal(_ value: Double) -> String {
         String(format: "%.1f", value)
+    }
+
+    // MARK: - How Superfan works (collapsible explainer — Batch-2 Fix 4E)
+
+    /// A collapsed "How Superfan works ›" card so a new user can decode the score / tier / breadth rule
+    /// without guessing. Tokens only; the tier bands mirror `SuperfanTier` exactly.
+    private var howSuperfanWorks: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button { withAnimation(.easeInOut(duration: 0.2)) { showHowItWorks.toggle() } } label: {
+                HStack {
+                    Text("How Superfan works").dsFont(14, weight: .semibold).foregroundStyle(.primary)
+                    Spacer()
+                    Image(systemName: showHowItWorks ? "chevron.up" : "chevron.right")
+                        .dsFont(13).foregroundStyle(.tertiary)
+                }
+                .padding(14)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if showHowItWorks {
+                VStack(alignment: .leading, spacing: 12) {
+                    explainerParagraph("What it measures",
+                        "Superfan is one score for how well-rounded you are across all four Fan Zone games.")
+                    explainerParagraph("How the score works",
+                        "Each game contributes up to 25 points based on your accuracy — four games, so 100 is the max. Playing only one game caps you at 25, so climbing takes breadth: the more games you play well, the higher you go.")
+                    tierLegend
+                    explainerParagraph("Season & history",
+                        "Tiers reset each season, but the highest tier you reach is saved for good in Season History below.")
+                    explainerParagraph("Your Best Moments",
+                        "Badges you earn for specific feats across the games — a perfect quiz, a called upset, a full lineup.")
+                }
+                .padding(EdgeInsets(top: 0, leading: 14, bottom: 14, trailing: 14))
+            }
+        }
+        .background(Color.dsBgCard).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func explainerParagraph(_ title: String, _ body: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).dsFont(13, weight: .bold).foregroundStyle(.primary)
+            Text(body).dsFont(13).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The four tier bands with their colors — mirrors `SuperfanTier` (Fan 0–24 … MVP 75–100).
+    private var tierLegend: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("The tiers").dsFont(13, weight: .bold).foregroundStyle(.primary)
+            tierRow(.fan, "0–24", "just getting started")
+            tierRow(.rising, "25–49", "building across games")
+            tierRow(.allStar, "50–74", "strong across multiple games")
+            tierRow(.mvp, "75–100", "elite across the full Fan Zone")
+        }
+    }
+
+    private func tierRow(_ tier: SuperfanTier, _ range: String, _ blurb: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: tier.symbol).font(.system(size: 12)).foregroundStyle(tier.color)
+                .frame(width: 18)
+            Text(tier.label).dsFont(13, weight: .semibold).foregroundStyle(.primary)
+                .frame(width: 58, alignment: .leading)
+            Text(range).font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(tier.color)
+                .frame(width: 52, alignment: .leading)
+            Text(blurb).dsFont(12).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+        }
     }
 
     // MARK: - Your Best Moments (earned achievements — PR4)

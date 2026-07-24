@@ -318,7 +318,10 @@ final class PredictXIViewModel {
             }
             // The season card's "#N of M predictors" total (public — fetched regardless of sign-in).
             let total = await leaderboardService.totalPredictors(teamAbbreviation: team, season: season)
-            teamStandings[team] = TeamStanding(rank: trueRank, total: total)
+            // Fix 6: the user always counts in their own denominator. A just-scored user can rank one past
+            // the server's predictor count (a "#15 of 14"); clamp the shown total up so rank ≤ total always.
+            let shownTotal = max(total, trueRank ?? 0)
+            teamStandings[team] = TeamStanding(rank: trueRank, total: shownTotal)
             boards.append((team: team, rows: rankedRows(
                 team: team, standings: standings, trueRank: trueRank, store: store, auth: auth,
                 points: store.points(forTeam: team))))

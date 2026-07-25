@@ -192,6 +192,11 @@ review window (§7). The Rankings tab can reopen the **previous completed editio
 - **KHG restores via a season BASELINE floor**, not synthetic score rows: season reads take
   `max(local-derived, baseline)`. A floor, not an addend — local play that already fed the server total
   can't double-count.
+- **Trivia's SEASON accuracy pair (`seasonCorrect`/`seasonAnswered`) is NOT restored here** (2026-07-25,
+  the accuracy-pair invariant §6): the table has no season-answered twin, and restoring the lone
+  numerator inflated accuracy to a false 100%. Lifetime pair + streak pair still restore (both travel
+  whole); season accuracy durability rides `superfan_scores`, exactly like KHG. The
+  `trivia_season_correct` column is still uploaded (older builds read it) but ignored on restore.
 - Per-completion uploads are **per-game PARTIAL upserts** (PostgREST merge-duplicates touches only the
   supplied columns), so Trivia's write can't clobber KHG's. Only the sign-in restore goes through
   `ProgressSyncCoordinator`.
@@ -221,6 +226,23 @@ columns), NOT the derived score. Accuracy/contribution/total are DERIVED, becaus
 *falls* (a bad game lowers it) while counts only grow. `SuperfanCounts.merged(with:)` takes the GREATEST
 of every count — that's what makes it reinstall-safe (a wiped device can't lower the server) while still
 letting a genuinely-changed accuracy recompute. (The old `max(total)` clamped the wrong thing.)
+
+**⚠️ THE ACCURACY-PAIR INVARIANT (owner rule, 2026-07-25 — run it for every game, and for any FIFTH
+game via §9's checklist):** an accuracy's numerator and denominator must be **persisted and restored
+TOGETHER, or derived from the same source** — never one without its twin. The bug that minted this rule:
+`fanzone_progress` carried `trivia_season_correct` but no season-ANSWERED twin (the column was designed
+for #167's points model, one day before #173 redefined the metric as accuracy), so sign-in restore
+inflated the numerator against a fresh device's denominator and the `min(1,·)` clamp laundered a 0/10
+round into "100% · 25/25". Fix: Trivia's season pair is now NEVER restored from `fanzone_progress`
+(the column is still uploaded for older builds, ignored on restore) — reinstall durability rides
+`superfan_scores`, exactly like KHG. **KHG is the GOLDEN CHILD for community stat games (owner):
+paired local writes (`scores`/`attempts` dicts written together), restore never touches the accuracy
+pair, durability via the `superfan_scores` GREATEST-merge. Trivia and KHG are SIBLINGS — the one real
+difference is calendar (Trivia runs all year; KHG runs the soccer season) — so their state machinery
+must stay structurally identical; any divergence is drift, not design.** Enforcement: an impossible
+pair (`correct > answered`) emits `.fanZoneAccuracyInvariant` to Diagnostics at counts assembly
+(`SuperfanCounts.fromStores`) and is sanitized at `TriviaStore` load — it must never pass silently
+as a clamped "100%" (the banned failure-that-looks-like-success).
 
 **ABSOLUTE tiers** (`SuperfanTier.forScore`, even quartiles — NOT percentile): **Fan 0–24 → Rising 25–49
 → All-Star 50–74 → MVP 75–100.** Each has a dedicated tier color (not a game color) + SF Symbol. The
@@ -321,3 +343,8 @@ about the ranked experience waits on App Store approval. ⚠️ The trivia achie
    atomicity. Each maps to a bug this codebase actually shipped.
 6. **Run the load stress test** (`docs/stress-testing.md` §5) and record it in §7 there.
 7. **Add its retention rule** — what's the unit, what's kept, what prunes it, and who does the pruning.
+8. **Honor the ACCURACY-PAIR INVARIANT (§6):** if the game feeds the Superfan economy, its
+   correct/attempted pair is written together and restored together (or not at all — durability via
+   `superfan_scores`), never one scalar without its twin. Community stat games copy the KHG pattern
+   exactly (the golden child); `correct > answered` must emit `.fanZoneAccuracyInvariant`, never
+   clamp silently.

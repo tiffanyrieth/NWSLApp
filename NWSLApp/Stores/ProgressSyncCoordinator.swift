@@ -77,11 +77,15 @@ final class ProgressSyncCoordinator {
                 return
             }
             let merged = ProgressSnapshot.merge(local: currentSnapshot(), server: server)
+            // NOTE: merged.triviaSeasonCorrect is NOT passed — the season accuracy pair is never
+            // restored (KHG-sibling rule; fanzone_progress has no season-answered twin, and restoring
+            // one half inflated accuracy to a false 100%). Reinstall durability for season accuracy
+            // rides superfan_scores, same as Know Her Game. The column is still uploaded (round-trip
+            // below) so older builds that read it keep working.
             trivia.restoreProgress(
                 lifetimeCorrect: merged.triviaLifetimeCorrect,
                 lifetimeAnswered: merged.triviaLifetimeAnswered,
                 bestStreak: merged.triviaBestStreak,
-                seasonCorrect: merged.triviaSeasonCorrect,
                 roundStreak: merged.triviaRoundStreak,
                 lastRound: merged.triviaLastRound)
             knowHer.restoreProgress(

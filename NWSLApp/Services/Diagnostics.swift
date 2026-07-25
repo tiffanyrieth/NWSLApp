@@ -50,6 +50,11 @@ final class Diagnostics {
         // The day-before reminder's image card failed to render or attach — the reminder was still
         // delivered TEXT-ONLY (never skipped). Detail = eventID + stage + error. See DayBeforeCardRenderer.
         case dayBeforeCardFailure
+        // A Fan Zone game's accuracy pair is structurally impossible (correct > answered) — every game's
+        // pair is written together locally, so this only arises from a sync/restore defect (the 2026-07-25
+        // trivia numerator-only-restore bug). The value is capped for display, but it must NEVER pass
+        // silently: an impossible ratio clamped to "100%" is the banned failure-that-looks-like-success.
+        case fanZoneAccuracyInvariant
     }
 
     struct Event: Identifiable {

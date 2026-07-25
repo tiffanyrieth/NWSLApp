@@ -29,6 +29,10 @@ struct ProgressSnapshot: Codable, Equatable {
     var triviaLifetimeCorrect: Int
     var triviaLifetimeAnswered: Int
     var triviaBestStreak: Int
+    /// ⚠️ Upload/merge ONLY — never restored into TriviaStore (2026-07-25). The table has no
+    /// season-ANSWERED twin, and restoring a lone numerator inflated Superfan trivia accuracy to a
+    /// false 100% (clamped ratio > 1). Season accuracy durability rides superfan_scores (KHG-sibling
+    /// rule); this stays in the payload so the server row remains whole for older builds.
     var triviaSeasonCorrect: Int
     var triviaRoundStreak: Int
     var triviaLastRound: Int

@@ -28,7 +28,7 @@ enum SuperfanGame: String, CaseIterable, Identifiable {
 
 /// The durable per-game count ledger — one value set per (user, season), mirrored 1:1 to
 /// `superfan_scores` columns. These are the SOURCE OF TRUTH; accuracy/contribution/total derive from them.
-struct SuperfanCounts: Equatable {
+struct SuperfanCounts: Equatable, Codable {
     var predictCorrect = 0
     var predictTotal   = 0   // 11 × scored matches
     var bracketCorrect = 0

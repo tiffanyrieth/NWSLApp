@@ -47,6 +47,9 @@ final class Diagnostics {
         // seen, token received, session resolved/dropped, upsert ok/fail) so a push-to-start background
         // launch — un-observable in the sim — leaves a full trace in the remote sink. See LiveActivityManager.
         case liveActivityTrace
+        // The day-before reminder's image card failed to render or attach — the reminder was still
+        // delivered TEXT-ONLY (never skipped). Detail = eventID + stage + error. See DayBeforeCardRenderer.
+        case dayBeforeCardFailure
     }
 
     struct Event: Identifiable {

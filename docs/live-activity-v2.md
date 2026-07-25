@@ -179,6 +179,15 @@ knowable on-device (lock screen) or via the app's own observation (`snapshot=N`,
   pushes, in **mm:ss** with **`showsHours:false`** (so the 68th minute reads `68:12`, not `1:08:12`).
   The true football minute ("45'+2'") still ticks IN-APP only (`MatchClock` + TimelineView). Don't
   "fix" the widget's mm:ss for regular play — that's a settled scale decision.
+- ⛔ **NEVER `.fixedSize()` (or any content-hugging sizing) on the `Text(timerInterval:)` view**
+  (device-proven 2026-07-24, POR–GFC, TestFlight build 28): asking the render service to size Apple's
+  self-ticking timer to its content made the render FAIL and blanked the **ENTIRE lock-screen card**
+  for every regular-play minute — recovering exactly when the static stoppage/HT branches took over.
+  Plain `Text` tolerates it; the system-mutated timer does not, and one bad subview blanks the whole
+  card. Center/size the clock with a **reserved frame** instead: `.frame(maxWidth:, alignment: .center)`
+  + `.multilineTextAlignment(.center)` (shipped build 29). Static-branch `.accessibilityLabel`s are
+  PROVEN SAFE (rendered fine in the same match); a label on the ticking timer is still avoided — it
+  would replace the live spoken value, not crash it.
 - ⚠️ **SUPERSEDED FOR STOPPAGE ONLY (build 26, 2026-07-11):** in **added time** the widget DOES show
   the football label. Apple's timer can't format `90'+2'`, and once Broadcast Channels shipped (7/9) a
   per-minute push became cheap (ONE POST/channel, follower-independent, only ~2–8 min/match). So the

@@ -21,18 +21,18 @@ enum DesignTeamColors {
     private static let palette: [String: String] = [
         "LA": "E6447B",   // Angel City FC
         "BAY": "2F80E8",  // Bay FC — brand navy (Pantone 296), brightened for dark-mode legibility (was a placeholder green)
-        "BOS": "2FA85A",  // Boston Legacy FC — "Legacy Green", legible on dark (was a placeholder blue)
-        "CHI": "6BA4FF",  // Chicago Stars
+        "BOS": "26D07C",  // Boston Legacy FC — official "Emerald" (verified 2026: TruColor/club brand)
+        "CHI": "00A3E0",  // Chicago Stars — official "Great Lake" blue (verified 2026)
         "DEN": "239E80",  // Denver Summit FC — "Evergreen" brand primary, brightened for dark-mode pop (was the Sandstone-red accent FF6B4A)
-        "GFC": "7FD4C1",  // Gotham FC (ESPN's abbr; the design table's "NJ" was the pre-2021 NY/NJ Sky Blue mark)
-        "HOU": "FF8A3D",  // Houston Dash
+        "GFC": "9ADBE8",  // Gotham FC — official "Sky Blue" (verified 2026; was a mint 7FD4C1 that drifted green)
+        "HOU": "FF6900",  // Houston Dash — official "Electric Orange" (verified 2026)
         "KC": "30C7E8",   // Kansas City Current
         "NC": "E0354B",   // North Carolina Courage (club red — was an unjustified gold override)
         "SEA": "6E7FFF",  // OL Reign / Seattle
         "ORL": "B07CE8",  // Orlando Pride
-        "POR": "FF4D6D",  // Portland Thorns (club red — was an unjustified gold override)
+        "POR": "EF3340",  // Portland Thorns — official "Vivid Red" (verified 2026; was FF4D6D which read pink, not red)
         "LOU": "C7A8FF",  // Racing Louisville
-        "SD": "FFB340",   // San Diego Wave
+        "SD": "FFA400",   // San Diego Wave — official Wave gold (verified 2026; tidied from FFB340)
         "UTA": "FFD60A",  // Utah Royals
         "WAS": "FF4D5E",  // Washington Spirit
     ]

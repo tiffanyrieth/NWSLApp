@@ -69,4 +69,36 @@ struct FormationLayoutTests {
         let placed = FormationPitchView.layout(formation: "4-3-3", players: players)
         #expect(rowSizes(placed) == [1, 4, 3, 3])
     }
+
+    // MARK: - Picker display rows (guards the 2026-07-25 Predict-picker crash fix)
+
+    /// Every common formation must produce well-formed, UNIQUELY-identified display-row groups —
+    /// the contract the picker's value-based `ForEach(displayRowGroups)` relies on to never
+    /// index-subscript a recomputed array (the old `ForEach(indices){ displayRows[i] }` crashed
+    /// out-of-bounds when the row count shrank on a formation change).
+    @Test func everyFormationHasWellFormedUniqueDisplayRows() {
+        for formation in Formation.common {
+            let groups = formation.displayRowGroups
+            // Unique ids (SwiftUI ForEach requires it; row numbers are the identity).
+            #expect(Set(groups.map(\.id)).count == groups.count, "\(formation.raw): duplicate row ids")
+            // 11 slots total, and exactly one keeper on the last (GK) row.
+            #expect(groups.reduce(0) { $0 + $1.slots.count } == 11, "\(formation.raw): not 11 slots")
+            #expect(groups.last?.slots == [Formation.Slot(index: 0, group: .gk, row: 0)],
+                    "\(formation.raw): GK must be the last (bottom) display row")
+            // Attack-first ordering: row numbers strictly descend.
+            #expect(groups.map(\.row) == groups.map(\.row).sorted(by: >), "\(formation.raw): rows not attack-first")
+        }
+    }
+
+    /// The row COUNT genuinely varies across formations (4-2-3-1/4-1-4-1 = 5 rows, others = 4) —
+    /// which is exactly the shrink/grow that crashed the index-based ForEach. Pin it so the fix
+    /// stays value-based.
+    @Test func rowCountVariesAcrossFormations() {
+        let counts = Dictionary(uniqueKeysWithValues:
+            Formation.common.map { ($0.raw, $0.displayRowGroups.count) })
+        #expect(counts["4-3-3"] == 4)
+        #expect(counts["4-2-3-1"] == 5)
+        #expect(counts["4-1-4-1"] == 5)
+        #expect(Set(counts.values).count > 1, "row counts must differ — that's what broke the old ForEach")
+    }
 }

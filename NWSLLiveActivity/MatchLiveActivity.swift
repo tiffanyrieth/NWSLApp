@@ -255,15 +255,19 @@ private struct LockScreenBanner: View {
                 // VoiceOver: "90'+2'" reads as punctuation soup — speak the plain meaning instead.
                 .accessibilityLabel("Stoppage time")
         } else if state.phase.isClockRunning, let epoch = state.clockStartEpoch {
-            // .fixedSize() (not a maxWidth frame): Text(timerInterval:) renders leading-aligned
-            // inside a reserved box, which floated the visible digits LEFT of the centered
-            // score/pill column — hugging the content keeps the clock truly centered.
+            // ⚠️ NEVER .fixedSize() on this timer (device-proven 2026-07-24, POR–GFC): asking the
+            // render service to content-hug Apple's self-ticking Text(timerInterval:) blanked the
+            // ENTIRE card for every regular-play minute (recovered only on the static stoppage/HT
+            // branches). Centering is done the frame way instead: a reserved box wide enough for
+            // "10:00" at 14pt, with the ticking digits centered INSIDE it via multilineTextAlignment
+            // (the bare maxWidth frame rendered the digits leading-aligned — the old left-shift).
             // No accessibilityLabel here: VoiceOver reads Apple's timer text natively and keeps
             // it current; a static label would replace the live value with stale text.
             Text(timerInterval: Date(timeIntervalSince1970: epoch)...Date.distantFuture, countsDown: false, showsHours: false)
                 .font(.system(size: 14, weight: .semibold).monospacedDigit())
                 .foregroundStyle(LA.clock)
-                .fixedSize()
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 76, alignment: .center)
         } else if state.phase != .fulltime, let label = state.staticLabel {
             // At full-time the top pill already shows "FT" — don't repeat it in the clock slot.
             Text(label).font(.system(size: 14, weight: .semibold)).foregroundStyle(LA.clock)

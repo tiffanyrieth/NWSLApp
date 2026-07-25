@@ -446,9 +446,14 @@ struct HomeView: View {
     /// The 0–100 Superfan accuracy score (Fan Zone Competitive Redesign), computed locally from the four
     /// stores — matches what the detail screen shows. Card + gate read this so the number is consistent.
     private var superfanScore: Int {
-        SuperfanScoring.total(counts: SuperfanCounts.fromStores(
-            season: AppConfig.currentSeasonYear, predict: predict, bracket: bracket,
-            trivia: trivia, knowHer: knowHer))
+        // Local counts MERGED with the cached server-merged row (SuperfanCountsCache) — after a
+        // reinstall the history lives only server-side, and local-only math showed 25 here while
+        // the detail screen (which server-merges) showed 46. Same monotonic merge, no network.
+        let season = AppConfig.currentSeasonYear
+        let local = SuperfanCounts.fromStores(
+            season: season, predict: predict, bracket: bracket,
+            trivia: trivia, knowHer: knowHer)
+        return SuperfanScoring.total(counts: local.merged(with: SuperfanCountsCache.load(season: season)))
     }
 
     /// Show the Superfan banner only once the user has genuine scores in ≥2 games AND a

@@ -90,6 +90,9 @@ struct SuperfanDetailView: View {
         let service = SuperfanService()
         counts = await service.submit(counts: local, season: String(season),
                                       userID: userID, displayName: auth.displayName)
+        // Mirror the adopted server-merged counts so network-free surfaces (the Home card, the
+        // Game Center submit) show the SAME score as this screen — the 25-vs-46 mismatch fix.
+        SuperfanCountsCache.save(counts, season: season)
         let total = SuperfanScoring.total(counts: counts)
         // Keep the current season's record book row current (peak monotonic), then read the arc.
         await service.submitSeasonHistory(seasonYear: season, score: total, userID: userID)

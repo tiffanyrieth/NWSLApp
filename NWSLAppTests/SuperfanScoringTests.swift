@@ -6,6 +6,7 @@
 //  accuracy × 25, Trivia adds a capped streak bonus, and the counts merge reinstall-safe. Pure, no I/O.
 //
 
+import Foundation
 import Testing
 @testable import NWSLApp
 
@@ -121,5 +122,33 @@ struct SuperfanScoringTests {
         c.predictTotal = 11        // played once — contributes immediately, no minimum
         c.triviaTotal = 10
         #expect(c.gamesPlayed == 2)
+    }
+
+    // MARK: - the Home-card/detail equality contract (SuperfanCountsCache, 2026-07-25)
+
+    @Test func cacheRoundTripsAndMergesToTheDetailScore() {
+        // The 25-vs-46 mismatch: after a reinstall the Home card computed from local-only counts
+        // while the detail adopted the server merge. The card now computes
+        // local.merged(with: cachedServerMerge) — assert that equals the detail's adopted total.
+        let suite = "test.superfan.countscache"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+
+        // Post-reinstall device: only a corrupt-ish trivia round locally; history on the server.
+        let local = SuperfanCounts(triviaCorrect: 0, triviaTotal: 10)
+        let server = SuperfanCounts(bracketCorrect: 3, bracketTotal: 25,
+                                    khgCorrect: 14, khgTotal: 20,
+                                    triviaCorrect: 25, triviaTotal: 25)
+        let adopted = local.merged(with: server)          // what the detail screen shows
+
+        SuperfanCountsCache.save(adopted, season: 2026, defaults: defaults)
+        let cardCounts = local.merged(with: SuperfanCountsCache.load(season: 2026, defaults: defaults))
+        #expect(SuperfanScoring.total(counts: cardCounts) == SuperfanScoring.total(counts: adopted))
+
+        // Never-synced device: loading yields .zero, and merging with zero is the identity —
+        // the card safely shows the local-only score until the first detail sync.
+        defaults.removePersistentDomain(forName: suite)
+        #expect(SuperfanCountsCache.load(season: 2026, defaults: defaults) == .zero)
+        #expect(local.merged(with: .zero) == local)
     }
 }

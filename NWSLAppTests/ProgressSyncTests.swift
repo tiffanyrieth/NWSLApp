@@ -88,7 +88,7 @@ struct ProgressSyncTests {
     @Test func triviaRestoreOnAFreshDeviceAdoptsServerProgress() {
         let store = TriviaStore(defaults: isolatedDefaults("test.progress.trivia.fresh"))
         store.restoreProgress(lifetimeCorrect: 55, lifetimeAnswered: 80, bestStreak: 6,
-                              seasonCorrect: 30, roundStreak: 4, lastRound: 9)
+                              roundStreak: 4, lastRound: 9)
         #expect(store.totalCorrect == 55)
         #expect(store.streak == 4)
         #expect(store.lastCompletedRound == 9)
@@ -104,10 +104,38 @@ struct ProgressSyncTests {
         let store = TriviaStore(defaults: isolatedDefaults("test.progress.trivia.fresher"))
         store.recordCompletion(round: 10, editionKey: "2026-R10", correct: 8, outOf: 10, picks: [])
         store.restoreProgress(lifetimeCorrect: 3, lifetimeAnswered: 10, bestStreak: 1,
-                              seasonCorrect: 3, roundStreak: 1, lastRound: 4)
+                              roundStreak: 1, lastRound: 4)
         #expect(store.totalCorrect == 8, "stale restore can't lower the live count")
         #expect(store.lastCompletedRound == 10)
         #expect(store.streak == 1)
+    }
+
+    // MARK: - The KHG-sibling rule: season accuracy pair is NEVER touched by restore (2026-07-25)
+
+    @Test func triviaRestoreNeverTouchesTheSeasonAccuracyPair() {
+        // The 0/10-shows-100% bug: fanzone_progress has no season-ANSWERED column, so restoring the
+        // lone season-correct numerator against a fresh device's small denominator produced
+        // correct > answered, which the Superfan clamp laundered into "100% · 25/25". The fix mirrors
+        // Know Her Game: restore leaves the pair alone; durability rides superfan_scores.
+        let store = TriviaStore(defaults: isolatedDefaults("test.progress.trivia.pair"))
+        store.recordCompletion(round: 10, editionKey: "2026-R10", correct: 0, outOf: 10, picks: [])
+        store.restoreProgress(lifetimeCorrect: 55, lifetimeAnswered: 80, bestStreak: 6,
+                              roundStreak: 4, lastRound: 9)
+        #expect(store.seasonCorrect == 0, "restore must not inflate the numerator")
+        #expect(store.seasonAnswered == 10, "the honest 0/10 round survives restore")
+        #expect(store.seasonCorrect <= store.seasonAnswered)
+    }
+
+    @Test func triviaLoadSanitizesAPreFixCorruptPair() {
+        // A device corrupted by the OLD numerator-only restore heals on next launch: correct is
+        // capped at answered (and the impossible pair is reported to Diagnostics, not hidden).
+        let defaults = isolatedDefaults("test.progress.trivia.corrupt")
+        defaults.set(15, forKey: "trivia.seasonCorrect")
+        defaults.set(10, forKey: "trivia.seasonAnswered")
+        defaults.set(2026, forKey: "trivia.counterSeason")
+        let store = TriviaStore(defaults: defaults)
+        #expect(store.seasonCorrect == 10, "impossible numerator capped at the denominator")
+        #expect(store.seasonAnswered == 10)
     }
 
     @Test func knowHerRestoreFloorsSeasonReadsWithoutFabricatingEditions() {

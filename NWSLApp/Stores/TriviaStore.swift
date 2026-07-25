@@ -126,6 +126,16 @@ final class TriviaStore {
             seasonAnswered = totalAnswered
             defaults.set(seasonAnswered, forKey: Key.seasonAnswered)
         }
+        // Sanitize a structurally-impossible pair left by the pre-2026-07-25 numerator-only restore
+        // (fanzone_progress carried season CORRECT but never season ANSWERED, so a sign-in on a fresh
+        // device inflated correct past answered → Superfan clamped it to a false "100%"). correct can
+        // never exceed answered from paired local writes, so cap + heal + FAIL LOUD (never silently).
+        if seasonCorrect > seasonAnswered {
+            Diagnostics.shared.record(.fanZoneAccuracyInvariant,
+                "trivia seasonCorrect \(seasonCorrect) > seasonAnswered \(seasonAnswered) — capped (pre-fix restore corruption)")
+            seasonCorrect = seasonAnswered
+            defaults.set(seasonCorrect, forKey: Key.seasonCorrect)
+        }
     }
 
     // MARK: - Round context (the store's own clock → the shared cadence)
@@ -220,12 +230,18 @@ final class TriviaStore {
     /// wins, monotonically — so this only ever raises counters / adopts a fresher streak pair; a
     /// fresh install simply takes the server values). Per-round scores/picks are NOT restored: they
     /// are pruned history (retention rule), and the community recap works without them.
+    /// ⚠️ The SEASON accuracy pair (`seasonCorrect`/`seasonAnswered`) is deliberately NOT restored —
+    /// the KHG-sibling rule (owner, 2026-07-25): accuracy counters are paired LOCAL writes only, and
+    /// reinstall durability rides `superfan_scores` (GREATEST-merged there), exactly like Know Her
+    /// Game. Restoring one scalar without its twin is how the "0/10 round shows 100% · 25/25" bug
+    /// happened — `fanzone_progress` never carried a season-answered column, so sign-in inflated the
+    /// numerator against a fresh device's small denominator. Lifetime is safe: both halves restore
+    /// together below.
     func restoreProgress(lifetimeCorrect: Int, lifetimeAnswered: Int, bestStreak restoredBest: Int,
-                         seasonCorrect restoredSeason: Int, roundStreak: Int, lastRound: Int) {
+                         roundStreak: Int, lastRound: Int) {
         totalCorrect = max(totalCorrect, lifetimeCorrect)
         totalAnswered = max(totalAnswered, lifetimeAnswered)
         bestStreak = max(bestStreak, restoredBest)
-        seasonCorrect = max(seasonCorrect, restoredSeason)
         if lastRound > lastCompletedRound {
             streak = roundStreak
             lastCompletedRound = lastRound

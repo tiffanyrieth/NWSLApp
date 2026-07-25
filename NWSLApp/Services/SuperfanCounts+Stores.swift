@@ -51,6 +51,18 @@ extension SuperfanCounts {
         c.triviaTotal = trivia.seasonAnswered
         c.triviaStreak = trivia.streak
 
+        // FAIL LOUD on an impossible pair (correct > answered): every game writes its pair together,
+        // so this only arises from a sync/restore defect — the exact shape of the 2026-07-25 trivia
+        // numerator-only-restore bug, which the downstream min(1,·) clamp would otherwise launder
+        // into a clean "100%". The bracket is exempt: its just-tallied round can transiently exceed
+        // the structure denominator (documented in SuperfanScoring.contribution).
+        for (game, correct, total) in [("predict", c.predictCorrect, c.predictTotal),
+                                       ("khg", c.khgCorrect, c.khgTotal),
+                                       ("trivia", c.triviaCorrect, c.triviaTotal)] where correct > total {
+            Diagnostics.shared.record(.fanZoneAccuracyInvariant,
+                "\(game) correct \(correct) > answered \(total) at counts assembly")
+        }
+
         return c
     }
 }

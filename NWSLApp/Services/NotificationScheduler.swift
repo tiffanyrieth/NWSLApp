@@ -28,6 +28,9 @@
 import Foundation
 import Observation
 import UserNotifications
+#if DEBUG
+import SwiftUI   // ImageRenderer, for the -testDayBeforeCard render-to-Documents debug affordance
+#endif
 
 @MainActor
 @Observable
@@ -65,6 +68,11 @@ final class NotificationScheduler {
         preferences.onPreferenceChanged = { [weak self] in self?.reschedule() }
         observeStores()
         reschedule()
+        #if DEBUG
+        // `-testDayBeforeCard`: fire one synthetic day-before card ~5s out to eyeball the attachment
+        // in the sim (local notifications DO deliver in the simulator, unlike push).
+        if ProcessInfo.processInfo.arguments.contains("-testDayBeforeCard") { debugFireTestCard() }
+        #endif
     }
 
     // MARK: - Observation
@@ -102,13 +110,19 @@ final class NotificationScheduler {
     /// where all pending reminders were briefly gone. In-memory only (Hasher's per-run seed = within-process).
     private var lastScheduleSignature: Int?
 
-    /// Rebuild all local notifications from scratch. Idempotent. Reads the stores
-    /// on the main actor, then performs the center mutations off the synchronous path.
+    /// Rebuild all local notifications from scratch. Idempotent. Builds the day-before SPECS
+    /// (pure, no I/O) first and gates on the signature — only when the built set actually changed
+    /// do we render the card images (a handful of flat ImageRenderer passes) and re-add.
     func reschedule() {
-        let requests = buildRequests()
-        let signature = Self.scheduleSignature(of: requests)
+        let specs = dayBeforeSpecs()
+        let signature = Self.scheduleSignature(dayBefore: specs, spotlightEnabled: preferences.playerSpotlight)
         guard signature != lastScheduleSignature else { return }   // nothing changed → skip the churn
         lastScheduleSignature = signature
+
+        // Render behind the gate: only now (the set changed) do we pay for the card images.
+        var requests = specs.compactMap(request(from:))
+        if preferences.playerSpotlight { requests.append(weeklySpotlightRequest()) }
+
         Task {
             // We own every locally-scheduled request, so clearing all pending ones
             // is a clean rebuild (delivered/server pushes are unaffected).
@@ -126,126 +140,177 @@ final class NotificationScheduler {
         lastScheduleSignature = nil   // force a full rebuild on the next reschedule
     }
 
-    /// Order-independent hash of the request set — identifier + fire date + title/body — so an identical
-    /// rebuild compares equal and is skipped.
-    private static func scheduleSignature(of requests: [UNNotificationRequest]) -> Int {
+    /// Order-independent hash of the day-before set (+ the spotlight bool). Each `DayBeforeSpec`
+    /// is `Hashable` over its identifier, STABLE fireDate, title, body, card, and assetToken — so a
+    /// re-render triggers when (and only when) any of those change. ⚠️ We hash the fireDate, NOT a
+    /// now-relative interval: the old `scheduleSignature(of:)` hashed the trigger's `timeInterval`,
+    /// which decays every second, so any pending day-before reminder defeated the churn gate and the
+    /// 60s live-poll rebuilt the whole set every minute.
+    nonisolated static func scheduleSignature(dayBefore: [DayBeforeSpec], spotlightEnabled: Bool) -> Int {
         var hasher = Hasher()
-        for r in requests.sorted(by: { $0.identifier < $1.identifier }) {
-            hasher.combine(r.identifier)
-            if let cal = r.trigger as? UNCalendarNotificationTrigger { hasher.combine(cal.nextTriggerDate()) }
-            else if let ti = r.trigger as? UNTimeIntervalNotificationTrigger { hasher.combine(ti.timeInterval) }
-            hasher.combine(r.content.title)
-            hasher.combine(r.content.body)
-        }
+        for spec in dayBefore.sorted(by: { $0.identifier < $1.identifier }) { hasher.combine(spec) }
+        hasher.combine(spotlightEnabled)
         return hasher.finalize()
     }
 
-    private func buildRequests() -> [UNNotificationRequest] {
-        var requests: [UNNotificationRequest] = []
-        // Day-before is gated per-team inside (alertsEnabled && dayBefore), so it's
-        // always considered here — the empty-set guard handles "nobody opted in".
-        requests.append(contentsOf: dayBeforeRequests())
-        if preferences.playerSpotlight { requests.append(weeklySpotlightRequest()) }
-        return requests
+    /// Keep the NEXT `perTeamLimit` fixtures per followed team, sorted by kickoff, up to a global
+    /// `cap` — iOS caps PENDING local notifications at 64/app, and the prune-all rebuild slides the
+    /// window forward as matches are played. Pure + generic so it's unit-tested without a full spec.
+    nonisolated static func windowed<T>(
+        _ candidates: [(followed: String, kickoff: Date, value: T)],
+        perTeamLimit: Int = 2, cap: Int = 50
+    ) -> [T] {
+        var perTeam: [String: Int] = [:]
+        var out: [T] = []
+        for candidate in candidates.sorted(by: { $0.kickoff < $1.kickoff }) {
+            if perTeam[candidate.followed, default: 0] >= perTeamLimit { continue }
+            perTeam[candidate.followed, default: 0] += 1
+            out.append(candidate.value)
+            if out.count >= cap { break }
+        }
+        return out
+    }
+
+    /// Turn a built spec into a request — rendering the card image (text-only if the render fails,
+    /// via DayBeforeCardRenderer's diagnostic path). `nil` if the fire moment slid inside 24h
+    /// between building and adding.
+    private func request(from spec: DayBeforeSpec) -> UNNotificationRequest? {
+        let interval = spec.fireDate.timeIntervalSinceNow
+        guard interval > 0 else { return nil }
+
+        let content = UNMutableNotificationContent()
+        content.title = spec.title
+        content.body = spec.body
+        content.sound = .default
+        if let attachment = DayBeforeCardRenderer.attachment(for: spec.card, eventID: spec.eventID) {
+            content.attachments = [attachment]   // nil → text-only (already diagnosed); never skip the reminder
+        }
+        return UNNotificationRequest(
+            identifier: spec.identifier,
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
+        )
     }
 
     // MARK: - Day-before reminders
 
-    private func dayBeforeRequests() -> [UNNotificationRequest] {
-        // Abbreviations of followed clubs that get the day-before reminder: the
-        // team's 🔔 is on AND the GLOBAL day-before alert type is on (v2: per-team is
-        // on/off, the alert TYPES are global). Scoreboard competitors carry an
-        // abbreviation, not a club id, so we resolve through the directory (the same
-        // fragile-but-verified join MatchStore.matches(for:) uses).
+    /// One built day-before reminder — everything needed WITHOUT rendering, so the signature gate
+    /// compares cheaply before any image work. `Hashable` so it folds into the rebuild signature.
+    struct DayBeforeSpec: Hashable {
+        let identifier: String            // "nwsl.<eventID>.dayBefore"
+        let eventID: String
+        let fireDate: Date                // kickoff − 24h — STABLE (not a decaying interval)
+        let title: String
+        let body: String
+        let card: DayBeforeCardModel
+        let assetToken: String            // crest-override presence ("h1|a0") — a rebrand retriggers a rebuild
+    }
+
+    /// The windowed set of day-before specs (pure — no rendering, no I/O beyond store reads).
+    private func dayBeforeSpecs() -> [DayBeforeSpec] {
+        let candidates = dayBeforeCandidates()
+        return Self.windowed(candidates.map { (followed: $0.followed, kickoff: $0.kickoff, value: $0.spec) })
+    }
+
+    /// Build a spec per eligible upcoming fixture for a followed+alerting team.
+    private func dayBeforeCandidates() -> [(followed: String, kickoff: Date, spec: DayBeforeSpec)] {
+        // Abbreviations of followed clubs that get the day-before reminder: the team's 🔔 is on AND
+        // the GLOBAL day-before alert type is on. Scoreboard competitors carry an abbreviation, not a
+        // club id, so we resolve through the directory (the same join MatchStore.matches(for:) uses).
         guard preferences.dayBefore else { return [] }
         let alertingClubAbbreviations = Set(
             clubs.clubs
-                .filter {
-                    following.followedIDs.contains($0.id)
-                        && alerts.alertsEnabled(for: $0.id)
-                }
+                .filter { following.followedIDs.contains($0.id) && alerts.alertsEnabled(for: $0.id) }
                 .map { $0.abbreviation }
         )
-        // National teams share the same per-team alert store, keyed by FIFA code —
-        // and that code IS the abbreviation their matches carry, so an alerting code
-        // joins to events directly (no directory lookup). Tier-1 day-before only;
-        // Tier-2 server push for national teams rides the deferred match-watcher work.
+        // National teams share the same per-team alert store, keyed by FIFA code — and that code IS
+        // the abbreviation their matches carry, so an alerting code joins to events directly.
         let alertingNationalCodes = following.followedNationalTeams
             .filter { alerts.alertsEnabled(for: $0) }
         let alertingAbbreviations = alertingClubAbbreviations.union(alertingNationalCodes)
         guard !alertingAbbreviations.isEmpty else { return [] }
 
-        let candidates: [(followed: String, kickoff: Date, request: UNNotificationRequest)] = matches.events.compactMap { event in
-            // Upcoming only, and only if the day-before moment is still in the
-            // future (skips in-progress/past and games already inside 24h).
+        return matches.events.compactMap { event in
+            // Upcoming only, and only if the day-before moment is still in the future (skips
+            // in-progress/past and games already inside 24h).
             guard event.statusState == "pre", let kickoff = event.kickoff else { return nil }
-            let interval = kickoff.timeIntervalSinceNow - Self.dayBeforeLeadTime
-            guard interval > 0 else { return nil }
+            let fireDate = kickoff.addingTimeInterval(-Self.dayBeforeLeadTime)
+            guard fireDate > Date() else { return nil }
 
             guard let home = event.homeCompetitor?.team?.abbreviation,
                   let away = event.awayCompetitor?.team?.abbreviation,
                   alertingAbbreviations.contains(home) || alertingAbbreviations.contains(away)
             else { return nil }
 
-            // Name the FOLLOWED club as the subject → full club name (the app-wide
-            // rule: one team as subject gets its full name). The opponent rides the
-            // body. If both sides are followed, the home side leads.
+            // The FOLLOWED side names the title's subject; if both are followed, home leads.
             let followed = alertingAbbreviations.contains(home) ? home : away
-            let opponent = alertingAbbreviations.contains(home) ? away : home
+            guard let content = DayBeforeContent.make(event: event, followedAbbr: followed, clubs: clubs.clubs)
+            else { return nil }
 
-            let content = UNMutableNotificationContent()
-            content.title = "\(clubName(for: followed)) play tomorrow"
-            content.body = dayBeforeBody(opponentAbbr: opponent, event: event)
-            content.sound = .default
-
-            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
-            return (followed: followed,
-                    kickoff: kickoff,
-                    request: UNNotificationRequest(
-                        identifier: "nwsl.\(event.id).dayBefore",
-                        content: content,
-                        trigger: trigger
-                    ))
+            let spec = DayBeforeSpec(
+                identifier: "nwsl.\(event.id).dayBefore",
+                eventID: event.id,
+                fireDate: fireDate,
+                title: content.title,
+                body: content.body,
+                card: content.card,
+                assetToken: assetToken(home: home, away: away)
+            )
+            return (followed: followed, kickoff: kickoff, spec: spec)
         }
-
-        // iOS caps PENDING local notifications at 64 PER APP. The old unbounded full-season set
-        // (~100+ requests for 4 followed teams across all competitions) made every `add` past
-        // #64 throw "Repository could not save notification" (the 2026-07-04 telemetry flood)
-        // and silently dropped the season's tail. Window to the NEXT 2 fixtures per alerting
-        // team — the prune-all rebuild (reschedule() → removeAllPending…) re-runs on every
-        // schedule/prefs/follow change, so the window slides forward automatically as matches
-        // are played — plus a global safety cap far under the limit (spotlight uses 1 slot).
-        var perTeam: [String: Int] = [:]
-        var windowed: [UNNotificationRequest] = []
-        for candidate in candidates.sorted(by: { $0.kickoff < $1.kickoff }) {
-            if perTeam[candidate.followed, default: 0] >= 2 { continue }
-            perTeam[candidate.followed, default: 0] += 1
-            windowed.append(candidate.request)
-            if windowed.count >= 50 { break }
-        }
-        return windowed
     }
 
-    /// Full club name for an abbreviation via the directory, falling back to the
-    /// abbreviation itself (national teams aren't in the club directory).
-    private func clubName(for abbreviation: String) -> String {
-        clubs.clubs.first { $0.abbreviation == abbreviation }?.displayName ?? abbreviation
+    /// Presence flags for each side's crest OVERRIDE ("h1|a0") — folded into the signature so a
+    /// downloaded rebrand override re-renders the card. (A replaced override image doesn't flip a
+    /// presence flag; the next real content change re-renders. Documented, acceptable.)
+    private func assetToken(home: String, away: String) -> String {
+        func present(_ abbr: String) -> String {
+            let key = abbr.uppercased()
+            let has = AssetRefreshService.override(crest: key) != nil
+                || AssetRefreshService.override(flag: key) != nil
+            return has ? "1" : "0"
+        }
+        return "h\(present(home))|a\(present(away))"
     }
 
-    /// "vs Orlando Pride · Sat 3:00 PM · Audi Field" — opponent + kickoff in the
-    /// user's LOCAL zone (broadcast isn't in the model, so we don't invent it).
-    private func dayBeforeBody(opponentAbbr: String, event: Event) -> String {
-        var parts: [String] = ["vs \(clubName(for: opponentAbbr))"]
-        if let kickoff = event.kickoff {
-            let formatter = DateFormatter()
-            formatter.locale = .current
-            formatter.timeZone = .current
-            formatter.setLocalizedDateFormatFromTemplate("EEE h:mm a")
-            parts.append(formatter.string(from: kickoff))
+    #if DEBUG
+    /// `-testDayBeforeCard`: schedule ONE synthetic day-before card ~5s out so the attachment can be
+    /// eyeballed in the sim. Background the app after launch, wait, long-press the banner.
+    private func debugFireTestCard() {
+        let event = Event(
+            id: "debug",
+            date: "2026-08-01T20:00Z",
+            competitions: [Competition(
+                competitors: [
+                    Competitor(homeAway: "home", score: "0",
+                               team: Team(displayName: "Washington Spirit", abbreviation: "WAS", shortDisplayName: "Spirit")),
+                    Competitor(homeAway: "away", score: "0",
+                               team: Team(displayName: "Portland Thorns FC", abbreviation: "POR", shortDisplayName: "Thorns")),
+                ],
+                broadcasts: [Broadcast(names: ["ESPN"])]
+            )]
+        )
+        guard let content = DayBeforeContent.make(event: event, followedAbbr: "WAS", clubs: clubs.clubs) else { return }
+        // Also drop the rendered card PNG into Documents so the exact offscreen render can be pulled
+        // for inspection (notification banners are permission-gated + not screenshot-able headlessly).
+        if let png = ImageRenderer(content: DayBeforeCardView(model: content.card)).uiImage?.pngData(),
+           let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            try? png.write(to: docs.appendingPathComponent("dayBeforeCard-debug.png"))
         }
-        if let venue = event.venueName { parts.append(venue) }
-        return parts.joined(separator: " · ")
+        let notif = UNMutableNotificationContent()
+        notif.title = content.title
+        notif.body = content.body
+        notif.sound = .default
+        if let attachment = DayBeforeCardRenderer.attachment(for: content.card, eventID: "debug") {
+            notif.attachments = [attachment]
+        }
+        let request = UNNotificationRequest(
+            identifier: "nwsl.debug.dayBefore",
+            content: notif,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false))
+        Task { try? await center.add(request) }
     }
+    #endif
 
     // MARK: - Weekly Player Spotlight
 

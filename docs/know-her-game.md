@@ -265,6 +265,21 @@ The built loop (proxy repo, branch → PR):
 4. **Publish:** `POST /knowher/ingest` — dedicated `KNOWHER_INGEST_KEY` (never the master admin key,
    never in the public repo), reusing the ONE validate→KV→markFeatured path so the once-per-season
    rotation always advances. Every accept/reject emits a diag.
+4b. **⚠️ The ledger is only written by the publish path.** `markFeatured()` runs inside
+   `publishKnowHerPool()` — i.e. on `POST /knowher/ingest` and the admin `pasteContent` op, and nowhere
+   else. `scripts/load_knowher.mjs` writes KV **directly**, so a pool loaded that way is served to users
+   but its players never become ineligible and `/knowher/todo` re-picks them in a later edition. This is
+   not hypothetical: the **2026-W27** test edition shipped through that path, its 16 players never reached
+   `knowher:featured:2026`, and **Trinity Rodman (317423) was featured again in 2026-W31** (Cloé Lacasse
+   likewise in W30). Three defences, all added 2026-07-27:
+   - **Guard:** `load_knowher.mjs` now REFUSES the KV write unless `--allow-ledger-bypass` is passed, and
+     names the ingest command instead. `--dry-run` (the routine's only use) is untouched.
+   - **Repair:** `scripts/backfill_knowher_ledger.mjs <pool.json>` merges an already-published edition into
+     the ledger — idempotent, first weekKey wins, `--dry-run` shows the diff. Ledger-only; never touches
+     the live pool. Undo one entry with the admin `unfeature` op.
+   - **Detector:** `pool.round` is stamped server-side by `publishKnowHerPool()` and by nothing else, so a
+     bypassed pool is publicly identifiable. `health_check_knowher.mjs` FAILs (exit 1) when the live pool
+     has no `round`, so a bypass can't sit silent (NO SILENT FAILURES).
 5. **Watchdog:** `/knowher` serving emits `knowherStaleWeek` (throttled 1/day, in-season) whenever the
    served pool's weekKey lags the current ISO week — a silent missed Monday is impossible.
 6. **Failure posture:** one retry per step then stop LOUD; last week's pool stays live (serving has no

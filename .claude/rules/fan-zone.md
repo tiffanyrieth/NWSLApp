@@ -169,10 +169,22 @@ hidden when no followed team has a featured player.
 season (`KHG_MIN_MINUTES = 100`, proxy `rankEligible`); (3) **each player is featured once per season — no
 repeats**, enforced by the KV ledger `knowher:featured:{season}` (season-scoped, so it self-resets). Rank =
 starts desc → minutes desc → athleteId (NOT name — A–Z would permanently bury clubs/players).
-**Well-known players surfacing early is BY DESIGN, not a bias to correct** — early season you learn the
-headliners, later you learn the squad players; that arc only works if nobody repeats. The eligible pool
-GROWS all season (new first-time starters, subs crossing 100', tournament call-ups like WAFCON forcing
-unusual XIs), so a static "we'll run out of players" count is misleading — never argue from one.
+**⭐ THE WHY — KHG is a season-long CURRICULUM, and the three rules are its syllabus** (owner, 2026-07-27;
+this intent is NOT reconstructable from the code — read it before "improving" any part of the selection):
+a season is a fresh start for a fan who just picked a club (local, overseas-and-will-never-attend, or
+converted by a game last year) and **doesn't know the players yet**; existing fans still have room to go
+deeper. So EARLY season you learn who to look out for *right now* — and the rules never encode "famous",
+they encode **who is currently on the pitch** (starters first), which is honest and verifiable; a star
+surfacing in Round 1 is a side effect of her playing, not a popularity bias. MID season the depth players
+become eligible as they earn starts / cross 100', so the curriculum deepens on its own. **The goal: by
+season's end the fan has a firm grasp of every player on the club worth knowing.**
+Three consequences: (1) **no-repeats is the ENGINE, not a constraint** — without it the game re-teaches
+the stars forever and never reaches the squad players, so the arc collapses; (2) the 100' floor exists to
+filter roster filler (4th GKs, one-off cameos) — players not "important enough to learn"; (3) a club that
+genuinely runs out late season has **COMPLETED its curriculum** — that's a success state deserving honest
+"you've learned them all" copy, NOT an error and NEVER a reason to recycle players.
+The eligible pool GROWS all season (first-time starters, subs crossing 100', tournament call-ups like
+WAFCON forcing unusual XIs), so a static "we'll run out" count is misleading — never argue from one.
 Season: **2026-03-13 → November**; app-side rounds began ~June, 4 rounds done as of 2026-07-27.
 
 ## NWSL Trivia

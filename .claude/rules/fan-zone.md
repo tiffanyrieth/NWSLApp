@@ -180,11 +180,19 @@ become eligible as they earn starts / cross 100', so the curriculum deepens on i
 season's end the fan has a firm grasp of every player on the club worth knowing.**
 Three consequences: (1) **no-repeats is the ENGINE, not a constraint** — without it the game re-teaches
 the stars forever and never reaches the squad players, so the arc collapses; (2) the 100' floor exists to
-filter roster filler (4th GKs, one-off cameos) — players not "important enough to learn"; (3) a club that
-genuinely runs out late season has **COMPLETED its curriculum** — that's a success state deserving honest
-"you've learned them all" copy, NOT an error and NEVER a reason to recycle players.
+filter roster filler (4th GKs, one-off cameos) — players not "important enough to learn"; (3) ⚠️ **"no
+eligible player this round" is TEMPORARY, never terminal — a club can go quiet for several rounds and then
+re-open.** Eligibility is recomputed from LIVE stats every cycle (`rankEligible`, "DYNAMIC RE-ENTRY"), so
+a player returning from an ACL who is eased back as a 10-minute sub becomes eligible the moment she crosses
+100' or starts; a season-ending injury elsewhere turns a bench/close-out sub into a starter. Owner
+(2026-07-27): that ebb and flow **IS part of the game flow.** So a quiet round is NOT "curriculum
+complete", NOT an error, and NEVER a reason to recycle players — copy it as "nobody new this round" (come
+back), never "you've learned them all" / "done for the season".
 The eligible pool GROWS all season (first-time starters, subs crossing 100', tournament call-ups like
-WAFCON forcing unusual XIs), so a static "we'll run out" count is misleading — never argue from one.
+WAFCON forcing unusual XIs, late signings, post-injury returns), so a static "we'll run out" count is
+misleading — never argue from one. **General trap: this is a DYNAMIC set; a point-in-time snapshot of it
+supports no conclusion about the future.** (I made that error twice on 2026-07-27 — first "thin teams are
+short by 1 for the season", then "an exhausted club has finished". Both read a moving number as fixed.)
 Season: **2026-03-13 → November**; app-side rounds began ~June, 4 rounds done as of 2026-07-27.
 
 ## NWSL Trivia

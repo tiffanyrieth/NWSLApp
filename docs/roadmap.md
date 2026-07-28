@@ -11,16 +11,16 @@
 > the season card's `/88` ring denominator + `RECENT_RESULTS` breakdown must move to `/44` in lockstep.
 
 
-> ### ⏳ OWNER SETUP — Predict average-leaderboard migration (Batch 3, 2026-07-24)
-> Paste `supabase/migration_predict_avg_leaderboard.sql` into the Supabase SQL editor + Run (idempotent,
+> ### ✅ DONE 2026-07-24 — Predict average-leaderboard migration (Batch 3)
+> APPLIED by the owner (confirmed 2026-07-27). `supabase/migration_predict_avg_leaderboard.sql` (idempotent,
 > additive: `prediction_scores` gains `matches` + `avg_points` + an index). Until it's applied, the Predict
 > SEASON board's rivals degrade to empty (honest — the season CARD, recent results, and round board all use
 > other data and keep working); after it's applied + a client sync, the board ranks by average per match.
 > The seeder (`nwslapp-proxy/scripts/seed_test_fans.mjs`) now writes the two columns, so `--purge` +
 > re-seed makes the seeded average board realistic for the visual pass.
 
-> ### ⏳ OWNER SETUP — Fan Zone v3 migrations (2026-07-23, ~5 min — required before the branch ships)
-> Four SQL files to paste into the Supabase SQL editor + Run, in any order (all idempotent):
+> ### ✅ DONE 2026-07-24 — Fan Zone v3 migrations
+> ALL FOUR APPLIED by the owner, and the proxy deploy is done (confirmed 2026-07-27). For the record:
 > `migration_fanzone_progress.sql` (game-progress restore), `migration_predict_round_scores.sql`
 > (Predict round boards), `migration_bracket_final_rank.sql` (final ranks + the bracket_votes
 > service_role DELETE grant), `migration_retention_cron.sql` (pg_cron prunes; needs the pg_cron
@@ -123,17 +123,20 @@
 > accessibility-pre-release-gate memory. (Dark-only is NOT an a11y issue — the app's color balances it.)
 > Also still pending here: profanity-filter the editable leaderboard display name before public launch.
 
-> ### ✅ BUILT (proxy) + ⏳ first-Monday verify — Know Her Game weekly automation (2026-07-13)
+> ### ✅ SHIPPED + PROVEN — Know Her Game weekly automation (built 2026-07-13, proven through 2026-07-27)
 > The full no-human weekly loop is BUILT (proxy branch `feature/knowher-weekly-automation`): deterministic
 > prompt assembly (`assemble_knowher_prompt.mjs` fills the Rodman-faithful `knowher-weekly-TEMPLATE.md`
 > from `/knowher/todo`, which now serves age/country + keeper stats), a dedicated-key
 > **`POST /knowher/ingest`** (validate → KV → markFeatured, diag on every outcome), a `knowherStaleWeek`
 > serving watchdog (in-season, 1/day), and the committed cloud-routine runbook
 > (`knowher-weekly-routine.md`). Proxy DEPLOYED + prod-probed; `node --test` 14/14. The scheduled Claude
-> Routine (Sonnet, Mon 09:00 UTC ≈ 5am ET) is configured but **pending the owner's one-time GitHub
-> connect** on claude.ai. Monday user nudge = the existing local 10 AM notification (unchanged). **Verify
-> on the first automated Monday:** routine report SUCCESS, new weekKey serves, ledger advanced, app shows
-> the new week. Engine question CLOSED (owner): the Rodman-WORKING prompt is final;
+> Routine runs Mon 06:00 UTC (2am ET) on **Opus 4.6** — GitHub connected, four editions published
+> (W27/W29/W30/W31). Monday user nudge = the existing local 10 AM notification (unchanged).
+> ⚠️ **Three durable gotchas learned 2026-07-27 — see `docs/know-her-game.md` before touching this:**
+> the routine's MODEL lives in the trigger's `job_config`, which the claude.ai UI does NOT write (set it
+> via the RemoteTrigger API or every run silently reverts); `scripts/load_knowher.mjs` bypasses the
+> featured ledger and is now guarded; and a one-second ESPN blip can silently drop a club from an edition
+> (the assembler is fail-open — it logs a GAP and ships short). Engine question CLOSED (owner): the Rodman-WORKING prompt is final;
 > `knowher-generation-prompt.md` (untested self-audit variant) deleted. Detail: `docs/know-her-game.md` §5d.
 
 > ### 🧹 CLEANUP — remove the DEBUG postseason simulator's baked-in 2025 data (owner-parked)

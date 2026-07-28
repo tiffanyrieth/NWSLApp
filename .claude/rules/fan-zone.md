@@ -50,6 +50,22 @@ run it at BUILD time, not a review months later. Every item maps to a real bug t
    local-only state the user would "own" is either server-backed or a documented, accepted trade-off.
 6. **Partial-failure atomicity** — if a multi-step write dies BETWEEN steps, does the retry double-apply or
    wedge? Make the retriable step idempotent (upsert-on-conflict) and gate the non-idempotent (scoring) step.
+7. **Published rules are CONTRACTS — never "optimize" around one.** If a rules/how-it-works screen states a
+   guarantee, the state that enforces it is the FEATURE, not bookkeeping you may adjust for a better
+   outcome. Before changing any eligibility ledger / streak / cadence / scoring state, go READ the in-app
+   rules text (e.g. `KnowHerLandingView.swift` `howPlayersAreChosen`) and confirm the change doesn't
+   contradict it. **"The old content is deleted, so no user would notice" is NOT a defence** — a user who
+   PLAYED an edition experienced it; deleting the artifact doesn't undo the experience. *(2026-07-27: I
+   proposed reclaiming 32 already-featured players from finished KHG editions because their content had
+   been regenerated with a better model. That would have broken the printed rule "Each player is only
+   featured once per season — no repeats." The owner caught it. Her reasoning is the standard: she'd
+   already know the answers so she'd learn nothing; the marquee names would crowd out the lesser-known
+   players the back half of the season exists to surface; and a player only HAS so many interesting facts,
+   so a second quiz would largely repeat the first. The ONLY legitimate reclaim is a SAME-edition content
+   correction — republishing the same weekKey hours later, where each player is still featured exactly
+   once.)* Corollary: when a rules screen and the code disagree, that's a BUG in one of them — reconcile it,
+   don't quietly follow the code (the KHG operator page described the pre-2026-07-21 `minutes > 0` gate long
+   after the real floor became `KHG_MIN_MINUTES = 100`, and that stale line misled a session).
 
 Plus the standing hard rule: **ZERO fabricated data** — honest empty/loading, never fake rivals or padded
 counts. ⚠️ Scope: this bans the APP inventing rivals. It does NOT ban the pre-launch BACKEND test
@@ -147,6 +163,37 @@ only if the immediately-prior KHG edition (biweekly = 1–2 ISO weeks back)) · 
 followed team is exhausted this round → `KnowHerGameView` (intro→question→result, `Entry .play/.review`).
 Content is fully-automated (see `docs/know-her-game.md`). One featured player per followed team per round;
 hidden when no followed team has a featured player.
+
+**THE SELECTION RULES (printed in-app, `KnowHerLandingView.swift`) — treat as a contract, see gate #7:**
+(1) players who have STARTED matches are featured first; (2) then players with **100+ minutes** this
+season (`KHG_MIN_MINUTES = 100`, proxy `rankEligible`); (3) **each player is featured once per season — no
+repeats**, enforced by the KV ledger `knowher:featured:{season}` (season-scoped, so it self-resets). Rank =
+starts desc → minutes desc → athleteId (NOT name — A–Z would permanently bury clubs/players).
+**⭐ THE WHY — KHG is a season-long CURRICULUM, and the three rules are its syllabus** (owner, 2026-07-27;
+this intent is NOT reconstructable from the code — read it before "improving" any part of the selection):
+a season is a fresh start for a fan who just picked a club (local, overseas-and-will-never-attend, or
+converted by a game last year) and **doesn't know the players yet**; existing fans still have room to go
+deeper. So EARLY season you learn who to look out for *right now* — and the rules never encode "famous",
+they encode **who is currently on the pitch** (starters first), which is honest and verifiable; a star
+surfacing in Round 1 is a side effect of her playing, not a popularity bias. MID season the depth players
+become eligible as they earn starts / cross 100', so the curriculum deepens on its own. **The goal: by
+season's end the fan has a firm grasp of every player on the club worth knowing.**
+Three consequences: (1) **no-repeats is the ENGINE, not a constraint** — without it the game re-teaches
+the stars forever and never reaches the squad players, so the arc collapses; (2) the 100' floor exists to
+filter roster filler (4th GKs, one-off cameos) — players not "important enough to learn"; (3) ⚠️ **"no
+eligible player this round" is TEMPORARY, never terminal — a club can go quiet for several rounds and then
+re-open.** Eligibility is recomputed from LIVE stats every cycle (`rankEligible`, "DYNAMIC RE-ENTRY"), so
+a player returning from an ACL who is eased back as a 10-minute sub becomes eligible the moment she crosses
+100' or starts; a season-ending injury elsewhere turns a bench/close-out sub into a starter. Owner
+(2026-07-27): that ebb and flow **IS part of the game flow.** So a quiet round is NOT "curriculum
+complete", NOT an error, and NEVER a reason to recycle players — copy it as "nobody new this round" (come
+back), never "you've learned them all" / "done for the season".
+The eligible pool GROWS all season (first-time starters, subs crossing 100', tournament call-ups like
+WAFCON forcing unusual XIs, late signings, post-injury returns), so a static "we'll run out" count is
+misleading — never argue from one. **General trap: this is a DYNAMIC set; a point-in-time snapshot of it
+supports no conclusion about the future.** (I made that error twice on 2026-07-27 — first "thin teams are
+short by 1 for the season", then "an exhausted club has finished". Both read a moving number as fixed.)
+Season: **2026-03-13 → November**; app-side rounds began ~June, 4 rounds done as of 2026-07-27.
 
 ## NWSL Trivia
 

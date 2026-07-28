@@ -71,9 +71,10 @@ final class BracketViewModel {
         store.adopt(summary: .init(
             id: edition.id, title: edition.title,
             currentRoundRaw: edition.currentRound.rawValue,
-            roundClosesAt: edition.roundClosesAt, isActive: true,
+            roundClosesAt: edition.roundClosesAt, isActive: !edition.isComplete,
             themeLabel: edition.themeLabel,
-            poolSize: edition.entrants.count
+            poolSize: edition.entrants.count,
+            isComplete: edition.isComplete
         ))
         await scoreSettledRounds(edition: edition, store: store)
         // The returning landing's rank card + neighborhood board (rows + your standing + true total).
@@ -116,9 +117,24 @@ final class BracketViewModel {
     func phase(store: BracketStore) -> RoundPhase {
         guard let edition else { return .closed }
         let round = edition.currentRound
-        if store.score(for: round) != nil { return .scored }
-        if store.hasSubmitted(round) { return .submitted }
-        if let closes = edition.roundClosesAt, now() >= closes { return .closed }
+        return Self.resolvePhase(isComplete: edition.isComplete,
+                                 roundClosesAt: edition.roundClosesAt,
+                                 now: now(),
+                                 hasScore: store.score(for: round) != nil,
+                                 hasSubmitted: store.hasSubmitted(round))
+    }
+
+    /// The phase decision, pure and unit-testable (same split as `BracketScoring`).
+    ///
+    /// ⚠️ The `isComplete` test MUST come before the deadline test. The proxy's `finish()` nulls
+    /// `round_closes_at` when it crowns a champion, so `if let closes` falls through — without the
+    /// completion check a finished bracket resolves to `.open` and would accept votes into a dead round.
+    static func resolvePhase(isComplete: Bool, roundClosesAt: Date?, now: Date,
+                             hasScore: Bool, hasSubmitted: Bool) -> RoundPhase {
+        if hasScore { return .scored }
+        if hasSubmitted { return .submitted }
+        if isComplete { return .closed }
+        if let closes = roundClosesAt, now >= closes { return .closed }
         return .open
     }
 
@@ -166,6 +182,10 @@ final class BracketViewModel {
         // mode a just-closed round can still route to the voting screen before the cron advances it; the
         // write must not land after close. Manual mode (launch default) has no close time (nil) → allowed.
         if let closes = edition.roundClosesAt, closes.timeIntervalSinceNow <= 0 { submitState = .failed; return }
+        // Completed-edition guard (gate the ACTION, not just the UI): a finished edition is readable
+        // through the review window, and `finish()` leaves `round_closes_at` nil — so the deadline guard
+        // above passes. Without this, re-entering a crowned bracket could write a vote into a dead round.
+        if edition.isComplete { submitState = .failed; return }
         guard let userID else { submitState = .failed; return }
         let round = edition.currentRound
         submitState = .submitting

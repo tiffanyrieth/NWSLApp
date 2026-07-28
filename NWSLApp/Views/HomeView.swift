@@ -364,7 +364,7 @@ struct HomeView: View {
     // Trivia are seed-backed so always have content for now (their real gates land
     // when they go live).
     private var predictXIVisible: Bool { predictXIActive }
-    private var bracketVisible: Bool { bracket.hasActiveEdition }
+    private var bracketVisible: Bool { bracket.hasViewableEdition }
     private var triviaVisible: Bool { true }
 
     /// The visible games, ordered most time-sensitive first. Predict the XI is

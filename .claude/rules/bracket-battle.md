@@ -62,7 +62,15 @@ honest-empty) · `BracketStore.swift` (durable picks/submit/scores, `bracket.v2.
 ## Hard rules
 
 ZERO fabricated data (real vote splits / counts / leaderboard only — 2 players → board shows 2).
-Hide the game when no active/upcoming edition. Sign-in gate at **submit**, not entry. Submit is
+**Hide the game only when there is NO edition to show — a COMPLETED one still counts (owner ruling
+2026-07-28).** A crowned edition must stay viewable through the between-editions review window: hiding
+it the moment a champion was decided made the payoff of a three-week bracket unreachable, while the
+proxy was deliberately preserving every vote for exactly that window (`finish()` → votes pruned only at
+the NEXT edition's start). `BracketStore.hasViewableEdition` (active OR complete) gates the Home card
+and screen; `hasActiveEdition` still gates PLAY. ⚠️ `finish()` nulls `round_closes_at`, so the deadline
+check alone reads a finished bracket as OPEN — `BracketViewModel.resolvePhase` tests `isComplete`
+BEFORE the deadline, and `submit` refuses on a complete edition (gate the ACTION, not just the UI).
+Pinned by `BracketCompletedEditionTests`. Sign-in gate at **submit**, not entry. Submit is
 permanent (save-draft is the escape valve). **No emoji in game UI** — teal `dsGameBracket` accent +
 team colors + `PlayerDot` (team-ringed player headshot, jersey-monogram fallback) only. Edition intro
 is mandatory; **play is gated** behind no-skip sign-in + display name (`.fanZoneGate`, at "Make your picks").

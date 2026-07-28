@@ -262,6 +262,20 @@ struct BracketEdition: Identifiable, Codable, Equatable {
     /// All known matchups across rounds (flat).
     let matchups: [BracketMatchup]
 
+    /// True once the edition has crowned a champion (`bracket_editions.completed_at` is set). A finished
+    /// edition stays READABLE through the between-editions review window — the proxy deliberately keeps
+    /// its votes until the NEXT edition starts — so the app keeps showing it instead of hiding the game.
+    /// ⚠️ Voting MUST be closed when this is true: `finish()` nulls `round_closes_at`, so the deadline
+    /// check (`if let closes …`) alone would read a completed edition as OPEN.
+    var isComplete: Bool = false
+
+    /// The champion — the winner of the FINAL matchup, once the community tally resolved it.
+    /// nil if the edition ended before a final was decided.
+    var champion: BracketEntrant? {
+        guard let final = matchups(in: .final).first, let id = final.communityWinnerID else { return nil }
+        return [final.entrantA, final.entrantB].first { $0.id == id }
+    }
+
     /// The rounds this edition runs, in order (derived from the pool size).
     var rounds: [BracketRound] { BracketRound.rounds(forEntrants: entrants.count) }
 

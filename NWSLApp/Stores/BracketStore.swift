@@ -38,6 +38,10 @@ final class BracketStore {
         /// (Σ matchups over tallied rounds). Optional so summaries cached before this field still decode;
         /// nil ⇒ the bracket contributes from the durable server counts only until the next live fetch.
         var poolSize: Int?
+        /// True once this edition crowned a champion. It stays VIEWABLE (Home card + screen) through the
+        /// between-editions review window — hiding it the moment a winner is decided meant the payoff of a
+        /// three-week bracket was unreachable. Optional so summaries cached before this field still decode.
+        var isComplete: Bool?
     }
 
     private(set) var summary: EditionSummary?
@@ -100,7 +104,12 @@ final class BracketStore {
     var points: Int { roundScores.values.reduce(0, +) }
 
     /// The Fan Zone visibility gate: is there an active/upcoming edition?
+    /// An edition open for VOTING. Use this to decide whether play is possible.
     var hasActiveEdition: Bool { summary?.isActive ?? false }
+
+    /// An edition worth SHOWING — active, or finished and still inside the review window. The Home card
+    /// and the screen gate on this, so a crowned champion never disappears the instant it's decided.
+    var hasViewableEdition: Bool { (summary?.isActive ?? false) || (summary?.isComplete ?? false) }
 
     /// True once the user has made any pick this edition (Home "Play now" vs status).
     var hasPlayed: Bool { !picksByRound.isEmpty }

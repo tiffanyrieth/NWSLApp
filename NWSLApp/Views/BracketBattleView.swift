@@ -460,8 +460,40 @@ struct BracketBattleView: View {
         case .submitted:
             ctaMutedCard(title: "\(name) — picks locked in", subtitle: "Waiting for the community to vote.")
         case .closed, .scored:
-            ctaMutedCard(title: "Next round opens soon", subtitle: "Come back when voting reopens.")
+            // A FINISHED edition gets the champion, not "next round opens soon" — this is the payoff of a
+            // three-week bracket and the most shareable moment the Fan Zone has.
+            if edition.isComplete {
+                championCard(edition: edition)
+            } else {
+                ctaMutedCard(title: "Next round opens soon", subtitle: "Come back when voting reopens.")
+            }
         }
+    }
+
+    /// The crowned champion, shown for the whole between-editions review window. Falls back to an honest
+    /// line if the edition ended before a final resolved (never invents a winner).
+    @ViewBuilder
+    private func championCard(edition: BracketEdition) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "trophy.fill").foregroundStyle(accent)
+                Text("CHAMPION").dsFont(11, weight: .bold).tracking(1.2).foregroundStyle(accent)
+            }
+            if let champion = edition.champion {
+                Text(champion.playerName).dsFont(22, weight: .heavy).foregroundStyle(Color.dsFgPrimary)
+                    .lineLimit(2).minimumScaleFactor(0.7)
+                Text("\(edition.themeLabel.capitalized) · decided by \(edition.fanCount) fan\(edition.fanCount == 1 ? "" : "s")")
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+            } else {
+                Text("This bracket closed before a final was decided.")
+                    .dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+            }
+            Text("Browse every round below — results stay up until the next bracket starts.")
+                .dsFont(12).foregroundStyle(Color.dsFgTertiary)
+        }
+        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+        .background(accent.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(accent.opacity(0.5), lineWidth: 1.5))
     }
 
     private func ctaMutedCard(title: String, subtitle: String) -> some View {

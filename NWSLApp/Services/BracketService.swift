@@ -91,9 +91,22 @@ struct BracketService {
     /// genuinely empty backend (no active edition), which is a legitimate state — the
     /// game simply hides. There is no fabricated/sample bracket anywhere.
     func currentEdition() async throws -> BracketEdition? {
-        let editions: [EditionRow] = try await client
+        var editions: [EditionRow] = try await client
             .from("bracket_editions").select().eq("is_active", value: true)
             .limit(1).execute().value
+        // No ACTIVE edition → fall back to the most recently COMPLETED one, so the champion stays
+        // viewable through the between-editions review window instead of the game vanishing the moment
+        // it crowns a winner. The proxy keeps a finished edition's votes until the NEXT edition starts
+        // (bracket-engine `finish()` → `pruneCompletedEditionVotes` at the next start), so this window
+        // is exactly as long as the data lives. `completed_at` ordering picks the newest.
+        if editions.isEmpty {
+            editions = try await client
+                .from("bracket_editions").select()
+                .eq("is_active", value: false)
+                .not("completed_at", operator: .is, value: "null")
+                .order("completed_at", ascending: false)
+                .limit(1).execute().value
+        }
         guard let e = editions.first else { return nil }
 
         async let entrantRows: [EntrantRow] = client
@@ -359,6 +372,7 @@ private struct EditionRow: Decodable {
     let current_round: Int
     let round_opened_at: String?
     let round_closes_at: String?
+    let completed_at: String?
     let fan_count: Int
 
     func edition(entrants: [BracketEntrant], matchups: [BracketMatchup]) -> BracketEdition {
@@ -369,7 +383,8 @@ private struct EditionRow: Decodable {
             currentRound: BracketRound(rawValue: current_round) ?? (BracketRound.rounds(forEntrants: entrants.count).first ?? .roundOf16),
             roundOpenedAt: BracketDate.parse(round_opened_at),
             roundClosesAt: BracketDate.parse(round_closes_at),
-            fanCount: fan_count, matchups: matchups
+            fanCount: fan_count, matchups: matchups,
+            isComplete: completed_at != nil
         )
     }
 }

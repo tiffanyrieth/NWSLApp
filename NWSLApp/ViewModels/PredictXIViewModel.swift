@@ -246,6 +246,13 @@ final class PredictXIViewModel {
         let roundRank: Int?
         let roundTotal: Int
         let weekLabel: String?
+        /// The full answer key. Carried so the results screen can re-derive PER-PICK detail (which
+        /// picks started, and which started in a different BAND) — `PredictionScore` persists only
+        /// aggregate counts, and widening it would change a Codable shape on every device to cache
+        /// something this screen recomputes for free. See `PredictResultDerivation`.
+        let actual: ActualResult?
+        /// Full club name for copy that names the club ("Ahead of 71% of Washington").
+        let clubName: String?
     }
 
     func matchResultDetail(for item: PredictionItem, store: PredictionStore, auth: AuthStore) async -> MatchResultDetail? {
@@ -274,7 +281,8 @@ final class PredictXIViewModel {
             return MatchResultDetail(
                 actualStarters: actual.starters.map { ($0.athleteID, $0.group) },
                 actualFormation: actual.formation, names: names,
-                roundRank: roundRank, roundTotal: max(roundTotal, roundRank ?? 0), weekLabel: weekLabel)
+                roundRank: roundRank, roundTotal: max(roundTotal, roundRank ?? 0), weekLabel: weekLabel,
+                actual: actual, clubName: club(forAbbreviation: team)?.displayName)
         } catch {
             Diagnostics.shared.record(.apiFailure, "predict result detail \(prediction.eventID): \(error.localizedDescription)")
             return nil

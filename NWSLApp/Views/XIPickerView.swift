@@ -25,6 +25,11 @@ struct XIPickerView: View {
     @State private var picker: XIPickerViewModel
     @State private var activeSlot: SlotRef?
     @State private var didSubmit = false   // double-tap guard for the one-way submit
+    /// Touch-down on the armed submit — drives the press-scale and the "about to commit" haptic.
+    @State private var isArming = false
+    /// Set once the commit lands, so `.dsHaptic` fires exactly once on the transition.
+    @State private var committed = false
+    private let community = PredictCommunityService()
     @Environment(PredictionStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
@@ -267,24 +272,50 @@ struct XIPickerView: View {
         .disabled(picker.readOnly)
     }
 
+    /// "Sun 5:00 PM" — the deadline, spelled out under the armed submit so the one-way warning
+    /// names an actual time rather than an abstract "before kickoff". Matches PredictXIView's
+    /// open-fixture card format so the two never disagree about when a fixture locks.
+    private static let lockFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "EEE h:mm a"
+        return f
+    }()
+
+    private static func lockLabel(_ date: Date) -> String { lockFormatter.string(from: date) }
+
     // MARK: - Footer
 
     private var footerButtons: some View {
         VStack(spacing: 10) {
             Button {
                 guard !didSubmit else { return }          // double-tap guard (submit is one-way)
-                // Deadline re-check: the open-fixture card blocks ENTERING a closed fixture, but if the
-                // deadline (kickoff−2h) passes while this sheet is open, don't LOCK IN a late prediction
-                // that would still be scored. Save the draft so nothing's lost, then close.
-                guard fixture.deadline.timeIntervalSinceNow > 0 else {
-                    store.saveDraft(picker.toPrediction())
+                didSubmit = true
+                let prediction = picker.toPrediction()
+                store.saveDraft(prediction)              // persist the latest as a draft…
+                // …then flip it to submitted. The DEADLINE IS ENFORCED IN THE STORE now (logic gate
+                // #3 — gate the action, not the UI): if kickoff−2h passed while this sheet sat open,
+                // the commit is refused and the draft above is what survives, so nothing is lost and
+                // nothing late gets scored.
+                guard store.submit(fixtureID: fixture.id, before: fixture.deadline) else {
+                    didSubmit = false
                     dismiss()
                     return
                 }
-                didSubmit = true
-                store.saveDraft(picker.toPrediction())   // persist the latest as a draft…
-                store.submit(fixtureID: fixture.id)       // …then flip it to submitted (one-way)
+                committed = true                          // one-shot trigger for the commit haptic
                 FanZoneActivity.recordPlay()              // Iron Fan: played a Fan Zone game this week
+                // Count this XI into the club's community aggregate (counts only — the lineup itself
+                // never leaves the device). Fire-and-forget AFTER the local write: the game is
+                // already committed on-device, and the server RPC is idempotent per (user, match),
+                // so a failure here costs a percentage point of accuracy, never the user's entry.
+                let season = String(AppConfig.currentSeasonYear)
+                let week = FanZoneCadence.soccerWeek(for: fixture.kickoff)
+                Task { [community, prediction] in
+                    guard let week else { return }
+                    if await community.recordPicks(prediction, season: season, week: week) {
+                        await MainActor.run { store.markPicksUploaded(fixtureID: prediction.fixtureID) }
+                    }
+                }
                 // Game Center (additive): "First Prediction" — idempotent, so firing
                 // on every submit is harmless. No-ops when not signed in.
                 GameCenterManager.shared.report(GameCenterID.Achievement.firstPrediction)
@@ -301,6 +332,26 @@ struct XIPickerView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             .disabled(!picker.isComplete)
+            // The commit has to FEEL like a commit — the press-scale and the heavy haptic together
+            // are the point; neither alone reads as finality.
+            .scaleEffect(isArming ? 0.97 : 1)
+            .animation(.easeOut(duration: 0.13), value: isArming)
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in if picker.isComplete { isArming = true } }
+                    .onEnded { _ in isArming = false }
+            )
+            .dsHaptic(.dsArm, trigger: isArming)
+            .dsHaptic(.dsCommit, trigger: committed)
+
+            // The finality is stated BEFORE the tap, not discovered after it.
+            if picker.isComplete && !picker.readOnly {
+                Text("One-way — no edits after this. Locks \(Self.lockLabel(fixture.deadline)).")
+                    .dsFont(12)
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+            }
 
             Button {
                 store.saveDraft(picker.toPrediction())

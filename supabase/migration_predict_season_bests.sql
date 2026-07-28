@@ -1,0 +1,71 @@
+-- Predict the XI — season high-water marks (2026-07-28, results-redesign handoff Part 4a.5).
+--
+-- The superlative slot's top rungs ("Your best match of the season", "Your best round of the
+-- season") compare against the user's own season history. Those thresholds CANNOT be derived from
+-- predict_round_scores, which pg_cron prunes at 28 days — so they are carried here as monotonic
+-- marks instead. Record book: one tiny row per user per season, never pruned.
+--
+-- ⚠️ BOTH MARKS COUNT STARTERS, NOT POINTS. Handoff §4.3 is explicit: the superlative ladder reads
+-- starters-called only, never points. "8 of 11" is the sentence a fan says out loud; points are the
+-- accounting underneath it.
+--
+-- ⚠️ WHY ITS OWN TABLE and not columns on prediction_scores: that row is keyed
+-- (user_id, team_abbreviation, season) — PER CLUB — but a ROUND total aggregates across every club
+-- the user follows (handoff §2.5: "Points aggregate… Ranks do not"). A cross-club number cannot live
+-- on a per-club row. Keyed (user_id, season) here, so it holds either shape.
+--
+-- ⚠️ WHY SECURITY INVOKER: the merge must be atomic (a read-then-write from the client races itself
+-- across two devices — docs/roadmap.md already flags that exact bug against upsertScore), but it must
+-- NOT bypass RLS. Invoker keeps auth.uid() as the caller and leaves the policies in force, so a user
+-- can only ever raise their OWN row, while GREATEST guarantees a stale or wiped device can never
+-- lower a mark (logic gate #5, the same monotonic stance as SuperfanCounts.merged).
+--
+-- Run in the Supabase SQL editor. Idempotent (create if not exists / or replace).
+
+create table if not exists public.predict_season_bests (
+  user_id             uuid references auth.users(id) on delete cascade not null default auth.uid(),
+  season              text not null default '2026',
+  best_match_starters int  not null default 0,   -- most correct starters in a single match
+  best_round_starters int  not null default 0,   -- most correct starters across one soccer week
+  updated_at          timestamptz not null default now(),
+  primary key (user_id, season)
+);
+
+alter table public.predict_season_bests enable row level security;
+
+-- Own-row only. Unlike the leaderboard tables there is no public read: a personal best is not a
+-- ranked, comparable number, so nothing outside the user's own app needs it.
+create policy "Users read own predict bests"
+  on public.predict_season_bests for select using (auth.uid() = user_id);
+create policy "Users insert own predict bests"
+  on public.predict_season_bests for insert with check (auth.uid() = user_id);
+create policy "Users update own predict bests"
+  on public.predict_season_bests for update using (auth.uid() = user_id);
+
+-- The standing grant rule: RLS is not privilege (a missing grant 42501s a signed-in query).
+grant select, insert, update on public.predict_season_bests to authenticated;
+
+-- Atomic monotonic merge, one round trip. Passing 0 (or null) for either mark leaves it untouched.
+create or replace function public.predict_merge_bests(
+  p_season text, p_match int, p_round int
+) returns void
+language sql
+security invoker
+set search_path = public
+as $$
+  insert into public.predict_season_bests
+    (user_id, season, best_match_starters, best_round_starters, updated_at)
+  values (auth.uid(), p_season, greatest(coalesce(p_match, 0), 0), greatest(coalesce(p_round, 0), 0), now())
+  on conflict (user_id, season) do update set
+    best_match_starters = greatest(public.predict_season_bests.best_match_starters,
+                                   excluded.best_match_starters),
+    best_round_starters = greatest(public.predict_season_bests.best_round_starters,
+                                   excluded.best_round_starters),
+    updated_at = now();
+$$;
+
+grant execute on function public.predict_merge_bests(text, int, int) to authenticated;
+
+-- ⚠️ ORDERING RULE FOR CALLERS: evaluate the superlative ladder BEFORE merging this match's result.
+-- Merging first makes every match its own "season best" and the praise becomes worthless — which is
+-- precisely what handoff §3.2 says the ladder's floor exists to prevent.

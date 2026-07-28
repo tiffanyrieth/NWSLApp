@@ -17,8 +17,11 @@
 --     pruneCompletedEditionVotes, via writeEdition), so a finished edition stays fully browsable
 --     round-by-round through the between-editions review window; an edition's lifetime isn't
 --     calendar-shaped, so age is the wrong knife there.
---   • prediction_scores / bracket_scores / *_stats / fanzone_progress — the RECORD BOOK: one tiny
---     row per user, kept forever (season totals, stamped final ranks, restore summaries).
+--   • prediction_scores / bracket_scores / *_stats / fanzone_progress / predict_season_bests — the
+--     RECORD BOOK: one tiny row per user, kept forever (season totals, stamped final ranks, restore
+--     summaries, personal bests). predict_season_bests in particular MUST outlive the 28-day windows
+--     below: it exists precisely because the superlative ladder's thresholds cannot be derived from
+--     pruned round data (migration_predict_season_bests.sql).
 --
 -- Idempotent: unschedule-if-exists before each schedule, so re-running replaces rather than stacks.
 
@@ -43,4 +46,36 @@ select cron.schedule(
   'prune_predict_round_scores',
   '23 6 * * *',
   $$delete from public.predict_round_scores where updated_at < now() - interval '28 days'$$
+);
+
+-- Predict community pick aggregate (migration_predict_community.sql). The results screen renders
+-- only the current + previous soccer week, so once a match leaves that window nothing can read its
+-- distribution — 28 days matches predict_round_scores so the Predict tables age out together.
+-- These three are the ONLY growth this feature adds; predict_pick_counts is already flat in user
+-- count (squad × slots × matches), so the sweep exists mainly for predict_submission_marks, which
+-- is the one per-user-per-match row.
+select cron.unschedule('prune_predict_pick_counts')
+where exists (select 1 from cron.job where jobname = 'prune_predict_pick_counts');
+select cron.schedule(
+  'prune_predict_pick_counts',
+  '29 6 * * *',
+  $$delete from public.predict_pick_counts where updated_at < now() - interval '28 days'$$
+);
+
+select cron.unschedule('prune_predict_match_submissions')
+where exists (select 1 from cron.job where jobname = 'prune_predict_match_submissions');
+select cron.schedule(
+  'prune_predict_match_submissions',
+  '31 6 * * *',
+  $$delete from public.predict_match_submissions where updated_at < now() - interval '28 days'$$
+);
+
+-- The dedupe marks. Safe to drop on the same schedule: submit is one-way and the deadline gates the
+-- action, so a mark has no reader once its match is weeks past — there is nothing left to dedupe.
+select cron.unschedule('prune_predict_submission_marks')
+where exists (select 1 from cron.job where jobname = 'prune_predict_submission_marks');
+select cron.schedule(
+  'prune_predict_submission_marks',
+  '33 6 * * *',
+  $$delete from public.predict_submission_marks where created_at < now() - interval '28 days'$$
 );

@@ -332,7 +332,7 @@ struct PredictXIView: View {
             VStack(alignment: .leading, spacing: 12) {
                 matchHeader(item.fixture, finalScore: item.finalScore)
                 HStack(spacing: 8) {
-                    Text("\(score.total) / 88 pts").dsFont(16, weight: .bold).foregroundStyle(accent)
+                    Text("\(score.total) / \(PredictionScore.maxPerMatch) pts").dsFont(16, weight: .bold).foregroundStyle(accent)
                     Spacer()
                     HStack(spacing: 3) {
                         Text("See details").dsFont(13, weight: .semibold)
@@ -414,7 +414,7 @@ struct PredictXIView: View {
     // MARK: - Season card + team chips (Competitive Redesign)
 
     /// The competitive-identity card for the selected club: a season-AVERAGE ring (avg points per match,
-    /// as a share of the 88 max), the average + match count, the club rank, and "↑ N since last match"
+    /// as a share of the per-match max), the average, the club rank, and "↑ N since last match"
     /// movement. Average is nil (shows "—") until a prediction has been scored — never faked. (Batch 3:
     /// the board + card moved off cumulative points, which inflate to four digits mid-season, onto the
     /// per-match average, which stays comparable all season.)
@@ -428,7 +428,7 @@ struct PredictXIView: View {
             HStack(spacing: 14) {
                 ZStack {
                     Circle().stroke(Color.dsBgTertiary, lineWidth: 5)
-                    Circle().trim(from: 0, to: (avg ?? 0) / 88)   // avg as a share of the 88-pt per-match max
+                    Circle().trim(from: 0, to: (avg ?? 0) / Double(PredictionScore.maxPerMatch))   // avg as a share of the per-match max
                         .stroke(accent, style: StrokeStyle(lineWidth: 5, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                     Text(avg.map { "\(Int($0.rounded()))" } ?? "—")
@@ -523,14 +523,14 @@ struct PredictXIView: View {
 
                     Text("HOW POINTS WORK").dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(accent)
                     VStack(spacing: 6) {
-                        predictPointRow("Each correct starter", "+3")
-                        predictPointRow("Right position band for a correct pick", "+2")
-                        predictPointRow("Correct formation", "+5")
-                        predictPointRow("Exact final score", "+10")
-                        predictPointRow("Right result (win / draw / loss)", "+3")
-                        predictPointRow("Perfect XI — all 11 right", "+15")
+                        predictPointRow("Each correct starter", "+\(PredictionScore.playerPoints)")
+                        predictPointRow("Right position band for a correct pick", "+\(PredictionScore.positionPoints)")
+                        predictPointRow("Correct formation", "+\(PredictionScore.formationPointsValue)")
+                        predictPointRow("Exact final score", "+\(PredictionScore.scorelinePointsValue)")
+                        predictPointRow("Right result (win / draw / loss)", "+\(PredictionScore.resultPointsValue)")
+                        predictPointRow("Perfect XI — all 11 right", "+\(PredictionScore.perfectPointsValue)")
                         Divider().overlay(Color.dsFgQuaternary)
-                        predictPointRow("Most possible in one match", "88 pts", bold: true)
+                        predictPointRow("Most possible in one match", "\(PredictionScore.maxPerMatch) pts", bold: true)
                     }
 
                     // Fix 6 — the two score-related lines are easy to confuse, so spell out the difference.
@@ -549,8 +549,10 @@ struct PredictXIView: View {
         .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    /// One "how points work" row for the Predict rules (label — value). Values transcribed from
-    /// `PredictionScore` (Batch-2 Fix 4B — rules match the scorer, not a guess).
+    /// One "how points work" row for the Predict rules (label — value). Values are READ FROM
+    /// `PredictionScore`'s weight constants, not transcribed (Batch-2 Fix 4B wanted "rules match the
+    /// scorer, not a guess"; since 2026-07-28 they cannot disagree at all). This screen is a
+    /// published contract — logic gate #7 — so a scoring change must move this text with it.
     private func predictPointRow(_ label: String, _ value: String, bold: Bool = false) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(label).dsFont(13, weight: bold ? .semibold : .regular)

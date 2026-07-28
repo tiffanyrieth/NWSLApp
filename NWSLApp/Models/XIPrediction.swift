@@ -289,13 +289,35 @@ struct PredictionScore: Codable, Equatable {
     /// are untouched.
     var soccerWeek: Int?
 
+    // MARK: - Weights
+    //
+    // ⚠️ THE SINGLE SOURCE for every scoring surface. Before these existed the weights and the "/ 88"
+    // denominator were literals scattered across the season ring, the rules rows, the result card, the
+    // breakdown and the detail header — so the roadmap's open proposal to HALVE per-match scoring
+    // (max 88 → 44, relative weights unchanged so no ranking moves) was a scavenger hunt with a real
+    // chance of leaving one surface reading the old denominator. Halving now means editing the six
+    // numbers below; `maxPerMatch` and every "of N" follow automatically.
+    static let startersPerXI = 11
+    static let playerPoints = 3
+    static let positionPoints = 2
+    static let formationPointsValue = 5
+    static let scorelinePointsValue = 10
+    static let resultPointsValue = 3
+    static let perfectPointsValue = 15
+
+    /// The most one match can be worth (currently 88). Use this anywhere a denominator is displayed —
+    /// never a literal.
+    static let maxPerMatch = startersPerXI * playerPoints
+        + startersPerXI * positionPoints
+        + formationPointsValue + scorelinePointsValue + resultPointsValue + perfectPointsValue
+
     // Per-category points (the spec's fixed weights).
-    var playersPoints: Int { correctPlayers * 3 }
-    var positionsPoints: Int { correctPositions * 2 }
-    var formationPoints: Int { formationCorrect ? 5 : 0 }
-    var scorelinePoints: Int { exactScoreline ? 10 : 0 }
-    var resultPoints: Int { resultCorrect ? 3 : 0 }
-    var perfectPoints: Int { perfectXI ? 15 : 0 }
+    var playersPoints: Int { correctPlayers * Self.playerPoints }
+    var positionsPoints: Int { correctPositions * Self.positionPoints }
+    var formationPoints: Int { formationCorrect ? Self.formationPointsValue : 0 }
+    var scorelinePoints: Int { exactScoreline ? Self.scorelinePointsValue : 0 }
+    var resultPoints: Int { resultCorrect ? Self.resultPointsValue : 0 }
+    var perfectPoints: Int { perfectXI ? Self.perfectPointsValue : 0 }
 
     var total: Int {
         playersPoints + positionsPoints + formationPoints

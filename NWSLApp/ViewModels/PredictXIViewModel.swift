@@ -300,7 +300,6 @@ final class PredictXIViewModel {
 
     // MARK: - Mutation
 
-    func reset(store: PredictionStore) { store.reset() }
 
     // MARK: - Club lookup
 

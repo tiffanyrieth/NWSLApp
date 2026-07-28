@@ -1,5 +1,74 @@
 # Roadmap / What's Next
 
+> ### 🔐 MULTI-DEVICE / DUPLICATE-ACCOUNT INTEGRITY (owner 2026-07-27) — no false numbers, ever
+> Trigger: the simulator signed in with the owner's Apple ID appeared to disturb her real Superfan data.
+> Owner's (correct) instinct: **this matters far beyond the sim.** A real user gets a new phone, signs in
+> with the same Apple ID, maybe opens the app once on the old phone — that must never double a Superfan
+> score or report false Predict numbers.
+>
+> **✅ VERIFIED SAFE — doubling is structurally impossible.** Both write paths are max-merges, not adds:
+> - `SuperfanService.submit` stores per-game **correct/attempted COUNTS** (not an opaque additive total)
+>   and GREATEST-merges local with server before writing; the 0–100 total + tier are DERIVED from the
+>   merged counts (`local.merged(with: server)`).
+> - `PredictLeaderboardService.upsertScore` does `max(points, server.points)` and
+>   `max(matches, server.matches)`, deriving `avg_points` from the merged pair.
+>
+> `max(a,b)` is idempotent and commutative, so two devices converge — they can never sum. Re-running,
+> re-syncing, or syncing from a stale device cannot inflate anything.
+>
+> **⚠️ BUT — two OPEN issues the max-merge does not cover:**
+> 1. **Lost progress, not doubled progress.** Two genuinely-active devices each holding unique local
+>    history converge to the max, so the *smaller* device's unique matches are silently dropped rather
+>    than merged. CLAUDE.md's documented stance is "last writer wins, fine at current scale" — worth
+>    re-confirming that's still the intent once real users have two devices.
+> 2. **Independently-maxed correlated pair can yield an average neither device ever had.** `points` and
+>    `matches` are maxed *separately*: device A at 100 pts / 5 matches and device B at 80 pts / 6 matches
+>    merge to 100 pts / 6 matches → avg 16.7, which is neither A's 20.0 nor B's 13.3. Small, but it is a
+>    number shown to the user that no device actually produced. Fix would be to merge the pair atomically
+>    (take the row with the greater `matches`, or store per-match rows).
+>
+> **⚠️ SEPARATE, UNDIAGNOSED — duplicate identities on the leaderboard.** The owner's Predict board shows
+> **two "Tiffany" rows** (ranks 4 and 5, both 33 pts); the simulator shows the same shape (a "Tiffany" at
+> rank 9 with 1 match, plus the sim's own account at rank 28 with 0). Rows are keyed
+> `(user_id, team, season)`, so two rows = **two distinct `user_id`s sharing a display name** — NOT a
+> doubled score. Whether that's a second real Apple account, a leftover from an account delete + recreate,
+> or a seeded fan that happens to be named Tiffany is unknown. Diagnose before launch — a user who cannot
+> tell which row is theirs is exactly the "connected feeling" failure the Fan Zone work is chasing.
+> Owner-gated query (needs the service key):
+> `select user_id, display_name, points, matches from prediction_scores where team_abbreviation='WAS' and season='2026' order by points desc;`
+> Also worth deciding whether display names should be unique per season.
+
+> ### 🧪 SIM IDENTITY ISOLATION — stop the simulator writing to the owner's real data (owner 2026-07-27)
+> Signing the simulator in with the owner's Apple ID makes it write to her real Superfan / Predict rows.
+> **The mechanism to avoid this already exists and is wired correctly** — it has just never been switched
+> on. `-signInAsTestFan <n>` (DEBUG-only, `AuthStore.debugSignInAsTestFan`) signs in as a seeded Fan Zone
+> account instead. Verified 2026-07-27:
+> - address format matches exactly on both sides (`seed+%04d@seed.nwslapp.test`)
+> - every gate keys on `auth.isSignedIn` (= `currentUser != nil`), which the path sets — so Fan Zone entry,
+>   Tier-2 alert toggles, NT bells and Profile all unlock
+> - the Fan Zone gate additionally needs `hasChosenName`; the seeder writes
+>   `profiles.display_name` + `name_is_custom = true`, so a seeded fan arrives already named
+>
+> **The one prerequisite: enable the Supabase Email provider with signups DISABLED** (so the only
+> email/password accounts that can exist are the admin-created seed ones). Then:
+> `xcrun simctl launch <SIM> com.tiffanyrieth.nwslapp.NWSLApp -signInAsTestFan 1`
+>
+> ⚠️ Push DELIVERY still can't be tested in a simulator at all (hardware, not auth) — device + the
+> watcher's `/test-push` with `sandbox:true` remains the only real path. And this is the cheap 80% fix for
+> Fan Zone contamination only; the broader 3-install cross-talk still wants a test Apple ID + `.debug`
+> bundle id (see the signOut/global-scope finding).
+
+> ### 🩹 SMALL PREDICT FOLLOW-UPS (from the reset-button incident, 2026-07-27)
+> - **The season card reads LOCAL-only state** (`store.points(forTeam:)` / `scoredMatchCount`) even though
+>   `prediction_scores` holds the authoritative numbers. So a local wipe makes the card say "Predict …'s XI
+>   to join the board" while the leaderboard directly below still ranks the user. Reading the server row
+>   would make the card honest and self-healing. (This also means `docs/fan-zone.md` §3's local-vs-server
+>   table is right about *storage* but doesn't flag that a local-only READ can contradict the server.)
+> - **Account delete does not clear local Predict state.** `PredictionStore.reset()` now has no caller;
+>   `AuthStore.deleteAccount` tears down the session and identity but leaves predictions/scores in
+>   UserDefaults on the device. Probably wants wiring up — a deleted account shouldn't leave game history
+>   behind locally.
+
 > ### 🛡️ ESPN ROSTER RELIABILITY — reduce the single-source risk (owner 2026-07-27)
 > ESPN is the app's most vulnerable dependency. For a solo indie app that's an accepted trade — but the
 > **roster** specifically has been flaky enough to warrant a better guard. Not aiming for perfect; aiming

@@ -194,7 +194,12 @@ final class PredictionStore {
         persist()
     }
 
-    /// Clear everything — the "Reset predictions" replay.
+    /// Clear all local prediction state. Retained as a store capability (an account-delete teardown
+    /// would want it), but it is deliberately NOT wired to any UI: the "Reset predictions" button that
+    /// used to call this shipped ungated from #47, wiped history on one tap with no confirmation, and
+    /// left the server's `prediction_scores` intact — so the season card claimed the user wasn't on the
+    /// board while the leaderboard below still ranked them. Removed 2026-07-27; don't re-add a UI entry
+    /// point without a confirmation AND a matching server-side reset.
     func reset() {
         predictions = [:]
         scores = [:]

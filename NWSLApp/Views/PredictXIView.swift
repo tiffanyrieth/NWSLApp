@@ -136,10 +136,6 @@ struct PredictXIView: View {
                 if let selected { selectedTeamBoard(team: selected) }
 
                 if selected != nil { howToPlayRow }
-
-                if store.hasPredicted {
-                    resetButton
-                }
             }
             .padding(20)
             .fanZonePlayingAsHeader(accent: accent)
@@ -666,21 +662,11 @@ struct PredictXIView: View {
         .buttonStyle(.plain)
     }
 
-    private var resetButton: some View {
-        Button(role: .destructive) {
-            withAnimation { viewModel.reset(store: store) }
-        } label: {
-            Text("Reset predictions")
-                .dsFont(17, weight: .semibold)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .foregroundStyle(accent)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(accent, lineWidth: 1.5)
-                )
-        }
-    }
+    // NOTE: there is deliberately no "Reset predictions" button here. One shipped from #47 as a dev
+    // replay convenience, ungated by #if DEBUG, and reached TestFlight. It wiped the local prediction
+    // history on a single tap with no confirmation, while leaving the server's `prediction_scores`
+    // untouched — so the season card fell back to "Predict …'s XI to join the board" while the
+    // leaderboard directly below still showed the user ranked on it. Don't re-add it.
 
     // MARK: - Error
 

@@ -130,11 +130,6 @@ struct RootTabView: View {
     // TeamAlertSyncCoordinator).
     @State private var teamAlertSyncCoordinator: TeamAlertSyncCoordinator?
 
-    // TEMP (iOS 27 beta Liquid Glass tab-bar workaround — remove once Apple patches):
-    // one-shot flag so the relayout bridge fires exactly once per session (see
-    // TabBarRelayoutBridge at the bottom of this file).
-    @State private var didRelayoutBar = false
-
     // Involuntary-sign-out nudge (the 2026-07-15 field bug): app-level auto-present of the
     // sign-in sheet when the session lapsed OUT FROM UNDER a user who had opted into Tier-2
     // alerts. App-level (over ANY tab) because settings screens are rarely visited — the whole
@@ -181,32 +176,32 @@ struct RootTabView: View {
             if following.hasOnboarded {
                 // The `.background(TabBarRelayoutBridge…)` on each tab's CONTENT is the
                 // iOS 27 beta Liquid Glass tab-bar workaround (see the struct at the bottom):
-                // whichever tab appears first forces one corrective UITabBar relayout pass and
-                // flips `didRelayoutBar`, so the rest no-op. On the content (not the TabView's
-                // own background) so the hosting controller resolves `.tabBarController`.
+                // the newly-selected tab's bridge forces one corrective UITabBar relayout pass
+                // per switch. On the content (not the TabView's own background) so the hosting
+                // controller resolves `.tabBarController`.
                 TabView(selection: tabSelection) {
                     HomeView()
-                        .background(TabBarRelayoutBridge(done: $didRelayoutBar))
+                        .background(TabBarRelayoutBridge(tab: .home, selection: router.selectedTab))
                         .tabItem { Label("Home", systemImage: "house") }
                         .tag(AppTab.home)
 
                     ScheduleView()
-                        .background(TabBarRelayoutBridge(done: $didRelayoutBar))
+                        .background(TabBarRelayoutBridge(tab: .schedule, selection: router.selectedTab))
                         .tabItem { Label("Schedule", systemImage: "calendar") }
                         .tag(AppTab.schedule)
 
                     StandingsView()
-                        .background(TabBarRelayoutBridge(done: $didRelayoutBar))
+                        .background(TabBarRelayoutBridge(tab: .standings, selection: router.selectedTab))
                         .tabItem { Label("Standings", systemImage: "list.number") }
                         .tag(AppTab.standings)
 
                     TeamsView()
-                        .background(TabBarRelayoutBridge(done: $didRelayoutBar))
+                        .background(TabBarRelayoutBridge(tab: .teams, selection: router.selectedTab))
                         .tabItem { Label("Teams", systemImage: "person.3.fill") }
                         .tag(AppTab.teams)
 
                     FeedView()
-                        .background(TabBarRelayoutBridge(done: $didRelayoutBar))
+                        .background(TabBarRelayoutBridge(tab: .feed, selection: router.selectedTab))
                         .tabItem { Label("Social", systemImage: "dot.radiowaves.left.and.right") }
                         .tag(AppTab.feed)
                 }
@@ -616,19 +611,40 @@ extension UNAuthorizationStatus {
 // on first appearance and only clean up after the user taps each tab a second time — a known
 // system Liquid Glass compositing regression (reproduces in Apple's own apps; NOT our code; does
 // NOT reproduce on regular iPhone 17, older Pros, or the simulator). This bridge programmatically
-// does what the manual "second tap" does: it forces ONE corrective UITabBar relayout pass on first
-// appearance, deferred to the next runloop (the first pass is the corrupted one). Gated by the
-// shared `done` binding so it fires exactly once per session, then no-ops.
+// does what the manual "second tap" does: it forces one corrective UITabBar relayout pass, deferred
+// to the next runloop (the first pass is the corrupted one).
+//
+// v2 (2026-07-28, the escalation the v1 comment predicted): fires on EVERY tab switch, not once per
+// session. Two reasons:
+//  1. The bar re-corrupts on tab switches on iOS 27.0 devices (TestFlight reports, iPhone18,x), not
+//     just cold launch — once-per-session under-covered.
+//  2. v1's once-per-session latch was a shared `@Binding done` with a check-then-set RACE: the guard
+//     read `done` synchronously but only set it inside DispatchQueue.main.async, so switching tabs in
+//     quick succession let SEVERAL tabs' bridges pass the guard and queue relayouts — and each queued
+//     block then WROTE `done` (RootTabView @State), invalidating the whole TabView's body mid-transition.
+//     Device symptom (TestFlight, 2026-07-25 build 29): tab bar frozen with the selection indicator
+//     smeared between Home and Schedule, content on the old tab. The per-switch design removes the
+//     shared state entirely — gating lives in a Coordinator, which SwiftUI doesn't observe, so a
+//     relayout can never invalidate the view tree.
 //
 // Attach via `.background(...)` on each tab's CONTENT (a content hosting controller reliably
-// resolves `.tabBarController`; the TabView's own background may not). Defensive only — verify by
-// "builds, runs, doesn't break other devices," not by reproducing the glitch.
+// resolves `.tabBarController`; the TabView's own background may not). Only the bridge whose tab IS
+// the new selection fires (tab == selection), so one switch = one relayout pass, always after the
+// transition's runloop turn. Defensive only — verify by "builds, runs, doesn't break other devices."
 //
-// FALLBACK (do NOT implement unless asked): if the bar still re-corrupts on device, opt the tab bar
-// out of the Liquid Glass material with an opaque `UITabBarAppearance`. Escalation: if it re-corrupts
-// on tab *switch* (not just cold launch), gate on each selection change instead of once per session.
+// FALLBACK (do NOT implement unless asked): if the bar still corrupts, opt the tab bar out of the
+// Liquid Glass material with an opaque `UITabBarAppearance`.
 private struct TabBarRelayoutBridge: UIViewControllerRepresentable {
-    @Binding var done: Bool
+    /// The tab this bridge's content belongs to.
+    let tab: AppTab
+    /// The currently-selected tab (passed from the router so updates flow through body re-evaluation).
+    let selection: AppTab
+
+    final class Coordinator {
+        /// Last selection this bridge relaid out for — plain object state, invisible to SwiftUI.
+        var lastRelaidOut: AppTab?
+    }
+    func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIViewController(context: Context) -> UIViewController {
         let vc = UIViewController()
@@ -638,13 +654,15 @@ private struct TabBarRelayoutBridge: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ vc: UIViewController, context: Context) {
-        guard !done else { return }
+        // Fire only when THIS tab just became the selection, once per arrival. The coordinator write is
+        // synchronous, so re-entrant updates during the same switch can't double-queue (the v1 race).
+        guard tab == selection, context.coordinator.lastRelaidOut != selection else { return }
+        context.coordinator.lastRelaidOut = selection
         DispatchQueue.main.async {
             guard let bar = vc.tabBarController?.tabBar else { return }
             bar.setNeedsLayout()
             bar.layoutIfNeeded()
             bar.subviews.forEach { $0.setNeedsDisplay() }
-            done = true
         }
     }
 }

@@ -68,7 +68,11 @@ xcrun simctl install <SIM_ID> <NWSLApp.app>
 xcrun simctl launch  <SIM_ID> com.tiffanyrieth.nwslapp.NWSLApp
 ```
 DEBUG args: `-resetOnboarding`, `-useESPNDirect`, `-startTab <home|schedule|standings|teams|feed>`,
-`-debugOpenMatch <espnEventID>` (deep-links a match detail tap-free — for in-sim verification).
+`-debugOpenMatch <espnEventID>` (deep-links a match detail tap-free — for in-sim verification),
+`-signInAsTestFan <n>` (DEBUG-only: signs in as seeded fan `seed+000n@seed.nwslapp.test` instead of the
+owner's Apple ID, so the SIM stops writing to her real Superfan/Predict rows — every gate keys on
+`isSignedIn`, and the seeder sets `name_is_custom` so the Fan Zone gate passes. Needs the Supabase EMAIL
+provider enabled with signups DISABLED. Push DELIVERY still can't be tested in a sim at all).
 Decode-only tests read `NWSLAppTests/Fixtures/*.json` via `#filePath`. **Driving the sim — idb HID WORKS
 again** (2026-07-22; Xcode 27 only MOVED `SimulatorKit` to `Contents/SharedFrameworks/`, where idb doesn't
 look — point it at 26.6, which still has it at the old path):
@@ -268,7 +272,14 @@ as `invalid_client`; set via **stdin, never copy-paste** (`printf '%s' … | wra
 (claude.ai/code/routines, on the OWNER's subscription — $0 metered API) runs `scripts/knowher-weekly-
 routine.md` overnight → assembles the Rodman-faithful prompt (`assemble_knowher_prompt.mjs`
 from `/knowher/todo`) → generates the 16-player pool → `POST /knowher/ingest` (dedicated
-`KNOWHER_INGEST_KEY`, validate→KV→featured-ledger). **Cadence: BIWEEKLY — alternates the Fan Zone quiz slot
+`KNOWHER_INGEST_KEY`, validate→KV→featured-ledger). ⚠️ **The routine's MODEL lives in the trigger record's
+`job_config.ccr.session_context.model` and the claude.ai UI does NOT write it** — setting it there looks
+like it worked and every scheduled run silently reverts (cost weeks of Sonnet-4.6 output). Change it via
+the RemoteTrigger/HTTP API only. ⚠️ **Publishing goes ONLY through `/knowher/ingest` or the admin paste —
+they alone run `markFeatured`.** `scripts/load_knowher.mjs` writes KV direct and SKIPS the ledger, so its
+players stay eligible and repeat (2026-W27 → Rodman twice); it now REFUSES without `--allow-ledger-bypass`,
+`scripts/backfill_knowher_ledger.mjs` repairs a gap (`--remove` reclaims a discarded edition), and the
+health check FAILs a live pool with no server-stamped `round`. **Cadence: BIWEEKLY — alternates the Fan Zone quiz slot
 with NWSL Trivia (Week 1 = KHG); gated on a COMMITTED `SEASON_ANCHOR` constant in `assemble_knowher_prompt.mjs`
 (the routine UI has NO env-var field, so the constant is the source; `KHG_SEASON_ANCHOR` env var = test
 override only). Content-quality lints gate the routine's dry-run (`load_knowher.mjs` `validatePool`: ≥10 Qs/
@@ -314,8 +325,12 @@ stats). Current parsed-vs-unparsed inventory: `docs/backend.md` (proxy § pass-t
   **MetricKit** crash/hang crumbs (`metricKitDiagnostic`, device-only delivery) and is watched by PUSH
   alerting (2026-07-17): proxy error-spike → **Resend** email (≥8 error events/15min, 1/hr throttle;
   EXCLUDES `image fetch …` apiFailures — expected IG-CDN/thumbnail flakiness, still in Diagnostics but doesn't page);
-  watcher tick → **healthchecks.io** heartbeat (dead cron ⇒ external email) — both no-op until the
-  owner's secrets are set (roadmap). SEPARATE quiet channel: **anonymous Level-3 usage counters**
+  watcher tick → **healthchecks.io** heartbeat (dead cron ⇒ external email); all arms LIVE since
+  2026-07-27. ⚠️ The pager scans **only** proxy-origin `sdiag:` records and deliberately skips client
+  `/telemetry` (spoofable) — so an iOS **app crash can never page**; Apple's own crash notice is the only
+  signal. ⭐ **Proxy diags persist in KV for 30d and are dumpable — the fastest bottom-up evidence for any
+  proxy incident:** `wrangler kv key list --binding FEED_TAGS --remote --prefix "sdiag:"` + `kv key get`
+  per key (this is how the 2026-W31 missing-club was root-caused to a seconds-long ESPN blip). SEPARATE quiet channel: **anonymous Level-3 usage counters**
   (`Analytics.swift` → proxy `/analytics` → Supabase `analytics_counters` daily rollups; six events,
   NO ids/IP ever, one batch per session — measures the product, never the person).
 - **Plan for scope:** a change touching 3+ files or a new pattern → present a plan + get approval first.
@@ -360,7 +375,10 @@ stats). Current parsed-vs-unparsed inventory: `docs/backend.md` (proxy § pass-t
   the build number — it does NOT auto-track "latest". NEVER raise it on every bump (that force-updates
   every user) and NEVER to a build that isn't live+installable yet (walls users with nowhere to go).
   Raise it + redeploy ONLY to retire a broken/incompatible build, and ONLY after the newer build is
-  available. Detail: `docs/versioning.md`.
+  available. ⚠️ It has **never actually been raised** — `/config` still serves `minBuild 21`, so it cannot
+  fire on any current build. That's why "I set it and nothing happened" — the only raise lived on a branch
+  that was never merged or deployed (dropped 7/27). NOT a TestFlight limitation; that remains untested.
+  Detail: `docs/versioning.md`.
 - **Git:** **squash-merge** PRs (one commit on main; OK to combine related branches). Never commit
   secrets. Commits use the owner's GitHub no-reply email
   `286203575+tiffanyrieth@users.noreply.github.com`. CLAUDE.md / commits / PRs / comments stay

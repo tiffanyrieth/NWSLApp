@@ -1,6 +1,56 @@
 # Roadmap / What's Next
 
-> ### 🎚️ PRE-LAUNCH TUNING (flag only, owner 2026-07-24) — halve Predict per-match scoring
+> ### 🛡️ ESPN ROSTER RELIABILITY — reduce the single-source risk (owner 2026-07-27)
+> ESPN is the app's most vulnerable dependency. For a solo indie app that's an accepted trade — but the
+> **roster** specifically has been flaky enough to warrant a better guard. Not aiming for perfect; aiming
+> for *better than one unverified source*.
+>
+> **The failure mode is WRONG-BUT-PLAUSIBLE DATA, served confidently, then self-healing** — not outages.
+> Three observed cases:
+> - **ACFC roster collapsed to 1 player for ~a week** after a KC Current transfer; self-healed at the next
+>   match. Bandaid shipped: `/roster` keeps a last-known-good KV copy and serves it with a
+>   `proxyCachedAsOf` marker when live looks implausibly small.
+> - **Orlando silently dropped from KHG edition 2026-W31** (`knowherTodoEmpty`, 06:02:44Z) — ESPN returned
+>   an empty/stat-less roster for ~seconds. The assembler is fail-open, so it logged a GAP and shipped a
+>   15-team pool. Pride fans opened the game to nothing.
+> - **Trinity Rodman listed as MIDFIELDER instead of FORWARD for ~3 weeks**; self-healed 2026-07-27
+>   (owner-confirmed in-app; all ESPN surfaces — site roster, athlete endpoint, proxy `/roster`, and the KV
+>   last-known-good — now agree on Forward).
+>
+> **The gap:** every existing bandaid catches *missing* or *implausibly small* data. Nothing catches data
+> that is wrong but well-formed — a flipped position passes every plausibility check we have, which is why
+> it survived three weeks.
+>
+> **Scope (owner):** ESPN is FINE for minutes, stats, fixtures, scores. The problem is **roster identity** —
+> who is on the squad, their position, their number. Options to explore, none chosen:
+> 1. **Cross-check** ESPN against nwslsoccer.com and flag/prefer the other source on mismatch
+> 2. **Failover** — a second source promoted when ESPN looks wrong
+> 3. **Replace** the roster source entirely, keeping ESPN for stats/fixtures (hybrid)
+>
+> Worth pricing the sources first (availability, licensing, shape) before designing. Related:
+> `docs/backend.md` (roster § last-known-good), and the KHG assembler's fail-open behaviour, which should
+> probably also grow a retry before it ships a short pool.
+
+> ### 🎮 FAN ZONE — a long-horizon iteration loop, NOT a one-session build (owner 2026-07-27)
+> Four mini-games plus a Superfan point economy tying them together. The owner's framing, worth holding
+> onto: **designing games is far harder than it looks and takes many revisions and trial-and-error.** The
+> 2026-07-24 competitive redesign was a big improvement, but a few things still don't feel right — the
+> target is that it feels **instantly big and connected**, and getting there is a matter of several more
+> passes, not one more change.
+>
+> **Expected working rhythm:** change → TestFlight → live with it for a few weeks → adjust from real use →
+> TestFlight again → repeat. Over months.
+>
+> **How to work on this (for future sessions):** don't treat a Fan Zone ask as a single-session build, and
+> don't propose sweeping rewrites between passes — small, reversible tweaks that can be felt in real use
+> beat big swings. Expect the owner to sit with a change before judging it. Instrument what's cheap to
+> measure, but weight her lived impression above metrics at this scale. Read `docs/fan-zone.md` and
+> `.claude/rules/fan-zone.md` (LOGIC GATE, incl. invariant #7) before touching any of it.
+
+> ### 🎚️ STILL OPEN — halve Predict per-match scoring (flag only; verified NOT yet applied 2026-07-27)
+> ⚠️ Not to be confused with the **Superfan 0–100 accuracy economy**, which WAS redesigned 2026-07-24 —
+> this is a different knob and is still untouched (`XIPrediction.swift` today: formation 5, exact score 10,
+> result 3, perfect XI 15 → max 88).
 > The Predict-the-XI per-match max is **88** (+3/starter ×11, +2/position ×11, +5 formation, +10 exact
 > score, +3 result, +15 perfect XI). The owner flagged this as oversized for a low-scoring sport — consider
 > **halving every value → max 44** pre-launch (relative weights unchanged, so rankings don't move). The
@@ -36,9 +86,15 @@
 > loader. Until then the current stocked pool serves rounds with a deterministic slice (repeats
 > after ~4 rounds — acceptable interim, owner-approved).
 
-> ### 🏆 The Bracket → an OFFSEASON tentpole (owner 2026-07-23; scheduling redesign)
-> **Decision:** stop running The Bracket year-round on a fixed cadence. Make it primarily an
-> **offseason** feature, with maybe **1–2 editions during the season**.
+> ### 🏆 The Bracket → offseason-first, semi-automatic (decision LOCKED; the one code change is NOT done)
+> **Decision (locked, owner):** stop running The Bracket year-round on a fixed cadence. Make it primarily
+> an **offseason** feature, with maybe **1–2 editions during the season**. You stock a library of themes;
+> the engine only advances rounds. ("Tentpole" just meant *the anchor feature that carries the offseason* —
+> the thing that gives people a reason to open the app when the other three games are quiet.)
+>
+> ⚠️ **Verified 2026-07-27: the one required code change is still OUTSTANDING.** `handleAuto` in
+> `bracket-engine.ts` still calls `generateNext()` once `break_days` elapses, i.e. auto still STARTS
+> editions by itself. Until that becomes advance-only, the locked decision isn't actually in force.
 >
 > **Why — the content-calendar gap.** In season the Fan Zone is already full: KHG and Trivia alternate
 > biweekly (a new round every Monday, each playable for two weeks) and Predict the XI runs any week
@@ -80,9 +136,22 @@
 > carries the mode onto the active edition and stamps `round_opened_at`/`round_closes_at` so the
 > countdown starts. The ROUND SCHEDULE itself was never broken and is unit-tested (`bracket.spec.ts`).
 
-> ### ⏳ OWNER SETUP — analytics + alerting go-live steps (2026-07-17, ~15 min total)
-> The anonymous-analytics + ops-alerting code is MERGED + deployed; three one-time owner steps still
-> arm the alerting (each is a silent no-op until done — nothing breaks meanwhile):
+> ### ✅ DONE — analytics + alerting go-live (owner-confirmed 2026-07-27)
+> All arms are LIVE: analytics migration, Resend error-spike email, healthchecks.io dead-cron watchdog,
+> and UptimeRobot route monitors.
+>
+> ⚠️ **Scope gap worth knowing (verified 2026-07-27): the email pager does NOT cover APP CRASHES.**
+> `checkErrorSpike` scans **only** `sdiag:` (proxy server-origin diagnostics) and deliberately skips the
+> client `/telemetry` stream, because that endpoint is unauthenticated and spoofable — counting it would
+> let anyone trip the alert. So an iOS crash (e.g. the Predict picker crash) can never page; Apple's own
+> "report this crash" prompt is currently the only signal. This is by design, NOT a threshold being tuned
+> too low. The one deliberate softening is narrow: `apiFailure` events whose detail starts with
+> `image fetch ` are excluded from the PAGING count (expired IG/YouTube thumbnail URLs — the false alarm
+> you remember); they still land in telemetry and the in-app Diagnostics screen. Thresholds are ≥8 error
+> events in 15 min, max one email per hour. For app-crash visibility the cheap path is Apple's own App
+> Store Connect / TestFlight crash notifications + Xcode Organizer, not building a second pager.
+>
+> Historical setup steps, all now complete:
 > 1. ✅ **Supabase migration — DONE (2026-07-22):** `supabase/migration_analytics_counters.sql` applied,
 >    so counters now record. (No more `analyticsRpcFail: increment_counters 404` in /telemetry/recent.)
 > 2. **Resend** (error-spike email): create a free account at resend.com → API key →

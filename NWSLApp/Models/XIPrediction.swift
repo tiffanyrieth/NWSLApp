@@ -135,6 +135,23 @@ struct Formation: Identifiable, Equatable {
             .map { $0.value.sorted { $0.index < $1.index } }
     }
 
+    /// A display row with a STABLE identity (its shared row number). The picker iterates these
+    /// as VALUES so a formation change never index-subscripts a recomputed array — the old
+    /// `ForEach(displayRows.indices, id: \.self) { displayRows[$0] }` crashed out-of-bounds when
+    /// the row count SHRANK (a 5-row 4-2-3-1/4-1-4-1 → a 4-row formation): SwiftUI ran the child
+    /// closure with a stale index against the newly-shorter array (2026-07-25, Predict picker).
+    struct DisplayRow: Identifiable, Equatable {
+        let row: Int
+        let slots: [Slot]
+        var id: Int { row }
+    }
+
+    var displayRowGroups: [DisplayRow] {
+        Dictionary(grouping: slots, by: \.row)
+            .sorted { $0.key > $1.key }
+            .map { DisplayRow(row: $0.key, slots: $0.value.sorted { $0.index < $1.index }) }
+    }
+
     /// The selectable formations (the common shapes a fan would call). Order is
     /// the picker menu order.
     static let common: [Formation] = [

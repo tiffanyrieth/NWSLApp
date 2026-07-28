@@ -154,9 +154,11 @@ struct XIPickerView: View {
 
     private var pitchGrid: some View {
         VStack(spacing: 16) {
-            ForEach(picker.formation.displayRows.indices, id: \.self) { rowIndex in
+            // Iterate identifiable ROW VALUES — never `ForEach(indices){ displayRows[i] }`, which
+            // crashed out-of-bounds when a formation change shrank the row count (see DisplayRow).
+            ForEach(picker.formation.displayRowGroups) { rowGroup in
                 HStack(alignment: .top, spacing: 8) {
-                    ForEach(picker.formation.displayRows[rowIndex]) { slot in
+                    ForEach(rowGroup.slots) { slot in
                         slotCell(slot)
                     }
                 }

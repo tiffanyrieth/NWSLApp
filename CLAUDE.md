@@ -127,6 +127,14 @@ Cloudflare Worker** (sibling repo `~/Projects/nwslapp-proxy`); DEBUG `-useESPNDi
 **Roster** routes through the proxy's `/roster` too (last-known-good KV: ESPN intermittently serves an
 implausibly small squad — e.g. 1 player — so the proxy caches a plausible roster and serves it with a
 `proxyCachedAsOf` marker → app shows a "Roster as of …" note; teams/standings still hit ESPN directly).
+**Predict community picks** route through the proxy's `/predict/community` (2026-07-28) — how many of a
+club's predictors picked each player, for Predict's results screen. ⚠️ THIS ROUTE IS A DEADLINE GATE and
+fails CLOSED: readable percentages while people are still picking would let users copy the consensus and
+flatten the distribution, so it serves only a submission COUNT before kickoff − 2h and the full split
+after. Postgres can't enforce that (it has no idea when kickoff is) and the device clock is the user's —
+the worker knows, from its own cached `/summary`. The WRITE side goes straight to Supabase instead
+(`predict_record_picks`, counts only, never lineups; idempotent on a `(user_id, event_id)` mark, so a
+retry/double-tap/reinstall can't double-count). Full reasoning: `docs/fan-zone.md` §3.
 **Kickoff weather** routes through the proxy's `/weather?event={id}` too — a PAST match's kickoff-hour
 temperature + sky condition from **Open-Meteo** (free, no key; ESPN carries NO NWSL weather). Keyed by a
 static **ESPN-venue-id**→lat/lon table (id-keyed so a rename can't silently break it), the exact kickoff

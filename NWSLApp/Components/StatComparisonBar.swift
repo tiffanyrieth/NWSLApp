@@ -64,7 +64,8 @@ struct StatComparisonBar: View {
                         .fill(awayColor.opacity(0.85))
                 }
             }
-            .frame(height: 5)
+            // 10pt, not 5: this bar exists to be COMPARED at a glance against the row above it.
+            .frame(height: 10)
         }
     }
 }

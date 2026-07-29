@@ -14,6 +14,24 @@
 > **The general lesson worth keeping:** an 11pt font and a 4pt bar are a *tool* default, not a
 > phone-reading size. When sizing anything a user has to read or compare at arm's length, size it
 > for the device — and prefer `.dsFont` over `.font(.system(size:))` so Dynamic Type can rescue it.
+>
+> **✅ DONE 2026-07-28 — the DATA-BAR sweep.** Every bar the reader is meant to COMPARE is now 10pt
+> (7pt in the compact Fan Zone carousel card, where a full-size bar would dominate): Predict's
+> fan-picks + locked-XI bars, `CommunityResultsView` (fixes Know Her Game AND NWSL Trivia in one —
+> was 60×6 with an 11pt fixed percentage while the LABEL took all the flexible width), Match Detail's
+> `StatComparisonBar`, both Superfan bars, the Bracket leaderboard's accuracy bar and its
+> picks-made progress. Bars in Predict + the community panel are now `Grid`-aligned so they share a
+> common left edge — ragged edges make lengths incomparable, which is the entire job of a bar.
+> Deliberately NOT touched: status dots (5–7pt live/bullet indicators), tab underlines (2pt), and the
+> `ThumbnailContentCard` team-colour stripe (3pt) — none are data the reader compares.
+>
+> **⚠️ STILL OPEN — the broader TYPE audit.** 151 uses of `.dsFont(10/10.5/11)` remain app-wide.
+> **26 are the deliberate tracked-caps eyebrow motif** (`trackedCaps(size: 11)` — small caps with
+> tracking read larger than their point size, and it's a consistent DS motif) and should stay. The
+> other ~125 are mostly legitimately-secondary captions, but some are certainly too small. That is a
+> screen-by-screen judgement pass across ~40 files, not a find-and-replace — doing it blind would
+> risk breaking layouts that were tuned around the current sizes. Worth its own session with the
+> AX1-cap revisit in the accessibility workstream.
 
 > ### 🎬 PREDICT STAGE 1 — results at LINEUP DROP (deferred by owner decision 2026-07-28)
 > The redesigned results screen ships against FULL TIME only. The handoff also specified a two-stage

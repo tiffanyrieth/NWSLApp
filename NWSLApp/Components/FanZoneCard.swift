@@ -192,7 +192,9 @@ struct SuperfanCard: View {
                     Capsule().fill(tier.color).frame(width: max(0, geo.size.width * progress.fraction))
                 }
             }
-            .frame(height: 4)
+            // 7, not 10: this sits in a compact 152pt carousel card where a full-size bar would
+            // dominate — but 4pt was invisible.
+            .frame(height: 7)
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 128, alignment: .leading)

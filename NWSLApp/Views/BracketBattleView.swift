@@ -861,7 +861,7 @@ struct BracketBattleView: View {
                                     Capsule().fill(Color.dsBgTertiary)
                                     Capsule().fill(accent).frame(width: geo.size.width * (total > 0 ? Double(made) / Double(total) : 0))
                                 }
-                            }.frame(height: 5)
+                            }.frame(height: 9)
                         }
                     }
                     if locked { lockedBanner } else if allMade { allPickedBanner }

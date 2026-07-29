@@ -16,6 +16,11 @@
 //  one component renders both games' models. It fetches the aggregate from the proxy edge
 //  cache via QuizResultsService — never a live DB aggregation.
 //
+//  ⚠️ Bars are sized for a HAND, not a preview (2026-07-28): flexible width, 10pt tall, `.dsFont`
+//  percentages. They were 60x6 with an 11pt fixed percentage — the element you're meant to compare
+//  across options was the smallest thing in the row. Shared by Trivia and Know Her Game, so this
+//  fixes both.
+//
 
 import SwiftUI
 
@@ -134,9 +139,16 @@ struct CommunityResultsView: View {
             Text(gotItRightLine(correct: correct, total: total, showPercent: showPercent))
                 .dsFont(12, weight: .semibold)
                 .foregroundStyle(accent)
-            ForEach(q.options.indices, id: \.self) { i in
-                optionBar(label: q.options[i], count: data?.count(forOption: i) ?? 0,
-                          total: total, isCorrect: i == q.correctIndex, showPercent: showPercent)
+            // A Grid so the bars share a common left edge — with each bar starting after its own
+            // option label, differing label lengths give ragged edges and the lengths stop being
+            // comparable, which is the whole job of a bar.
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
+                ForEach(q.options.indices, id: \.self) { i in
+                    GridRow {
+                        optionBar(label: q.options[i], count: data?.count(forOption: i) ?? 0,
+                                  total: total, isCorrect: i == q.correctIndex, showPercent: showPercent)
+                    }
+                }
             }
             // The "learn about her" payoff, folded in here so it isn't a duplicate list at the bottom.
             if let fact = q.revealFact, !fact.isEmpty {
@@ -166,32 +178,48 @@ struct CommunityResultsView: View {
         return "\(pct)% · \(correct) of \(total) \(noun) nailed this"
     }
 
+    /// The four grid CELLS of one option row: mark · label · bar · percentage.
+    ///
+    /// ⚠️ SIZED FOR A PHONE (2026-07-28). This was a 60pt-wide, 6pt-tall bar with a `.caption2`
+    /// (11pt, non-scaling) percentage, while the LABEL took all the flexible width — so the one
+    /// element the reader is meant to compare across options was the smallest thing in the row.
+    /// The bar now takes the leftover width and is 10pt tall, and the percentage uses `.dsFont` so
+    /// Dynamic Type can scale it.
+    @ViewBuilder
     private func optionBar(label: String, count: Int, total: Int, isCorrect: Bool, showPercent: Bool) -> some View {
         let fraction = total > 0 ? Double(count) / Double(total) : 0
-        return HStack(spacing: 10) {
-            Image(systemName: isCorrect ? "checkmark.circle.fill" : "circle")
-                .dsFont(12)
-                .foregroundStyle(isCorrect ? Color.dsSuccess : Color.dsFgTertiary)
-            Text(label)
-                .dsFont(12)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.dsBgTertiary)
-                    Capsule().fill(isCorrect ? Color.dsSuccess.opacity(0.7) : accent.opacity(0.5))
-                        .frame(width: max(2, geo.size.width * fraction))
-                }
+
+        Image(systemName: isCorrect ? "checkmark.circle.fill" : "circle")
+            .dsFont(14)
+            .foregroundStyle(isCorrect ? Color.dsSuccess : Color.dsFgTertiary)
+            .accessibilityHidden(true)
+
+        Text(label)
+            .dsFont(13)
+            .lineLimit(1)
+            .accessibilityHidden(true)
+
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.dsBgCard)
+                Capsule().fill(isCorrect ? Color.dsSuccess.opacity(0.7) : accent.opacity(0.5))
+                    .frame(width: max(2, geo.size.width * fraction))
             }
-            .frame(width: 60, height: 6)
-            // Percent per option, at any scale. Safe to show unanchored HERE because the line directly
-            // above spells out the count ("67% · 2 of 3 fans nailed this") and the summary row carries
-            // the responder total — so the reader always has the denominator in view.
-            Text(showPercent ? "\(Int((fraction * 100).rounded()))%" : "\(count)")
-                .font(.caption2.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 40, alignment: .trailing)
         }
+        .frame(minWidth: 70, maxWidth: .infinity)
+        .frame(height: 10)
+        .gridCellUnsizedAxes(.vertical)
+        // One row = one fact for VoiceOver, rather than four fragments.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label)\(isCorrect ? ", correct answer" : ""): \(Int((fraction * 100).rounded())) percent, \(count) of \(total)")
+
+        // Percent per option. Safe unanchored HERE because the line directly above spells out the
+        // count ("67% · 2 of 3 fans nailed this") and the summary row carries the responder total.
+        Text(showPercent ? "\(Int((fraction * 100).rounded()))%" : "\(count)")
+            .dsFont(13, weight: .semibold, monospacedDigit: true)
+            .foregroundStyle(.secondary)
+            .gridColumnAlignment(.trailing)
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder

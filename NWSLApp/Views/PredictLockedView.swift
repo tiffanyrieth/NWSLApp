@@ -154,7 +154,7 @@ struct PredictLockedView: View {
                                 .frame(width: geo.size.width * (Double(community.submissions) / Double(total)))
                         }
                     }
-                    .frame(height: 5)
+                    .frame(height: 10)
                 }
                 Text("Nobody sees anyone's XI until submissions close \(closeLabel) — then the whole board opens at once.")
                     .dsFont(11.5).foregroundStyle(.secondary)
@@ -306,7 +306,8 @@ struct PredictLockedView: View {
                             .frame(width: geo.size.width * share)
                     }
                 }
-                .frame(width: 56, height: 4)
+                .frame(minWidth: 70, maxWidth: .infinity)
+                .frame(height: 10)
                 Text(PredictPitchView.percent(share))
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(isContrarian ? Color.dsWarning : Color.dsFgTertiary)

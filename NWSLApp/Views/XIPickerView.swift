@@ -206,7 +206,7 @@ struct XIPickerView: View {
                 }
                 .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 1))
                 Text(athlete.map { lastName($0) } ?? slot.group.shortLabel)
-                    .font(.caption2.weight(athlete != nil ? .semibold : .regular))
+                    .dsFont(12, weight: athlete != nil ? .semibold : .regular)
                     .foregroundStyle(.white.opacity(athlete != nil ? 1 : 0.7))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)

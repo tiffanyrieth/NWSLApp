@@ -164,6 +164,17 @@ weekly chance that *moves* your season position):
   season card leads with the average (ring = avg/88). Server ranks by `avg_points` (indexed) + a HEAD-count
   rank; the round board stays raw points (a round is only 1–2 matches, so averaging there is noise).
 
+**Results (redesigned 2026-07-28).** The per-match screen shows the REAL starting XI on the picker's own
+field, marked green (you called her) / red (you missed her), revealed line by line, and led by "8 of 11
+starters" rather than points — points are the accounting, never the headline. Your picks who sat are one
+quiet line; there is no separate "you missed" section, because a missed starter is simply a red node.
+Community percentages appear ONLY inside the per-band "How <club> fans picked" panels, each carrying its
+own explanation — no number floats unlabeled. A submitted prediction also has a destination now
+(`PredictLockedView`): the sealed aggregate before the close, the crowd revealed after it, plus a share
+card. Routing: 0 unseen results → the landing, 1 → straight into it, 2+ → the landing's round rollup with
+NEW pills. ⚠️ Seen-tracking is PER FIXTURE, never per user — one flag would mark all of a weekend's
+results seen the moment you opened one of them.
+
 **Recent results + per-match detail** (`PredictXIView` "Recent results" section, windowed to the current +
 previous soccer week). Each compact card (crests + FT + total + one-line summary) opens
 `PredictMatchResultView`: your predicted XI vs the ACTUAL XI (re-fetched from `/summary` on demand — never

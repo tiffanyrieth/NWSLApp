@@ -179,6 +179,7 @@ struct PredictMatchResultView: View {
             yourXISection
             missedSection
             consensusSection
+            shareRow
             nextMatchCTA
         }
         .opacity(model.contentShown ? 1 : 0)
@@ -573,6 +574,34 @@ struct PredictMatchResultView: View {
                 .compactMap { model.consensusXI[$0.index] }
                 .compactMap { model.detail?.names[$0] }
             return names.isEmpty ? nil : (group, names)
+        }
+    }
+
+    // MARK: - Share
+    //
+    // The second share moment (the first is pre-kickoff, on the locked-wait screen): the same XI,
+    // now with ✓/✗ and the score.
+
+    @ViewBuilder
+    private var shareRow: some View {
+        if let prediction, let formation = Formation(raw: prediction.formation) {
+            PredictShareLink(
+                card: PredictShareCard(
+                    kind: .postMatch,
+                    teamAbbr: item.fixture.teamAbbreviation,
+                    opponentAbbr: item.fixture.opponentAbbreviation,
+                    formation: formation,
+                    rows: model.picks.map {
+                        PredictShareCard.Row(band: $0.slot.group.shortLabel,
+                                             name: $0.name,
+                                             marker: $0.state.started)
+                    },
+                    // Starters called leads the share card too — it's the sentence that travels.
+                    headline: "\(model.startersCalled) of 11",
+                    subhead: "starters called · \(score.total) pts",
+                    accent: accent),
+                label: "Share your result",
+                accent: accent)
         }
     }
 

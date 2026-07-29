@@ -561,6 +561,20 @@ struct HomeView: View {
     }
 
     private var predictCardModel: FanZoneCardModel {
+        // A freshly-tallied result outranks everything else the card could say — it's the one thing
+        // the user didn't already know. The card only SIGNPOSTS it; tapping routes into Predict,
+        // where the reveal plays because the result is unseen. Per the hide-when-empty rule there is
+        // no "results pending" variant: this appears only once something is actually scored.
+        let unseen = predict.unseenScoredFixtureIDs(currentWeek: FanZoneCadence.currentSoccerWeek())
+        if !unseen.isEmpty {
+            var model = FanZoneCardModel(game: .predict, title: "Predict the XI",
+                                         contextLine: unseen.count == 1
+                                            ? "Match final"
+                                            : "\(unseen.count) matches final")
+            model.statusLine = "See how your XI did"
+            return model
+        }
+
         // Following 2+ predictable teams → the card is about the DEADLINE, not one team:
         // a generic "N predictions open" context + a countdown to the soonest deadline
         // across all your open predictions. (One predictable team → fall through to the

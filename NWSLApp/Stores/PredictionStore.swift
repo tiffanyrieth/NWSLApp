@@ -249,6 +249,22 @@ final class PredictionStore {
         persist()
     }
 
+    /// Scored fixtures whose result the user hasn't opened yet, inside the same current+previous
+    /// soccer-week window the results list renders. Home reads this to decide whether the Predict
+    /// card should lead with "Match final".
+    ///
+    /// ⚠️ The card is a SIGNPOST, not a trigger. It routes into Predict, where the reveal plays
+    /// because the result is unseen — the same code path, no second mechanism. A reveal must never
+    /// fire on entering Home or the Fan Zone: someone opening the Fan Zone to play The Bracket
+    /// should not be shown a Predict animation.
+    func unseenScoredFixtureIDs(currentWeek: Int?) -> [String] {
+        scores.compactMap { key, score in
+            guard !seenResultFixtureIDs.contains(key), predictions[key] != nil else { return nil }
+            if let currentWeek, let week = score.soccerWeek, week < currentWeek - 1 { return nil }
+            return key
+        }
+    }
+
     func hasUploadedPicks(fixtureID: String) -> Bool { uploadedPickFixtureIDs.contains(fixtureID) }
 
     func markPicksUploaded(fixtureID: String) {

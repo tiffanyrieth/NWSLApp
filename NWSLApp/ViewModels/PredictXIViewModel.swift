@@ -472,10 +472,15 @@ final class PredictXIViewModel {
     private func rankedRows(team: String, standings: [PredictLeaderboardService.Standing],
                             trueRank: Int?, store: PredictionStore, auth: AuthStore,
                             points: Int, seasonAvg: Double? = nil, seasonMatches: Int? = nil) -> [LeaderboardRow] {
-        let myID = auth.userID?.uuidString
+        // ⚠️ LOWERCASE BOTH SIDES. Swift's `UUID.uuidString` is UPPERCASE; PostgREST returns a uuid
+        // as a lowercase string. Comparing them raw can NEVER match, so the user's own server row
+        // survived into `rivals` and her live "You" row was then spliced in beside it — the board
+        // showed her TWICE (proven 2026-07-29: one row in `prediction_scores`, two rendered).
+        // `BracketService.swift` has always guarded this ("never double the user"); Predict didn't.
+        let myID = auth.userID?.uuidString.lowercased()
         let myName = auth.displayName ?? "You"
         let myPoints = points   // season total OR one week's sum — the caller picks the clock
-        let rivals = standings.filter { $0.userID != myID }
+        let rivals = standings.filter { $0.userID.lowercased() != myID }
 
         // A row for a RIVAL (server standing) — season carries their avg/matches, round just points.
         func rivalRow(_ rank: Int, _ s: PredictLeaderboardService.Standing) -> LeaderboardRow {

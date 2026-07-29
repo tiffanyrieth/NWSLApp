@@ -35,10 +35,18 @@ alter table public.predict_season_bests enable row level security;
 
 -- Own-row only. Unlike the leaderboard tables there is no public read: a personal best is not a
 -- ranked, comparable number, so nothing outside the user's own app needs it.
+-- ⚠️ `create policy` has NO `if not exists` in Postgres, so a bare create makes the whole file
+-- non-idempotent — re-running it aborts with 42710 and every statement AFTER the failure (here, the
+-- grants and the merge function) silently never applies. Drop-then-create, matching
+-- migration_superfan_scores.sql. (Learned the hard way on 2026-07-28: this file's header claimed
+-- idempotency it didn't have, and a re-run to pick up the revoke below failed on the first policy.)
+drop policy if exists "Users read own predict bests" on public.predict_season_bests;
 create policy "Users read own predict bests"
   on public.predict_season_bests for select using (auth.uid() = user_id);
+drop policy if exists "Users insert own predict bests" on public.predict_season_bests;
 create policy "Users insert own predict bests"
   on public.predict_season_bests for insert with check (auth.uid() = user_id);
+drop policy if exists "Users update own predict bests" on public.predict_season_bests;
 create policy "Users update own predict bests"
   on public.predict_season_bests for update using (auth.uid() = user_id);
 

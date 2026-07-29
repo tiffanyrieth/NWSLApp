@@ -108,6 +108,18 @@ final class PredictXIViewModel {
             ? findNextOpening(matches: matches, clubs: clubs, following: following)
             : nil
 
+        #if DEBUG
+        // TEMP dev-only preview scaffold (`-debugPredictResult`) — see DebugPredictSeed.
+        // Purge FIRST: a normal launch must clear anything a previous seeded run left behind before
+        // loadLeaderboards can push it to the real, max-merged leaderboard row.
+        DebugPredictSeed.purgeIfInactive(store: store)
+        await DebugPredictSeed.seed(
+            events: Array(eventsByID.values),
+            teams: Set(upcomingFixtures.map(\.teamAbbreviation)).union(store.scoredTeams),
+            fetchSummary: { try await self.service.fetchSummary(eventID: $0) },
+            store: store)
+        #endif
+
         await scoreSettledSubmissions(store: store)
         await loadLeaderboards(store: store, auth: auth)
 
@@ -347,7 +359,16 @@ final class PredictXIViewModel {
     private func loadLeaderboards(store: PredictionStore, auth: AuthStore) async {
         let season = Self.currentSeason
 
-        if let userID = auth.userID {
+        #if DEBUG
+        // ⚠️ A seeded result is FAKE, and both `prediction_scores` and `predict_season_bests` are
+        // max-merged — one fake push would raise the real row permanently, with no way back down.
+        // So the preview scaffold reads the boards but never writes to them.
+        let allowServerWrites = !DebugPredictSeed.isActive
+        #else
+        let allowServerWrites = true
+        #endif
+
+        if let userID = auth.userID, allowServerWrites {
             for team in store.scoredTeams {
                 await leaderboardService.upsertScore(
                     teamAbbreviation: team, points: store.points(forTeam: team),

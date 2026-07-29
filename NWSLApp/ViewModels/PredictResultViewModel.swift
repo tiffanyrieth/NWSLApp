@@ -95,6 +95,18 @@ final class PredictResultViewModel {
             let map = await communityService.distribution(season: season, fixtures: [request])
             let found = map[item.fixture.id]
             community = (found?.revealed == true) ? found : nil
+
+            #if DEBUG
+            // TEMP dev-only preview scaffold — a CLIENT-SIDE distribution so the community layer
+            // can be reviewed before real submissions exist. Nothing is written to the server.
+            // Empty means nil OR zero submissions: a finished match legitimately returns
+            // revealed-with-nothing-in-it until real predictions exist.
+            if (community?.submissions ?? 0) == 0, DebugPredictSeed.isActive {
+                community = DebugPredictSeed.syntheticCommunity(
+                    eventID: prediction.eventID, team: prediction.teamAbbreviation, week: week,
+                    picks: prediction.slots, actualStarters: actual.starters.map(\.athleteID))
+            }
+            #endif
         }
 
         picks = PredictResultDerivation.picks(for: prediction, against: actual,
@@ -149,6 +161,10 @@ final class PredictResultViewModel {
         // Now raise the mark, locally and (best-effort) on the server.
         let bests = PredictSeasonBests(season: season, bestMatchStarters: starters, bestRoundStarters: 0)
         store.mergeSeasonBests(bests)
+        #if DEBUG
+        // A seeded result must never raise the real high-water mark — GREATEST can't be undone.
+        guard !DebugPredictSeed.isActive else { return }
+        #endif
         let service = leaderboardService
         Task { await service.mergeSeasonBests(season: season, matchStarters: starters, roundStarters: 0) }
     }

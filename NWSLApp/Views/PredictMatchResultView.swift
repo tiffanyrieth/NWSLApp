@@ -411,7 +411,10 @@ struct PredictMatchResultView: View {
                         }
                     }
                 }
-                if let community = model.community {
+                // ⚠️ `submissions > 0`, not just non-nil. A FINISHED match with nobody's predictions in
+                // it comes back revealed-but-empty, and the bar explainer then rendered over a list
+                // with no bars at all ("· 0 predictions"). Caught in-sim 2026-07-28.
+                if let community = model.community, community.submissions > 0 {
                     Text("Bars show how much of \(clubLabel) picked each player · \(community.submissions) prediction\(community.submissions == 1 ? "" : "s")")
                         .dsFont(10.5).foregroundStyle(Color.dsFgTertiary)
                         .frame(maxWidth: .infinity)
@@ -515,7 +518,7 @@ struct PredictMatchResultView: View {
 
     @ViewBuilder
     private var consensusSection: some View {
-        if let community = model.community, !model.consensusXI.isEmpty {
+        if let community = model.community, community.submissions > 0, !model.consensusXI.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) { showConsensus.toggle() }

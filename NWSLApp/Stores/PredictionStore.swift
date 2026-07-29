@@ -375,6 +375,20 @@ final class PredictionStore {
     }
 
     #if DEBUG
+    /// Dev-only: drop one fixture's prediction + score entirely. Exists so the preview scaffold can
+    /// clean up after itself — a seeded score left in the store would be pushed to the real
+    /// leaderboard on the next NORMAL launch, and those rows are max-merged, so it could never be
+    /// taken back down.
+    func debugRemove(fixtureID: String) {
+        guard predictions[fixtureID] != nil || scores[fixtureID] != nil else { return }
+        predictions[fixtureID] = nil
+        scores[fixtureID] = nil
+        seenResultFixtureIDs.remove(fixtureID)
+        uploadedPickFixtureIDs.remove(fixtureID)
+        seasonPoints = scores.values.reduce(0) { $0 + $1.total }
+        persist()
+    }
+
     /// Dev-only: wipe Predict-the-XI progress (drafts, scores, banked season points)
     /// so `-resetOnboarding` simulates a brand-new install (see NWSLAppApp.init).
     /// Static + key-name-aware so it runs before any store instance exists.

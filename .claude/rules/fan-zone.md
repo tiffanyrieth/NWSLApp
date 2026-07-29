@@ -147,7 +147,12 @@ season board AND a per-soccer-week ROUND board (`predict_round_scores`; a 2-game
 round tab labeled with a DATE RANGE, never "Week N" — no official NWSL matchweek numbering exists). The open-fixtures slate + scoring (via `/summary`)
 live in `PredictXIViewModel`; the in-flight picker is `XIPickerViewModel` / `XIPickerView`. **Auto-pick**
 (`XIPickerViewModel.autoPick()`, button in the picker's FORMATION header) = beginner quick-fill: random
-formation + a distinct random player per slot (position-blind, score untouched); re-tap to re-roll.
+formation + a distinct random player per slot, drawn from that slot's own POSITION BAND (score untouched);
+re-tap to re-roll a different player within each band. ⚠️ It was deliberately POSITION-BLIND until
+2026-07-28 — the owner reversed that after using it: blind picks made auto-pick something you had to
+undo rather than build on. Don't restore the old behaviour from a stale comment. A band that runs
+short (a random 5-3-2 against four defenders) backfills from outfielders before any spare keeper, so
+the XI is always complete and a keeper never lands up front.
 
 ## Know Her Game
 

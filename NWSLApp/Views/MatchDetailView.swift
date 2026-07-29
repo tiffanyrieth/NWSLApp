@@ -34,6 +34,8 @@ struct MatchDetailView: View {
 
     @Environment(MatchStore.self) private var matchStore
     @Environment(\.openURL) private var openURL
+    /// Capped at AX1 app-wide (`RootTabView`), so this is true at exactly one size.
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     @State private var tab: DetailTab = .summary
     @State private var pulse = false
@@ -742,8 +744,13 @@ struct MatchDetailView: View {
     // Venue / Broadcast / Competition tiles. Each renders only when its value is known,
     // so a sparse fixture degrades gracefully. (Past matches show a kickoff-weather stamp in
     // the header's compactInfoRow; a FUTURE forecast tile here is deferred to the forecast build.)
+    /// ⚠️ Three-across BELOW accessibility sizes, stacked AT them (2026-07-29). At AX1 a third of
+    /// the width can't hold these labels: "BROADCAST" broke mid-word to "BROADCA/ST" and the values
+    /// truncated ("CPKC Stadium,…", "NWSL Regular S…"). Full-width tiles have room for both. The
+    /// standard range is untouched — it fits three-across and that's the denser, better layout there.
+    @ViewBuilder
     private var futureInfoGrid: some View {
-        HStack(spacing: 10) {
+        let tiles = Group {
             if let venue = venueText {
                 MDInfoCard(label: "Venue", value: venue)
             }
@@ -753,7 +760,11 @@ struct MatchDetailView: View {
             MDInfoCard(label: "Competition",
                        value: competition.displayLabel ?? "NWSL Regular Season")
         }
-        .padding(.horizontal, 20)
+        if typeSize.isAccessibilitySize {
+            VStack(spacing: 10) { tiles }.padding(.horizontal, 20)
+        } else {
+            HStack(spacing: 10) { tiles }.padding(.horizontal, 20)
+        }
     }
 
     /// Pre-kickoff starting XIs, shown once ESPN posts them (~1h before kickoff — the future detail's
@@ -1098,6 +1109,11 @@ struct MatchDetailView: View {
                         .dsFont(12)
                         .foregroundStyle(Color.dsFgSecondary)
                         .multilineTextAlignment(.center)
+                        // Wrap rather than truncate. This center column is squeezed between two
+                        // crests (which must NOT shrink — §0), so at AX1 "Friday, July 31" was
+                        // cut to "Friday, July…" — losing the date on a screen whose whole job is
+                        // telling you when the match is. Two centered lines cost nothing here.
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }

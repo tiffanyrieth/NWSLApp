@@ -64,6 +64,14 @@ as $$
     updated_at = now();
 $$;
 
+-- ⚠️ REVOKE FIRST. Postgres grants EXECUTE on a new function to PUBLIC by default, so a bare
+-- `grant … to authenticated` leaves anon able to call it too. Today that's harmless — this function
+-- is SECURITY INVOKER, so anon is stopped at the table grant and RLS anyway (verified 2026-07-28:
+-- an anon call fails with "permission denied for table predict_season_bests", not a write). But it
+-- is the standing grant rule's exact blind spot: the day someone changes this to SECURITY DEFINER
+-- for an atomicity reason, that default PUBLIC grant silently becomes a live unauthenticated write
+-- path. Revoke explicitly so the function's reach never depends on what body it happens to have.
+revoke all on function public.predict_merge_bests(text, int, int) from public, anon;
 grant execute on function public.predict_merge_bests(text, int, int) to authenticated;
 
 -- ⚠️ ORDERING RULE FOR CALLERS: evaluate the superlative ladder BEFORE merging this match's result.

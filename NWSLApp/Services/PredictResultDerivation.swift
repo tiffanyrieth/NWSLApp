@@ -91,7 +91,12 @@ enum PredictResultDerivation {
         let hit = picks
             .filter { $0.state.started }
             .compactMap { pick -> (PredictPickResult, Double)? in
-                guard let share = pick.communityShare, share <= hitCeiling else { return nil }
+                // ⚠️ `share > 0` is a DATA-INTEGRITY guard, not a threshold. You picked her, and the
+                // aggregate counts your own submission, so a 0% share on one of your own picks is
+                // impossible — it means the distribution we got back is partial. Without this, the
+                // "gutsiest call" card would name whichever of your picks happened to be missing
+                // from the payload, stated as fact.
+                guard let share = pick.communityShare, share > 0, share <= hitCeiling else { return nil }
                 return (pick, share)
             }
             // Lowest share wins; ties break on id so the same match always names the same player.

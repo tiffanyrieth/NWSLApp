@@ -1,5 +1,45 @@
 # Roadmap / What's Next
 
+> ### 🎬 PREDICT STAGE 1 — results at LINEUP DROP (deferred by owner decision 2026-07-28)
+> The redesigned results screen ships against FULL TIME only. The handoff also specified a two-stage
+> timeline: 75 of the 88 points (players, positions, formation, perfect XI) resolve when the real
+> lineup drops ~90 minutes before kickoff, and only the last 13 (exact score, result) wait for full
+> time. Opening the screen at lineup drop is the moment the game is *named* for.
+>
+> Deferred as one pass, not dropped — the current build is structured so it drops in:
+> - Per-pick detail is already derived TRANSIENTLY (`PredictResultDerivation`), not persisted, so a
+>   pre-full-time render needs no new storage.
+> - `PredictionScore` is untouched and still only written at full time.
+>
+> ⚠️ **THE TRAP TO RESPECT WHEN BUILDING IT.** A partial score must NEVER reach
+> `PredictionStore.recordScore`: that increments `scoredMatchCount`, which is the denominator of
+> `avg_points`, which is what the season board ranks on. Writing a stage-1 score would silently
+> corrupt every user's rank. Stage 1 must be display-only, computed in the VM.
+>
+> Still to decide (both were open in the handoff):
+> - **What triggers it.** Fetch-on-open is simplest and matches the existing on-demand `/summary`
+>   pattern; anything more eager costs Cloudflare requests, the metered resource. ⚠️ Whatever fetches
+>   inside the pre-kickoff window MUST send `w=near` (the cache-key window bucket), or a stale empty
+>   pre-lineup shell can mask a posted XI. The current results fetch deliberately does NOT send it —
+>   it only ever reads a finished match, where `w=near` would just cost cache hits.
+> - **Whether to push at lineup drop.** The moment with the most pull; the app has matchday push
+>   limits to respect, and it would need its own opt-in.
+> - `PredictionScore`'s four Bools can't express "pending" (false is indistinguishable from unresolved),
+>   so the pending rows need a separate transient type.
+
+> ### 🐞 THE BRACKET — "top 94%" reads as praise and means near-last (found 2026-07-28)
+> `resultsRankLine` computes `topPercent = rank / total * 100`, so rank 30 of 32 renders
+> **"You're in the top 94%"** in the accent colour, as if it were an achievement. Three problems:
+> the wording is inverted (Overwatch never said "top 94%" — it said *Bronze*), and the `max(1, …)`
+> guard only protects the good end.
+>
+> ⚠️ **Four call sites, not one** — fix together or the inconsistency spreads:
+> `BracketBattleView.swift:411`, `:527`, `:699`, and `BracketLeaderboardView.swift:163`.
+>
+> Predict adopted the replacement on 2026-07-28: state the POPULATION ("#8 of 20") and, where a
+> neighbouring row is actually in hand, the next rung ("0.4 behind CapitalKick at #7"). Found while
+> building that; out of scope for the Predict handoff, logged here rather than silently widened.
+
 > ### 🔐 MULTI-DEVICE / DUPLICATE-ACCOUNT INTEGRITY (owner 2026-07-27) — no false numbers, ever
 > Trigger: the simulator signed in with the owner's Apple ID appeared to disturb her real Superfan data.
 > Owner's (correct) instinct: **this matters far beyond the sim.** A real user gets a new phone, signs in

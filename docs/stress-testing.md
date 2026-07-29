@@ -179,7 +179,41 @@ For each subsystem, walk it explicitly:
       — device-verify that iOS doesn't throttle a ~1/min broadcast cadence (build 26, fake-match harness).
 - [ ] (expand as subsystems are examined)
 
+- [x] **Predict the XI community aggregate + `/predict/community`** — PASSES 1k (2026-07-28). Flat-in-user-count
+      counter table; the only per-user growth is a 28-day-pruned dedupe mark. See §7.
+
 ## 7. Status ledger
+
+- **Predict the XI community aggregate + results redesign (2026-07-28): ✅ passes 1k; 100k needs only
+  the pre-existing levers.**
+  **Units of load — four, easy to conflate:** (a) aggregate WRITES scale with *submissions*, one
+  idempotent RPC each; (b) season-best merges scale with *scored matches per user*; (c) `/predict/community`
+  ORIGIN work scales with *fixtures × TTL buckets*, edge-collapsed across every reader of a match;
+  (d) `/predict/community` REQUEST count scales with *screen opens* — ⚠️ this is the axis that matters,
+  because a cache HIT still counts as a Worker invocation, so it stays user-linear even though the
+  origin work does not. Plus DB size, which is dominated by one table only (see below).
+  **Efficiency pass first (before any sizing):** the route is BATCHED by fixture from day one (a
+  multi-club round is one request, capped at 6) — cheap now, an ugly retrofit later; the round rollup
+  fetches NO community data, only the per-match screen does; a sealed fixture calls a count-only RPC
+  rather than the distribution; the kickoff lookup rides the worker's own cached `/summary` and adds
+  zero ESPN load; drafts are never uploaded.
+  **1k, concentrated (a Saturday, 300 one-club fans):** ~300 submit RPCs and ~300–600 result opens ⇒
+  **≲1.5k Worker requests on the worst matchday**, against a 100k/day cap already carrying the existing
+  fixed traffic. Writes land on Supabase's unlimited-request tier. **PASSES.**
+  **Size:** `predict_pick_counts` is **flat in user count** — squad × slots × matches, ~150 rows/match,
+  ~27k rows/season whether 100 people play or 100,000. The only per-user growth is
+  `predict_submission_marks` (one row per user per match), ~12k rows live at 1k users on the 28-day
+  window; `predict_season_bests` is one tiny row per user per season. All three pruned by pg_cron.
+  **100k lever:** Workers Paid ($5/mo) — the already-documented expansion slot, nothing new invented.
+  A second, cheaper lever exists if ever needed: materialize each closed fixture's distribution into a
+  userless row on first post-close read so the RPC runs once per fixture forever. Documented, NOT built.
+  **Cost:** $0 new at small scale, no metered service, no new dependency.
+  **Failure modes (NO SILENT FAILURES):** an unresolvable kickoff ⇒ the route SEALS (fails closed) and
+  emits `predictCommunityNoKickoff` — failing open would leak the crowd's XI before the deadline, the
+  one thing the gate exists to prevent; a failed distribution read ⇒ the app hides every community
+  section rather than rendering 0% as fact; a failed submit RPC ⇒ the local submit stands untouched and
+  a `Diagnostics.apiFailure` fires; a repeat RPC ⇒ a server-side no-op, never a double count. Gated by
+  `health_check_predict_community.mjs`, which fails the deploy if a pre-close fixture ever ships picks.
 
 - **Bracket `display_name` stamp (2026-07-22): ✅ passes 1k + 100k by construction.** One new READ path
   in the tally (`accumulateScores` → `profiles?id=in.(…)&select=id,display_name`), added because nothing
@@ -316,6 +350,12 @@ For each subsystem, walk it explicitly:
   V1 push received (event-driven refresh); tap-driven (roster/weather/game content) ~1 each. Fan
   Zone gameplay = Supabase (NOT this budget). ⚠️ Any NEW proxy-backed feature adds a row here +
   re-checks the 1k matchday sum.
+  **Predict community (added 2026-07-28):** `/predict/community` ≈ **1 call per results-screen or
+  locked-card open**, batched across every fixture in a round (cap 6), so a 3-club weekend is one
+  request not three. Post-close responses are frozen and cache 24h; pre-close cache ≤5 min. ⚠️ Counted
+  as user-linear anyway, because a cache HIT is still a Worker invocation. 1k concentrated matchday
+  ≈ **≲1.5k/day** on top of the fixed costs above — the ~40-60k live-match day becomes ~42-62k, still
+  inside 100k. Predict's WRITES stay on Supabase and draw nothing from this budget.
 - **Involuntary sign-out fix (2026-07-16):** ✅ load-neutral — no new load path (an auth-state
   listener + one foreground `auth.session` revalidation per app-open, on Supabase's unlimited-API
   free tier; no new polling/DB/cron). No §5 run required.

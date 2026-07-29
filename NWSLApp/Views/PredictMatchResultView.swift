@@ -163,7 +163,7 @@ struct PredictMatchResultView: View {
             }
             if !model.busts.isEmpty {
                 Text("Your pick\(model.busts.count == 1 ? "" : "s") who didn't start: \(model.busts.map(\.name).joined(separator: ", "))")
-                    .dsFont(11).foregroundStyle(Color.dsFgTertiary)
+                    .dsFont(12.5).foregroundStyle(Color.dsFgTertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -173,11 +173,11 @@ struct PredictMatchResultView: View {
     private func legendDot(color: Color, symbol: String, text: String) -> some View {
         HStack(spacing: 4) {
             Image(systemName: symbol)
-                .font(.system(size: 8, weight: .black))
+                .font(.system(size: 9, weight: .black))
                 .foregroundStyle(Color.dsBgPrimary)
-                .frame(width: 13, height: 13)
+                .frame(width: 15, height: 15)
                 .background(Circle().fill(color))
-            Text(text).dsFont(11).foregroundStyle(Color.dsFgSecondary)
+            Text(text).dsFont(12.5).foregroundStyle(Color.dsFgSecondary)
         }
     }
 
@@ -379,7 +379,7 @@ struct PredictMatchResultView: View {
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel("HOW \(clubLabel.uppercased()) FANS PICKED")
                 Text("From \(community.submissions) fans' predictions · bars show the % of fans who had her in their XI")
-                    .dsFont(11).foregroundStyle(Color.dsFgTertiary)
+                    .dsFont(12.5).foregroundStyle(Color.dsFgTertiary)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(model.bandPanels) { panel in
                     bandPanelCard(panel)
@@ -388,11 +388,20 @@ struct PredictMatchResultView: View {
         }
     }
 
+    /// ⚠️ A `Grid`, not a stack of HStacks. Bars have to share a common LEFT EDGE to be comparable —
+    /// with each bar simply starting after its own name, "Tara Rudd" got a bar beginning further
+    /// left than "Gabrielle Carle" and the ragged edges made the lengths impossible to read against
+    /// each other, which is the entire job of a bar. Grid sizes the name column to the widest name
+    /// in the panel, so every bar in a line starts and ends at the same x.
     private func bandPanelCard(_ panel: PredictResultViewModel.BandPanel) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(bandTitle(panel.group).uppercased())
-                .dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(Color.dsFgTertiary)
-            ForEach(panel.entries) { entry in barRow(entry) }
+                .dsFont(12, weight: .bold).tracking(0.8).foregroundStyle(Color.dsFgTertiary)
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 9) {
+                ForEach(panel.entries) { entry in
+                    GridRow { barRow(entry) }
+                }
+            }
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -402,38 +411,54 @@ struct PredictMatchResultView: View {
 
     /// One ownership bar. A non-starter the crowd backed renders struck through — the crowd's
     /// wrong call is half the fun.
+    /// ⚠️ SIZED FOR A PHONE, NOT A PREVIEW (owner, 2026-07-28). This started as a 4pt bar in a fixed
+    /// 70pt slot with an 11pt fixed-size percentage — legible in a design tool on a desktop, squinty
+    /// in a hand. The bar is now 10pt tall and FLEXIBLE (it takes the row's leftover width, roughly
+    /// doubling on a real device), and the percentage is `.dsFont` so it scales with Dynamic Type
+    /// instead of staying pinned at 11pt. Same fix is owed to Know Her Game's community bars —
+    /// logged in docs/roadmap.md rather than done here.
+    /// The four grid CELLS of one row: mark · name · bar · percentage. Returned bare (no HStack,
+    /// no Spacer) so `Grid` can align them into columns across the panel.
+    @ViewBuilder
     private func barRow(_ entry: PredictResultViewModel.BandPanel.Entry) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: entry.started
-                  ? (entry.called ? "checkmark.circle.fill" : "xmark.circle")
-                  : "minus.circle")
-                .dsFont(12)
-                .foregroundStyle(entry.started ? (entry.called ? Color.dsSuccess : Color.dsError) : Color.dsFgQuaternary)
-                .frame(width: 16)
+        Image(systemName: entry.started
+              ? (entry.called ? "checkmark.circle.fill" : "xmark.circle")
+              : "minus.circle")
+            .dsFont(15)
+            .foregroundStyle(entry.started ? (entry.called ? Color.dsSuccess : Color.dsError) : Color.dsFgQuaternary)
+            .accessibilityHidden(true)
+
+        VStack(alignment: .leading, spacing: 0) {
             Text(entry.name)
-                .dsFont(13, weight: .medium)
+                .dsFont(14, weight: .medium)
                 .foregroundStyle(entry.started ? Color.dsFgPrimary : Color.dsFgTertiary)
                 .strikethrough(!entry.started)
                 .lineLimit(1)
             if !entry.started {
-                Text("didn't start").dsFont(10).foregroundStyle(Color.dsFgTertiary)
+                Text("didn't start").dsFont(11).foregroundStyle(Color.dsFgTertiary)
             }
-            Spacer(minLength: 8)
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.dsBgTertiary)
-                    Capsule().fill(entry.started ? accent : Color.dsFgQuaternary)
-                        .frame(width: geo.size.width * min(1, entry.share))
-                }
-            }
-            .frame(width: 70, height: 4)
-            Text(PredictPitchView.percent(entry.share))
-                .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                .foregroundStyle(Color.dsFgSecondary)
-                .frame(width: 36, alignment: .trailing)
         }
+        .accessibilityHidden(true)
+
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.dsBgTertiary)
+                Capsule().fill(entry.started ? accent : Color.dsFgQuaternary)
+                    .frame(width: geo.size.width * min(1, entry.share))
+            }
+        }
+        .frame(minWidth: 60, maxWidth: .infinity)
+        .frame(height: 10)
+        .gridCellUnsizedAxes(.vertical)
+        // The bar and its percentage are one fact; VoiceOver reads the whole row once, from here.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(entry.name)\(entry.started ? "" : ", didn't start"): picked by \(PredictPitchView.percent(entry.share)) of fans")
+
+        Text(PredictPitchView.percent(entry.share))
+            .dsFont(14, weight: .semibold, monospacedDigit: true)
+            .foregroundStyle(Color.dsFgSecondary)
+            .gridColumnAlignment(.trailing)
+            .accessibilityHidden(true)
     }
 
     // MARK: - Share

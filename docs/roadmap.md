@@ -1,5 +1,20 @@
 # Roadmap / What's Next
 
+> ### 📏 PHONE-SIZED, NOT PREVIEW-SIZED — community bars + small type (owner, 2026-07-28)
+> Caught reviewing Predict's fan-picks bars: they shipped as a **4pt-tall bar in a fixed 70pt slot
+> with an 11pt fixed-size percentage**. That reads fine in a design tool on a desktop and is squinty
+> in a hand. Fixed for Predict (10pt bar, flexible width, `.dsFont` percentages that scale with
+> Dynamic Type).
+>
+> **⚠️ KNOW HER GAME HAS THE SAME PROBLEM** — its community-results bars (`CommunityResultsView`,
+> shared with NWSL Trivia) are on the small side in exactly the same way. Deliberately NOT fixed in
+> the Predict pass to keep that change focused; it's a small, self-contained edit whenever a
+> community-games session comes up. NWSL Trivia inherits the fix for free (same component).
+>
+> **The general lesson worth keeping:** an 11pt font and a 4pt bar are a *tool* default, not a
+> phone-reading size. When sizing anything a user has to read or compare at arm's length, size it
+> for the device — and prefer `.dsFont` over `.font(.system(size:))` so Dynamic Type can rescue it.
+
 > ### 🎬 PREDICT STAGE 1 — results at LINEUP DROP (deferred by owner decision 2026-07-28)
 > The redesigned results screen ships against FULL TIME only. The handoff also specified a two-stage
 > timeline: 75 of the 88 points (players, positions, formation, perfect XI) resolve when the real

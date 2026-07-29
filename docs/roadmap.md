@@ -1,5 +1,47 @@
 # Roadmap / What's Next
 
+> ### 🪪 DISPLAY NAMES ARE NOT UNIQUE — decide BEFORE launch (owner 2026-07-29)
+> **Today anyone can take a name someone else already has.** `profiles.display_name` is a plain `text`
+> column with **no unique constraint** (`supabase/schema.sql:34`), `DisplayNameRules` only trims and
+> checks 2–20 characters, and **nothing anywhere queries whether a name is taken** — not on first
+> choice, not on rename. Every board row carries a denormalized copy of the name, and nothing joins by it.
+>
+> **⚠️ It already happens.** Audited 2026-07-29 across the 2026 Predict boards: of 108 distinct names,
+> **10 are held by more than one account** — "devontouchline" and "skyoffside" by THREE each. Those are
+> seeded fans and purge before launch, but the demonstration stands: a *random name generator* collided
+> ten times in ~120 accounts. Real users deliberately choosing desirable names will collide far more.
+>
+> **Why it matters beyond tidiness.** Club boards are small (a few hundred), so a collision is visible
+> and confusing rather than lost in a crowd. Your own row is accent-highlighted, so YOU can find
+> yourself — but the board is ambiguous to everyone else, and it directly undermines the recognition
+> the Fan Zone is chasing ("why is nwslnoob always two spots above me?" only works if a name is a
+> stable identity). It also leaves impersonation wide open: nothing stops a user picking a real
+> player's name, or yours.
+>
+> **⚠️ THE TIMING IS THE WHOLE POINT.** Adding uniqueness before launch costs one index + one lookup.
+> Adding it after means forcing existing users to rename — the kind of change that reads as the app
+> taking something away. This is a pre-launch decision, not a someday one.
+>
+> **Recommended: case-insensitive GLOBAL uniqueness, first-come-first-served.**
+> - `create unique index on public.profiles (lower(display_name))` — case-insensitive, so "Tiffany" and
+>   "tiffany" can't coexist. ⚠️ Check for existing duplicates first; the index creation fails if any
+>   remain (the seed purge clears today's).
+> - An availability check in `DisplayNameEntry` before submit, plus honest "that name's taken" copy.
+> - ⚠️ The UI check is ADVISORY ONLY — two people can submit the same name in the same instant. The
+>   unique index is the real guard, so `AuthStore.updateDisplayName` must catch the `23505` unique
+>   violation and surface it, not swallow it (NO SILENT FAILURES: a rename that appears to work and
+>   didn't is exactly the banned shape).
+> - Renaming must free the old name — it does automatically with a single-column index.
+> - Load: one indexed lookup per name entry. Passes 1k/100k by construction; no new load path worth a
+>   stress-test entry.
+>
+> **Considered:** per-club uniqueness (messy — users follow several clubs); a Discord-style `#1234`
+> discriminator (kills collisions but also kills recognition, which is the thing the names are FOR);
+> leaving it and relying on the you-row highlight (fails for everyone reading the board except you).
+>
+> **Separate but adjacent, worth deciding at the same time:** a reserved/blocked-name list. Nothing
+> currently stops impersonating an NWSL player, a club, or the app itself.
+
 > ### 📏 PHONE-SIZED, NOT PREVIEW-SIZED — community bars + small type (owner, 2026-07-28)
 > Caught reviewing Predict's fan-picks bars: they shipped as a **4pt-tall bar in a fixed 70pt slot
 > with an 11pt fixed-size percentage**. That reads fine in a design tool on a desktop and is squinty

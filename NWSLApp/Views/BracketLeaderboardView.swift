@@ -291,7 +291,11 @@ struct BracketLeaderboardView: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(e.themeLabel).trackedCaps(size: 10, color: accent)
-                    Text(e.title).dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgPrimary).lineLimit(1).minimumScaleFactor(0.85)
+                    // Wraps rather than truncates (owner, 2026-07-29). Edition titles are authored
+                    // ("Most Likely to Coach in 10 Years") and fit at default size, but clipped at
+                    // accessibility text sizes — where the title IS the row's identity.
+                    Text(e.title).dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
                 Text(e.isComplete ? "Final" : "In progress")

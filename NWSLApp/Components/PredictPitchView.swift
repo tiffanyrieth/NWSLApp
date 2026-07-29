@@ -6,12 +6,12 @@
 //  the XI's results screen. Reworked 2026-07-28 (owner review): it shows the actual lineup, not the
 //  user's guess, and it is deliberately the SAME FIELD the picker uses.
 //
-//  ⚠️ ANTI-DRIFT CONTRACT: this view mirrors `XIPickerView.pitchGrid` — same green gradient, same
-//  46pt `PlayerHeadshot` cells, same 62pt cell width, same row stacking, same corner radius. You
-//  build your XI on a field and get graded on that same field; a different-looking pitch here made
-//  the two screens read as different games (the owner's tab-flip test). If you restyle one, restyle
-//  both. The Match Detail lineup view (`FormationPitchView`) is intentionally its own thing — it
-//  shows BOTH teams.
+//  ⚠️ ANTI-DRIFT CONTRACT: this view and `XIPickerView.pitchGrid` share ONE field —
+//  `.predictPitchChrome()` (gradient + markings + border) — plus the same 46pt `PlayerHeadshot`
+//  cells, 62pt cell width and row stacking. You build your XI on a field and get graded on that
+//  same field; restyling means restyling the shared chrome, which restyles both by construction.
+//  The Match Detail lineup view (`FormationPitchView`) is intentionally its own thing — it shows
+//  BOTH teams.
 //
 //  ⚠️ TWO STATES ONLY: green ✓ you called her, red ✗ you missed her. The old third state (amber
 //  "played MID") was cut — it explained a scoring subtlety on a surface that should read at a
@@ -44,14 +44,7 @@ struct PredictPitchView: View {
         .padding(.vertical, 22)
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity)
-        .background(
-            LinearGradient(colors: [.dsPitch, .dsPitchBottom], startPoint: .top, endPoint: .bottom)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.dsPitchLine, lineWidth: 1)
-        )
+        .predictPitchChrome()
     }
 
     // MARK: - Rows

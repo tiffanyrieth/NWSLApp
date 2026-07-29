@@ -383,9 +383,8 @@ struct PredictMatchResultView: View {
     //
     // Numbers are HIDDEN until a band is expanded, and every expansion carries its own label — the
     // Bracket's "% is never shown until you open it" rule, adopted here after the owner review.
-    // Goalkeeper gets a true donut (every fan picks exactly ONE keeper, so slot 0's shares sum to
-    // 100%); outfield lines get ranked ownership bars, because each fan picks 2–3 per line and a
-    // donut of shares that sum past 100% would lie about how contested the spots were.
+    // Every line uses the SAME ranked ownership bars, goalkeeper included: a GK donut was built and
+    // cut for format consistency (see BandPanel.entries for the full reasoning).
 
     @ViewBuilder
     private var fanPicksSection: some View {
@@ -424,13 +423,9 @@ struct PredictMatchResultView: View {
 
             if expanded {
                 VStack(alignment: .leading, spacing: 10) {
-                    if let donut = panel.donut {
-                        donutView(donut)
-                    } else {
-                        ForEach(panel.entries) { entry in barRow(entry) }
-                        Text("% of \(clubLabel) fans who had her in their XI")
-                            .dsFont(10.5).foregroundStyle(Color.dsFgTertiary)
-                    }
+                    ForEach(panel.entries) { entry in barRow(entry) }
+                    Text("% of \(clubLabel) fans who had her in their XI")
+                        .dsFont(10.5).foregroundStyle(Color.dsFgTertiary)
                 }
                 .padding(.horizontal, 14).padding(.bottom, 13)
             }
@@ -473,63 +468,6 @@ struct PredictMatchResultView: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(entry.name)\(entry.started ? "" : ", didn't start"): picked by \(PredictPitchView.percent(entry.share)) of fans")
-    }
-
-    /// The goalkeeper donut: multi-segment arcs + a legend that names every slice.
-    private func donutView(_ segments: [PredictResultViewModel.BandPanel.DonutSegment]) -> some View {
-        HStack(spacing: 18) {
-            ZStack {
-                ForEach(Array(arcs(for: segments).enumerated()), id: \.offset) { index, arc in
-                    Circle()
-                        .trim(from: arc.from, to: arc.to)
-                        .stroke(donutColor(index, isOthers: arc.isOthers),
-                                style: StrokeStyle(lineWidth: 16, lineCap: .butt))
-                        .rotationEffect(.degrees(-90))
-                }
-            }
-            .frame(width: 96, height: 96)
-            .padding(8)
-            .accessibilityHidden(true)   // the legend rows carry the same data as text
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(segments.enumerated()), id: \.element.id) { index, segment in
-                    HStack(spacing: 6) {
-                        Circle().fill(donutColor(index, isOthers: segment.athleteID == nil))
-                            .frame(width: 8, height: 8)
-                        Text(segment.name)
-                            .dsFont(12, weight: .medium)
-                            .foregroundStyle(segment.athleteID == nil ? Color.dsFgTertiary : Color.dsFgPrimary)
-                            .lineLimit(1)
-                        Spacer(minLength: 4)
-                        Text(PredictPitchView.percent(segment.share))
-                            .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(Color.dsFgSecondary)
-                    }
-                }
-                Text("Who fans had starting in goal")
-                    .dsFont(10.5).foregroundStyle(Color.dsFgTertiary)
-                    .padding(.top, 2)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private struct Arc { let from: CGFloat; let to: CGFloat; let isOthers: Bool }
-
-    private func arcs(for segments: [PredictResultViewModel.BandPanel.DonutSegment]) -> [Arc] {
-        var start: CGFloat = 0
-        return segments.map { segment in
-            let end = start + CGFloat(segment.share)
-            defer { start = end }
-            return Arc(from: start, to: min(1, end), isOthers: segment.athleteID == nil)
-        }
-    }
-
-    /// Accent-family shades so the donut stays in Predict's identity; "others" goes neutral.
-    private func donutColor(_ index: Int, isOthers: Bool) -> Color {
-        if isOthers { return .dsFgQuaternary }
-        let opacities: [Double] = [1.0, 0.65, 0.4, 0.25]
-        return accent.opacity(opacities[min(index, opacities.count - 1)])
     }
 
     // MARK: - Share

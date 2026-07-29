@@ -5,7 +5,7 @@
 //  Everything the Predict the XI results screen needs: the fetched answer key, the community
 //  distribution, the graded real XI, the superlative line — and the line-by-line reveal.
 //  Reworked 2026-07-28 (owner review): the pitch now shows the REAL lineup marked with what you
-//  called, and the community layer lives in per-band panels (GK donut + ownership bars).
+//  called, and the community layer lives in per-band panels of ranked ownership bars.
 //
 //  ⚠️ THE REVEAL LIVES HERE, NOT IN THE VIEW. It's a cancellable sequence with real ordering rules,
 //  which makes it logic rather than layout: keeping it in the VM means `skip` genuinely cancels,
@@ -53,18 +53,13 @@ final class PredictResultViewModel {
         let group: PositionGroup
         var id: PositionGroup { group }
         /// Ownership bars, starters first (lineup order), then the crowd's wrong calls by share.
+        ///
+        /// ⚠️ BARS FOR EVERY LINE, goalkeeper included (owner call, 2026-07-28). A GK donut was
+        /// built and cut: slot 0's shares DO sum to 100% (each fan picks exactly one keeper), so a
+        /// donut was mathematically honest there — but only there, and one line rendering
+        /// differently from the other three was exactly the inconsistency this screen's review
+        /// removed everywhere else. Bars need no sum-to-100 property, so one format serves all.
         let entries: [Entry]
-        /// Goalkeeper only: the true parts-of-a-whole split at slot 0 (every fan picks exactly one
-        /// keeper, so shares sum to ~100%). nil for outfield bands, where a donut would lie —
-        /// each fan picks 2–3 per line, so ownership doesn't sum to 100.
-        let donut: [DonutSegment]?
-
-        struct DonutSegment: Identifiable, Equatable {
-            let athleteID: String?   // nil = the "others" remainder
-            let name: String
-            let share: Double
-            var id: String { athleteID ?? "others" }
-        }
     }
 
     private(set) var bandPanels: [BandPanel] = []
@@ -178,31 +173,8 @@ final class PredictResultViewModel {
                 }
             entries.append(contentsOf: wrongCalls)
 
-            return BandPanel(group: group, entries: entries,
-                             donut: group == .gk ? goalkeeperDonut(fetched: fetched) : nil)
+            return BandPanel(group: group, entries: entries)
         }
-    }
-
-    /// Slot 0's split as donut segments: top keepers by count + one "Other picks" remainder so the
-    /// arcs always close to 100% even on partial data.
-    private func goalkeeperDonut(fetched: PredictXIViewModel.MatchResultDetail) -> [BandPanel.DonutSegment]? {
-        guard let community, community.submissions > 0 else { return nil }
-        let slotCounts = community.countsForSlot(0)
-        guard !slotCounts.isEmpty else { return nil }
-
-        var segments: [BandPanel.DonutSegment] = slotCounts.prefix(4).map {
-            BandPanel.DonutSegment(athleteID: $0.playerID,
-                                   name: fetched.names[$0.playerID] ?? "Player",
-                                   share: Double($0.count) / Double(community.submissions))
-        }
-        let counted = slotCounts.prefix(4).reduce(0) { $0 + $1.count }
-        let remainder = community.submissions - counted
-        if remainder > 0 {
-            segments.append(BandPanel.DonutSegment(
-                athleteID: nil, name: "Other picks",
-                share: Double(remainder) / Double(community.submissions)))
-        }
-        return segments
     }
 
     /// ⚠️ ORDER IS LOAD-BEARING: evaluate the ladder against the bests as they stood BEFORE this

@@ -172,14 +172,9 @@ struct XIPickerView: View {
         .padding(.vertical, 22)
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity)
-        .background(
-            LinearGradient(colors: [.dsPitch, .dsPitchBottom], startPoint: .top, endPoint: .bottom)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.dsPitchLine, lineWidth: 1)
-        )
+        // The ONE shared Predict field — the results pitch applies the same modifier, so the two
+        // screens cannot drift (owner consistency rule, 2026-07-28).
+        .predictPitchChrome()
     }
 
     private func slotCell(_ slot: Formation.Slot) -> some View {

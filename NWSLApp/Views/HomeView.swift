@@ -602,7 +602,17 @@ struct HomeView: View {
         // One predictable team (or none) → name the specific matchup, exactly as before.
         let context: String
         if let fixture = nextPredictFixture {
-            context = "\(fixture.teamAbbreviation) vs \(fixture.opponentAbbreviation) · \(Self.kickoffLabel(fixture.kickoff))"
+            // ⚠️ HOME TEAM FIRST — this printed "WAS vs UTA" for a match Washington were playing
+            // AWAY at Utah, because it led with the user's own club rather than the home side.
+            // Every other two-team surface in the app (schedule cards, match detail, the Predict
+            // fixture card) reads home-then-away, and a fan reads "X vs Y" as "X at home".
+            //
+            // The break is explicit: teams on one line, when on the next. The two are separate
+            // facts, and letting them reflow together produced "WAS vs UTA · Wed 9:00…" with the
+            // meridiem — the one part you can't infer — truncated away.
+            let home = fixture.isHome ? fixture.teamAbbreviation : fixture.opponentAbbreviation
+            let away = fixture.isHome ? fixture.opponentAbbreviation : fixture.teamAbbreviation
+            context = "\(home) vs \(away)\n\(Self.kickoffLabel(fixture.kickoff))"
         } else {
             context = "Pick your team's XI"
         }

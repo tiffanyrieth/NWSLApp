@@ -313,6 +313,17 @@ struct PredictXIView: View {
         .padding(.vertical, 24)
     }
 
+    /// "9:00 PM" — the kickoff TIME alone, matching the schedule card's centre column. The day
+    /// belongs to the surrounding context (the card sits under "Open for predictions", and the lock
+    /// line below names the day), so repeating it here only crowded the column.
+    private static let kickoffTimeFormatter: DateFormatter = {
+        let f = DateFormatter(); f.locale = .current; f.timeZone = .current; f.dateFormat = "h:mm a"; return f
+    }()
+
+    private static func kickoffTimeLabel(_ date: Date) -> String {
+        kickoffTimeFormatter.string(from: date)
+    }
+
     /// "Jun 12" — the paused state's reopen date.
     private static let pausedDateFormatter: DateFormatter = {
         let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "MMM d"; return f
@@ -544,18 +555,28 @@ struct PredictXIView: View {
         let awayAbbr = fixture.isHome ? fixture.opponentAbbreviation : fixture.teamAbbreviation
         return HStack(spacing: 12) {
             teamColumn(homeAbbr, color: teamColor(homeAbbr))
+            // The centre column mirrors the SCHEDULE card (MatchCard): a small tracked "KICKOFF"
+            // eyebrow over a large cyan time. The old version read "VS" over a jammed
+            // "Wed, Jul 29 · 9:00 PM" that wrapped into two cramped lines — and "vs" is redundant
+            // when two crests already flank it. The date lives on the section/label context; what a
+            // fan needs here is the time, at a glance.
             VStack(spacing: 4) {
                 if let final = finalScore {
                     Text("\(final.home)–\(final.away)").dsFont(20, weight: .heavy)
-                    Text("FT").dsFont(11, weight: .bold).foregroundStyle(.secondary)
+                    Text("FT").dsFont(11, weight: .bold).foregroundStyle(Color.dsStateFinal)
                 } else {
-                    Text("VS").dsFont(12, weight: .bold).foregroundStyle(.secondary)
-                    Text(Self.kickoffLabel(fixture.kickoff))
-                        .dsFont(11, weight: .semibold)
-                        .foregroundStyle(accent)
+                    Text("KICKOFF")
+                        .dsFont(11, weight: .bold).tracking(0.6)
+                        .foregroundStyle(Color.dsStateKickoff)
+                    Text(Self.kickoffTimeLabel(fixture.kickoff))
+                        .dsFont(22, weight: .bold, design: .rounded, monospacedDigit: true)
+                        .foregroundStyle(Color.dsStateKickoff)
+                        // At larger text the time would outgrow the column and clip ("9:00…").
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                 }
             }
-            .frame(minWidth: 84)
+            .frame(minWidth: 96)
             teamColumn(awayAbbr, color: teamColor(awayAbbr))
         }
         .frame(maxWidth: .infinity)

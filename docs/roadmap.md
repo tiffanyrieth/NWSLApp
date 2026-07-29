@@ -383,6 +383,37 @@
 >   larger AX sizes — trade-off).
 > - **Color-blind:** never rely on color ALONE — redundant encoding (letter/shape/icon) + respond to
 >   `@Environment(\.accessibilityDifferentiateWithoutColor)`, usually better than a custom mode.
+>
+> #### ✅ Dynamic Type / AX1 — SETTLED 2026-07-29 (the cap question above is now ANSWERED)
+> **The cap STAYS at AX1** (owner decision, after testing MLS / NWSL / MLB / Reddit / Swift Alert on
+> device). Consequences, and the standing rule:
+> - **AX1 is the largest size the app promises, so it must lose NO data.** AX2–AX5 all resolve to AX1
+>   (verified: the maximum system setting renders pixel-identically), so AX1 IS the worst case — there's
+>   nothing above it to test.
+> - **Don't lift the cap.** At AX5 body text is 53pt on a 402pt screen ≈ 7 characters per line; no
+>   layout survives it, which is why every app that permits it breaks (MLB shatters; MLS's club pages
+>   overlap; Swift Alert breaks too). A predictable cap is a more honest contract than an uncapped
+>   layout that collapses. Users who need >AX1 are served by **VoiceOver + iOS Zoom**, which work
+>   regardless of the cap — that's where the remaining effort belongs, not here.
+> - **The bar** is *same layout, same information, nothing hidden, nothing overlapping* — NOT "looks
+>   identical" (bigger text legitimately means fewer cards per screen).
+> - **Severity ladder:** **overlap = always broken** > truncating a value available nowhere else = bug >
+>   truncation where the full value is one tap away (a fixed-size carousel card) = fine, leave it.
+> - ⚠️ **A fixed-HEIGHT container must CLAMP its text** (`lineLimit`), or the text escapes its bounds
+>   and collides — that's exactly how the MLS roster cards break. Clamped truncation is the SAFE
+>   failure mode; unclamped overlap is not.
+> - ⚠️ **MEASURE before redesigning.** Standings was assumed to need a graduated fix from ~xLarge up;
+>   stepping through every size showed it clean across the ENTIRE standard range (xSmall…xxxLarge) and
+>   broken only at AX1 — which shrank the work to one threshold. The reflex to redesign for "large text"
+>   generally overshoots.
+> - **Swept 2026-07-29** (five tabs, both quiz results panels, Bracket, Teams, Schedule, Social,
+>   Superfan, Match Detail): PASS everywhere after fixing Superfan tier blurbs, Bracket edition titles,
+>   Standings, and the Match Detail tiles + kickoff date. Colour-blind pass (deuter/protan/tritan
+>   simulation, `cvd.py` method) found **no failures** — existing rules carry it: ✓/✗ glyph shapes, the
+>   crest+abbreviation naming rule, "your pick"/"YOUR PICK" text labels, positional bars. Thinnest
+>   margin = Standings form chips (W and L are the same colour under deuteranopia; only the W/L/D
+>   letters distinguish them, so never swap those letters for coloured dots).
+> - NOT done, deliberately: the Teams grid's uneven tile borders when club names wrap (cosmetic).
 > Current state = PARTIAL, not zero (FormBadge shows W/D/L letter+color = color-blind safe; text uses
 > `.dsFont`/@ScaledMetric; scattered labels exist) → the work is systematic completion + an audit, then a
 > punch-list. First step when picked up: run the audit (read + VoiceOver in sim). Detail in the

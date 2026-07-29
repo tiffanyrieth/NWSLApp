@@ -51,6 +51,19 @@ struct PredictCommunity: Equatable {
         return Double(picked) / Double(submissions)
     }
 
+    /// The counts at ONE slot, most-picked first. Exists for exactly one consumer: the goalkeeper
+    /// donut. Slot 0 is the keeper in EVERY formation, so its counts are a true parts-of-a-whole —
+    /// each fan contributes exactly one keeper pick, and shares sum to ~100% of submissions. No
+    /// other slot has that property (slot 3 is a defender in one formation and a midfielder in
+    /// another), which is why outfield bands get ranked ownership bars instead of donuts.
+    func countsForSlot(_ slot: Int) -> [(playerID: String, count: Int)] {
+        guard revealed, submissions > 0 else { return [] }
+        return counts
+            .filter { $0.key.slot == slot }
+            .map { (playerID: $0.key.playerID, count: $0.value) }
+            .sorted { $0.count == $1.count ? $0.playerID < $1.playerID : $0.count > $1.count }
+    }
+
     /// Every player anyone picked, most-picked first. Used for the consensus XI and omissions.
     var playersByShare: [(playerID: String, share: Double)] {
         guard revealed, submissions > 0 else { return [] }

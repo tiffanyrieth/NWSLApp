@@ -2,25 +2,26 @@
 //  PredictMatchResultView.swift
 //  NWSLApp
 //
-//  The per-match result for Predict the XI. Redesigned 2026-07-28: your predicted XI is laid out on
-//  a pitch and revealed a line at a time, led by the number a fan would actually say out loud —
-//  "8 of 11 starters" — with the community's picks alongside your own.
+//  The per-match result for Predict the XI. Reworked 2026-07-28 after the owner's first-pass
+//  review; the rules that came out of it govern this whole file:
 //
-//  ⚠️ POINTS ARE THE ACCOUNTING, NOT THE HEADLINE. "46 of 88" is meaningful to a scoring function
-//  and meaningless to a person; nobody posts it. Starters-called is the hero everywhere on this
-//  screen and the point total is a supporting line, with the full model itemized in the breakdown.
+//  ⚠️ THE PITCH IS THE REAL XI (owner call). The moment is seeing the actual lineup and how much of
+//  it you called — green ✓ called, red ✗ missed, nothing else. Your picks who sat are one quiet
+//  line, not a section, and "Also started — you missed" no longer exists: a starter you missed is
+//  simply a red node on the pitch.
 //
-//  ⚠️ PUSHED, NOT A SHEET (changed in the redesign). It used to be a `.sheet` with a "Done" button.
-//  The reveal, the share affordance and the unseen-results routing all need a real screen with a
-//  real back affordance, and a sheet's grabber competes with the pitch for the top of the view.
+//  ⚠️ EVERY NUMBER IS LABELED (owner rule: an unexplained number is an apple on a pitch — a reader
+//  should never have to guess "40% of what?"). The ring says what it counts, the rank row is a
+//  sentence, the legend explains the marks, and community percentages appear ONLY inside the
+//  expandable band panels, each with its own explanation. Nothing floats.
 //
-//  ⚠️ ARENA FAMILY. It previously used `dsBgGrouped`/`dsBgCard` — the COMMUNITY-family surfaces —
-//  while Predict is COMPETITIVE (`.claude/rules/fan-zone.md`). Fixed here: page `dsBgPrimary`,
-//  cards `dsMdCard`, matching the landing screen it's pushed from.
+//  ⚠️ ONE ACCOUNTING, NOT TWO. The old "Your calls" cards restated what the point breakdown already
+//  showed; they're merged — the breakdown rows carry the You/Actual detail inline, so a single
+//  section fully explains the total.
 //
-//  The actual lineup is NOT persisted (the store keeps only the derived score breakdown), so it's
-//  re-fetched from `/summary` on appear. A fetch failure shows an honest retry, never a blank or a
-//  guess — and never a partial reveal against a half-known answer key.
+//  ⚠️ POINTS ARE THE ACCOUNTING, NOT THE HEADLINE. Starters-called leads everywhere; the point
+//  total supports it. Pushed screen, arena family, actual lineup re-fetched from `/summary` on
+//  appear (never persisted) — a fetch failure shows an honest retry, never a partial reveal.
 //
 
 import SwiftUI
@@ -40,7 +41,8 @@ struct PredictMatchResultView: View {
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
 
     @State private var model = PredictResultViewModel()
-    @State private var showConsensus = false
+    /// Which band panels are expanded ("See how fans picked").
+    @State private var expandedBands: Set<PositionGroup> = []
 
     private let accent = Color.dsGamePredict
 
@@ -62,6 +64,7 @@ struct PredictMatchResultView: View {
                 case .loaded:
                     revealCaptionRow
                     pitch
+                    pitchLegend
                     belowThePitch
                 }
             }
@@ -78,8 +81,8 @@ struct PredictMatchResultView: View {
     private func load() async {
         await model.load(item: item, parent: viewModel, store: store, auth: auth,
                          reduceMotion: reduceMotion, voiceOver: voiceOver)
-        // Mark seen only once the result actually RENDERED. Marking on appear would burn the
-        // one-time reveal on a failed fetch, and the user would never get it back.
+        // Mark seen only once the result actually RENDERED — a failed fetch must not burn the
+        // one-time reveal.
         if case .loaded = model.phase { store.markResultSeen(fixtureID: item.fixture.id) }
     }
 
@@ -127,9 +130,9 @@ struct PredictMatchResultView: View {
         .frame(maxWidth: .infinity).padding(.vertical, 20)
     }
 
-    // MARK: - Reveal caption + pitch
+    // MARK: - Pitch
 
-    /// One non-wrapping row: what's being revealed on the left, the control on the right.
+    /// One non-wrapping row: what's landing on the left, the control on the right.
     private var revealCaptionRow: some View {
         HStack(spacing: 8) {
             Text(model.revealCaption.uppercased())
@@ -149,21 +152,44 @@ struct PredictMatchResultView: View {
                         .foregroundStyle(accent)
                         .fixedSize()
                 }
-                // When auto-play was suppressed (Reduce Motion, VoiceOver, or the fourth-plus view
-                // of the season), promote Replay from a quiet link to an obvious pill — otherwise
-                // the animation becomes undiscoverable for exactly the people who opted out of it.
+                // Promoted to a pill when auto-play was suppressed (Reduce Motion, VoiceOver, or
+                // the fourth-plus view of the season) so the animation stays discoverable.
                 .modifier(ReplayPillStyle(enabled: model.revealIsOptIn, accent: accent))
             }
         }
     }
 
-    @ViewBuilder
     private var pitch: some View {
-        if let prediction, let formation = Formation(raw: prediction.formation) {
-            PredictPitchView(formation: formation,
-                             picks: model.picks,
-                             revealedBands: model.revealedBands,
-                             accent: accent)
+        PredictPitchView(starters: model.starters,
+                         formation: model.actualFormation,
+                         revealedBands: model.revealedBands)
+    }
+
+    /// The legend + your busts. Every mark on the pitch is explained here, per the labeling rule.
+    @ViewBuilder
+    private var pitchLegend: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 12) {
+                legendDot(color: .dsSuccess, symbol: "checkmark", text: "you called her")
+                legendDot(color: .dsError, symbol: "xmark", text: "you missed her")
+            }
+            if !model.busts.isEmpty {
+                Text("Your pick\(model.busts.count == 1 ? "" : "s") who didn't start: \(model.busts.map(\.name).joined(separator: ", "))")
+                    .dsFont(11).foregroundStyle(Color.dsFgTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .opacity(model.contentShown ? 1 : 0)
+    }
+
+    private func legendDot(color: Color, symbol: String, text: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: symbol)
+                .font(.system(size: 8, weight: .black))
+                .foregroundStyle(Color.dsBgPrimary)
+                .frame(width: 13, height: 13)
+                .background(Circle().fill(color))
+            Text(text).dsFont(11).foregroundStyle(Color.dsFgSecondary)
         }
     }
 
@@ -172,21 +198,16 @@ struct PredictMatchResultView: View {
     private var belowThePitch: some View {
         VStack(alignment: .leading, spacing: 18) {
             summaryCard
-            rankLine
-            callSummary
+            rankRow
             breakdownSection
             standoutSection
-            yourXISection
-            missedSection
-            consensusSection
+            fanPicksSection
             shareRow
             nextMatchCTA
         }
         .opacity(model.contentShown ? 1 : 0)
         .offset(y: model.contentShown ? 0 : 10)
-        // Deliberately NOT removed from the hierarchy while hidden: the content stays in the
-        // accessibility tree throughout, so VoiceOver never has to wait out an animation to read
-        // the result. Only the visuals are staged.
+        // Content stays in the a11y tree throughout — VoiceOver never waits out an animation.
         .allowsHitTesting(model.contentShown)
     }
 
@@ -204,11 +225,15 @@ struct PredictMatchResultView: View {
                 }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(model.startersCalled) of 11 starters called")
+            .accessibilityLabel("You called \(model.startersCalled) of the 11 starters")
+
+            // The ring's own label — "10 of 11" must never float unexplained.
+            Text("starters called").dsFont(12, weight: .semibold).foregroundStyle(.secondary)
 
             Text("+\(score.total) pts this match")
                 .dsFont(18, weight: .bold).foregroundStyle(Color.dsSuccess)
-            Text("\(score.correctPositions) in the right position")
+                .padding(.top, 2)
+            Text("\(score.correctPositions) of your \(score.correctPlayers) were in the right line")
                 .dsFont(13).foregroundStyle(.secondary)
 
             if let line = model.superlative {
@@ -230,24 +255,17 @@ struct PredictMatchResultView: View {
         )
     }
 
-    // MARK: - Round rank
+    // MARK: - Rank
     //
-    // ⚠️ ROUND-SCOPED, and that's the finest rank that exists. A match has no leaderboard of its own
-    // — it sits inside a soccer-week round — so there is deliberately no per-match rank and no
-    // per-match rank delta here.
-    //
-    // The population is always stated ("#12 of 340"), per the rank-display rule: "#12" alone can't
-    // distinguish 12 of 14 from 12 of 3,000. The "next rung" half of that rule is applied on the
-    // landing season card, where the neighbouring rows are already fetched and the gap is a real
-    // number belonging to a real person. It is NOT applied here, because this rank comes from a
-    // COUNT query with no neighbouring row to name — and inventing a target would be fabricated data.
+    // A full sentence (owner rule), round-scoped — a match has no leaderboard of its own; the
+    // soccer-week round is the finest rank that exists, so there is deliberately no per-match rank.
 
     @ViewBuilder
-    private var rankLine: some View {
+    private var rankRow: some View {
         if let d = model.detail, let rank = d.roundRank, d.roundTotal > 0 {
             HStack(spacing: 8) {
                 Image(systemName: "trophy.fill").dsFont(13).foregroundStyle(accent)
-                Text("This round: #\(rank) of \(d.roundTotal)\(d.weekLabel.map { " · \($0)" } ?? "")")
+                Text("Ranked #\(rank) of \(d.roundTotal) \(clubLabel) fans\(d.weekLabel.map { " · \($0)" } ?? "")")
                     .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
                 Spacer(minLength: 0)
             }
@@ -258,62 +276,21 @@ struct PredictMatchResultView: View {
         }
     }
 
-    // MARK: - Your calls (formation + scoreline)
-
-    @ViewBuilder
-    private var callSummary: some View {
-        if let p = prediction, let d = model.detail, let final = item.finalScore {
-            VStack(alignment: .leading, spacing: 8) {
-                sectionLabel("YOUR CALLS")
-                callRow(title: "Formation",
-                        you: p.formation,
-                        actual: d.actualFormation ?? "—",
-                        correct: score.formationCorrect,
-                        partial: nil)
-                callRow(title: "Final score",
-                        you: "\(p.homeScoreGuess)–\(p.awayScoreGuess)",
-                        actual: "\(final.home)–\(final.away)",
-                        correct: score.exactScoreline,
-                        partial: score.resultCorrect ? "Right result" : nil)
-            }
-        }
-    }
-
-    private func callRow(title: String, you: String, actual: String, correct: Bool, partial: String?) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: correct ? "checkmark.circle.fill" : "xmark.circle")
-                .foregroundStyle(correct ? Color.dsSuccess : Color.dsFgTertiary)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).dsFont(14, weight: .semibold)
-                if let partial, !correct {
-                    Text(partial).dsFont(11, weight: .semibold).foregroundStyle(accent)
-                }
-            }
-            Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 1) {
-                Text("You: \(you)").dsFont(12).foregroundStyle(.secondary)
-                Text("Actual: \(actual)").dsFont(12, weight: .semibold)
-            }
-        }
-        .padding(.horizontal, 14).padding(.vertical, 12)
-        .background(Color.dsMdCard)
-        .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
-    }
-
-    // MARK: - Point breakdown
+    // MARK: - Point breakdown (the ONE accounting — You/Actual detail lives inline)
 
     private var breakdownSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("POINT BREAKDOWN")
-            breakdownRow("Correct players", detail: "\(score.correctPlayers)/11",
+            sectionLabel("HOW YOUR \(score.total) POINTS ADD UP")
+            breakdownRow("Correct players", detail: "\(score.correctPlayers) of 11 starters called",
                          points: score.playersPoints, earned: score.correctPlayers > 0)
-            breakdownRow("Right position", detail: "\(score.correctPositions)",
+            breakdownRow("Right position", detail: "\(score.correctPositions) of your \(score.correctPlayers) in the right line",
                          points: score.positionsPoints, earned: score.correctPositions > 0)
-            breakdownRow("Formation", detail: score.formationCorrect ? "Correct" : "Missed",
+            breakdownRow("Formation", detail: youActual(prediction?.formation, model.detail?.actualFormation),
                          points: score.formationPoints, earned: score.formationCorrect)
-            breakdownRow("Exact score", detail: score.exactScoreline ? "Nailed it" : "Missed",
+            breakdownRow("Exact score", detail: youActual(scoreGuess, finalScoreText),
                          points: score.scorelinePoints, earned: score.exactScoreline)
-            breakdownRow("Result (W/D/L)", detail: score.resultCorrect ? "Correct" : "Missed",
+            breakdownRow("Result (win / draw / loss)",
+                         detail: score.resultCorrect ? "You called the right result" : "Missed",
                          points: score.resultPoints, earned: score.resultCorrect)
             // Only when earned — an unearned Perfect XI row reads as a rebuke every single match.
             if score.perfectXI {
@@ -322,50 +299,62 @@ struct PredictMatchResultView: View {
             HStack {
                 Text("Total").dsFont(15, weight: .bold)
                 Spacer()
-                Text("\(score.total) of \(PredictionScore.maxPerMatch)")
+                Text("\(score.total) of \(PredictionScore.maxPerMatch) possible")
                     .dsFont(15, weight: .heavy).foregroundStyle(accent)
             }
             .padding(.horizontal, 10).padding(.vertical, 11)
         }
     }
 
+    private var scoreGuess: String? {
+        prediction.map { "\($0.homeScoreGuess)–\($0.awayScoreGuess)" }
+    }
+
+    private var finalScoreText: String? {
+        item.finalScore.map { "\($0.home)–\($0.away)" }
+    }
+
+    private func youActual(_ you: String?, _ actual: String?) -> String {
+        "You \(you ?? "—") · Actual \(actual ?? "—")"
+    }
+
     private func breakdownRow(_ title: String, detail: String, points: Int, earned: Bool) -> some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
             Image(systemName: earned ? "checkmark.circle.fill" : "minus.circle")
                 .foregroundStyle(earned ? Color.dsSuccess : .secondary)
-            Text(title).dsFont(15, weight: .semibold)
-            Spacer()
-            Text(detail).dsFont(12).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).dsFont(15, weight: .semibold)
+                Text(detail).dsFont(12).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
             Text(earned ? "+\(points)" : "+0")
-                .font(.caption.weight(.bold))
+                .font(.callout.weight(.bold))
                 .foregroundStyle(earned ? accent : .secondary)
-                .frame(width: 36, alignment: .trailing)
+                .frame(width: 40, alignment: .trailing)
         }
-        .padding(10)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.dsMdCard)
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
     }
 
     // MARK: - Standout picks
-    //
-    // Computed, never authored — and omitted entirely when the community data isn't there to
-    // support them, rather than shown with a placeholder percentage.
 
     @ViewBuilder
     private var standoutSection: some View {
-        if model.standouts.hit != nil || model.standouts.miss != nil {
+        if model.standouts.hit != nil || model.standouts.upset != nil {
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel("STANDOUT PICKS")
                 if let hit = model.standouts.hit, let share = hit.communityShare {
                     standoutCard(icon: "star.circle.fill", tint: .dsSuccess,
-                                 title: "Biggest hit · \(hit.name)",
-                                 body: "Only \(PredictPitchView.percent(share)) of \(clubLabel) had her starting. You did.")
+                                 title: "Gutsy call · \(hit.name)",
+                                 body: "Only \(PredictPitchView.percent(share)) of \(clubLabel) fans had her starting. You did.")
                 }
-                if let miss = model.standouts.miss, let share = miss.communityShare {
-                    standoutCard(icon: "xmark.circle.fill", tint: .dsError,
-                                 title: "Biggest miss · \(miss.name)",
-                                 body: "She started and \(PredictPitchView.percent(share)) of \(clubLabel) had her in. You left her out.")
+                if let upset = model.standouts.upset, let share = upset.communityShare {
+                    standoutCard(icon: "exclamationmark.circle.fill", tint: .dsError,
+                                 title: "Biggest upset · \(upset.name)",
+                                 body: "She started and \(PredictPitchView.percent(share)) of \(clubLabel) fans had her in. You left her out.")
                 }
             }
         }
@@ -390,216 +379,175 @@ struct PredictMatchResultView: View {
         )
     }
 
-    // MARK: - Your XI, grouped by line
+    // MARK: - How the fans picked (per-band panels, Bracket grammar)
+    //
+    // Numbers are HIDDEN until a band is expanded, and every expansion carries its own label — the
+    // Bracket's "% is never shown until you open it" rule, adopted here after the owner review.
+    // Goalkeeper gets a true donut (every fan picks exactly ONE keeper, so slot 0's shares sum to
+    // 100%); outfield lines get ranked ownership bars, because each fan picks 2–3 per line and a
+    // donut of shares that sum past 100% would lie about how contested the spots were.
 
-    private var yourXISection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionLabel("YOUR XI")
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(model.bandTallies, id: \.group) { tally in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text(bandTitle(tally.group).uppercased())
-                                .dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(Color.dsFgTertiary)
-                            Spacer()
-                            Text("\(tally.started)/\(tally.total)")
-                                .dsFont(11, weight: .bold)
-                                .foregroundStyle(tally.started == tally.total ? Color.dsSuccess : Color.dsFgSecondary)
-                        }
-                        ForEach(model.picks.filter { $0.slot.group == tally.group }) { pick in
-                            pickRow(pick)
-                        }
-                    }
-                }
-                // ⚠️ `submissions > 0`, not just non-nil. A FINISHED match with nobody's predictions in
-                // it comes back revealed-but-empty, and the bar explainer then rendered over a list
-                // with no bars at all ("· 0 predictions"). Caught in-sim 2026-07-28.
-                if let community = model.community, community.submissions > 0 {
-                    Text("Bars show how much of \(clubLabel) picked each player · \(community.submissions) prediction\(community.submissions == 1 ? "" : "s")")
-                        .dsFont(10.5).foregroundStyle(Color.dsFgTertiary)
-                        .frame(maxWidth: .infinity)
-                        .multilineTextAlignment(.center)
-                        .padding(.top, 4)
+    @ViewBuilder
+    private var fanPicksSection: some View {
+        if !model.bandPanels.isEmpty, let community = model.community {
+            VStack(alignment: .leading, spacing: 8) {
+                sectionLabel("HOW \(clubLabel.uppercased()) FANS PICKED")
+                Text("From \(community.submissions) fans' predictions for this match")
+                    .dsFont(11).foregroundStyle(Color.dsFgTertiary)
+                ForEach(model.bandPanels) { panel in
+                    bandPanelCard(panel)
                 }
             }
-            .padding(14)
-            .background(Color.dsMdCard)
-            .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
         }
     }
 
-    private func pickRow(_ pick: PredictPickResult) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: pick.state.started ? "checkmark.circle.fill" : "xmark.circle")
-                .dsFont(13)
-                .foregroundStyle(stateColor(pick.state))
+    private func bandPanelCard(_ panel: PredictResultViewModel.BandPanel) -> some View {
+        let expanded = expandedBands.contains(panel.group)
+        return VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    if expanded { expandedBands.remove(panel.group) } else { expandedBands.insert(panel.group) }
+                }
+            } label: {
+                HStack {
+                    Text(bandTitle(panel.group)).dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
+                    Spacer()
+                    Text(expanded ? "Hide the numbers" : "See how fans picked")
+                        .dsFont(11, weight: .bold).foregroundStyle(accent)
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .dsFont(11).foregroundStyle(accent)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 13)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if expanded {
+                VStack(alignment: .leading, spacing: 10) {
+                    if let donut = panel.donut {
+                        donutView(donut)
+                    } else {
+                        ForEach(panel.entries) { entry in barRow(entry) }
+                        Text("% of \(clubLabel) fans who had her in their XI")
+                            .dsFont(10.5).foregroundStyle(Color.dsFgTertiary)
+                    }
+                }
+                .padding(.horizontal, 14).padding(.bottom, 13)
+            }
+        }
+        .background(Color.dsMdCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
+    }
+
+    /// One ownership bar. A non-starter the crowd backed renders struck through — the crowd's
+    /// wrong call is half the fun.
+    private func barRow(_ entry: PredictResultViewModel.BandPanel.Entry) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: entry.started
+                  ? (entry.called ? "checkmark.circle.fill" : "xmark.circle")
+                  : "minus.circle")
+                .dsFont(12)
+                .foregroundStyle(entry.started ? (entry.called ? Color.dsSuccess : Color.dsError) : Color.dsFgQuaternary)
                 .frame(width: 16)
-            Text(pick.slot.group.shortLabel)
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundStyle(Color.dsFgQuaternary)
-                .frame(width: 30, alignment: .leading)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(pick.name)
-                        .dsFont(13, weight: .medium)
-                        .foregroundStyle(pick.state.started ? Color.dsFgPrimary : Color.dsFgSecondary)
-                        .strikethrough(!pick.state.started)
-                        .lineLimit(1)
-                    if case .startedOffBand(let actual) = pick.state {
-                        Text("started in \(actual.shortLabel)")
-                            .dsFont(11, weight: .semibold).foregroundStyle(Color.dsWarning)
-                    }
-                }
-                if let share = pick.communityShare {
-                    shareBar(share, tint: pick.state.started ? Color.dsSuccess : Color.dsFgQuaternary)
-                }
+            Text(entry.name)
+                .dsFont(13, weight: .medium)
+                .foregroundStyle(entry.started ? Color.dsFgPrimary : Color.dsFgTertiary)
+                .strikethrough(!entry.started)
+                .lineLimit(1)
+            if !entry.started {
+                Text("didn't start").dsFont(10).foregroundStyle(Color.dsFgTertiary)
             }
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 3)
-    }
-
-    private func shareBar(_ share: Double, tint: Color) -> some View {
-        HStack(spacing: 6) {
+            Spacer(minLength: 8)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.dsBgTertiary)
-                    Capsule().fill(tint).frame(width: geo.size.width * share)
+                    Capsule().fill(entry.started ? accent : Color.dsFgQuaternary)
+                        .frame(width: geo.size.width * min(1, entry.share))
                 }
             }
-            .frame(height: 4)
-            Text(PredictPitchView.percent(share))
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.dsFgTertiary)
-                .frame(width: 30, alignment: .trailing)
+            .frame(width: 70, height: 4)
+            Text(PredictPitchView.percent(entry.share))
+                .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                .foregroundStyle(Color.dsFgSecondary)
+                .frame(width: 36, alignment: .trailing)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(entry.name)\(entry.started ? "" : ", didn't start"): picked by \(PredictPitchView.percent(entry.share)) of fans")
+    }
+
+    /// The goalkeeper donut: multi-segment arcs + a legend that names every slice.
+    private func donutView(_ segments: [PredictResultViewModel.BandPanel.DonutSegment]) -> some View {
+        HStack(spacing: 18) {
+            ZStack {
+                ForEach(Array(arcs(for: segments).enumerated()), id: \.offset) { index, arc in
+                    Circle()
+                        .trim(from: arc.from, to: arc.to)
+                        .stroke(donutColor(index, isOthers: arc.isOthers),
+                                style: StrokeStyle(lineWidth: 16, lineCap: .butt))
+                        .rotationEffect(.degrees(-90))
+                }
+            }
+            .frame(width: 96, height: 96)
+            .padding(8)
+            .accessibilityHidden(true)   // the legend rows carry the same data as text
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(segments.enumerated()), id: \.element.id) { index, segment in
+                    HStack(spacing: 6) {
+                        Circle().fill(donutColor(index, isOthers: segment.athleteID == nil))
+                            .frame(width: 8, height: 8)
+                        Text(segment.name)
+                            .dsFont(12, weight: .medium)
+                            .foregroundStyle(segment.athleteID == nil ? Color.dsFgTertiary : Color.dsFgPrimary)
+                            .lineLimit(1)
+                        Spacer(minLength: 4)
+                        Text(PredictPitchView.percent(segment.share))
+                            .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(Color.dsFgSecondary)
+                    }
+                }
+                Text("Who fans had starting in goal")
+                    .dsFont(10.5).foregroundStyle(Color.dsFgTertiary)
+                    .padding(.top, 2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private struct Arc { let from: CGFloat; let to: CGFloat; let isOthers: Bool }
+
+    private func arcs(for segments: [PredictResultViewModel.BandPanel.DonutSegment]) -> [Arc] {
+        var start: CGFloat = 0
+        return segments.map { segment in
+            let end = start + CGFloat(segment.share)
+            defer { start = end }
+            return Arc(from: start, to: min(1, end), isOthers: segment.athleteID == nil)
         }
     }
 
-    // MARK: - Also started — you missed
-    //
-    // Its OWN section, unbound from any slot. An actual starter you missed has no counterpart among
-    // your picks: the player who really started at right-back may be someone you played in midfield,
-    // in which case she's a HIT. Putting these under a struck-through pick would imply a
-    // slot-for-slot substitution the scorer never performs.
-
-    @ViewBuilder
-    private var missedSection: some View {
-        if !model.missed.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                sectionLabel("ALSO STARTED — YOU MISSED")
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(model.missed) { starter in
-                        HStack(alignment: .top, spacing: 10) {
-                            Image(systemName: "arrow.down.circle").dsFont(13).foregroundStyle(accent).frame(width: 16)
-                            Text(starter.group.shortLabel)
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundStyle(Color.dsFgQuaternary)
-                                .frame(width: 30, alignment: .leading)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(starter.name).dsFont(13, weight: .medium).lineLimit(1)
-                                if let share = starter.communityShare { shareBar(share, tint: accent) }
-                            }
-                            Spacer(minLength: 0)
-                        }
-                    }
-                }
-                .padding(14)
-                .background(Color.dsMdCard)
-                .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
-            }
-        }
-    }
-
-    // MARK: - Community consensus XI
-    //
-    // Behind an explicit tap, so it MAY state that the crowd did better than you — that's factual
-    // data the user asked to see. The no-deficit rule applies only to the superlative slot, which
-    // the user doesn't opt into.
-
-    @ViewBuilder
-    private var consensusSection: some View {
-        if let community = model.community, community.submissions > 0, !model.consensusXI.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { showConsensus.toggle() }
-                } label: {
-                    HStack {
-                        Text("\(clubLabel)'s consensus XI").dsFont(13, weight: .semibold)
-                            .foregroundStyle(Color.dsFgPrimary)
-                        Spacer()
-                        Text(showConsensus ? "Hide" : "Show").dsFont(11, weight: .bold).foregroundStyle(accent)
-                        Image(systemName: showConsensus ? "chevron.up" : "chevron.down")
-                            .dsFont(11).foregroundStyle(accent)
-                    }
-                    .padding(.horizontal, 16).padding(.vertical, 13)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.dsMdCard)
-                    .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-
-                if showConsensus {
-                    VStack(alignment: .leading, spacing: 8) {
-                        if let correct = model.consensusCorrect {
-                            Text("The XI the most fans picked. The crowd got \(correct) of 11 starters.")
-                                .dsFont(12).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        ForEach(consensusByBand, id: \.group) { row in
-                            HStack(alignment: .top, spacing: 8) {
-                                Text(bandTitle(row.group).uppercased())
-                                    .dsFont(10, weight: .bold).tracking(0.6)
-                                    .foregroundStyle(Color.dsFgTertiary)
-                                    .frame(width: 68, alignment: .leading)
-                                Text(row.names.joined(separator: " · "))
-                                    .dsFont(12).foregroundStyle(Color.dsFgPrimary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                        Text("From \(community.submissions) prediction\(community.submissions == 1 ? "" : "s")")
-                            .dsFont(10.5).foregroundStyle(Color.dsFgTertiary)
-                    }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.dsMdCard)
-                    .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
-                }
-            }
-        }
-    }
-
-    private var consensusByBand: [(group: PositionGroup, names: [String])] {
-        guard let prediction, let formation = Formation(raw: prediction.formation) else { return [] }
-        return PositionGroup.allCases.compactMap { group in
-            let names = formation.slots
-                .filter { $0.group == group }
-                .compactMap { model.consensusXI[$0.index] }
-                .compactMap { model.detail?.names[$0] }
-            return names.isEmpty ? nil : (group, names)
-        }
+    /// Accent-family shades so the donut stays in Predict's identity; "others" goes neutral.
+    private func donutColor(_ index: Int, isOthers: Bool) -> Color {
+        if isOthers { return .dsFgQuaternary }
+        let opacities: [Double] = [1.0, 0.65, 0.4, 0.25]
+        return accent.opacity(opacities[min(index, opacities.count - 1)])
     }
 
     // MARK: - Share
-    //
-    // The second share moment (the first is pre-kickoff, on the locked-wait screen): the same XI,
-    // now with ✓/✗ and the score.
 
     @ViewBuilder
     private var shareRow: some View {
-        if let prediction, let formation = Formation(raw: prediction.formation) {
+        if let formation = model.actualFormation ?? prediction.flatMap({ Formation(raw: $0.formation) }) {
             PredictShareLink(
                 card: PredictShareCard(
                     kind: .postMatch,
                     teamAbbr: item.fixture.teamAbbreviation,
                     opponentAbbr: item.fixture.opponentAbbreviation,
                     formation: formation,
-                    rows: model.picks.map {
-                        PredictShareCard.Row(band: $0.slot.group.shortLabel,
+                    rows: model.starters.map {
+                        PredictShareCard.Row(band: $0.group.shortLabel,
                                              name: $0.name,
-                                             marker: $0.state.started)
+                                             marker: $0.called)
                     },
-                    // Starters called leads the share card too — it's the sentence that travels.
                     headline: "\(model.startersCalled) of 11",
                     subhead: "starters called · \(score.total) pts",
                     accent: accent),
@@ -614,8 +562,7 @@ struct PredictMatchResultView: View {
     private var nextMatchCTA: some View {
         if let next = nextFixture {
             VStack(spacing: 8) {
-                // `.filled` is hardwired to the app's blue accent; `.gradient` is how a Fan Zone
-                // game tints a CTA with its own colour without re-rolling the button.
+                // `.gradient` is how a Fan Zone game tints a CTA with its own colour.
                 DSButton("Next up: \(next.teamAbbreviation) vs \(next.opponentAbbreviation) — predict now",
                          style: .gradient(AnyShapeStyle(accent))) {
                     onPredictNext?(next)
@@ -624,8 +571,6 @@ struct PredictMatchResultView: View {
                     .dsFont(11).foregroundStyle(.secondary)
             }
         } else {
-            // Hide-when-empty: a disabled button promising something that isn't there is worse than
-            // an honest line.
             Text("Next fixture opens soon")
                 .dsFont(12).foregroundStyle(Color.dsFgTertiary)
                 .frame(maxWidth: .infinity)
@@ -648,14 +593,6 @@ struct PredictMatchResultView: View {
         case .def: return "Defense"
         case .mid: return "Midfield"
         case .fwd: return "Attack"
-        }
-    }
-
-    private func stateColor(_ state: PredictPickResult.State) -> Color {
-        switch state {
-        case .startedInBand: return .dsSuccess
-        case .startedOffBand: return .dsWarning
-        case .didNotStart: return .dsError
         }
     }
 

@@ -2,202 +2,139 @@
 //  PredictPitchView.swift
 //  NWSLApp
 //
-//  The graded XI on a pitch — the centrepiece of Predict the XI's results screen (2026-07-28).
-//  Your eleven picks laid out in the shape you actually chose, each marked with how she turned out,
-//  revealed a line at a time.
+//  The REAL starting XI on a pitch, marked with what the user called — the centrepiece of Predict
+//  the XI's results screen. Reworked 2026-07-28 (owner review): it shows the actual lineup, not the
+//  user's guess, and it is deliberately the SAME FIELD the picker uses.
 //
-//  ⚠️ POSITIONS ARE DERIVED FROM THE FORMATION, never hardcoded. The design handoff specified four
-//  fixed band centres (84% / 64% / 42% / 17%), which is right for a 4-3-3 and wrong for a third of
-//  the menu: `Formation.common` includes 4-2-3-1 and 4-1-4-1, which have FIVE rows. Rows are spread
-//  between fixed top and bottom margins instead, matching how `FormationPitchView` places a real
-//  lineup, so every selectable shape lays out correctly.
+//  ⚠️ ANTI-DRIFT CONTRACT: this view mirrors `XIPickerView.pitchGrid` — same green gradient, same
+//  46pt `PlayerHeadshot` cells, same 62pt cell width, same row stacking, same corner radius. You
+//  build your XI on a field and get graded on that same field; a different-looking pitch here made
+//  the two screens read as different games (the owner's tab-flip test). If you restyle one, restyle
+//  both. The Match Detail lineup view (`FormationPitchView`) is intentionally its own thing — it
+//  shows BOTH teams.
 //
-//  ⚠️ Iterate `formation.displayRowGroups` (identifiable row VALUES), never `ForEach(indices)`.
-//  Index-subscripting a recomputed array is what crashed the picker out of bounds when a formation
-//  change shrank the row count (2026-07-25).
-//
-//  The three node states come from `PredictPickResult.State` and are not "right/wrong": a pick who
-//  started in another band still banked her 3 points, so she reads AMBER with the band she actually
-//  played — never red, and never with a substitute's name under her, which would imply a
-//  slot-for-slot swap the scorer never performs.
+//  ⚠️ TWO STATES ONLY: green ✓ you called her, red ✗ you missed her. The old third state (amber
+//  "played MID") was cut — it explained a scoring subtlety on a surface that should read at a
+//  glance; the position bonus lives in the point breakdown. And per the owner's labeling rule, the
+//  screen carries a legend line — a mark nobody explains is an apple on a pitch.
 //
 
 import SwiftUI
 
 struct PredictPitchView: View {
-    let formation: Formation
-    let picks: [PredictPickResult]
-    /// Bands revealed so far. Everything else renders dimmed and neutral — no result colour, no
-    /// percentage, nothing that would give the line away before its beat.
+    /// The real XI in lineup order (ESPN formation-place order — index i maps to formation slot i).
+    let starters: [PredictStarterResult]
+    /// The ACTUAL formation, when ESPN's string parsed. nil → rows fall back to position bands.
+    let formation: Formation?
+    /// Bands revealed so far; unrevealed rows render dimmed and unmarked.
     let revealedBands: Set<PositionGroup>
-    let accent: Color
-
-    /// Top and bottom of the band spread, as a share of pitch height. The user attacks UPWARD, so
-    /// the keeper sits at `bottom` and the front line at `top`.
-    private let top: CGFloat = 0.15
-    private let bottom: CGFloat = 0.86
 
     var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .topLeading) {
-                PredictPitchMarkings()
-                    .stroke(Color.dsPitchLine, lineWidth: 1)
-
-                ForEach(formation.displayRowGroups) { row in
-                    ForEach(Array(row.slots.enumerated()), id: \.element.id) { position, slot in
-                        node(for: slot,
-                             at: point(row: row.row, position: position, of: row.slots.count, in: geo.size))
+        VStack(spacing: 16) {
+            // Iterate identifiable ROW VALUES — never `ForEach(indices)`, which crashed the picker
+            // out-of-bounds when a row count shrank (see Formation.DisplayRow).
+            ForEach(rows) { row in
+                HStack(alignment: .top, spacing: 8) {
+                    ForEach(row.starters) { starter in
+                        starterCell(starter)
                     }
                 }
-
-                Text(formation.raw.replacingOccurrences(of: "-", with: "\u{2011}"))   // non-breaking hyphens
-                    .dsFont(10, weight: .bold)
-                    .tracking(0.8)
-                    .foregroundStyle(Color.dsFgPrimary.opacity(0.34))
-                    .padding(.leading, 10)
-                    .padding(.top, 8)
             }
         }
-        .frame(height: 400)
+        .padding(.vertical, 22)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity)
         .background(
             LinearGradient(colors: [.dsPitch, .dsPitchBottom], startPoint: .top, endPoint: .bottom)
         )
-        .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous)
-                .stroke(Color.dsFgPrimary.opacity(0.06), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.dsPitchLine, lineWidth: 1)
         )
     }
 
-    // MARK: - Layout
+    // MARK: - Rows
 
-    /// Row 0 is the keeper; the highest row is the front line. Spread evenly between the margins so
-    /// a 4-row and a 5-row formation both fill the pitch.
-    private func point(row: Int, position: Int, of count: Int, in size: CGSize) -> CGPoint {
-        let maxRow = max(1, (formation.displayRowGroups.map(\.row).max() ?? 1))
-        let y = bottom - (bottom - top) * CGFloat(row) / CGFloat(maxRow)
-        // Evenly spaced within the row, inset so a 4-across defence doesn't clip the touchline.
-        let x = CGFloat(position * 2 + 1) / CGFloat(count * 2)
-        let inset: CGFloat = 0.08
-        return CGPoint(x: size.width * (inset + x * (1 - inset * 2)), y: size.height * y)
+    private struct Row: Identifiable {
+        let id: Int
+        let starters: [PredictStarterResult]
     }
 
-    private func pick(for slot: Formation.Slot) -> PredictPickResult? {
-        picks.first { $0.slot.index == slot.index }
+    /// Attack first (top of the field), keeper last — the picker's orientation. Preferred source is
+    /// the ACTUAL formation's rows (starter i ↔ slot i, the same mapping `FormationPitchView` uses);
+    /// when ESPN's formation string doesn't parse, fall back to grouping by position band, which
+    /// always renders something honest.
+    private var rows: [Row] {
+        if let formation, starters.count == formation.slots.count {
+            return formation.displayRowGroups.map { group in
+                Row(id: group.row, starters: group.slots.compactMap { slot in
+                    starters.indices.contains(slot.index) ? starters[slot.index] : nil
+                })
+            }
+        }
+        let bands: [PositionGroup] = [.fwd, .mid, .def, .gk]
+        return bands.enumerated().compactMap { offset, band in
+            let inBand = starters.filter { $0.group == band }
+            return inBand.isEmpty ? nil : Row(id: offset, starters: inBand)
+        }
     }
 
-    // MARK: - Node
+    // MARK: - Cell
 
-    @ViewBuilder
-    private func node(for slot: Formation.Slot, at point: CGPoint) -> some View {
-        let pick = pick(for: slot)
-        let shown = revealedBands.contains(slot.group)
-        let tint = shown ? color(for: pick?.state) : Color.dsFgQuaternary
-
-        VStack(spacing: 2) {
+    private func starterCell(_ starter: PredictStarterResult) -> some View {
+        let shown = revealedBands.contains(starter.group)
+        let tint: Color = starter.called ? .dsSuccess : .dsError
+        return VStack(spacing: 5) {
             ZStack(alignment: .topTrailing) {
-                Circle()
-                    .fill(Color.dsBgTertiary)
-                    .overlay(Circle().stroke(tint, lineWidth: 2))
-                    .frame(width: 34, height: 34)
-                    .overlay(
-                        Text(initials(pick?.name))
-                            // Fixed-size container ⇒ fixed-size text (the DS monogram exemption):
-                            // a scaled monogram would overflow a 34pt disc at AX1.
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
-                            .foregroundStyle(tint)
-                    )
-                if shown, let state = pick?.state {
-                    Image(systemName: state.started ? "checkmark" : "xmark")
+                PlayerHeadshot(athleteID: starter.athleteID, size: 46) {
+                    // Fallback monogram — fixed-size text in a fixed-size disc (the DS exemption).
+                    ZStack {
+                        Circle().fill(Color.white.opacity(0.14))
+                        Text(initials(starter.name))
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: 46, height: 46)
+                }
+                .overlay(Circle().stroke(shown ? tint : Color.white.opacity(0.35), lineWidth: shown ? 2 : 1))
+                if shown {
+                    Image(systemName: starter.called ? "checkmark" : "xmark")
                         .font(.system(size: 8, weight: .black))
                         .foregroundStyle(Color.dsBgPrimary)
                         .frame(width: 15, height: 15)
                         .background(Circle().fill(tint))
-                        .overlay(Circle().stroke(Color.dsBgPrimary, lineWidth: 1.5))
-                        .offset(x: 5, y: -4)
+                        .overlay(Circle().stroke(Color.dsPitch, lineWidth: 1.5))
+                        .offset(x: 4, y: -3)
                 }
             }
-            if shown {
-                Text(pick?.name ?? slot.group.shortLabel)
-                    .dsFont(10, weight: .semibold)
-                    .foregroundStyle(started(pick) ? Color.dsFgPrimary : Color.dsFgTertiary)
-                    .strikethrough(pick.map { !$0.state.started } ?? false)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                if let share = pick?.communityShare {
-                    Text(Self.percent(share)).dsFont(9, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
-                }
-                if case .startedOffBand(let actual) = pick?.state {
-                    Text("played \(actual.shortLabel)")
-                        .dsFont(9, weight: .bold)
-                        .foregroundStyle(Color.dsWarning)
-                        .lineLimit(1)
-                }
-            }
+            Text(shortName(starter.name))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
-        .frame(width: 88)
+        .frame(width: 62)
         .opacity(shown ? 1 : 0.18)
         .scaleEffect(shown ? 1 : 0.82)
-        .position(point)
-        // One node = one a11y element, and its label always describes the FINAL state even mid-
-        // reveal: the animation is visual, and a VoiceOver user must never have to wait for it.
+        // One node = one a11y element, and the label always describes the FINAL state — the
+        // animation is visual only; VoiceOver never waits for it.
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityLabel(for: slot, pick: pick))
+        .accessibilityLabel("\(starter.name), \(starter.group.shortLabel), \(starter.called ? "you called her" : "you missed her")")
     }
 
-    private func started(_ pick: PredictPickResult?) -> Bool { pick?.state.started ?? false }
+    // MARK: - Helpers
 
-    private func color(for state: PredictPickResult.State?) -> Color {
-        switch state {
-        case .startedInBand: return .dsSuccess
-        case .startedOffBand: return .dsWarning
-        case .didNotStart: return .dsError
-        case nil: return .dsFgQuaternary
-        }
+    /// "Sandy MacIver" → "S. MacIver" — the picker's name format, so the two fields match.
+    private func shortName(_ full: String) -> String {
+        let parts = full.split(separator: " ")
+        guard parts.count >= 2, let first = parts.first?.first else { return full }
+        return "\(first). \(parts.dropFirst().joined(separator: " "))"
     }
 
-    private func initials(_ name: String?) -> String {
-        guard let name, !name.isEmpty else { return "—" }
-        return name.split(separator: " ").compactMap(\.first).prefix(2).map(String.init).joined()
+    private func initials(_ name: String) -> String {
+        name.split(separator: " ").compactMap(\.first).prefix(2).map(String.init).joined()
     }
 
     static func percent(_ share: Double) -> String { "\(Int((share * 100).rounded()))%" }
-
-    private func accessibilityLabel(for slot: Formation.Slot, pick: PredictPickResult?) -> String {
-        guard let pick else { return "\(slot.group.shortLabel), empty" }
-        switch pick.state {
-        case .startedInBand: return "\(pick.name), \(slot.group.shortLabel), started"
-        case .startedOffBand(let actual):
-            return "\(pick.name), you played her at \(slot.group.shortLabel), started in \(actual.shortLabel)"
-        case .didNotStart: return "\(pick.name), \(slot.group.shortLabel), did not start"
-        }
-    }
-}
-
-/// Pitch markings at the keeper's end — outer box, one line across, penalty and six-yard boxes, and
-/// the centre circle. Drawn as one `Shape` (a single stroked path) rather than stacked overlays.
-private struct PredictPitchMarkings: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let inset = rect.insetBy(dx: rect.width * 0.02, dy: rect.height * 0.02)
-        path.addRect(inset)
-
-        // The halfway line sits where the centre circle is drawn.
-        let midY = rect.minY + rect.height * 0.30
-        path.move(to: CGPoint(x: inset.minX, y: midY))
-        path.addLine(to: CGPoint(x: inset.maxX, y: midY))
-
-        // Penalty box + six-yard box at the bottom (the goalkeeper's end — the user attacks up).
-        let penalty = CGRect(x: rect.midX - rect.width * 0.22, y: inset.maxY - rect.height * 0.16,
-                             width: rect.width * 0.44, height: rect.height * 0.16)
-        path.addRect(penalty)
-        let six = CGRect(x: rect.midX - rect.width * 0.09, y: inset.maxY - rect.height * 0.06,
-                         width: rect.width * 0.18, height: rect.height * 0.06)
-        path.addRect(six)
-
-        let radius = rect.width * 0.20
-        path.addEllipse(in: CGRect(x: rect.midX - radius, y: midY - radius,
-                                   width: radius * 2, height: radius * 2))
-        return path
-    }
 }

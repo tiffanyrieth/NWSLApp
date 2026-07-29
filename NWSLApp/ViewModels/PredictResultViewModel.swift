@@ -2,19 +2,18 @@
 //  PredictResultViewModel.swift
 //  NWSLApp
 //
-//  Everything the redesigned Predict the XI results screen needs: the fetched answer key, the
-//  community distribution, the per-pick derivation, the superlative line — and the line-by-line
-//  reveal (2026-07-28).
+//  Everything the Predict the XI results screen needs: the fetched answer key, the community
+//  distribution, the graded real XI, the superlative line — and the line-by-line reveal.
+//  Reworked 2026-07-28 (owner review): the pitch now shows the REAL lineup marked with what you
+//  called, and the community layer lives in per-band panels (GK donut + ownership bars).
 //
 //  ⚠️ THE REVEAL LIVES HERE, NOT IN THE VIEW. It's a cancellable sequence with real ordering rules,
-//  which makes it logic rather than layout: keeping it in the VM means `skip` genuinely cancels
-//  (rather than racing a timer that fires anyway and re-hides a line the user already skipped to),
-//  and it means the sequence is unit-testable through the injected `sleep` seam without a UI test.
+//  which makes it logic rather than layout: keeping it in the VM means `skip` genuinely cancels,
+//  and the sequence is unit-testable through the injected `sleep` seam.
 //
-//  ⚠️ NOTHING HERE WRITES A SCORE. The screen renders a match that is already scored and persisted;
-//  it recomputes only PRESENTATION detail. That boundary matters more than it looks: `recordScore`
-//  feeds `scoredMatchCount`, which is the denominator of `avg_points`, which is what the season
-//  board ranks on — so a stray write from a results screen would quietly corrupt every user's rank.
+//  ⚠️ NOTHING HERE WRITES A SCORE. `recordScore` feeds `scoredMatchCount`, the denominator of
+//  `avg_points`, which is what the season board ranks on — a stray write from a results screen
+//  would quietly corrupt every user's rank.
 //
 
 import SwiftUI
@@ -28,31 +27,59 @@ final class PredictResultViewModel {
     private(set) var phase: Phase = .loading
     private(set) var detail: PredictXIViewModel.MatchResultDetail?
     private(set) var community: PredictCommunity?
-    private(set) var picks: [PredictPickResult] = []
-    private(set) var missed: [PredictMissedStarter] = []
+    /// The real XI in lineup order, each starter marked called/missed.
+    private(set) var starters: [PredictStarterResult] = []
+    /// Your picks who didn't start.
+    private(set) var busts: [PredictBust] = []
     private(set) var standouts: PredictStandouts = .none
     private(set) var superlative: String?
-    private(set) var consensusXI: [Int: String] = [:]
-    private(set) var consensusCorrect: Int?
+    /// The actual formation, when ESPN's string parses — drives the pitch rows.
+    private(set) var actualFormation: Formation?
+
+    // MARK: - Band panels ("How <club> fans picked")
+
+    /// One expandable panel per line of the real XI.
+    struct BandPanel: Identifiable, Equatable {
+        struct Entry: Identifiable, Equatable {
+            let athleteID: String
+            let name: String
+            let share: Double
+            /// False for a popular pick who did NOT start — the crowd's wrong call, struck through.
+            let started: Bool
+            let called: Bool
+            var id: String { athleteID }
+        }
+
+        let group: PositionGroup
+        var id: PositionGroup { group }
+        /// Ownership bars, starters first (lineup order), then the crowd's wrong calls by share.
+        let entries: [Entry]
+        /// Goalkeeper only: the true parts-of-a-whole split at slot 0 (every fan picks exactly one
+        /// keeper, so shares sum to ~100%). nil for outfield bands, where a donut would lie —
+        /// each fan picks 2–3 per line, so ownership doesn't sum to 100.
+        let donut: [DonutSegment]?
+
+        struct DonutSegment: Identifiable, Equatable {
+            let athleteID: String?   // nil = the "others" remainder
+            let name: String
+            let share: Double
+            var id: String { athleteID ?? "others" }
+        }
+    }
+
+    private(set) var bandPanels: [BandPanel] = []
 
     // MARK: - Reveal
 
-    /// Bands revealed so far. The pitch reads this; everything below the pitch waits for
-    /// `contentShown`.
     private(set) var revealedBands: Set<PositionGroup> = []
     private(set) var contentShown = false
-    /// True while a reveal is actually running — drives "Skip" vs "Replay" in the caption row.
     private(set) var isRevealing = false
-    /// True when auto-play was suppressed, so Replay is promoted from a quiet link to a pill.
     private(set) var revealIsOptIn = false
 
-    /// GK → attack. Dramatic on purpose: it builds toward the front line, where the contested picks
-    /// are. Always four beats, even on a five-row formation — two "Midfield" beats would make the
-    /// caption lie about which line is appearing.
+    /// GK → attack: builds toward the front line, where the contested picks are.
     private static let bandOrder: [PositionGroup] = [.gk, .def, .mid, .fwd]
 
     private var revealTask: Task<Void, Never>?
-    /// Injectable so tests step the sequence without waiting on a real clock.
     private let sleep: (Duration) async -> Void
 
     private let communityService = PredictCommunityService()
@@ -64,9 +91,8 @@ final class PredictResultViewModel {
         self.leaderboardService = leaderboardService
     }
 
-    // No `deinit { revealTask?.cancel() }`: deinit is nonisolated and can't touch @MainActor state.
-    // It isn't needed either — the reveal task captures `self` WEAKLY, so it can't keep this object
-    // alive, and the view cancels explicitly in `.onDisappear`.
+    // No `deinit` cancel: deinit is nonisolated and can't touch @MainActor state. Not needed —
+    // the reveal task captures `self` weakly and the view cancels in `.onDisappear`.
 
     // MARK: - Load
 
@@ -84,9 +110,9 @@ final class PredictResultViewModel {
             return
         }
         detail = fetched
+        actualFormation = actual.formation.flatMap(Formation.init(raw:))
 
-        // Community is OPTIONAL: a sealed or unreachable distribution hides the percentage-driven
-        // sections rather than failing the screen, so the result itself always renders.
+        // Community is OPTIONAL: sealed or unreachable hides the panels, never fails the screen.
         let season = String(AppConfig.currentSeasonYear)
         if let week = item.score?.soccerWeek {
             let request = PredictCommunityRequest(eventID: prediction.eventID,
@@ -98,9 +124,8 @@ final class PredictResultViewModel {
 
             #if DEBUG
             // TEMP dev-only preview scaffold — a CLIENT-SIDE distribution so the community layer
-            // can be reviewed before real submissions exist. Nothing is written to the server.
-            // Empty means nil OR zero submissions: a finished match legitimately returns
-            // revealed-with-nothing-in-it until real predictions exist.
+            // can be reviewed before real submissions exist. Empty means nil OR zero submissions:
+            // a finished match legitimately returns revealed-with-nothing-in-it.
             if (community?.submissions ?? 0) == 0, DebugPredictSeed.isActive {
                 community = DebugPredictSeed.syntheticCommunity(
                     eventID: prediction.eventID, team: prediction.teamAbbreviation, week: week,
@@ -109,78 +134,126 @@ final class PredictResultViewModel {
             #endif
         }
 
-        picks = PredictResultDerivation.picks(for: prediction, against: actual,
+        starters = PredictResultDerivation.starterResults(for: prediction, against: actual,
+                                                          names: fetched.names, community: community)
+        busts = PredictResultDerivation.busts(for: prediction, against: actual,
                                               names: fetched.names, community: community)
-        missed = PredictResultDerivation.missedStarters(for: prediction, against: actual,
-                                                        names: fetched.names, community: community)
-        standouts = PredictResultDerivation.standouts(picks: picks, missed: missed)
+        standouts = PredictResultDerivation.standouts(starters: starters)
+        bandPanels = buildBandPanels(fetched: fetched)
 
-        if let community, let formation = Formation(raw: prediction.formation) {
-            let slots = formation.slots.map(\.index)
-            consensusXI = community.consensusXI(slots: slots)
-            consensusCorrect = community.consensusCorrect(slots: slots,
-                                                          actualStarterIDs: actual.starterIDs)
-        }
-
-        evaluateSuperlativeAndMergeBests(item: item, store: store, season: season)
+        evaluateSuperlativeAndMergeBests(prediction: prediction, store: store, season: season)
 
         phase = .loaded
         prepareReveal(store: store, reduceMotion: reduceMotion, voiceOver: voiceOver)
     }
 
-    /// ⚠️ ORDER IS LOAD-BEARING: the ladder is evaluated against the bests as they stood BEFORE this
-    /// match, and only then is this match merged in. Merging first would make every result its own
-    /// "best match of the season" and the praise would mean nothing on the day it's real.
-    private func evaluateSuperlativeAndMergeBests(item: PredictXIViewModel.PredictionItem,
-                                                 store: PredictionStore,
-                                                 season: String) {
-        let starters = PredictResultDerivation.startersCalled(picks)
+    /// The per-band community panels. Only built with real (or debug-injected) data — with no
+    /// community, `bandPanels` stays empty and the whole section hides itself.
+    private func buildBandPanels(fetched: PredictXIViewModel.MatchResultDetail) -> [BandPanel] {
+        guard let community, community.submissions > 0 else { return [] }
+
+        return PositionGroup.allCases.compactMap { group in
+            let bandStarters = starters.filter { $0.group == group }
+            guard !bandStarters.isEmpty else { return nil }
+
+            var entries: [BandPanel.Entry] = bandStarters.map {
+                BandPanel.Entry(athleteID: $0.athleteID, name: $0.name,
+                                share: $0.communityShare ?? 0, started: true, called: $0.called)
+            }
+
+            // The crowd's wrong calls: players a meaningful share backed who did NOT start in this
+            // band. Band attribution for a non-starter comes from the ROSTER (she has no lineup
+            // position), which is the same grouping the picker sheet uses.
+            let starterIDs = Set(starters.map(\.athleteID))
+            let wrongCalls = community.playersByShare
+                .filter { !starterIDs.contains($0.playerID) }
+                .filter { fetched.groupsByID[$0.playerID] == group }
+                .filter { $0.share >= 0.15 }
+                .prefix(3)
+                .map { candidate in
+                    BandPanel.Entry(athleteID: candidate.playerID,
+                                    name: fetched.names[candidate.playerID] ?? "Player",
+                                    share: candidate.share, started: false,
+                                    called: busts.contains { $0.athleteID == candidate.playerID })
+                }
+            entries.append(contentsOf: wrongCalls)
+
+            return BandPanel(group: group, entries: entries,
+                             donut: group == .gk ? goalkeeperDonut(fetched: fetched) : nil)
+        }
+    }
+
+    /// Slot 0's split as donut segments: top keepers by count + one "Other picks" remainder so the
+    /// arcs always close to 100% even on partial data.
+    private func goalkeeperDonut(fetched: PredictXIViewModel.MatchResultDetail) -> [BandPanel.DonutSegment]? {
+        guard let community, community.submissions > 0 else { return nil }
+        let slotCounts = community.countsForSlot(0)
+        guard !slotCounts.isEmpty else { return nil }
+
+        var segments: [BandPanel.DonutSegment] = slotCounts.prefix(4).map {
+            BandPanel.DonutSegment(athleteID: $0.playerID,
+                                   name: fetched.names[$0.playerID] ?? "Player",
+                                   share: Double($0.count) / Double(community.submissions))
+        }
+        let counted = slotCounts.prefix(4).reduce(0) { $0 + $1.count }
+        let remainder = community.submissions - counted
+        if remainder > 0 {
+            segments.append(BandPanel.DonutSegment(
+                athleteID: nil, name: "Other picks",
+                share: Double(remainder) / Double(community.submissions)))
+        }
+        return segments
+    }
+
+    /// ⚠️ ORDER IS LOAD-BEARING: evaluate the ladder against the bests as they stood BEFORE this
+    /// match, and only then merge this match in — else every match is its own "season best".
+    private func evaluateSuperlativeAndMergeBests(prediction: XIPrediction,
+                                                  store: PredictionStore,
+                                                  season: String) {
+        let called = PredictResultDerivation.startersCalled(starters)
         let previousBest = store.seasonBests.hasMatchBaseline ? store.seasonBests.bestMatchStarters : nil
 
-        let perfectBands: [PredictSuperlative.PerfectBand] = PositionGroup.allCases.compactMap { group in
-            let inBand = picks.filter { $0.slot.group == group }
-            guard !inBand.isEmpty else { return nil }
-            let allPerfect = inBand.allSatisfy { $0.state == .startedInBand }
-            return allPerfect ? PredictSuperlative.PerfectBand(group: group, slots: inBand.count) : nil
-        }
+        // "Perfect defense" = you called every starter in that line (the ladder's own 3+ floor
+        // stops a lone keeper from firing it).
+        let perfectBands: [PredictSuperlative.PerfectBand] = PredictResultDerivation.bandTallies(starters)
+            .filter { $0.called == $0.total }
+            .map { PredictSuperlative.PerfectBand(group: $0.group, slots: $0.total) }
 
-        var percentile: Double?
-        if let rank = detail?.roundRank, let total = detail?.roundTotal, total > 1 {
-            percentile = Double(total - rank) / Double(total) * 100
+        // The consensus-XI comparison still feeds the ladder even though its screen section was
+        // cut in the owner review — "Beat the consensus XI" is computed, not displayed data.
+        var consensusStarters: Int?
+        if let community, let formation = Formation(raw: prediction.formation) {
+            consensusStarters = community.consensusCorrect(
+                slots: formation.slots.map(\.index),
+                actualStarterIDs: Set(starters.map(\.athleteID)))
         }
 
         superlative = PredictSuperlative.forMatch(.init(
-            startersCalled: starters,
+            startersCalled: called,
             previousBestStarters: previousBest,
-            consensusStarters: consensusCorrect,
-            perfectBands: perfectBands,
-            roundPercentile: percentile,
-            clubName: detail?.clubName
+            consensusStarters: consensusStarters,
+            perfectBands: perfectBands
         ))
 
-        // Now raise the mark, locally and (best-effort) on the server.
-        let bests = PredictSeasonBests(season: season, bestMatchStarters: starters, bestRoundStarters: 0)
+        let bests = PredictSeasonBests(season: season, bestMatchStarters: called, bestRoundStarters: 0)
         store.mergeSeasonBests(bests)
         #if DEBUG
         // A seeded result must never raise the real high-water mark — GREATEST can't be undone.
         guard !DebugPredictSeed.isActive else { return }
         #endif
         let service = leaderboardService
-        Task { await service.mergeSeasonBests(season: season, matchStarters: starters, roundStarters: 0) }
+        Task { await service.mergeSeasonBests(season: season, matchStarters: called, roundStarters: 0) }
     }
 
     // MARK: - Reveal control
 
     private func prepareReveal(store: PredictionStore, reduceMotion: Bool, voiceOver: Bool) {
-        // Reduce Motion and VoiceOver both land fully revealed. A staged reveal fights the rotor,
-        // and a user who asked the system for less motion has already answered this question.
         guard !reduceMotion, !voiceOver else {
             revealIsOptIn = true
             finishReveal()
             return
         }
         guard store.shouldAutoPlayReveal() else {
-            // Seen enough this season — land on the finished state and make Replay obvious.
             revealIsOptIn = true
             finishReveal()
             return
@@ -198,8 +271,8 @@ final class PredictResultViewModel {
             guard let self else { return }
             for (index, band) in Self.bandOrder.enumerated() {
                 await self.sleep(.milliseconds(index == 0 ? 650 : 780))
-                // ⚠️ REQUIRED: `sleep` swallows cancellation, so without this a skipped reveal would
-                // keep firing its remaining beats and re-animate lines the user already skipped past.
+                // ⚠️ REQUIRED: `sleep` swallows cancellation; without this a skipped reveal keeps
+                // firing its remaining beats.
                 if Task.isCancelled { return }
                 withAnimation(.spring(response: 0.42, dampingFraction: 0.62)) {
                     _ = self.revealedBands.insert(band)
@@ -222,7 +295,7 @@ final class PredictResultViewModel {
 
     func replayReveal() { startReveal() }
 
-    /// Cancel on disappear — a leaked task would go on mutating a view model whose screen is gone.
+    /// Cancel on disappear — a leaked task would go on mutating a torn-down view model.
     func cancelReveal() {
         revealTask?.cancel()
         revealTask = nil
@@ -236,16 +309,13 @@ final class PredictResultViewModel {
 
     // MARK: - Derived reads for the view
 
-    var startersCalled: Int { PredictResultDerivation.startersCalled(picks) }
-    var bandTallies: [(group: PositionGroup, started: Int, total: Int)] {
-        PredictResultDerivation.bandTallies(picks)
-    }
+    var startersCalled: Int { PredictResultDerivation.startersCalled(starters) }
 
     /// The caption above the pitch: which line is landing right now, or the finished state.
     var revealCaption: String {
-        guard isRevealing else { return "Your XI vs the real lineup" }
+        guard isRevealing else { return "The real lineup vs your picks" }
         guard let latest = Self.bandOrder.last(where: { revealedBands.contains($0) }) else {
-            return "Revealing your XI…"
+            return "Revealing the lineup…"
         }
         switch latest {
         case .gk: return "Goalkeeper"

@@ -40,16 +40,14 @@ enum PredictSuperlative {
         /// How many starters the community's consensus XI called, or nil when the aggregate is
         /// sealed or unavailable.
         let consensusStarters: Int?
-        /// Bands where every slot was called correctly AND in position, with their slot counts.
+        /// Bands of the REAL lineup where the user called every starter, with their sizes.
         let perfectBands: [PerfectBand]
-        /// The user's percentile within the club for the ROUND, 0…100, or nil when unranked.
-        let roundPercentile: Double?
-        /// The club, for the percentile line's copy ("Ahead of 71% of Washington").
-        let clubName: String?
     }
 
-    /// A fully-called line. A named type rather than a tuple: an array of labelled tuples pushed
-    /// the `filter`/`max(by:)` chain below into a type-check timeout.
+    /// A line of the real XI the user called in full ("Perfect defense" = you named every defender
+    /// who started; the +2 position bonus is NOT required — that subtlety lives in the breakdown).
+    /// A named type rather than a tuple: an array of labelled tuples pushed the `filter`/`max(by:)`
+    /// chain below into a type-check timeout.
     struct PerfectBand: Equatable {
         let group: PositionGroup
         let slots: Int
@@ -80,18 +78,10 @@ enum PredictSuperlative {
             return "Perfect \(bandNoun(widest.group))"
         }
 
-        // 5. Percentile, with a hard 50th-percentile floor — "ahead of 12%" is demoralising and must
-        //    never render.
-        //
-        //    ⚠️ CORRECTED FROM THE HANDOFF: its copy said "…of Washington THIS MATCH", but the same
-        //    document's §1.1 states that a match has no leaderboard of its own and forbids inventing
-        //    a per-match rank. Both cannot be true. The round rank is the finest the app actually
-        //    holds, so the number is real and the wording says "this round" to match it.
-        if let percentile = input.roundPercentile, percentile >= 50 {
-            let club = input.clubName ?? "your club"
-            return "Ahead of \(Int(percentile.rounded()))% of \(club) this round"
-        }
-
+        // ⚠️ NO PERCENTILE BRANCH (owner cut, 2026-07-28 — the handoff's branch 5 was removed after
+        // review). "Ahead of 76%…" restated the rank row directly beneath it in vaguer language;
+        // "Ranked #7 of 29 fans" is the concrete version of the same fact, and this slot's rule is
+        // to render NOTHING rather than a worse duplicate.
         return nil
     }
 

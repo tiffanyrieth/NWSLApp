@@ -23,20 +23,17 @@ struct PredictSuperlativeTests {
     private func match(startersCalled: Int = 6,
                        previousBest: Int? = nil,
                        consensus: Int? = nil,
-                       perfectBands: [PredictSuperlative.PerfectBand] = [],
-                       percentile: Double? = nil,
-                       club: String? = "Washington") -> PredictSuperlative.MatchInput {
+                       perfectBands: [PredictSuperlative.PerfectBand] = []) -> PredictSuperlative.MatchInput {
         .init(startersCalled: startersCalled, previousBestStarters: previousBest,
-              consensusStarters: consensus, perfectBands: perfectBands,
-              roundPercentile: percentile, clubName: club)
+              consensusStarters: consensus, perfectBands: perfectBands)
     }
 
     // MARK: - Nothing true → nothing rendered
 
     @Test func rendersNothingWhenNoRungIsTrue() {
-        // A middling match: no baseline, crowd did better, no perfect line, below the floor.
+        // A middling match: no baseline beaten, crowd did better, no perfect line.
         #expect(PredictSuperlative.forMatch(match(startersCalled: 5, previousBest: 9,
-                                                  consensus: 8, percentile: 20)) == nil)
+                                                  consensus: 8)) == nil)
     }
 
     /// ⚠️ The single most important guard. With no prior baseline, "your best match of the season"
@@ -50,7 +47,7 @@ struct PredictSuperlativeTests {
 
     @Test func aGenuineSeasonBestOutranksEverythingElse() {
         let line = PredictSuperlative.forMatch(match(startersCalled: 10, previousBest: 8,
-                                                     consensus: 5, percentile: 99))
+                                                     consensus: 5))
         #expect(line == "Your best match of the season")
     }
 
@@ -97,25 +94,12 @@ struct PredictSuperlativeTests {
         #expect(line == "Perfect defense")
     }
 
-    // MARK: - The percentile floor
-
-    @Test func percentileFiresAtOrAboveTheFiftiethOnly() {
-        let ahead = PredictSuperlative.forMatch(match(startersCalled: 6, previousBest: 10,
-                                                      consensus: 9, percentile: 71))
-        #expect(ahead == "Ahead of 71% of Washington this round")
-    }
-
-    /// "Ahead of 12% of Washington" is demoralising and must never render. It falls through to
-    /// nothing instead.
-    @Test func percentileBelowTheFloorRendersNothing() {
+    /// ⚠️ The percentile branch was CUT in the owner review (2026-07-28): "Ahead of 76%…" restated
+    /// the rank row beneath it in vaguer language. With every higher rung false, the slot renders
+    /// nothing — never a duplicate of the rank.
+    @Test func aGoodRankAloneRendersNothing() {
         #expect(PredictSuperlative.forMatch(match(startersCalled: 6, previousBest: 10,
-                                                   consensus: 9, percentile: 12)) == nil)
-    }
-
-    @Test func percentileFallsBackToAGenericClubNameWhenUnknown() {
-        let line = PredictSuperlative.forMatch(match(startersCalled: 6, previousBest: 10,
-                                                     consensus: 9, percentile: 80, club: nil))
-        #expect(line == "Ahead of 80% of your club this round")
+                                                   consensus: 9)) == nil)
     }
 
     // MARK: - Round ladder

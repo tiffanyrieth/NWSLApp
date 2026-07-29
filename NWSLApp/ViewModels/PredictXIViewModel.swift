@@ -255,6 +255,9 @@ final class PredictXIViewModel {
         let actualStarters: [(id: String, group: PositionGroup)]   // the real XI, in lineup order
         let actualFormation: String?
         let names: [String: String]                                 // athleteID → full name
+        /// athleteID → position band, from the ROSTER (the only source for someone who didn't
+        /// start). Lets the band panels show "the crowd's wrong calls" in the right line.
+        let groupsByID: [String: PositionGroup]
         let roundRank: Int?
         let roundTotal: Int
         let weekLabel: String?
@@ -273,6 +276,15 @@ final class PredictXIViewModel {
         // Names: the team roster covers every predicted pick + actual starter (all this-season squad members).
         let squad = await roster(forTeam: team)
         let names = Dictionary(squad.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+        let groups = Dictionary(squad.map { athlete -> (String, PositionGroup) in
+            let band: PositionGroup
+            if let abbr = athlete.positionAbbreviation, !abbr.isEmpty {
+                band = PositionGroup.from(abbreviation: abbr)
+            } else {
+                band = PositionGroup.from(positionName: athlete.positionName)
+            }
+            return (athlete.id, band)
+        }, uniquingKeysWith: { first, _ in first })
         do {
             let summary = try await service.fetchSummary(eventID: prediction.eventID)
             guard let actual = ActualResult.make(from: summary, isHome: item.fixture.isHome,
@@ -292,7 +304,7 @@ final class PredictXIViewModel {
             }
             return MatchResultDetail(
                 actualStarters: actual.starters.map { ($0.athleteID, $0.group) },
-                actualFormation: actual.formation, names: names,
+                actualFormation: actual.formation, names: names, groupsByID: groups,
                 roundRank: roundRank, roundTotal: max(roundTotal, roundRank ?? 0), weekLabel: weekLabel,
                 actual: actual, clubName: club(forAbbreviation: team)?.displayName)
         } catch {

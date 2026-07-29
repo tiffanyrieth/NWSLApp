@@ -36,6 +36,61 @@ struct PredictLeaderboardService {
         var avg: Double = 0
     }
 
+    private struct MergeBestsParams: Encodable {
+        let p_season: String
+        let p_match: Int
+        let p_round: Int
+    }
+
+    /// Raise the user's season personal bests — the thresholds the superlative ladder compares
+    /// against ("your best match of the season").
+    ///
+    /// ⚠️ Server-side `GREATEST`, not a read-then-write. Those marks must survive a reinstall and
+    /// two devices used out of order, and the read-then-write shape used by `upsertScore` above
+    /// carries a known race (see docs/roadmap.md's multi-device note) that an atomic merge simply
+    /// doesn't have. Passing 0 leaves a mark untouched.
+    ///
+    /// Best-effort: a failure means the ladder's season-best rungs can't fire (its inputs stay
+    /// unknown), which is a missing compliment — never a wrong one.
+    func mergeSeasonBests(season: String, matchStarters: Int, roundStarters: Int) async {
+        guard matchStarters > 0 || roundStarters > 0 else { return }
+        do {
+            try await client
+                .rpc("predict_merge_bests", params: MergeBestsParams(
+                    p_season: season, p_match: matchStarters, p_round: roundStarters))
+                .execute()
+        } catch {
+            Diagnostics.shared.record(.apiFailure, "predict season bests: \(error.localizedDescription)")
+        }
+    }
+
+    /// The user's stored season bests, or nil when unavailable (signed out, offline, or never set).
+    /// nil is meaningful: the ladder treats an unknown baseline differently from a zero one, so a
+    /// user's very first result never claims to be a personal best.
+    func seasonBests(season: String) async -> PredictSeasonBests? {
+        struct Row: Decodable {
+            let season: String
+            let best_match_starters: Int
+            let best_round_starters: Int
+        }
+        do {
+            let rows: [Row] = try await client
+                .from("predict_season_bests")
+                .select("season,best_match_starters,best_round_starters")
+                .eq("season", value: season)
+                .limit(1)
+                .execute()
+                .value
+            guard let row = rows.first else { return nil }
+            return PredictSeasonBests(season: row.season,
+                                      bestMatchStarters: row.best_match_starters,
+                                      bestRoundStarters: row.best_round_starters)
+        } catch {
+            Diagnostics.shared.record(.apiFailure, "predict season bests read: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     /// Push the user's season total for ONE team. Best-effort: a failure leaves the
     /// local score intact and the next load retries the push. Signed-in only (the
     /// caller guards on `userID`).

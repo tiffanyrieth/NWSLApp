@@ -235,6 +235,26 @@ enum AppConfig {
         scoreboardProxyBase.appendingPathComponent("analytics")
     }
 
+    /// `GET /predict/community` — the community pick distribution for one or more Predict fixtures.
+    ///
+    /// ⚠️ This route is the DEADLINE GATE: it refuses to serve per-player percentages before
+    /// submissions close (kickoff − 2h) and fails CLOSED if it can't establish kickoff. That check
+    /// cannot live in Postgres (which has no idea when kickoff is) or in the app (which the user
+    /// controls), so it lives in the worker — see the proxy's `predict-community.ts`.
+    ///
+    /// Batched by fixture on purpose: a multi-club round is ONE request rather than one per club.
+    /// Each entry is `{eventID}:{TEAM}:{soccerWeek}`; the proxy caps the list.
+    static func predictCommunityURL(season: String, fixtures: [String]) -> URL? {
+        guard !fixtures.isEmpty else { return nil }
+        let base = scoreboardProxyBase
+            .appendingPathComponent("predict")
+            .appendingPathComponent("community")
+        guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else { return nil }
+        components.queryItems = [URLQueryItem(name: "season", value: season)]
+            + fixtures.map { URLQueryItem(name: "f", value: $0) }
+        return components.url
+    }
+
     // MARK: - Forced-update version gate
 
     /// The proxy route the app checks at launch: `GET /config` → `{ minVersion, minBuild }`. If this

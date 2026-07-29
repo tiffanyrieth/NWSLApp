@@ -122,11 +122,11 @@ struct SuperfanDetailView: View {
                             .frame(width: max(0, geo.size.width * progress.fraction))
                     }
                 }
-                .frame(height: 6)
+                .frame(height: 10)
                 HStack {
-                    Text(tier.label).dsFont(11).foregroundStyle(.tertiary)
+                    Text(tier.label).dsFont(12).foregroundStyle(.tertiary)
                     Spacer()
-                    if let next = tier.next { Text(next.label).dsFont(11).foregroundStyle(.tertiary) }
+                    if let next = tier.next { Text(next.label).dsFont(12).foregroundStyle(.tertiary) }
                 }
                 Text(progress.caption).dsFont(13, weight: .semibold).foregroundStyle(tier.color)
             }
@@ -181,7 +181,7 @@ struct SuperfanDetailView: View {
                             .frame(width: max(0, geo.size.width * (contribution / SuperfanGame.maxContribution)))
                     }
                 }
-                .frame(height: 5)
+                .frame(height: 10)
                 Text("\(oneDecimal(contribution)) / 25")
                     .font(.system(size: 13, weight: .bold, design: .rounded))   // fixed numeric column
                     .foregroundStyle(m.color)

@@ -561,6 +561,20 @@ struct HomeView: View {
     }
 
     private var predictCardModel: FanZoneCardModel {
+        // A freshly-tallied result outranks everything else the card could say — it's the one thing
+        // the user didn't already know. The card only SIGNPOSTS it; tapping routes into Predict,
+        // where the reveal plays because the result is unseen. Per the hide-when-empty rule there is
+        // no "results pending" variant: this appears only once something is actually scored.
+        let unseen = predict.unseenScoredFixtureIDs(currentWeek: FanZoneCadence.currentSoccerWeek())
+        if !unseen.isEmpty {
+            var model = FanZoneCardModel(game: .predict, title: "Predict the XI",
+                                         contextLine: unseen.count == 1
+                                            ? "Match final"
+                                            : "\(unseen.count) matches final")
+            model.statusLine = "See how your XI did"
+            return model
+        }
+
         // Following 2+ predictable teams → the card is about the DEADLINE, not one team:
         // a generic "N predictions open" context + a countdown to the soonest deadline
         // across all your open predictions. (One predictable team → fall through to the
@@ -588,7 +602,17 @@ struct HomeView: View {
         // One predictable team (or none) → name the specific matchup, exactly as before.
         let context: String
         if let fixture = nextPredictFixture {
-            context = "\(fixture.teamAbbreviation) vs \(fixture.opponentAbbreviation) · \(Self.kickoffLabel(fixture.kickoff))"
+            // ⚠️ HOME TEAM FIRST — this printed "WAS vs UTA" for a match Washington were playing
+            // AWAY at Utah, because it led with the user's own club rather than the home side.
+            // Every other two-team surface in the app (schedule cards, match detail, the Predict
+            // fixture card) reads home-then-away, and a fan reads "X vs Y" as "X at home".
+            //
+            // The break is explicit: teams on one line, when on the next. The two are separate
+            // facts, and letting them reflow together produced "WAS vs UTA · Wed 9:00…" with the
+            // meridiem — the one part you can't infer — truncated away.
+            let home = fixture.isHome ? fixture.teamAbbreviation : fixture.opponentAbbreviation
+            let away = fixture.isHome ? fixture.opponentAbbreviation : fixture.teamAbbreviation
+            context = "\(home) vs \(away)\n\(Self.kickoffLabel(fixture.kickoff))"
         } else {
             context = "Pick your team's XI"
         }

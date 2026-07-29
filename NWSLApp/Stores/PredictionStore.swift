@@ -48,6 +48,26 @@ final class PredictionStore {
     /// shows it durably between the match scoring and the next.
     private(set) var rankDeltaByTeam: [String: Int]
 
+    /// Fixture ids whose result screen the user has actually seen — drives the "show a fresh result
+    /// once, then it's history" routing (results redesign, 2026-07-28).
+    ///
+    /// ⚠️ PER FIXTURE, never per user and never per club. A single "last results seen" flag would
+    /// mark all three of a weekend's results seen the moment the user opened one of them, and the
+    /// other two reveals would be lost permanently.
+    ///
+    /// Local-only on purpose: it affects nothing ranked and nothing another user sees, so a server
+    /// column per user per match would be storage with no reader. A reinstalled user re-watching one
+    /// reveal is a non-event — the same accepted trade-off `BracketStore.lastResultsSeenRound` makes.
+    private(set) var seenResultFixtureIDs: Set<String>
+
+    /// Fixture ids whose picks have been counted into the community aggregate. A local fast-path
+    /// only: the server's `(user_id, event_id)` mark is the real dedupe, so a wrong value here can
+    /// cause at most a redundant no-op call, never a double count.
+    private(set) var uploadedPickFixtureIDs: Set<String>
+
+    /// Personal bests, season-scoped so a new March resets them.
+    private(set) var seasonBests: PredictSeasonBests
+
     private let defaults: UserDefaults
 
     private enum Key {
@@ -56,16 +76,25 @@ final class PredictionStore {
         static let seasonPoints = "predict.v2.seasonPoints"
         static let rankSnapshots = "predict.v2.rankSnapshots"
         static let rankDeltas = "predict.v2.rankDeltas"
+        static let seenResults = "predict.v2.seenResults"
+        static let uploadedPicks = "predict.v2.uploadedPicks"
+        static let seasonBests = "predict.v2.seasonBests"
     }
 
     /// `defaults` is injectable so tests/previews use an isolated store.
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, season: String = String(AppConfig.currentSeasonYear)) {
         self.defaults = defaults
         self.predictions = Self.decode([String: XIPrediction].self, defaults.data(forKey: Key.predictions)) ?? [:]
         self.scores = Self.decode([String: PredictionScore].self, defaults.data(forKey: Key.scores)) ?? [:]
         self.seasonPoints = defaults.integer(forKey: Key.seasonPoints)
         self.rankSnapshotByTeam = Self.decode([String: RankSnapshot].self, defaults.data(forKey: Key.rankSnapshots)) ?? [:]
         self.rankDeltaByTeam = Self.decode([String: Int].self, defaults.data(forKey: Key.rankDeltas)) ?? [:]
+        self.seenResultFixtureIDs = Self.decode(Set<String>.self, defaults.data(forKey: Key.seenResults)) ?? []
+        self.uploadedPickFixtureIDs = Self.decode(Set<String>.self, defaults.data(forKey: Key.uploadedPicks)) ?? []
+        let storedBests = Self.decode(PredictSeasonBests.self, defaults.data(forKey: Key.seasonBests))
+        self.seasonBests = storedBests?.season == season
+            ? (storedBests ?? .empty(season: season))
+            : .empty(season: season)
     }
 
     // MARK: - Reads
@@ -178,12 +207,86 @@ final class PredictionStore {
 
     /// Commit a complete prediction. One-way: only a complete, not-yet-submitted
     /// prediction can be submitted, and never un-submitted.
-    func submit(fixtureID: String) {
+    ///
+    /// ⚠️ THE DEADLINE IS CHECKED HERE, not only in the view (logic gate #3: gate the ACTION).
+    /// It used to live in `XIPickerView`'s button, which meant a picker left open across the
+    /// deadline could still commit — and once a lineup is public, a "prediction" is a lookup. Now
+    /// every caller shares one gate, and the return value tells the caller whether it actually
+    /// happened so a UI can't celebrate a commit that was refused.
+    @discardableResult
+    func submit(fixtureID: String, before deadline: Date, now: Date = Date()) -> Bool {
+        guard now < deadline else { return false }
         guard var prediction = predictions[fixtureID],
               prediction.state == .draft,
-              prediction.isComplete else { return }
+              prediction.isComplete else { return false }
         prediction.state = .submitted
         predictions[fixtureID] = prediction
+        persist()
+        return true
+    }
+
+    // MARK: - Results seen / reveal / uploads (results redesign)
+
+    func hasSeenResult(fixtureID: String) -> Bool { seenResultFixtureIDs.contains(fixtureID) }
+
+    /// Monotonic by construction — an insert-only set, so a result can never become unseen and a
+    /// reveal can never re-fire for a match the user already watched.
+    func markResultSeen(fixtureID: String) {
+        guard !seenResultFixtureIDs.contains(fixtureID) else { return }
+        seenResultFixtureIDs.insert(fixtureID)
+        persist()
+    }
+
+    /// Scored fixtures whose result the user hasn't opened yet, inside the same current+previous
+    /// soccer-week window the results list renders. Home reads this to decide whether the Predict
+    /// card should lead with "Match final".
+    ///
+    /// ⚠️ The card is a SIGNPOST, not a trigger. It routes into Predict, where the reveal plays
+    /// because the result is unseen — the same code path, no second mechanism. A reveal must never
+    /// fire on entering Home or the Fan Zone: someone opening the Fan Zone to play The Bracket
+    /// should not be shown a Predict animation.
+    func unseenScoredFixtureIDs(currentWeek: Int?) -> [String] {
+        scores.compactMap { key, score in
+            guard !seenResultFixtureIDs.contains(key), predictions[key] != nil else { return nil }
+            if let currentWeek, let week = score.soccerWeek, week < currentWeek - 1 { return nil }
+            return key
+        }
+    }
+
+    func hasUploadedPicks(fixtureID: String) -> Bool { uploadedPickFixtureIDs.contains(fixtureID) }
+
+    func markPicksUploaded(fixtureID: String) {
+        guard !uploadedPickFixtureIDs.contains(fixtureID) else { return }
+        uploadedPickFixtureIDs.insert(fixtureID)
+        persist()
+    }
+
+    /// Raise the season's personal bests. Monotonic (`max`), mirroring the SQL `GREATEST` so a
+    /// stale device can never lower one.
+    func mergeSeasonBests(_ incoming: PredictSeasonBests) {
+        let merged = seasonBests.merged(with: incoming)
+        guard merged != seasonBests else { return }
+        seasonBests = merged
+        persist()
+    }
+
+    /// Drop seen/upload markers for fixtures the app can no longer render anyway. `resultItems` is
+    /// windowed to the current + previous soccer week, so a marker older than that has no reader —
+    /// this is the local twin of the 28-day pg_cron sweep, and it keeps both sets bounded rather
+    /// than growing for every match ever played.
+    func pruneStaleMarkers(currentWeek: Int?) {
+        guard let currentWeek else { return }
+        let live = Set(scores.compactMap { entry -> String? in
+            guard let week = entry.value.soccerWeek else { return entry.key }  // unknowable → keep
+            return week >= currentWeek - 1 ? entry.key : nil
+        })
+        // Keep markers for anything not yet scored too — an open fixture's upload marker matters.
+        let keep = live.union(predictions.keys.filter { scores[$0] == nil })
+        let seen = seenResultFixtureIDs.intersection(keep)
+        let uploaded = uploadedPickFixtureIDs.intersection(keep)
+        guard seen != seenResultFixtureIDs || uploaded != uploadedPickFixtureIDs else { return }
+        seenResultFixtureIDs = seen
+        uploadedPickFixtureIDs = uploaded
         persist()
     }
 
@@ -206,6 +309,9 @@ final class PredictionStore {
         seasonPoints = 0
         rankSnapshotByTeam = [:]
         rankDeltaByTeam = [:]
+        seenResultFixtureIDs = []
+        uploadedPickFixtureIDs = []
+        seasonBests = .empty(season: seasonBests.season)
         persist()
     }
 
@@ -217,6 +323,9 @@ final class PredictionStore {
         defaults.set(seasonPoints, forKey: Key.seasonPoints)
         defaults.set(try? JSONEncoder().encode(rankSnapshotByTeam), forKey: Key.rankSnapshots)
         defaults.set(try? JSONEncoder().encode(rankDeltaByTeam), forKey: Key.rankDeltas)
+        defaults.set(try? JSONEncoder().encode(seenResultFixtureIDs), forKey: Key.seenResults)
+        defaults.set(try? JSONEncoder().encode(uploadedPickFixtureIDs), forKey: Key.uploadedPicks)
+        defaults.set(try? JSONEncoder().encode(seasonBests), forKey: Key.seasonBests)
     }
 
     /// Wipe all local Predict-the-XI progress on account deletion — resets the
@@ -229,6 +338,9 @@ final class PredictionStore {
         seasonPoints = 0
         rankSnapshotByTeam = [:]
         rankDeltaByTeam = [:]
+        seenResultFixtureIDs = []
+        uploadedPickFixtureIDs = []
+        seasonBests = .empty(season: seasonBests.season)
         persist()
     }
 
@@ -238,6 +350,20 @@ final class PredictionStore {
     }
 
     #if DEBUG
+    /// Dev-only: drop one fixture's prediction + score entirely. Exists so the preview scaffold can
+    /// clean up after itself — a seeded score left in the store would be pushed to the real
+    /// leaderboard on the next NORMAL launch, and those rows are max-merged, so it could never be
+    /// taken back down.
+    func debugRemove(fixtureID: String) {
+        guard predictions[fixtureID] != nil || scores[fixtureID] != nil else { return }
+        predictions[fixtureID] = nil
+        scores[fixtureID] = nil
+        seenResultFixtureIDs.remove(fixtureID)
+        uploadedPickFixtureIDs.remove(fixtureID)
+        seasonPoints = scores.values.reduce(0) { $0 + $1.total }
+        persist()
+    }
+
     /// Dev-only: wipe Predict-the-XI progress (drafts, scores, banked season points)
     /// so `-resetOnboarding` simulates a brand-new install (see NWSLAppApp.init).
     /// Static + key-name-aware so it runs before any store instance exists.
@@ -255,6 +381,9 @@ final class PredictionStore {
         defaults.set(0, forKey: Key.seasonPoints)
         defaults.set(Data(), forKey: Key.rankSnapshots)
         defaults.set(Data(), forKey: Key.rankDeltas)
+        defaults.set(Data(), forKey: Key.seenResults)
+        defaults.set(Data(), forKey: Key.uploadedPicks)
+        defaults.set(Data(), forKey: Key.seasonBests)
     }
     #endif
 }

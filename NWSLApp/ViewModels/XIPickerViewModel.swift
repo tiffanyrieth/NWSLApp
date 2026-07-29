@@ -108,15 +108,69 @@ final class XIPickerViewModel {
         slots[slotIndex] = athlete
     }
 
-    /// Beginner-friendly quick-fill: a RANDOM formation + a distinct random player in every
-    /// slot. Truly random by design — position-blind, so a keeper can land up top; it's a
-    /// starting point to tweak, not a suggestion. Leaves the predicted scoreline untouched.
+    /// Beginner-friendly quick-fill: a RANDOM formation + a distinct random player in every slot,
+    /// **drawn from that slot's own position band** — keepers go in goal, defenders in defence, and
+    /// so on. Still random within the band, so a squad with three keepers gives a different one each
+    /// time you re-tap. Leaves the predicted scoreline untouched.
+    ///
+    /// ⚠️ CHANGED 2026-07-28 (owner, after living with it). This used to be POSITION-BLIND on
+    /// purpose — "truly random, a keeper can land up top; a starting point to tweak, not a
+    /// suggestion". In practice that made auto-pick something you had to undo rather than build on,
+    /// so it now respects position. Don't revert it to blind on the strength of the old comment.
+    ///
+    /// The band comes from the same mapping the scorer uses (`PositionGroup`), so an auto-picked XI
+    /// is banded exactly the way the +2 position bonus will judge it.
     func autoPick() {
         guard !readOnly, !roster.isEmpty else { return }
         formation = Formation.common.randomElement() ?? formation
-        let indices = formation.slots.map(\.index)
-        let picks = roster.shuffled().prefix(indices.count)
-        slots = Dictionary(uniqueKeysWithValues: zip(indices, picks))
+
+        var byBand: [PositionGroup: [Athlete]] = [:]
+        for athlete in roster { byBand[Self.band(of: athlete), default: []].append(athlete) }
+        for band in byBand.keys { byBand[band]?.shuffle() }
+
+        var assigned: [Int: Athlete] = [:]
+        var used = Set<String>()
+        var unfilled: [Formation.Slot] = []
+
+        for slot in formation.slots {
+            if let index = byBand[slot.group]?.firstIndex(where: { !used.contains($0.id) }) {
+                let athlete = byBand[slot.group]![index]
+                used.insert(athlete.id)
+                assigned[slot.index] = athlete
+            } else {
+                unfilled.append(slot)
+            }
+        }
+
+        // A band can genuinely run short — a random 5-3-2 against a squad carrying four defenders,
+        // or a thin roster mid-season. Backfill rather than leave a hole: auto-pick's whole promise
+        // is a COMPLETE XI you can then tweak, and a half-filled grid can't even be submitted.
+        // Outfield slots take a non-keeper first, so a spare keeper is the last resort rather than
+        // the first thing that lands up front — the exact outcome this change exists to avoid.
+        if !unfilled.isEmpty {
+            var spare = roster.filter { !used.contains($0.id) }.shuffled()
+            for slot in unfilled {
+                let preferred = slot.group == .gk
+                    ? spare.firstIndex { Self.band(of: $0) == .gk }
+                    : spare.firstIndex { Self.band(of: $0) != .gk }
+                guard let index = preferred ?? (spare.isEmpty ? nil : spare.indices.first) else { break }
+                let athlete = spare.remove(at: index)
+                used.insert(athlete.id)
+                assigned[slot.index] = athlete
+            }
+        }
+
+        slots = assigned
+    }
+
+    /// An athlete's scoring band. Prefers the position ABBREVIATION ("G"/"CB"/"RW"), which is the
+    /// reliable signal and the one `Athlete.isGoalkeeper` trusts; the display name is the fallback
+    /// for the rare payload that omits it.
+    private static func band(of athlete: Athlete) -> PositionGroup {
+        if let abbreviation = athlete.positionAbbreviation, !abbreviation.isEmpty {
+            return PositionGroup.from(abbreviation: abbreviation)
+        }
+        return PositionGroup.from(positionName: athlete.positionName)
     }
 
     func clear(_ slotIndex: Int) {

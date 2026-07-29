@@ -37,8 +37,17 @@ struct PredictXIView: View {
     /// it; defaults to the first board once loaded.
     @State private var selectedTeam: String?
     @State private var showHowTo = false
-    /// A scored match tapped in Recent Results → the per-match detail sheet (Batch 3).
-    @State private var detailItem: PredictXIViewModel.PredictionItem?
+    /// The pushed screen, if any. Keyed by fixtureID rather than the item itself so the value stays
+    /// cheap + Hashable and always resolves against the CURRENT store state.
+    @State private var route: PredictRoute?
+    /// Set once per appearance so the "one unseen result routes straight in" rule fires once and
+    /// doesn't re-push after the user comes back.
+    @State private var didAutoRoute = false
+
+    private enum PredictRoute: Hashable {
+        case result(String)   // fixtureID — the per-match reveal
+        case locked(String)   // fixtureID — the locked wait
+    }
 
     private let accent = Color.dsGamePredict
 
@@ -73,15 +82,64 @@ struct PredictXIView: View {
                 club: { viewModel.club(forAbbreviation: $0) }
             )
         }
-        // The per-match result detail (Batch 3), browsable signed-out — no gate.
-        .sheet(item: $detailItem) { item in
-            PredictMatchResultView(item: item, viewModel: viewModel)
-        }
+        // Pushed, not presented: the results screen owns a reveal, a share affordance and a back
+        // affordance, none of which sit well under a sheet's grabber. Browsable signed-out — no gate.
+        .navigationDestination(item: $route) { destination(for: $0) }
         // Mandatory sign-in + display name to play — gated at the open-fixture tap, so the
         // picker's submit is always signed in. "Go back" cancels (returns to the slate).
         .fanZoneGate(isRequested: $gateRequested, gameName: "Predict the XI", accent: accent) {
             activeFixture = pendingFixture
         }
+    }
+
+    @ViewBuilder
+    private func destination(for route: PredictRoute) -> some View {
+        switch route {
+        case .result(let fixtureID):
+            if let item = viewModel.resultItems(store: store).first(where: { $0.fixture.id == fixtureID }) {
+                PredictMatchResultView(
+                    item: item,
+                    viewModel: viewModel,
+                    nextFixture: nextOpenFixture(excluding: fixtureID),
+                    onPredictNext: { fixture in
+                        self.route = nil
+                        pendingFixture = fixture
+                        gateRequested = true
+                    })
+            }
+        case .locked(let fixtureID):
+            if let item = viewModel.openItems(store: store).first(where: { $0.fixture.id == fixtureID }) {
+                PredictLockedView(item: item, viewModel: viewModel)
+            }
+        }
+    }
+
+    /// The soonest fixture still open for prediction, for the results screen's closing CTA.
+    private func nextOpenFixture(excluding fixtureID: String) -> PredictionFixture? {
+        viewModel.openItems(store: store)
+            .filter { $0.phase == .open && $0.fixture.id != fixtureID }
+            .min { $0.fixture.kickoff < $1.fixture.kickoff }?
+            .fixture
+    }
+
+    /// Results the user hasn't been shown yet, newest first.
+    private var unseenResults: [PredictXIViewModel.PredictionItem] {
+        viewModel.resultItems(store: store).filter { !store.hasSeenResult(fixtureID: $0.fixture.id) }
+    }
+
+    /// ⚠️ ROUTING RULE (mirrors The Bracket's show-results-once ladder):
+    ///   0 unseen → the landing, untouched.
+    ///   1 unseen → straight into that result, so the common single-club case never has to hunt for it.
+    ///   2+       → stay on the landing; the rollup + NEW pills below let the user pick an order.
+    ///              Playing three full reveals back to back would be 30+ seconds of animation.
+    /// Fires only on entering PREDICT — never from Home or the Fan Zone, where a user who came to
+    /// play The Bracket must not be ambushed by a Predict animation.
+    private func autoRouteIfNeeded() {
+        guard !didAutoRoute else { return }
+        didAutoRoute = true
+        let unseen = unseenResults
+        guard unseen.count == 1, let only = unseen.first else { return }
+        route = .result(only.fixture.id)
     }
 
     private func reload() async {
@@ -97,6 +155,10 @@ struct PredictXIView: View {
             if let rank = standing.rank { store.recordRankSnapshot(team: team, currentRank: rank) }
         }
         if selectedTeam == nil { selectedTeam = viewModel.leaderboards.first?.team }
+        // Keep the local seen/upload markers bounded — the recent-results window is the only thing
+        // that can render them, so anything older has no reader (the local twin of the pg_cron sweep).
+        store.pruneStaleMarkers(currentWeek: FanZoneCadence.currentSoccerWeek())
+        autoRouteIfNeeded()
     }
 
     // MARK: - Loaded
@@ -129,7 +191,14 @@ struct PredictXIView: View {
                 }
 
                 if !results.isEmpty {
-                    sectionLabel("Recent results")
+                    // The round rollup sits ABOVE the existing list rather than beside it as a
+                    // separate screen: the shipped "Recent results" section already spans every
+                    // followed club, so a parallel list would be two renderings of the same results.
+                    // What was missing was the rollup, the NEW treatment, and the routing.
+                    roundRollup(results)
+                    sectionLabel(unseenResults.isEmpty
+                                 ? "Recent results"
+                                 : "\(unseenResults.count) new to review")
                     ForEach(results) { resultCard($0) }
                 }
 
@@ -244,6 +313,17 @@ struct PredictXIView: View {
         .padding(.vertical, 24)
     }
 
+    /// "9:00 PM" — the kickoff TIME alone, matching the schedule card's centre column. The day
+    /// belongs to the surrounding context (the card sits under "Open for predictions", and the lock
+    /// line below names the day), so repeating it here only crowded the column.
+    private static let kickoffTimeFormatter: DateFormatter = {
+        let f = DateFormatter(); f.locale = .current; f.timeZone = .current; f.dateFormat = "h:mm a"; return f
+    }()
+
+    private static func kickoffTimeLabel(_ date: Date) -> String {
+        kickoffTimeFormatter.string(from: date)
+    }
+
     /// "Jun 12" — the paused state's reopen date.
     private static let pausedDateFormatter: DateFormatter = {
         let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "MMM d"; return f
@@ -255,8 +335,15 @@ struct PredictXIView: View {
         let fixture = item.fixture
         let colors = fixtureColors(fixture)
         return Button {
-            pendingFixture = fixture
-            gateRequested = true
+            // A SUBMITTED entry goes to the locked wait, not back into the picker. Reopening a
+            // read-only picker was the old behaviour and it's why the hours after submitting felt
+            // empty: there was nowhere for a locked-in prediction to live.
+            if item.phase == .submitted {
+                route = .locked(fixture.id)
+            } else {
+                pendingFixture = fixture
+                gateRequested = true
+            }
         } label: {
             VStack(alignment: .leading, spacing: 14) {
                 matchHeader(fixture, finalScore: nil)
@@ -289,7 +376,7 @@ struct PredictXIView: View {
                 icon: "checkmark.seal.fill",
                 tint: accent,
                 title: "Locked in — \(item.prediction?.formation ?? "")  ·  \(scoreGuessLabel(item))",
-                subtitle: "Submitted · awaiting the result. Tap to review."
+                subtitle: "Submitted · see how the club is picking."
             )
         case .closed:
             statusRow(
@@ -320,6 +407,77 @@ struct PredictXIView: View {
         return "\(p.homeScoreGuess)–\(p.awayScoreGuess)"
     }
 
+    // MARK: - Round rollup
+
+    /// The round's headline across every followed club. Only shown once there are 2+ results in the
+    /// round — for a single match the card below already says everything, and a "rollup" of one is
+    /// just the same number twice.
+    @ViewBuilder
+    private func roundRollup(_ results: [PredictXIViewModel.PredictionItem]) -> some View {
+        let week = FanZoneCadence.currentSoccerWeek()
+        let inRound = results.filter { $0.score?.soccerWeek != nil && $0.score?.soccerWeek == week }
+        if inRound.count >= 2 {
+            let starters = inRound.reduce(0) { $0 + ($1.score?.correctPlayers ?? 0) }
+            let points = inRound.reduce(0) { $0 + ($1.score?.total ?? 0) }
+            let clubs = Set(inRound.map { $0.fixture.teamAbbreviation })
+            let improved = clubs.filter { (store.rankMovement(forTeam: $0) ?? 0) > 0 }.count
+            let superlative = PredictSuperlative.forRound(.init(
+                startersCalled: starters,
+                previousBestStarters: store.seasonBests.hasRoundBaseline ? store.seasonBests.bestRoundStarters : nil,
+                clubsImproved: improved,
+                clubsScored: clubs.count))
+
+            VStack(spacing: 6) {
+                Text("THIS ROUND\(week.flatMap { FanZoneCadence.weekLabel(week: $0) }.map { " · \($0.uppercased())" } ?? "")")
+                    .dsFont(11, weight: .bold).tracking(1.2).foregroundStyle(accent)
+                // Starters called is the hero here too; points are the supporting line.
+                Text("\(starters) of \(inRound.count * 11)")
+                    .dsFont(34, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
+                Text("starters called · +\(points) pts across \(inRound.count) matches")
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                if let superlative {
+                    Text(superlative).dsFont(12, weight: .bold).foregroundStyle(accent)
+                }
+                if let contribution = predictSuperfanLine {
+                    Text(contribution).dsFont(11).foregroundStyle(Color.dsFgTertiary)
+                }
+                // ⚠️ Load-bearing copy, not decoration: points DO aggregate (they're league-wide) but
+                // ranks do NOT (each club board has its own population). Without this line the card's
+                // combined total sitting above per-club movements reads as one merged standing.
+                Text("Points are league-wide. Ranks are per club — each board is scored separately.")
+                    .dsFont(11).foregroundStyle(Color.dsFgTertiary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 18).padding(.horizontal, 16)
+            .background {
+                LinearGradient(colors: [accent.opacity(0.15), Color.dsMdCard],
+                               startPoint: .top, endPoint: .bottom)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(accent.opacity(0.4), lineWidth: 1))
+        }
+    }
+
+    /// Predict's contribution to the Superfan score, derived LOCALLY from the store (Σ correct /
+    /// Σ 11 × scored matches) — the same numerator and denominator `SuperfanCounts` uses, so no extra
+    /// fetch and no chance of the two disagreeing. nil until something has been scored.
+    private var predictSuperfanLine: String? {
+        var correct = 0, matches = 0
+        for (key, score) in store.scores {
+            guard store.prediction(for: key) != nil else { continue }
+            correct += score.correctPlayers
+            matches += 1
+        }
+        guard matches > 0 else { return nil }
+        let accuracy = Double(correct) / Double(matches * 11)
+        return String(format: "Predict → Superfan · %.0f%% season accuracy · %.1f of 25",
+                      accuracy * 100, accuracy * 25)
+    }
+
     // MARK: - Result card
 
     /// Compact recent-result card (Batch 3): crests + FT, your total, a one-line summary, and "See details ›"
@@ -328,11 +486,23 @@ struct PredictXIView: View {
     private func resultCard(_ item: PredictXIViewModel.PredictionItem) -> some View {
         let score = item.score ?? .zero
         let colors = fixtureColors(item.fixture)
-        return Button { detailItem = item } label: {
+        let isUnseen = !store.hasSeenResult(fixtureID: item.fixture.id)
+        return Button { route = .result(item.fixture.id) } label: {
             VStack(alignment: .leading, spacing: 12) {
                 matchHeader(item.fixture, finalScore: item.finalScore)
                 HStack(spacing: 8) {
-                    Text("\(score.total) / 88 pts").dsFont(16, weight: .bold).foregroundStyle(accent)
+                    // Starters called leads; points follow. "46 of 88" is the accounting — nobody
+                    // says it out loud, and it made the card's headline a number that means nothing
+                    // without the scoring model in front of you.
+                    Text("\(score.correctPlayers) of 11 starters").dsFont(16, weight: .bold).foregroundStyle(accent)
+                    if isUnseen {
+                        Text("NEW")
+                            .font(.system(size: 9, weight: .black)).tracking(0.6)
+                            .foregroundStyle(accent)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(accent.opacity(0.2))
+                            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                    }
                     Spacer()
                     HStack(spacing: 3) {
                         Text("See details").dsFont(13, weight: .semibold)
@@ -341,14 +511,36 @@ struct PredictXIView: View {
                     .foregroundStyle(accent)
                 }
                 Text(resultSummaryLine(score)).dsFont(12).foregroundStyle(.secondary)
+                if let movement = rankMovementLine(for: item) {
+                    Text(movement.text).dsFont(11, weight: .semibold).foregroundStyle(movement.color)
+                }
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background { TeamWashBackground(base: .dsMdCard, home: colors.home, away: colors.away) }
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            // An unseen result reads as NEW, not as history.
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(isUnseen ? accent.opacity(0.4) : .clear, lineWidth: 1)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    /// Per-CLUB rank movement for a result row.
+    ///
+    /// ⚠️ Ranks never aggregate across clubs. Washington #12→#8 and Angel City #34→#31 are different
+    /// boards with different populations, so each row carries its own club's movement and there is
+    /// deliberately no combined rank or combined delta anywhere on this screen.
+    private func rankMovementLine(for item: PredictXIViewModel.PredictionItem) -> (text: String, color: Color)? {
+        let team = item.fixture.teamAbbreviation
+        guard let delta = store.rankMovement(forTeam: team), delta != 0 else { return nil }
+        let name = viewModel.teamLabel(team)
+        return delta > 0
+            ? ("\(name): ↑\(delta) since your last scored match", .dsSuccess)
+            : ("\(name): ↓\(abs(delta)) since your last scored match", .dsError)
     }
 
     /// The one-line summary on a recent-result card: "8/11 starters · formation ✓ · score ✗".
@@ -363,18 +555,28 @@ struct PredictXIView: View {
         let awayAbbr = fixture.isHome ? fixture.opponentAbbreviation : fixture.teamAbbreviation
         return HStack(spacing: 12) {
             teamColumn(homeAbbr, color: teamColor(homeAbbr))
+            // The centre column mirrors the SCHEDULE card (MatchCard): a small tracked "KICKOFF"
+            // eyebrow over a large cyan time. The old version read "VS" over a jammed
+            // "Wed, Jul 29 · 9:00 PM" that wrapped into two cramped lines — and "vs" is redundant
+            // when two crests already flank it. The date lives on the section/label context; what a
+            // fan needs here is the time, at a glance.
             VStack(spacing: 4) {
                 if let final = finalScore {
                     Text("\(final.home)–\(final.away)").dsFont(20, weight: .heavy)
-                    Text("FT").dsFont(11, weight: .bold).foregroundStyle(.secondary)
+                    Text("FT").dsFont(11, weight: .bold).foregroundStyle(Color.dsStateFinal)
                 } else {
-                    Text("VS").dsFont(12, weight: .bold).foregroundStyle(.secondary)
-                    Text(Self.kickoffLabel(fixture.kickoff))
-                        .dsFont(11, weight: .semibold)
-                        .foregroundStyle(accent)
+                    Text("KICKOFF")
+                        .dsFont(11, weight: .bold).tracking(0.6)
+                        .foregroundStyle(Color.dsStateKickoff)
+                    Text(Self.kickoffTimeLabel(fixture.kickoff))
+                        .dsFont(22, weight: .bold, design: .rounded, monospacedDigit: true)
+                        .foregroundStyle(Color.dsStateKickoff)
+                        // At larger text the time would outgrow the column and clip ("9:00…").
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                 }
             }
-            .frame(minWidth: 84)
+            .frame(minWidth: 96)
             teamColumn(awayAbbr, color: teamColor(awayAbbr))
         }
         .frame(maxWidth: .infinity)
@@ -414,7 +616,7 @@ struct PredictXIView: View {
     // MARK: - Season card + team chips (Competitive Redesign)
 
     /// The competitive-identity card for the selected club: a season-AVERAGE ring (avg points per match,
-    /// as a share of the 88 max), the average + match count, the club rank, and "↑ N since last match"
+    /// as a share of the per-match max), the average, the club rank, and "↑ N since last match"
     /// movement. Average is nil (shows "—") until a prediction has been scored — never faked. (Batch 3:
     /// the board + card moved off cumulative points, which inflate to four digits mid-season, onto the
     /// per-match average, which stays comparable all season.)
@@ -428,7 +630,7 @@ struct PredictXIView: View {
             HStack(spacing: 14) {
                 ZStack {
                     Circle().stroke(Color.dsBgTertiary, lineWidth: 5)
-                    Circle().trim(from: 0, to: (avg ?? 0) / 88)   // avg as a share of the 88-pt per-match max
+                    Circle().trim(from: 0, to: (avg ?? 0) / Double(PredictionScore.maxPerMatch))   // avg as a share of the per-match max
                         .stroke(accent, style: StrokeStyle(lineWidth: 5, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                     Text(avg.map { "\(Int($0.rounded()))" } ?? "—")
@@ -438,11 +640,24 @@ struct PredictXIView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("SEASON AVERAGE").dsFont(11, weight: .bold).tracking(1.2).foregroundStyle(accent)
                     if let avg {
-                        Text("\(String(format: "%.1f", avg)) avg · \(matches) match\(matches == 1 ? "" : "es")")
+                        // ⚠️ NO MATCH COUNT (2026-07-28). It used to read "49.6 avg · 12 matches" and
+                        // the count was called the credibility stat. It's gone from here AND from every
+                        // board row: it shames in two directions — marking a new player as new and a
+                        // committed one as over-invested — and it annotates the small-sample distortion
+                        // without fixing it. The distortion self-corrects as people play, which in a fan
+                        // game is the point: the board is meant to move.
+                        Text("\(String(format: "%.1f", avg)) avg")
                             .dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
                         if let rank = standing?.rank, let total = standing?.total {
                             Text("#\(rank) of \(total) \(teamName) predictor\(total == 1 ? "" : "s")")
                                 .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                        }
+                        // The next rung. A standing with no ladder gives the user nowhere to go —
+                        // "#8 of 20" says where you are, this says what's next, and it's a real gap to
+                        // a real person rather than a synthetic threshold. Rendered only when the row
+                        // above is actually in hand; never estimated.
+                        if let rung = nextRungText(team: team, myAvg: avg) {
+                            Text(rung).dsFont(12, weight: .semibold).foregroundStyle(accent)
                         }
                     } else {
                         Text("Predict \(teamName)'s XI to join the board")
@@ -462,6 +677,22 @@ struct PredictXIView: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(accent.opacity(0.35)))
+    }
+
+    /// "0.4 behind CapitalKick at #7" — the gap to the person one place above, from the rows already
+    /// fetched for the board. Returns nil at the top of the board (nothing above), and nil when the
+    /// user sits outside the fetched window, because then there IS no neighbouring row to name and
+    /// naming one would be fabricated. An honest "#412 of 3,104" with no rung beats an invented target.
+    private func nextRungText(team: String, myAvg: Double) -> String? {
+        guard let rows = viewModel.leaderboards.first(where: { $0.team == team })?.rows,
+              let me = rows.first(where: { $0.isYou }) else { return nil }
+        guard let above = rows
+            .filter({ !$0.isYou && $0.rank < me.rank })
+            .max(by: { $0.rank < $1.rank }),
+            let aboveAvg = above.avg else { return nil }
+        let gap = aboveAvg - myAvg
+        guard gap > 0 else { return nil }
+        return String(format: "%.1f behind %@ at #%d", gap, above.name, above.rank)
     }
 
     /// "↑ N since last match" / "↓ N …" — nil when there's no movement to show (no prior match, or no change).
@@ -523,14 +754,14 @@ struct PredictXIView: View {
 
                     Text("HOW POINTS WORK").dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(accent)
                     VStack(spacing: 6) {
-                        predictPointRow("Each correct starter", "+3")
-                        predictPointRow("Right position band for a correct pick", "+2")
-                        predictPointRow("Correct formation", "+5")
-                        predictPointRow("Exact final score", "+10")
-                        predictPointRow("Right result (win / draw / loss)", "+3")
-                        predictPointRow("Perfect XI — all 11 right", "+15")
+                        predictPointRow("Each correct starter", "+\(PredictionScore.playerPoints)")
+                        predictPointRow("Right position band for a correct pick", "+\(PredictionScore.positionPoints)")
+                        predictPointRow("Correct formation", "+\(PredictionScore.formationPointsValue)")
+                        predictPointRow("Exact final score", "+\(PredictionScore.scorelinePointsValue)")
+                        predictPointRow("Right result (win / draw / loss)", "+\(PredictionScore.resultPointsValue)")
+                        predictPointRow("Perfect XI — all 11 right", "+\(PredictionScore.perfectPointsValue)")
                         Divider().overlay(Color.dsFgQuaternary)
-                        predictPointRow("Most possible in one match", "88 pts", bold: true)
+                        predictPointRow("Most possible in one match", "\(PredictionScore.maxPerMatch) pts", bold: true)
                     }
 
                     // Fix 6 — the two score-related lines are easy to confuse, so spell out the difference.
@@ -549,8 +780,10 @@ struct PredictXIView: View {
         .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    /// One "how points work" row for the Predict rules (label — value). Values transcribed from
-    /// `PredictionScore` (Batch-2 Fix 4B — rules match the scorer, not a guess).
+    /// One "how points work" row for the Predict rules (label — value). Values are READ FROM
+    /// `PredictionScore`'s weight constants, not transcribed (Batch-2 Fix 4B wanted "rules match the
+    /// scorer, not a guess"; since 2026-07-28 they cannot disagree at all). This screen is a
+    /// published contract — logic gate #7 — so a scoring change must move this text with it.
     private func predictPointRow(_ label: String, _ value: String, bold: Bool = false) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(label).dsFont(13, weight: bold ? .semibold : .regular)
@@ -614,15 +847,13 @@ struct PredictXIView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                     Spacer()
-                    // Season board ranks by AVERAGE per match (+ match count as the credibility stat);
-                    // the round board shows the week's raw points (Batch 3).
+                    // Season board ranks by AVERAGE per match; the round board shows the week's raw
+                    // points. The match count that used to sit under the average was removed
+                    // 2026-07-28 — see the season card for the reasoning. `LeaderboardRow.matches`
+                    // is still fetched (it derives the average server-side); it just isn't displayed.
                     if let avg = row.avg {
-                        VStack(alignment: .trailing, spacing: 1) {
-                            Text(String(format: "%.1f avg", avg))
-                                .dsFont(15, weight: .semibold).foregroundStyle(row.isYou ? accent : .secondary)
-                            Text("\(row.matches ?? 0) match\(row.matches == 1 ? "" : "es")")
-                                .dsFont(11).foregroundStyle(.tertiary)
-                        }
+                        Text(String(format: "%.1f avg", avg))
+                            .dsFont(15, weight: .semibold).foregroundStyle(row.isYou ? accent : .secondary)
                     } else {
                         Text("\(row.points) pts").dsFont(15, weight: .semibold).foregroundStyle(.secondary)
                     }

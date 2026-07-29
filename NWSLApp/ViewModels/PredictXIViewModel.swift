@@ -108,6 +108,18 @@ final class PredictXIViewModel {
             ? findNextOpening(matches: matches, clubs: clubs, following: following)
             : nil
 
+        #if DEBUG
+        // TEMP dev-only preview scaffold (`-debugPredictResult`) — see DebugPredictSeed.
+        // Purge FIRST: a normal launch must clear anything a previous seeded run left behind before
+        // loadLeaderboards can push it to the real, max-merged leaderboard row.
+        DebugPredictSeed.purgeIfInactive(store: store)
+        await DebugPredictSeed.seed(
+            events: Array(eventsByID.values),
+            teams: Set(upcomingFixtures.map(\.teamAbbreviation)).union(store.scoredTeams),
+            fetchSummary: { try await self.service.fetchSummary(eventID: $0) },
+            store: store)
+        #endif
+
         await scoreSettledSubmissions(store: store)
         await loadLeaderboards(store: store, auth: auth)
 
@@ -243,9 +255,19 @@ final class PredictXIViewModel {
         let actualStarters: [(id: String, group: PositionGroup)]   // the real XI, in lineup order
         let actualFormation: String?
         let names: [String: String]                                 // athleteID → full name
+        /// athleteID → position band, from the ROSTER (the only source for someone who didn't
+        /// start). Lets the band panels show "the crowd's wrong calls" in the right line.
+        let groupsByID: [String: PositionGroup]
         let roundRank: Int?
         let roundTotal: Int
         let weekLabel: String?
+        /// The full answer key. Carried so the results screen can re-derive PER-PICK detail (which
+        /// picks started, and which started in a different BAND) — `PredictionScore` persists only
+        /// aggregate counts, and widening it would change a Codable shape on every device to cache
+        /// something this screen recomputes for free. See `PredictResultDerivation`.
+        let actual: ActualResult?
+        /// Full club name for copy that names the club ("Ahead of 71% of Washington").
+        let clubName: String?
     }
 
     func matchResultDetail(for item: PredictionItem, store: PredictionStore, auth: AuthStore) async -> MatchResultDetail? {
@@ -254,6 +276,15 @@ final class PredictXIViewModel {
         // Names: the team roster covers every predicted pick + actual starter (all this-season squad members).
         let squad = await roster(forTeam: team)
         let names = Dictionary(squad.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+        let groups = Dictionary(squad.map { athlete -> (String, PositionGroup) in
+            let band: PositionGroup
+            if let abbr = athlete.positionAbbreviation, !abbr.isEmpty {
+                band = PositionGroup.from(abbreviation: abbr)
+            } else {
+                band = PositionGroup.from(positionName: athlete.positionName)
+            }
+            return (athlete.id, band)
+        }, uniquingKeysWith: { first, _ in first })
         do {
             let summary = try await service.fetchSummary(eventID: prediction.eventID)
             guard let actual = ActualResult.make(from: summary, isHome: item.fixture.isHome,
@@ -273,8 +304,9 @@ final class PredictXIViewModel {
             }
             return MatchResultDetail(
                 actualStarters: actual.starters.map { ($0.athleteID, $0.group) },
-                actualFormation: actual.formation, names: names,
-                roundRank: roundRank, roundTotal: max(roundTotal, roundRank ?? 0), weekLabel: weekLabel)
+                actualFormation: actual.formation, names: names, groupsByID: groups,
+                roundRank: roundRank, roundTotal: max(roundTotal, roundRank ?? 0), weekLabel: weekLabel,
+                actual: actual, clubName: club(forAbbreviation: team)?.displayName)
         } catch {
             Diagnostics.shared.record(.apiFailure, "predict result detail \(prediction.eventID): \(error.localizedDescription)")
             return nil
@@ -339,7 +371,16 @@ final class PredictXIViewModel {
     private func loadLeaderboards(store: PredictionStore, auth: AuthStore) async {
         let season = Self.currentSeason
 
-        if let userID = auth.userID {
+        #if DEBUG
+        // ⚠️ A seeded result is FAKE, and both `prediction_scores` and `predict_season_bests` are
+        // max-merged — one fake push would raise the real row permanently, with no way back down.
+        // So the preview scaffold reads the boards but never writes to them.
+        let allowServerWrites = !DebugPredictSeed.isActive
+        #else
+        let allowServerWrites = true
+        #endif
+
+        if let userID = auth.userID, allowServerWrites {
             for team in store.scoredTeams {
                 await leaderboardService.upsertScore(
                     teamAbbreviation: team, points: store.points(forTeam: team),

@@ -393,7 +393,7 @@ struct BracketLeaderboardView: View {
                 Capsule().fill(accent).frame(width: geo.size.width * CGFloat(min(max(fraction, 0), 1)))
             }
         }
-        .frame(height: 6)
+        .frame(height: 10)
     }
 
     private func pct(_ v: Double) -> String { "\(Int((v * 100).rounded()))%" }

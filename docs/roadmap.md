@@ -1,5 +1,78 @@
 # Roadmap / What's Next
 
+> ### 📏 PHONE-SIZED, NOT PREVIEW-SIZED — community bars + small type (owner, 2026-07-28)
+> Caught reviewing Predict's fan-picks bars: they shipped as a **4pt-tall bar in a fixed 70pt slot
+> with an 11pt fixed-size percentage**. That reads fine in a design tool on a desktop and is squinty
+> in a hand. Fixed for Predict (10pt bar, flexible width, `.dsFont` percentages that scale with
+> Dynamic Type).
+>
+> **⚠️ KNOW HER GAME HAS THE SAME PROBLEM** — its community-results bars (`CommunityResultsView`,
+> shared with NWSL Trivia) are on the small side in exactly the same way. Deliberately NOT fixed in
+> the Predict pass to keep that change focused; it's a small, self-contained edit whenever a
+> community-games session comes up. NWSL Trivia inherits the fix for free (same component).
+>
+> **The general lesson worth keeping:** an 11pt font and a 4pt bar are a *tool* default, not a
+> phone-reading size. When sizing anything a user has to read or compare at arm's length, size it
+> for the device — and prefer `.dsFont` over `.font(.system(size:))` so Dynamic Type can rescue it.
+>
+> **✅ DONE 2026-07-28 — the DATA-BAR sweep.** Every bar the reader is meant to COMPARE is now 10pt
+> (7pt in the compact Fan Zone carousel card, where a full-size bar would dominate): Predict's
+> fan-picks + locked-XI bars, `CommunityResultsView` (fixes Know Her Game AND NWSL Trivia in one —
+> was 60×6 with an 11pt fixed percentage while the LABEL took all the flexible width), Match Detail's
+> `StatComparisonBar`, both Superfan bars, the Bracket leaderboard's accuracy bar and its
+> picks-made progress. Bars in Predict + the community panel are now `Grid`-aligned so they share a
+> common left edge — ragged edges make lengths incomparable, which is the entire job of a bar.
+> Deliberately NOT touched: status dots (5–7pt live/bullet indicators), tab underlines (2pt), and the
+> `ThumbnailContentCard` team-colour stripe (3pt) — none are data the reader compares.
+>
+> **⚠️ STILL OPEN — the broader TYPE audit.** 151 uses of `.dsFont(10/10.5/11)` remain app-wide.
+> **26 are the deliberate tracked-caps eyebrow motif** (`trackedCaps(size: 11)` — small caps with
+> tracking read larger than their point size, and it's a consistent DS motif) and should stay. The
+> other ~125 are mostly legitimately-secondary captions, but some are certainly too small. That is a
+> screen-by-screen judgement pass across ~40 files, not a find-and-replace — doing it blind would
+> risk breaking layouts that were tuned around the current sizes. Worth its own session with the
+> AX1-cap revisit in the accessibility workstream.
+
+> ### 🎬 PREDICT STAGE 1 — results at LINEUP DROP (deferred by owner decision 2026-07-28)
+> The redesigned results screen ships against FULL TIME only. The handoff also specified a two-stage
+> timeline: 75 of the 88 points (players, positions, formation, perfect XI) resolve when the real
+> lineup drops ~90 minutes before kickoff, and only the last 13 (exact score, result) wait for full
+> time. Opening the screen at lineup drop is the moment the game is *named* for.
+>
+> Deferred as one pass, not dropped — the current build is structured so it drops in:
+> - Per-pick detail is already derived TRANSIENTLY (`PredictResultDerivation`), not persisted, so a
+>   pre-full-time render needs no new storage.
+> - `PredictionScore` is untouched and still only written at full time.
+>
+> ⚠️ **THE TRAP TO RESPECT WHEN BUILDING IT.** A partial score must NEVER reach
+> `PredictionStore.recordScore`: that increments `scoredMatchCount`, which is the denominator of
+> `avg_points`, which is what the season board ranks on. Writing a stage-1 score would silently
+> corrupt every user's rank. Stage 1 must be display-only, computed in the VM.
+>
+> Still to decide (both were open in the handoff):
+> - **What triggers it.** Fetch-on-open is simplest and matches the existing on-demand `/summary`
+>   pattern; anything more eager costs Cloudflare requests, the metered resource. ⚠️ Whatever fetches
+>   inside the pre-kickoff window MUST send `w=near` (the cache-key window bucket), or a stale empty
+>   pre-lineup shell can mask a posted XI. The current results fetch deliberately does NOT send it —
+>   it only ever reads a finished match, where `w=near` would just cost cache hits.
+> - **Whether to push at lineup drop.** The moment with the most pull; the app has matchday push
+>   limits to respect, and it would need its own opt-in.
+> - `PredictionScore`'s four Bools can't express "pending" (false is indistinguishable from unresolved),
+>   so the pending rows need a separate transient type.
+
+> ### 🐞 THE BRACKET — "top 94%" reads as praise and means near-last (found 2026-07-28)
+> `resultsRankLine` computes `topPercent = rank / total * 100`, so rank 30 of 32 renders
+> **"You're in the top 94%"** in the accent colour, as if it were an achievement. Three problems:
+> the wording is inverted (Overwatch never said "top 94%" — it said *Bronze*), and the `max(1, …)`
+> guard only protects the good end.
+>
+> ⚠️ **Four call sites, not one** — fix together or the inconsistency spreads:
+> `BracketBattleView.swift:411`, `:527`, `:699`, and `BracketLeaderboardView.swift:163`.
+>
+> Predict adopted the replacement on 2026-07-28: state the POPULATION ("#8 of 20") and, where a
+> neighbouring row is actually in hand, the next rung ("0.4 behind CapitalKick at #7"). Found while
+> building that; out of scope for the Predict handoff, logged here rather than silently widened.
+
 > ### 🔐 MULTI-DEVICE / DUPLICATE-ACCOUNT INTEGRITY (owner 2026-07-27) — no false numbers, ever
 > Trigger: the simulator signed in with the owner's Apple ID appeared to disturb her real Superfan data.
 > Owner's (correct) instinct: **this matters far beyond the sim.** A real user gets a new phone, signs in

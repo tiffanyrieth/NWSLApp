@@ -94,9 +94,31 @@ aggregates, and restore.** Local writes always succeed first; every network step
 | Trivia counters (lifetime/season/streak) | `TriviaStore` | `fanzone_progress` | Aggregates, not history |
 | KHG per-edition scores | `KnowHerGameStore.scores` (all season) | `fanzone_progress` (season totals) | + `previousPool` for last-round review |
 | Quiz per-question answers | — | `quiz_answers` | Feeds community splits; pruned >35d |
-| Predict lineups (the 11 picks) | `PredictionStore` | **never uploaded** | Deliberate — no value server-side |
+| Predict lineups (the 11 picks) | `PredictionStore` | **never uploaded** | Deliberate. The community aggregate below needs COUNTS, not lineups — see the note under this table |
+| Predict community pick counts | — | `predict_pick_counts` / `predict_match_submissions` (NO `user_id`) | Aggregate only; flat in user count; pruned >28d |
+| Predict submission dedupe mark | — | `predict_submission_marks` (user, event) | Records THAT you submitted, never WHAT; pruned >28d |
+| Predict results-seen flags | `PredictionStore` (`predict.v2.*`) | — | Pure presentation state; a reinstall re-shows one reveal, which is a non-event |
+| Predict season bests | `PredictionStore` | `predict_season_bests` (user, season) | The superlative ladder's thresholds; `GREATEST`-merged, never pruned |
 | Predict season points + scored-match count | `PredictionStore` | `prediction_scores` (user, team, season) — `points`, `matches`, `avg_points` | Board ranks by `avg_points`; see §4 |
 | Predict round points | derived from `PredictionScore.soccerWeek` | `predict_round_scores` (+week) | Pruned >28d |
+
+> **⚠️ How the community percentages exist without uploading anyone's XI (2026-07-28).** The share
+> bars, consensus XI, standout picks and contrarian panel all need *how many of a club's predictors
+> picked each player*. The obvious implementation — upload every lineup — is forbidden twice over:
+> it reverses the row above, and at 100k users it is exactly the per-user-per-round growth the
+> storage budget can't absorb. So the app calls `predict_record_picks`, a SECURITY DEFINER RPC that
+> increments counters and **discards the lineup**. Size is bounded by *squad × slots × matches*
+> (~150 rows/match), identical whether 100 people play or 100,000.
+>
+> Two properties are worth knowing before touching any of it:
+> - **Idempotency is a server-side primary key**, `(user_id, event_id)` in `predict_submission_marks`
+>   — not a local flag, which would fail on a reinstall or a lost response.
+> - **Reads are deadline-gated by the PROXY, not by Postgres or the app.** Percentages readable while
+>   people are still picking would let users copy the consensus and flatten the distribution every
+>   other feature depends on. Postgres has no idea when kickoff is; the device clock is the user's.
+>   `GET /predict/community` knows kickoff from its own cached `/summary`, serves only a submission
+>   count before kickoff − 2h, and **fails closed**. A `closes_at` written solely by the proxy also
+>   stops a modified client slipping a post-lineup XI into a pre-summed counter.
 | Bracket picks | `BracketStore` (per edition+round) | `bracket_votes` | Votes ARE the game mechanic |
 | Bracket points / stats / final rank | small cache | `bracket_scores`, `bracket_user_edition_stats` | Record book, kept forever |
 | Superfan counts + tier | — | `superfan_scores` (per-game correct/attempted counts + tier) | 0–100 economy; see §6 |
@@ -283,6 +305,8 @@ The app can't render anything older, so the database holding it is storage with 
 |---|---|---|
 | `quiz_answers` | ~35 days (current + previous round + margin) | pg_cron, daily |
 | `predict_round_scores` | ~28 days | pg_cron, daily |
+| `predict_pick_counts` / `predict_match_submissions` | ~28 days | pg_cron, daily |
+| `predict_submission_marks` | ~28 days | pg_cron, daily (submit is one-way, so an old mark has nothing left to dedupe) |
 | `bracket_votes` | current + finished edition (through the review window) | the engine, at the NEXT edition's START |
 | Record book (`*_scores`, `*_stats`, `fanzone_progress`, `superfan_scores`, `season_history`, `user_achievements`) | **forever** | never — one tiny row per user |
 

@@ -108,11 +108,16 @@ struct FanZoneCarouselCard: View {
                     .foregroundStyle(Color.dsFgPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
+                // Wrap into the slack that already exists between here and the status line, rather
+                // than shrinking. This was one line with `.minimumScaleFactor(0.8)`, so a long
+                // context ("Most Likely to Coach in 10 Years") first shrank to ~9pt AND still
+                // truncated — the worst of both. The card's own height is untouched: two lines fit
+                // in the gap the Spacer was already leaving above the status row.
                 Text(model.contextLine)
                     .dsFont(11)
                     .foregroundStyle(Color.dsFgSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 6)
             statusRow
@@ -192,7 +197,9 @@ struct SuperfanCard: View {
                     Capsule().fill(tier.color).frame(width: max(0, geo.size.width * progress.fraction))
                 }
             }
-            .frame(height: 4)
+            // 7, not 10: this sits in a compact 152pt carousel card where a full-size bar would
+            // dominate — but 4pt was invisible.
+            .frame(height: 7)
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 128, alignment: .leading)

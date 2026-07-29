@@ -79,7 +79,7 @@
 > reports that after signing into the sim, her phone's Superfan total **doubled** (e.g. 30 → 60) on the
 > next refresh. This matters far beyond the sim: it's the same shape as a user getting a new phone.
 >
-> **✅ SOLVED + PROVEN — the duplicate "Tiffany" rows are a RENDER bug, not two accounts.**
+> **✅ FIXED 2026-07-29 (#195, reaches testers in build 31) — the duplicate rows were a RENDER bug, not two accounts.**
 > The 2026-07-27 entry concluded "two rows = two distinct `user_id`s". **That was wrong.** Direct query
 > of `prediction_scores` (WAS/2026, display_name=Tiffany) returns **exactly ONE row**, while the sim
 > renders **two** (confirmed via the accessibility tree, 2026-07-29). One row, drawn twice.
@@ -92,7 +92,8 @@
 > The compare can never match, so the user's own server row is never removed from `rivals` — and then
 > her live "You" row is spliced in beside it. `BracketService.swift:178` already guards exactly this
 > (`myUserID?.uuidString.lowercased()`, commented "never double the user"); Predict is the only board
-> that forgot. **One-line fix: lowercase both sides.**
+> that forgot. **Fixed by lowercasing both sides**, matching Bracket. Verified in-sim: two rows before,
+> one after.
 >
 > ⚠️ **The seed `--purge` does NOT fix this** (owner asked, 2026-07-29). Purge deletes
 > `@seed.nwslapp.test` accounts and cascades their rows; there is no second account here to delete. It

@@ -41,8 +41,6 @@ struct PredictMatchResultView: View {
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
 
     @State private var model = PredictResultViewModel()
-    /// Which band panels are expanded ("See how fans picked").
-    @State private var expandedBands: Set<PositionGroup> = []
 
     private let accent = Color.dsGamePredict
 
@@ -109,8 +107,15 @@ struct PredictMatchResultView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(16)
-        .background(Color.dsMdCard)
+        // The two-team club-color wash — the SAME treatment every match-results surface wears
+        // (schedule cards, the Predict landing's fixture/result cards), so this screen reads as
+        // part of the app rather than its own thing (owner branding + anti-drift call).
+        .background { TeamWashBackground(base: .dsMdCard, home: teamColor(homeAbbr), away: teamColor(awayAbbr)) }
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+    }
+
+    private func teamColor(_ abbreviation: String) -> Color {
+        Color.teamColor(for: abbreviation, liftOnDark: true, fallback: .dsFgSecondary)
     }
 
     private func crestColumn(_ abbr: String) -> some View {
@@ -132,31 +137,14 @@ struct PredictMatchResultView: View {
 
     // MARK: - Pitch
 
-    /// One non-wrapping row: what's landing on the left, the control on the right.
+    /// The caption naming what's landing. No Skip, no Replay (owner cut, second review): the
+    /// reveal is ~3 seconds and appears only here — controls for it were more chrome than the
+    /// animation is long. It simply plays each time (Reduce Motion / VoiceOver land revealed).
     private var revealCaptionRow: some View {
-        HStack(spacing: 8) {
-            Text(model.revealCaption.uppercased())
-                .dsFont(12, weight: .bold).tracking(0.6)
-                .foregroundStyle(model.isRevealing ? accent : Color.dsFgSecondary)
-                .lineLimit(1).truncationMode(.tail)
-            Spacer(minLength: 0)
-            if model.isRevealing {
-                Button("Skip") { model.skipReveal() }
-                    .dsFont(12, weight: .semibold)
-                    .foregroundStyle(Color.dsFgSecondary)
-                    .fixedSize()
-            } else {
-                Button { model.replayReveal() } label: {
-                    Label("Replay", systemImage: "arrow.counterclockwise")
-                        .dsFont(12, weight: .semibold)
-                        .foregroundStyle(accent)
-                        .fixedSize()
-                }
-                // Promoted to a pill when auto-play was suppressed (Reduce Motion, VoiceOver, or
-                // the fourth-plus view of the season) so the animation stays discoverable.
-                .modifier(ReplayPillStyle(enabled: model.revealIsOptIn, accent: accent))
-            }
-        }
+        Text(model.revealCaption.uppercased())
+            .dsFont(12, weight: .bold).tracking(0.6)
+            .foregroundStyle(model.isRevealing ? accent : Color.dsFgSecondary)
+            .lineLimit(1).truncationMode(.tail)
     }
 
     private var pitch: some View {
@@ -379,20 +367,20 @@ struct PredictMatchResultView: View {
         )
     }
 
-    // MARK: - How the fans picked (per-band panels, Bracket grammar)
+    // MARK: - How the fans picked (per-band, always visible)
     //
-    // Numbers are HIDDEN until a band is expanded, and every expansion carries its own label — the
-    // Bracket's "% is never shown until you open it" rule, adopted here after the owner review.
-    // Every line uses the SAME ranked ownership bars, goalkeeper included: a GK donut was built and
-    // cut for format consistency (see BandPanel.entries for the full reasoning).
+    // Presented open (owner call, second review — hiding it behind four "See how fans picked"
+    // taps just made everyone tap four times). Labeled ONCE for the whole section: the subtitle
+    // says where the numbers come from and what the bars mean, so no percentage floats.
 
     @ViewBuilder
     private var fanPicksSection: some View {
         if !model.bandPanels.isEmpty, let community = model.community {
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel("HOW \(clubLabel.uppercased()) FANS PICKED")
-                Text("From \(community.submissions) fans' predictions for this match")
+                Text("From \(community.submissions) fans' predictions · bars show the % of fans who had her in their XI")
                     .dsFont(11).foregroundStyle(Color.dsFgTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
                 ForEach(model.bandPanels) { panel in
                     bandPanelCard(panel)
                 }
@@ -401,35 +389,13 @@ struct PredictMatchResultView: View {
     }
 
     private func bandPanelCard(_ panel: PredictResultViewModel.BandPanel) -> some View {
-        let expanded = expandedBands.contains(panel.group)
-        return VStack(alignment: .leading, spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    if expanded { expandedBands.remove(panel.group) } else { expandedBands.insert(panel.group) }
-                }
-            } label: {
-                HStack {
-                    Text(bandTitle(panel.group)).dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
-                    Spacer()
-                    Text(expanded ? "Hide the numbers" : "See how fans picked")
-                        .dsFont(11, weight: .bold).foregroundStyle(accent)
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                        .dsFont(11).foregroundStyle(accent)
-                }
-                .padding(.horizontal, 14).padding(.vertical, 13)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if expanded {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(panel.entries) { entry in barRow(entry) }
-                    Text("% of \(clubLabel) fans who had her in their XI")
-                        .dsFont(10.5).foregroundStyle(Color.dsFgTertiary)
-                }
-                .padding(.horizontal, 14).padding(.bottom, 13)
-            }
+        VStack(alignment: .leading, spacing: 8) {
+            Text(bandTitle(panel.group).uppercased())
+                .dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(Color.dsFgTertiary)
+            ForEach(panel.entries) { entry in barRow(entry) }
         }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.dsMdCard)
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
     }
@@ -540,22 +506,4 @@ struct PredictMatchResultView: View {
         f.dateFormat = "EEE h:mm a"
         return f
     }()
-}
-
-/// Promotes the Replay control to a bordered pill when the reveal didn't auto-play.
-private struct ReplayPillStyle: ViewModifier {
-    let enabled: Bool
-    let accent: Color
-
-    func body(content: Content) -> some View {
-        if enabled {
-            content
-                .padding(.horizontal, 11).padding(.vertical, 5)
-                .background(accent.opacity(0.12))
-                .clipShape(Capsule())
-                .overlay(Capsule().strokeBorder(accent.opacity(0.5), lineWidth: 1))
-        } else {
-            content
-        }
-    }
 }

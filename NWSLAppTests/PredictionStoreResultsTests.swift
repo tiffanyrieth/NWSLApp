@@ -2,8 +2,7 @@
 //  PredictionStoreResultsTests.swift
 //  NWSLAppTests
 //
-//  The local state behind Predict the XI's show-a-result-once routing, the reveal's auto-play budget,
-//  and the submit deadline.
+//  The local state behind Predict the XI's show-a-result-once routing, and the submit deadline.
 //
 //  ⚠️ THE BUG THESE EXIST TO PREVENT: seen-tracking has to be PER FIXTURE. A single "last results
 //  seen" flag — the obvious implementation, and what The Bracket can get away with because it has
@@ -103,27 +102,6 @@ struct PredictionStoreResultsTests {
         #expect(store.hasUploadedPicks(fixtureID: "open-WAS"))
     }
 
-    // MARK: - Reveal auto-play budget
-
-    @Test func revealAutoPlaysForTheFirstThreeOfTheSeasonThenStops() {
-        let store = freshStore()
-        for _ in 0..<3 {
-            #expect(store.shouldAutoPlayReveal())
-            store.noteRevealAutoPlayed()
-        }
-        #expect(!store.shouldAutoPlayReveal())
-    }
-
-    @Test func theRevealBudgetResetsForANewSeason() {
-        let defaults = UserDefaults(suiteName: "test.predict.season.\(UUID().uuidString)")!
-        let old = PredictionStore(defaults: defaults, season: "2026")
-        for _ in 0..<3 { old.noteRevealAutoPlayed() }
-        #expect(!old.shouldAutoPlayReveal())
-
-        let next = PredictionStore(defaults: defaults, season: "2027")
-        #expect(next.shouldAutoPlayReveal())
-    }
-
     // MARK: - Season bests
 
     @Test func seasonBestsOnlyEverRise() {
@@ -178,14 +156,12 @@ struct PredictionStoreResultsTests {
         store.recordScore(score(), for: "e1-WAS")
         store.markResultSeen(fixtureID: "e1-WAS")
         store.markPicksUploaded(fixtureID: "e1-WAS")
-        store.noteRevealAutoPlayed()
         store.mergeSeasonBests(PredictSeasonBests(season: "2026", bestMatchStarters: 9, bestRoundStarters: 20))
 
         store.resetForAccountDeletion()
 
         #expect(store.seenResultFixtureIDs.isEmpty)
         #expect(store.uploadedPickFixtureIDs.isEmpty)
-        #expect(store.revealAutoPlays.count == 0)
         #expect(store.seasonBests.bestMatchStarters == 0)
     }
 }

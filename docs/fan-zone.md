@@ -97,7 +97,7 @@ aggregates, and restore.** Local writes always succeed first; every network step
 | Predict lineups (the 11 picks) | `PredictionStore` | **never uploaded** | Deliberate. The community aggregate below needs COUNTS, not lineups — see the note under this table |
 | Predict community pick counts | — | `predict_pick_counts` / `predict_match_submissions` (NO `user_id`) | Aggregate only; flat in user count; pruned >28d |
 | Predict submission dedupe mark | — | `predict_submission_marks` (user, event) | Records THAT you submitted, never WHAT; pruned >28d |
-| Predict results-seen / reveal count | `PredictionStore` (`predict.v2.*`) | — | Pure presentation state; a reinstall re-shows one reveal, which is a non-event |
+| Predict results-seen flags | `PredictionStore` (`predict.v2.*`) | — | Pure presentation state; a reinstall re-shows one reveal, which is a non-event |
 | Predict season bests | `PredictionStore` | `predict_season_bests` (user, season) | The superlative ladder's thresholds; `GREATEST`-merged, never pruned |
 | Predict season points + scored-match count | `PredictionStore` | `prediction_scores` (user, team, season) — `points`, `matches`, `avg_points` | Board ranks by `avg_points`; see §4 |
 | Predict round points | derived from `PredictionScore.soccerWeek` | `predict_round_scores` (+week) | Pruned >28d |

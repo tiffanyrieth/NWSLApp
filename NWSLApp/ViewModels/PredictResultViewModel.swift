@@ -69,7 +69,6 @@ final class PredictResultViewModel {
     private(set) var revealedBands: Set<PositionGroup> = []
     private(set) var contentShown = false
     private(set) var isRevealing = false
-    private(set) var revealIsOptIn = false
 
     /// GK → attack: builds toward the front line, where the contested picks are.
     private static let bandOrder: [PositionGroup] = [.gk, .def, .mid, .fwd]
@@ -139,7 +138,7 @@ final class PredictResultViewModel {
         evaluateSuperlativeAndMergeBests(prediction: prediction, store: store, season: season)
 
         phase = .loaded
-        prepareReveal(store: store, reduceMotion: reduceMotion, voiceOver: voiceOver)
+        prepareReveal(reduceMotion: reduceMotion, voiceOver: voiceOver)
     }
 
     /// The per-band community panels. Only built with real (or debug-injected) data — with no
@@ -218,23 +217,22 @@ final class PredictResultViewModel {
     }
 
     // MARK: - Reveal control
+    //
+    // ⚠️ NO skip, NO replay, NO auto-play budget (owner cut, second review). The reveal is ~3
+    // seconds and appears only on this screen — it simply plays every time. The first build had a
+    // 3-per-season budget with a promoted Replay pill (the handoff's degradation rule for a FORCED
+    // animation); at three seconds the whole apparatus was more to look at than the animation.
+    // Reduce Motion and VoiceOver still land fully revealed instantly.
 
-    private func prepareReveal(store: PredictionStore, reduceMotion: Bool, voiceOver: Bool) {
+    private func prepareReveal(reduceMotion: Bool, voiceOver: Bool) {
         guard !reduceMotion, !voiceOver else {
-            revealIsOptIn = true
             finishReveal()
             return
         }
-        guard store.shouldAutoPlayReveal() else {
-            revealIsOptIn = true
-            finishReveal()
-            return
-        }
-        store.noteRevealAutoPlayed()
         startReveal()
     }
 
-    func startReveal() {
+    private func startReveal() {
         revealTask?.cancel()
         revealedBands = []
         contentShown = false
@@ -258,14 +256,6 @@ final class PredictResultViewModel {
             }
         }
     }
-
-    func skipReveal() {
-        revealTask?.cancel()
-        revealTask = nil
-        withAnimation(.easeInOut(duration: 0.2)) { finishReveal() }
-    }
-
-    func replayReveal() { startReveal() }
 
     /// Cancel on disappear — a leaked task would go on mutating a torn-down view model.
     func cancelReveal() {

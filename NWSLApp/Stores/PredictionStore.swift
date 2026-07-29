@@ -65,15 +65,8 @@ final class PredictionStore {
     /// cause at most a redundant no-op call, never a double count.
     private(set) var uploadedPickFixtureIDs: Set<String>
 
-    /// How many times the results reveal has auto-played this season, and personal bests. Both are
-    /// season-scoped so a new March resets them.
-    private(set) var revealAutoPlays: RevealCounter
+    /// Personal bests, season-scoped so a new March resets them.
     private(set) var seasonBests: PredictSeasonBests
-
-    struct RevealCounter: Codable, Equatable {
-        var season: String
-        var count: Int
-    }
 
     private let defaults: UserDefaults
 
@@ -85,7 +78,6 @@ final class PredictionStore {
         static let rankDeltas = "predict.v2.rankDeltas"
         static let seenResults = "predict.v2.seenResults"
         static let uploadedPicks = "predict.v2.uploadedPicks"
-        static let revealAutoPlays = "predict.v2.revealAutoPlays"
         static let seasonBests = "predict.v2.seasonBests"
     }
 
@@ -99,10 +91,6 @@ final class PredictionStore {
         self.rankDeltaByTeam = Self.decode([String: Int].self, defaults.data(forKey: Key.rankDeltas)) ?? [:]
         self.seenResultFixtureIDs = Self.decode(Set<String>.self, defaults.data(forKey: Key.seenResults)) ?? []
         self.uploadedPickFixtureIDs = Self.decode(Set<String>.self, defaults.data(forKey: Key.uploadedPicks)) ?? []
-        let storedCounter = Self.decode(RevealCounter.self, defaults.data(forKey: Key.revealAutoPlays))
-        self.revealAutoPlays = storedCounter?.season == season
-            ? (storedCounter ?? RevealCounter(season: season, count: 0))
-            : RevealCounter(season: season, count: 0)
         let storedBests = Self.decode(PredictSeasonBests.self, defaults.data(forKey: Key.seasonBests))
         self.seasonBests = storedBests?.season == season
             ? (storedBests ?? .empty(season: season))
@@ -273,16 +261,6 @@ final class PredictionStore {
         persist()
     }
 
-    /// True while the reveal should still auto-play (the first three of the season). After that the
-    /// screen lands fully revealed and Replay becomes the explicit opt-in — a multi-second animation
-    /// is right for a first-timer and hostile to someone checking three results on a Sunday.
-    func shouldAutoPlayReveal(limit: Int = 3) -> Bool { revealAutoPlays.count < limit }
-
-    func noteRevealAutoPlayed() {
-        revealAutoPlays.count += 1
-        persist()
-    }
-
     /// Raise the season's personal bests. Monotonic (`max`), mirroring the SQL `GREATEST` so a
     /// stale device can never lower one.
     func mergeSeasonBests(_ incoming: PredictSeasonBests) {
@@ -333,7 +311,6 @@ final class PredictionStore {
         rankDeltaByTeam = [:]
         seenResultFixtureIDs = []
         uploadedPickFixtureIDs = []
-        revealAutoPlays = RevealCounter(season: revealAutoPlays.season, count: 0)
         seasonBests = .empty(season: seasonBests.season)
         persist()
     }
@@ -348,7 +325,6 @@ final class PredictionStore {
         defaults.set(try? JSONEncoder().encode(rankDeltaByTeam), forKey: Key.rankDeltas)
         defaults.set(try? JSONEncoder().encode(seenResultFixtureIDs), forKey: Key.seenResults)
         defaults.set(try? JSONEncoder().encode(uploadedPickFixtureIDs), forKey: Key.uploadedPicks)
-        defaults.set(try? JSONEncoder().encode(revealAutoPlays), forKey: Key.revealAutoPlays)
         defaults.set(try? JSONEncoder().encode(seasonBests), forKey: Key.seasonBests)
     }
 
@@ -364,7 +340,6 @@ final class PredictionStore {
         rankDeltaByTeam = [:]
         seenResultFixtureIDs = []
         uploadedPickFixtureIDs = []
-        revealAutoPlays = RevealCounter(season: revealAutoPlays.season, count: 0)
         seasonBests = .empty(season: seasonBests.season)
         persist()
     }
@@ -408,7 +383,6 @@ final class PredictionStore {
         defaults.set(Data(), forKey: Key.rankDeltas)
         defaults.set(Data(), forKey: Key.seenResults)
         defaults.set(Data(), forKey: Key.uploadedPicks)
-        defaults.set(Data(), forKey: Key.revealAutoPlays)
         defaults.set(Data(), forKey: Key.seasonBests)
     }
     #endif

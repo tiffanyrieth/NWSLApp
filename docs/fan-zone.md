@@ -34,6 +34,23 @@ flavors*, not two different products. They share the whole grammar — landing p
 live community results — and the same shared components. Trivia diverging from this was a real,
 repeatedly-rediscovered defect, closed 2026-07-23.
 
+**⚠️ The payoff screen must answer BOTH questions — "how did everyone do" AND "how did *I* do."**
+Until 2026-07-29 the panel showed only the community split with a green ✓ on the correct option, and
+nothing at all about the reader's own answer. Owner-reported after playing a real round: on a 97/1/1/1
+question you pick B, see the ✓ on the row above your bar, and read it as *your* answer being right.
+A results screen that can be misread as the opposite of your result is worse than no results screen.
+The fix (shared, so both games get it): a per-question verdict line ("You said Green — the answer was
+Blue", your half tinted red/green, the correction secondary) plus a red ✗ and a "your pick" sub-line on
+your own option in the bar grid. **Marks differ by SHAPE and TEXT, not just color** (✓ / ✗ / ○ + "your
+pick"), which is the color-blind requirement met at build time rather than retrofitted.
+Two related calls made in the same session, both worth keeping:
+- **Bars, not a donut.** A donut can't label its own slices, so it needs a legend — which is the bar
+  list again, minus the bars. And at ~340pt per question versus ~90pt, a 10–15 question recap becomes
+  thousands of points of scrolling. The Bracket keeps its donut precisely because it's a *binary* vote,
+  one per screen, where the shape IS the story. Same reasoning that cut the Predict GK donut (2026-07-28).
+- **No extra flavor lines** ("only 12% got this right"). On a screen already dense with bars, per-question
+  commentary is noise, not delight. The percentages carry it.
+
 ---
 
 ## 2. The cadence engine (`Models/FanZoneCadence.swift`)

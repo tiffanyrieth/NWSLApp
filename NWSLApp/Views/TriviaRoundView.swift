@@ -76,7 +76,19 @@ struct TriviaRoundView: View {
 
     /// The round's questions as game-agnostic descriptors for the community-results panel.
     private var triviaCommunityQuestions: [CommunityResultsView.QuestionInfo] {
-        viewModel.questions.map { .init(id: $0.id, prompt: $0.question, options: $0.options, correctIndex: $0.correctIndex) }
+        let picks = yourPicks
+        return viewModel.questions.enumerated().map { i, q in
+            .init(id: q.id, prompt: q.question, options: q.options, correctIndex: q.correctIndex,
+                  yourPick: picks.indices.contains(i) ? picks[i] : nil)
+        }
+    }
+
+    /// This user's answers, for the panel's "your pick" marks: the live session when she just played,
+    /// otherwise the round's banked picks (`TriviaStore.roundPicks` has carried these since the round
+    /// rebuild — this is the first screen to read them). Empty for a round she never played, or one
+    /// pruned out of the two-round retention window; the panel then shows no personal marks.
+    private var yourPicks: [Int] {
+        viewModel.isFinished ? viewModel.picks : (store.picks(editionKey: viewModel.editionKey) ?? [])
     }
 
     @ViewBuilder

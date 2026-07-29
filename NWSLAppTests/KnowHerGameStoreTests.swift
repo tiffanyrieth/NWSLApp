@@ -57,4 +57,59 @@ struct KnowHerGameStoreTests {
         s.recordCompletion(editionKey: "2026-W33-WAS-3", weekKey: "2026-W33", correct: 5, outOf: 10)
         #expect(s.weeklyStreak == 1)
     }
+
+    // MARK: - Picks (the community recap's "your pick" marks, 2026-07-29)
+
+    @Test func picksAreBankedPerEditionAndReadBack() {
+        let s = store()
+        s.recordCompletion(editionKey: "2026-W29-WAS-1", weekKey: "2026-W29", correct: 2, outOf: 3,
+                           picks: [0, 2, 1])
+        #expect(s.picks(editionKey: "2026-W29-WAS-1") == [0, 2, 1])
+        // An edition never played has no picks — the panel must render with no personal marks rather
+        // than defaulting to option 0, which would silently claim an answer the user never gave.
+        #expect(s.picks(editionKey: "2026-W29-HOU-9") == nil)
+    }
+
+    @Test func picksSurviveAReload() {
+        let suite = UserDefaults(suiteName: "knowher.tests.\(UUID().uuidString)")!
+        KnowHerGameStore(defaults: suite)
+            .recordCompletion(editionKey: "2026-W29-WAS-1", weekKey: "2026-W29", correct: 1, outOf: 2,
+                              picks: [3, 1])
+        // A second store over the same defaults = the next app launch.
+        #expect(KnowHerGameStore(defaults: suite).picks(editionKey: "2026-W29-WAS-1") == [3, 1])
+    }
+
+    @Test func completingANewEditionPrunesPicksOutsideTheRecapWindow() {
+        let s = store()
+        s.recordCompletion(editionKey: "2026-W25-WAS-1", weekKey: "2026-W25", correct: 1, outOf: 2, picks: [0, 1])
+        s.recordCompletion(editionKey: "2026-W27-WAS-2", weekKey: "2026-W27", correct: 1, outOf: 2, picks: [1, 0])
+        // W29 is the current edition; with no previousPool loaded the window is W29 alone, so both
+        // older editions' picks go. Scores are untouched — they're season-long (Superfan total).
+        s.recordCompletion(editionKey: "2026-W29-WAS-3", weekKey: "2026-W29", correct: 2, outOf: 2, picks: [1, 1])
+        #expect(s.picks(editionKey: "2026-W29-WAS-3") == [1, 1])
+        #expect(s.picks(editionKey: "2026-W27-WAS-2") == nil)
+        #expect(s.picks(editionKey: "2026-W25-WAS-1") == nil)
+        #expect(s.score(editionKey: "2026-W25-WAS-1") == 1)
+    }
+
+    @Test func pruningMatchesTheWholeWeekKeyNotAPrefix() {
+        let s = store()
+        // "2026-W3" is a PREFIX of "2026-W30" — pruning on the bare weekKey would keep W30's picks
+        // alive on a W3 window (and vice versa). The prefix includes the trailing dash to prevent it.
+        s.recordCompletion(editionKey: "2026-W30-WAS-1", weekKey: "2026-W30", correct: 1, outOf: 2, picks: [0, 1])
+        s.recordCompletion(editionKey: "2026-W3-WAS-2", weekKey: "2026-W3", correct: 1, outOf: 2, picks: [1, 0])
+        // Completing W3 leaves only W3's picks; W30's are outside the window.
+        #expect(s.picks(editionKey: "2026-W3-WAS-2") == [1, 0])
+        #expect(s.picks(editionKey: "2026-W30-WAS-1") == nil)
+    }
+
+    @Test func recordingTwiceDoesNotOverwriteTheFirstPicks() {
+        let s = store()
+        s.recordCompletion(editionKey: "2026-W29-WAS-1", weekKey: "2026-W29", correct: 2, outOf: 2, picks: [1, 1])
+        // One attempt per edition: a re-record (retry, re-entry, double-tap) is a no-op for the score,
+        // and must be one for the picks too — else a stale replay could rewrite the banked answers.
+        s.recordCompletion(editionKey: "2026-W29-WAS-1", weekKey: "2026-W29", correct: 0, outOf: 2, picks: [0, 0])
+        #expect(s.picks(editionKey: "2026-W29-WAS-1") == [1, 1])
+        #expect(s.score(editionKey: "2026-W29-WAS-1") == 2)
+    }
 }

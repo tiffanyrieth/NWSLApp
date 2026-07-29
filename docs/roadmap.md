@@ -73,43 +73,48 @@
 > neighbouring row is actually in hand, the next rung ("0.4 behind CapitalKick at #7"). Found while
 > building that; out of scope for the Predict handoff, logged here rather than silently widened.
 
-> ### 🔐 MULTI-DEVICE / DUPLICATE-ACCOUNT INTEGRITY (owner 2026-07-27) — no false numbers, ever
-> Trigger: the simulator signed in with the owner's Apple ID appeared to disturb her real Superfan data.
-> Owner's (correct) instinct: **this matters far beyond the sim.** A real user gets a new phone, signs in
-> with the same Apple ID, maybe opens the app once on the old phone — that must never double a Superfan
-> score or report false Predict numbers.
+> ### 🔐 MULTI-DEVICE INTEGRITY (owner 2026-07-27; diagnosed further 2026-07-29)
+> Trigger: the owner runs the app in THREE places under the same Apple ID — TestFlight, an Xcode USB
+> build, and the Simulator — each with its own LOCAL stores but all syncing to one server row. She
+> reports that after signing into the sim, her phone's Superfan total **doubled** (e.g. 30 → 60) on the
+> next refresh. This matters far beyond the sim: it's the same shape as a user getting a new phone.
 >
-> **✅ VERIFIED SAFE — doubling is structurally impossible.** Both write paths are max-merges, not adds:
-> - `SuperfanService.submit` stores per-game **correct/attempted COUNTS** (not an opaque additive total)
->   and GREATEST-merges local with server before writing; the 0–100 total + tier are DERIVED from the
->   merged counts (`local.merged(with: server)`).
-> - `PredictLeaderboardService.upsertScore` does `max(points, server.points)` and
->   `max(matches, server.matches)`, deriving `avg_points` from the merged pair.
+> **✅ SOLVED + PROVEN — the duplicate "Tiffany" rows are a RENDER bug, not two accounts.**
+> The 2026-07-27 entry concluded "two rows = two distinct `user_id`s". **That was wrong.** Direct query
+> of `prediction_scores` (WAS/2026, display_name=Tiffany) returns **exactly ONE row**, while the sim
+> renders **two** (confirmed via the accessibility tree, 2026-07-29). One row, drawn twice.
 >
-> `max(a,b)` is idempotent and commutative, so two devices converge — they can never sum. Re-running,
-> re-syncing, or syncing from a stale device cannot inflate anything.
+> Root cause — `PredictXIViewModel.swift:475`:
+> ```swift
+> let myID = auth.userID?.uuidString              // Swift UUID → UPPERCASE
+> let rivals = standings.filter { $0.userID != myID }   // Postgres uuid → lowercase
+> ```
+> The compare can never match, so the user's own server row is never removed from `rivals` — and then
+> her live "You" row is spliced in beside it. `BracketService.swift:178` already guards exactly this
+> (`myUserID?.uuidString.lowercased()`, commented "never double the user"); Predict is the only board
+> that forgot. **One-line fix: lowercase both sides.**
 >
-> **⚠️ BUT — two OPEN issues the max-merge does not cover:**
-> 1. **Lost progress, not doubled progress.** Two genuinely-active devices each holding unique local
->    history converge to the max, so the *smaller* device's unique matches are silently dropped rather
->    than merged. CLAUDE.md's documented stance is "last writer wins, fine at current scale" — worth
->    re-confirming that's still the intent once real users have two devices.
-> 2. **Independently-maxed correlated pair can yield an average neither device ever had.** `points` and
->    `matches` are maxed *separately*: device A at 100 pts / 5 matches and device B at 80 pts / 6 matches
->    merge to 100 pts / 6 matches → avg 16.7, which is neither A's 20.0 nor B's 13.3. Small, but it is a
->    number shown to the user that no device actually produced. Fix would be to merge the pair atomically
->    (take the row with the greater `matches`, or store per-match rows).
+> ⚠️ **The seed `--purge` does NOT fix this** (owner asked, 2026-07-29). Purge deletes
+> `@seed.nwslapp.test` accounts and cascades their rows; there is no second account here to delete. It
+> would remove the seeded rivals and leave both "Tiffany" rows exactly as they are.
 >
-> **⚠️ SEPARATE, UNDIAGNOSED — duplicate identities on the leaderboard.** The owner's Predict board shows
-> **two "Tiffany" rows** (ranks 4 and 5, both 33 pts); the simulator shows the same shape (a "Tiffany" at
-> rank 9 with 1 match, plus the sim's own account at rank 28 with 0). Rows are keyed
-> `(user_id, team, season)`, so two rows = **two distinct `user_id`s sharing a display name** — NOT a
-> doubled score. Whether that's a second real Apple account, a leftover from an account delete + recreate,
-> or a seeded fan that happens to be named Tiffany is unknown. Diagnose before launch — a user who cannot
-> tell which row is theirs is exactly the "connected feeling" failure the Fan Zone work is chasing.
-> Owner-gated query (needs the service key):
-> `select user_id, display_name, points, matches from prediction_scores where team_abbreviation='WAS' and season='2026' order by points desc;`
-> Also worth deciding whether display names should be unique per season.
+> **⚠️ STILL OPEN — correlated pairs are max-merged INDEPENDENTLY.** `prediction_scores` maxes `points`
+> and `matches` as separate scalars, and `SuperfanCounts.merged` maxes each game's `correct` and `total`
+> separately. Device A at 100 pts / 5 matches and device B at 80 / 6 merge to 100 / 6 → avg 16.7, a
+> number **neither device produced**. Fix: merge each pair ATOMICALLY — take the side with more progress
+> (the greater denominator) whole, never a numerator from one and a denominator from the other.
+>
+> **⚠️ STILL OPEN + UNREPRODUCED — the Superfan doubling itself.** Ruled out so far: `max()` cannot sum;
+> Trivia's restore deliberately skips the season accuracy pair (`TriviaStore.swift:233-239`, guarding the
+> earlier "0/10 shows 100%" bug); KHG's baseline is excluded from the accuracy numerator; the Home card
+> and Game Center both max-merge. The owner's current row is internally CONSISTENT
+> (6/11 + 15/126 + 8/10 + 10/10 → 62 ✓), so nothing is doubled right now. **The mechanism is not yet
+> found — do not "fix" it by guessing.** Owner will reproduce deliberately (delete account → play on
+> phone → sign into sim → refresh phone). The decisive evidence is the `superfan_scores` row captured
+> IMMEDIATELY BEFORE and AFTER the sim signs in — that pins which field moves:
+> `select * from superfan_scores where user_id = '<id>' and season = '2026';`
+>
+> **Also worth deciding:** whether display names should be unique per season.
 
 > ### 🧪 SIM IDENTITY ISOLATION — stop the simulator writing to the owner's real data (owner 2026-07-27)
 > Signing the simulator in with the owner's Apple ID makes it write to her real Superfan / Predict rows.
@@ -132,6 +137,13 @@
 > bundle id (see the signOut/global-scope finding).
 
 > ### 🩹 SMALL PREDICT FOLLOW-UPS (from the reset-button incident, 2026-07-27)
+> **✅ CONFIRMED IN THE WILD 2026-07-29.** The owner hit that button on TestFlight (build 29, which
+> predates its removal in #188) to see what it did — and it wiped her local Predict history exactly as
+> described, leaving the server's `prediction_scores` intact. That is why her season card read
+> "Predict Washington's XI to join the board" all through the 2026-07-28/29 session while the
+> leaderboard directly beneath it ranked her 3rd at 54.0 avg. **Build 30 is the first TestFlight build
+> without the button.** The underlying follow-up below still stands: the season card reads LOCAL-only
+> state, so any future local wipe (or a fresh device) reproduces the same contradiction.
 > - **The season card reads LOCAL-only state** (`store.points(forTeam:)` / `scoredMatchCount`) even though
 >   `prediction_scores` holds the authoritative numbers. So a local wipe makes the card say "Predict …'s XI
 >   to join the board" while the leaderboard directly below still ranks the user. Reading the server row

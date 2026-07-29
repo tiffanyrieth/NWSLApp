@@ -3,14 +3,13 @@
 //  NWSLApp
 //
 //  The NYT-style "how everyone did" panel — SHARED by NWSL Trivia + Know Her Game
-//  (docs §11b), the leaderboard REPLACEMENT for the quiz games. Shows the community
-//  average, per-question "% who got it right", and what everyone picked. Honest at every N by
-//  showing BOTH numbers together ("67% · 2 of 3 fans nailed this") rather than either/or: the
-//  percentage can't overstate because its denominator is right beside it, and a first player sees
-//  the real shape of the panel instead of waiting for a crowd. (Until 2026-07-22 percentages were
-//  withheld below 25 responders — owner ruling: showing the potential is what brings players back.)
-//  Shown from the FIRST responder — a live board that grows (the honest "1 fan played" IS the
-//  live-stats hook). Reveal timing is server-decided — the one thing still gated (`!revealed`).
+//  (docs §11b), the leaderboard REPLACEMENT for the quiz games. Per question: the prompt, one
+//  community line ("47 out of 50 fans nailed this"), and a bar per option showing what everyone
+//  picked. Shown from the FIRST responder — a live board that grows (the honest "1 fan played" IS
+//  the live-stats hook); a raw count can't overstate at small N the way a bare percentage can.
+//  (Until 2026-07-22 percentages were withheld entirely below 25 responders — owner ruling: showing
+//  the potential is what brings players back. Nothing is hidden at low scale; don't re-add a gate.)
+//  Reveal timing is server-decided — the one thing still gated (`!revealed`).
 //
 //  The caller passes a flat list of its questions (prompt + options + correct index) so this
 //  one component renders both games' models. It fetches the aggregate from the proxy edge
@@ -24,13 +23,19 @@
 //  ⚠️ YOUR ANSWER IS MARKED (2026-07-29, owner-reported). Until now the ONLY mark on the panel was a
 //  green ✓ on the correct option — so a question you got WRONG rendered identically to one you got
 //  right, and readers took the ✓ to be their own answer ("I picked B, and the row with the check says
-//  97%, so I was right"). Nothing on the screen said what YOU picked. Now each question carries a
-//  verdict line under the prompt (`verdictLine`) and your own option is marked in the grid: red ✗ when
-//  it's wrong, plus a "your pick" sub-line either way. Marks are shape-different (✓/✗/○) AND
-//  text-labelled, never color alone — the color-blind half of the pre-release a11y gate.
+//  97%, so I was right"). Nothing on the screen said what YOU picked. Your own option now carries a
+//  red ✗ (when wrong) and a "your pick" tag, against the correct option's green ✓. Marks are
+//  shape-different (✓/✗/○) AND text-labelled, never color alone — the color-blind half of the
+//  pre-release a11y gate.
 //
-//  Deliberately NOT added (owner, same session): a flavor line on a rare correct answer ("only 12% got
-//  this"). With 10–15 questions on one panel it's noise stacked on top of bars, not delight.
+//  ⚠️ THE MARKS ARE THE WHOLE EXPLANATION — keep the per-question header to TWO lines (prompt +
+//  community count). Two things were built here and then deliberately CUT, both owner calls; don't
+//  reintroduce either as an "improvement":
+//   • A "You said Green — the answer was Blue" verdict line. It was load-bearing only while option
+//     labels truncated to one line; once they went full-width (stacked layout, below) it restated
+//     what the ✗/✓ marks already show, on every question.
+//   • A flavor line on a rare correct answer ("only 12% got this"). On a screen already dense with
+//     bars, per-question commentary is noise, not delight.
 //
 //  `yourPick` is OPTIONAL and nil is a real state — a last-round recap you never played, or an
 //  edition played before the picks were persisted (a pre-2026-07-29 install, or any KHG edition on a
@@ -147,8 +152,9 @@ struct CommunityResultsView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // One question's community breakdown: the "got it right" line (count always; % at scale)
-    // plus a small bar per option showing what everyone picked.
+    // One question's community breakdown: the prompt, the raw "N out of M fans nailed this" count,
+    // and a bar per option showing what everyone picked (your own marked). Two header lines, no more —
+    // see the ⚠️ note at the top of the file for what was cut and why.
     @ViewBuilder
     private func questionBreakdown(_ q: QuestionInfo, _ data: QuizResults.Question?, showPercent: Bool) -> some View {
         let total = data?.total ?? 0
@@ -157,38 +163,21 @@ struct CommunityResultsView: View {
             Text(q.prompt)
                 .dsFont(15, weight: .semibold)
                 .fixedSize(horizontal: false, vertical: true)
-            // YOUR result first, then the crowd's. Two lines with two distinct voices: this one is
-            // success/error tinted (it's about you), the community line keeps the game accent.
-            if let pick = q.yourPick,
-               let verdict = Self.verdict(options: q.options, correctIndex: q.correctIndex, yourPick: pick) {
-                let tint = verdict.gotIt ? Color.dsSuccess : Color.dsError
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Image(systemName: verdict.gotIt ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .dsFont(12)
-                        .foregroundStyle(tint)
-                    // Two tones in one paragraph: your pick tinted, the correction secondary. Text
-                    // concatenation (not an HStack) so the halves wrap as ONE flowing paragraph.
-                    (Text(verdict.mine).foregroundStyle(tint)
-                     + Text(verdict.correction ?? "").foregroundStyle(Color.dsFgSecondary))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .dsFont(13, weight: .semibold)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(verdict.spoken)
-            }
-            Text(gotItRightLine(correct: correct, total: total, showPercent: showPercent))
+            Text(Self.nailedLine(correct: correct, total: total))
                 .dsFont(12, weight: .semibold)
                 .foregroundStyle(accent)
-            // A Grid so the bars share a common left edge — with each bar starting after its own
-            // option label, differing label lengths give ragged edges and the lengths stop being
-            // comparable, which is the whole job of a bar.
-            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
+            // STACKED: each option's full text on its own line, its bar beneath. The bars still share
+            // a common left edge (so their lengths stay comparable — the whole job of a bar), but they
+            // now get the row's FULL width instead of whatever a label column leaves over.
+            //
+            // ⚠️ The spacing carries this layout. The gap inside an option (label → its own bar) must
+            // stay clearly TIGHTER than the gap between options, or the bars stop reading as belonging
+            // to the label above them and the block turns to mush. 5pt inside, 14pt between.
+            VStack(alignment: .leading, spacing: 14) {
                 ForEach(q.options.indices, id: \.self) { i in
-                    GridRow {
-                        optionBar(label: q.options[i], count: data?.count(forOption: i) ?? 0,
-                                  total: total, isCorrect: i == q.correctIndex,
-                                  isYourPick: i == q.yourPick, showPercent: showPercent)
-                    }
+                    optionRow(label: q.options[i], count: data?.count(forOption: i) ?? 0,
+                              total: total, isCorrect: i == q.correctIndex,
+                              isYourPick: i == q.yourPick, showPercent: showPercent)
                 }
             }
             // The "learn about her" payoff, folded in here so it isn't a duplicate list at the bottom.
@@ -205,105 +194,90 @@ struct CommunityResultsView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    /// "How did I do" on one question — the thing the panel couldn't say before.
+    /// The one community line under each question: "47 out of 50 fans nailed this".
     ///
-    /// Split into TWO parts so the view can render them in two tones. Full-strength red across both
-    /// halves turned a bad round into a wall of red: 11 questions, each verdict wrapping to 3–4 lines,
-    /// all shouting equally. `mine` (what you picked) carries the color because it's the scan anchor;
-    /// `correction` (what was actually right) is secondary — present, readable, not shouting.
-    struct Verdict: Equatable {
-        /// "You said Green" — tinted success/error.
-        let mine: String
-        /// " — the answer was Blue", or nil when you got it right. A correct answer deliberately does
-        /// NOT restate the same option twice; that padding stacks up over 10–15 questions.
-        let correction: String?
-
-        var gotIt: Bool { correction == nil }
-        /// The whole line as one string, for VoiceOver (which shouldn't hear two fragments).
-        var spoken: String { mine + (correction ?? "") }
-    }
-
-    /// Pure + `static` so it's unit-testable without a view. Returns nil on an out-of-range index — a
-    /// defensive case (picks and questions are written together), and nil degrades to the no-verdict
-    /// panel rather than rendering a dangling "You said ".
-    static func verdict(options: [String], correctIndex: Int, yourPick: Int) -> Verdict? {
-        guard options.indices.contains(yourPick), options.indices.contains(correctIndex) else { return nil }
-        guard yourPick != correctIndex else { return Verdict(mine: "You said \(options[yourPick])", correction: nil) }
-        return Verdict(mine: "You said \(options[yourPick])",
-                       correction: " — the answer was \(options[correctIndex])")
-    }
-
-    /// Percentage AND count, always. It used to be either/or — a bare "67% got it right" above 25
-    /// responders, a bare count below. Showing both means the percentage is never unanchored from how
-    /// many people it represents (so it can't overstate at small N), and the shape of the feature is
-    /// visible from the very first responder instead of appearing only once a crowd arrives.
-    /// `showPercent` is now vestigial server-side (the proxy sends it true from N=1) but is still
-    /// honoured, so an older payload can't produce a misleading standalone percentage.
-    private func gotItRightLine(correct: Int, total: Int, showPercent: Bool) -> String {
+    /// ⚠️ RAW COUNT ONLY — do NOT re-add a leading percentage (owner, 2026-07-29). This read
+    /// "94% · 47 of 50 fans nailed this" for a week, and that percentage was a DUPLICATE: `correctCount`
+    /// is by definition the fans who picked the correct option, so it's the same number the correct
+    /// option's own bar already prints a few rows down. Ten questions per recap, each printing one
+    /// statistic twice.
+    ///
+    /// This does NOT revive the pre-2026-07-22 low-N gate, and must not be "fixed" back into one. That
+    /// gate WITHHELD data (no percentage below 25 responders); this shows the count at every N, which is
+    /// the more honest of the two numbers — a bare "67%" can overstate at 3 responders, "2 out of 3
+    /// fans" cannot. Per-option percentages are untouched. Nothing is hidden at low scale.
+    ///
+    /// Pure + `static` so it's unit-testable without a view.
+    static func nailedLine(correct: Int, total: Int) -> String {
         guard total > 0 else { return "No answers yet" }
-        let noun = total == 1 ? "fan" : "fans"
-        guard showPercent else { return "\(correct) of \(total) \(noun) nailed this" }
-        let pct = Int((Double(correct) / Double(total) * 100).rounded())
-        return "\(pct)% · \(correct) of \(total) \(noun) nailed this"
+        return "\(correct) out of \(total) \(total == 1 ? "fan" : "fans") nailed this"
     }
 
-    /// The four grid CELLS of one option row: mark · label · bar · percentage.
+    /// One option: its mark + FULL label on the first line, its bar + percentage on the second.
     ///
-    /// ⚠️ SIZED FOR A PHONE (2026-07-28). This was a 60pt-wide, 6pt-tall bar with a `.caption2`
-    /// (11pt, non-scaling) percentage, while the LABEL took all the flexible width — so the one
-    /// element the reader is meant to compare across options was the smallest thing in the row.
-    /// The bar now takes the leftover width and is 10pt tall, and the percentage uses `.dsFont` so
-    /// Dynamic Type can scale it.
+    /// ⚠️ SIZED FOR A PHONE (2026-07-28). The bar was 60x6 with an 11pt non-scaling percentage while
+    /// the label took the flexible width — the element you're meant to compare across options was the
+    /// smallest thing in the row. It's now 10pt tall, `.dsFont` percentages, and (2026-07-29) the full
+    /// row width.
     ///
-    /// Three row states (2026-07-29): the CORRECT option (green ✓), YOUR pick when it was wrong
-    /// (red ✗), and everything else (hollow dim ○). Your pick also carries a "your pick" sub-line
-    /// whether right or wrong — the same label/sub-line grammar as Predict's ownership bars
-    /// ("didn't start"), so the two results screens read the same way.
-    @ViewBuilder
-    private func optionBar(label: String, count: Int, total: Int,
+    /// ⚠️ STACKED, NOT SIDE-BY-SIDE (2026-07-29). The label used to be a single truncating line in its
+    /// own grid column: Know Her Game and Trivia options are SENTENCES, so "Sitting on the fi…" was
+    /// routine — on a review of a round you didn't play, with no verdict line to fall back on, the
+    /// correct answer was simply unreadable. Stacking fixes that AND roughly doubles the bar (it no
+    /// longer competes with a label column for width). The cost is height on short numeric/True-False
+    /// options, accepted deliberately: one layout for every question beats a per-question switch, which
+    /// is the same inconsistency the GK-donut cut removed from Predict.
+    ///
+    /// Three states: the CORRECT option (green ✓), YOUR pick when wrong (red ✗), everything else
+    /// (hollow dim ○) — shape and text, never color alone.
+    private func optionRow(label: String, count: Int, total: Int,
                            isCorrect: Bool, isYourPick: Bool, showPercent: Bool) -> some View {
         let fraction = total > 0 ? Double(count) / Double(total) : 0
         let isWrongPick = isYourPick && !isCorrect
+        let pct = Int((fraction * 100).rounded())
 
-        Image(systemName: isCorrect ? "checkmark.circle.fill"
-                        : isWrongPick ? "xmark.circle.fill" : "circle")
-            .dsFont(14)
-            .foregroundStyle(isCorrect ? Color.dsSuccess
-                             : isWrongPick ? Color.dsError : Color.dsFgTertiary)
-            .accessibilityHidden(true)
-
-        VStack(alignment: .leading, spacing: 0) {
-            Text(label)
-                .dsFont(13)
-                .lineLimit(1)
-            if isYourPick {
-                Text("your pick").dsFont(11).foregroundStyle(.secondary)
+        return VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                Image(systemName: isCorrect ? "checkmark.circle.fill"
+                                : isWrongPick ? "xmark.circle.fill" : "circle")
+                    .dsFont(14)
+                    .foregroundStyle(isCorrect ? Color.dsSuccess
+                                     : isWrongPick ? Color.dsError : Color.dsFgTertiary)
+                // "your pick" rides the label as concatenated text rather than a sub-line, so it wraps
+                // with the sentence and costs no extra height.
+                (Text(label)
+                 + Text(isYourPick ? "  ·  your pick" : "").foregroundStyle(Color.dsFgSecondary))
+                    .dsFont(13)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
             }
-        }
-        .accessibilityHidden(true)
+            HStack(spacing: 10) {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.dsBgCard)
+                        Capsule().fill(isCorrect ? Color.dsSuccess.opacity(0.7)
+                                       : isWrongPick ? Color.dsError.opacity(0.6) : accent.opacity(0.5))
+                            .frame(width: max(2, geo.size.width * fraction))
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 10)
 
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color.dsBgCard)
-                Capsule().fill(isCorrect ? Color.dsSuccess.opacity(0.7)
-                               : isWrongPick ? Color.dsError.opacity(0.6) : accent.opacity(0.5))
-                    .frame(width: max(2, geo.size.width * fraction))
+                // Percent, safe unanchored HERE because the line above the block spells out the count
+                // ("67% · 2 of 3 fans nailed this") and the summary row carries the responder total.
+                // A minimum width keeps the bars' right edges aligned down the block.
+                Text(showPercent ? "\(pct)%" : "\(count)")
+                    .dsFont(13, weight: .semibold, monospacedDigit: true)
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 42, alignment: .trailing)
             }
+            // Indent the bar to the label TEXT, not the mark, so the ✓/✗/○ marks stay a clean scannable
+            // column down the left edge.
+            .padding(.leading, 21)
         }
-        .frame(minWidth: 70, maxWidth: .infinity)
-        .frame(height: 10)
-        .gridCellUnsizedAxes(.vertical)
-        // One row = one fact for VoiceOver, rather than four fragments.
+        // One option = one fact for VoiceOver, rather than four fragments.
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(label)\(isCorrect ? ", correct answer" : "")\(isYourPick ? ", your pick" : ""): \(Int((fraction * 100).rounded())) percent, \(count) of \(total)")
-
-        // Percent per option. Safe unanchored HERE because the line directly above spells out the
-        // count ("67% · 2 of 3 fans nailed this") and the summary row carries the responder total.
-        Text(showPercent ? "\(Int((fraction * 100).rounded()))%" : "\(count)")
-            .dsFont(13, weight: .semibold, monospacedDigit: true)
-            .foregroundStyle(.secondary)
-            .gridColumnAlignment(.trailing)
-            .accessibilityHidden(true)
+        .accessibilityLabel("\(label)\(isCorrect ? ", correct answer" : "")\(isYourPick ? ", your pick" : ""): \(pct) percent, \(count) of \(total)")
     }
 
     @ViewBuilder

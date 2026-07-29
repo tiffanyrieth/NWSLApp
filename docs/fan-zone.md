@@ -39,17 +39,38 @@ Until 2026-07-29 the panel showed only the community split with a green ✓ on t
 nothing at all about the reader's own answer. Owner-reported after playing a real round: on a 97/1/1/1
 question you pick B, see the ✓ on the row above your bar, and read it as *your* answer being right.
 A results screen that can be misread as the opposite of your result is worse than no results screen.
-The fix (shared, so both games get it): a per-question verdict line ("You said Green — the answer was
-Blue", your half tinted red/green, the correction secondary) plus a red ✗ and a "your pick" sub-line on
-your own option in the bar grid. **Marks differ by SHAPE and TEXT, not just color** (✓ / ✗ / ○ + "your
+The fix (shared, so both games get it): your own option carries a red ✗ and a "your pick" tag, against
+the correct option's green ✓. **Marks differ by SHAPE and TEXT, not just color** (✓ / ✗ / ○ + "your
 pick"), which is the color-blind requirement met at build time rather than retrofitted.
-Two related calls made in the same session, both worth keeping:
-- **Bars, not a donut.** A donut can't label its own slices, so it needs a legend — which is the bar
-  list again, minus the bars. And at ~340pt per question versus ~90pt, a 10–15 question recap becomes
-  thousands of points of scrolling. The Bracket keeps its donut precisely because it's a *binary* vote,
+
+**The per-question header is TWO lines — prompt + "47 out of 50 fans nailed this" — and should stay
+there.** Three things were built into that header the same day and then cut; the reasons generalise:
+- **A verdict line** ("You said Green — the answer was Blue"). Load-bearing only while option labels
+  truncated to one line. Once the options went full-width, it restated what the ✗/✓ marks already show.
+- **The leading percentage** ("94% · 47 of 50…"). `correctCount` IS the count of fans who picked the
+  correct option, so that percentage was the same statistic as the correct option's own bar, printed
+  twice per question, ten questions per recap. ⚠️ Removing it is NOT a return of the pre-2026-07-22
+  low-N gate: that gate WITHHELD the percentage below 25 responders, whereas the raw count shows at
+  every N and is the harder number to overstate ("2 out of 3 fans" can't mislead the way a bare 67%
+  can). Per-option percentages are untouched. Nothing hides at low scale.
+- **A flavor line on a rare correct answer** ("only 12% got this"). On a screen already dense with bars,
+  per-question commentary is noise, not delight.
+
+The rule underneath all three: on a recap of 10–15 questions, anything printed per-question is printed
+ten-plus times. Redundancy that reads as harmless once becomes the texture of the whole screen.
+
+Two layout calls that go with it:
+- **Options stack: full label on its own line, bar beneath.** Options in these games are sentences, so
+  a side-by-side label column truncated them ("Sitting on the fi…") — and on a review of a round you
+  DIDN'T play there's no other place the correct answer appears. Stacking also roughly doubles the bar,
+  since it no longer competes with a label column for width. Costs ~90pt per question; accepted. ⚠️ The
+  spacing ratio carries it — 5pt from a label to its own bar, 14pt between options. Flatten that and the
+  bars stop reading as belonging to their labels.
+- **Bars, not a donut** (the Swift Alert Mastermind comparison, weighed and declined). A donut can't
+  label its own slices, so it needs a legend — which is the bar list again, minus the bars. It's also
+  ~340pt per question against the stacked bars' ~190pt, and these recaps run 10–15 questions where
+  Mastermind shows one per screen. The Bracket keeps its donut precisely because it's a *binary* vote,
   one per screen, where the shape IS the story. Same reasoning that cut the Predict GK donut (2026-07-28).
-- **No extra flavor lines** ("only 12% got this right"). On a screen already dense with bars, per-question
-  commentary is noise, not delight. The percentages carry it.
 
 ---
 

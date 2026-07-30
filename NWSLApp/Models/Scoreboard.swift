@@ -107,11 +107,21 @@ struct StatusType: Decodable {
     let state: String?
     let description: String?
     let shortDetail: String?
+    /// ⚠️ ESPN's own "did this match actually finish" flag, and the ONLY reliable way to tell a
+    /// FULL-TIME `post` from an ABANDONED one (2026-07-29). Decoded because `state` alone lies:
+    /// a lightning suspension mid-first-half sets `state == "post"` with `completed == false`.
+    let completed: Bool?
+    /// The status enum, e.g. `STATUS_FULL_TIME` / `STATUS_SUSPENDED` / `STATUS_HALFTIME`. Match on
+    /// EXACT values (see `Event.nonFinalPostStatuses`) — never substring-match it (the "scoRED" rule).
+    let name: String?
 
-    init(state: String? = nil, description: String? = nil, shortDetail: String? = nil) {
+    init(state: String? = nil, description: String? = nil, shortDetail: String? = nil,
+         completed: Bool? = nil, name: String? = nil) {
         self.state = state
         self.description = description
         self.shortDetail = shortDetail
+        self.completed = completed
+        self.name = name
     }
 }
 
@@ -221,6 +231,35 @@ extension Event {
 
     // "pre" | "in" | "post" | nil
     var statusState: String? { status?.type?.state }
+
+    /// ⚠️ `state == "post"` DOES NOT MEAN THE MATCH FINISHED (device-proven 2026-07-29, UTA v WAS
+    /// suspended for lightning at 27'). ESPN moves a suspended/abandoned/postponed match to
+    /// `post` while setting `completed == false` and `name == "STATUS_SUSPENDED"`. Reading `state`
+    /// alone made the app show "Full Time 0–0" mid-first-half — and, far worse, made Predict SCORE
+    /// the fixture against that fake final and then never revisit it (a scored fixture leaves
+    /// `submittedAwaitingScore` permanently).
+    ///
+    /// Anything that means "the result is settled" must use this, not `statusState == "post"`.
+    static let nonFinalPostStatuses: Set<String> = [
+        "STATUS_SUSPENDED", "STATUS_POSTPONED", "STATUS_DELAYED",
+        "STATUS_CANCELED", "STATUS_CANCELLED", "STATUS_ABANDONED",
+    ]
+
+    /// True only when the match is genuinely settled. Deliberately FAIL-OPEN: a nil `completed`
+    /// (an older/sparser payload) does not block, so a feed that omits the flag still scores as
+    /// before. Only positive evidence of non-completion — `completed == false`, or an explicit
+    /// non-final status name — holds a `post` match back.
+    var isFinalResult: Bool {
+        guard statusState == "post" else { return false }
+        if status?.type?.completed == false { return false }
+        if let name = status?.type?.name, Event.nonFinalPostStatuses.contains(name) { return false }
+        return true
+    }
+
+    /// A `post` match that hasn't actually finished — suspended, abandoned, postponed. Surfaces
+    /// honestly instead of a fake FT (`status.type.description` is already ESPN's own label,
+    /// e.g. "Suspended", so the UI can just show it).
+    var isUnfinishedPost: Bool { statusState == "post" && !isFinalResult }
 
     // MARK: Postseason (Playoff feature)
 

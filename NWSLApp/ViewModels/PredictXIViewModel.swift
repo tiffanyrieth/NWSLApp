@@ -174,10 +174,32 @@ final class PredictXIViewModel {
         return soonest
     }
 
+    /// ⚠️ SELF-HEAL a score that was banked against a match which turned out NOT to be over
+    /// (2026-07-29, owner-hit live). A suspended match reports `state == "post"`, so the old gate
+    /// scored it — and because `submittedAwaitingScore` excludes anything already scored, the real
+    /// full-time result would NEVER have been applied. Dropping the premature score returns the
+    /// fixture to the awaiting set so it re-scores properly when play actually finishes.
+    ///
+    /// Only ever clears a score whose event is STILL not final, so a legitimately graded match is
+    /// never disturbed. Loud, because a silently vanishing score is exactly the kind of thing that
+    /// should show up in Diagnostics.
+    private func unscorePrematurelyScored(store: PredictionStore) {
+        for fixtureID in store.scores.keys {
+            guard let prediction = store.prediction(for: fixtureID),
+                  let event = eventsByID[prediction.eventID],
+                  !isFinished(event) else { continue }
+            store.clearScore(for: fixtureID)
+            Diagnostics.shared.record(
+                .unexpectedEmpty,
+                "predict unscored \(fixtureID): match not final (\(event.status?.type?.name ?? "unknown"))")
+        }
+    }
+
     /// For each submitted-but-unscored prediction whose match has finished, fetch
     /// `/summary`, build the answer key, score it, and persist. Best-effort: a
     /// failed fetch just retries on the next load.
     private func scoreSettledSubmissions(store: PredictionStore) async {
+        unscorePrematurelyScored(store: store)
         for fixtureID in store.submittedAwaitingScore {
             guard let prediction = store.prediction(for: fixtureID),
                   let event = eventsByID[prediction.eventID],
@@ -569,10 +591,16 @@ final class PredictXIViewModel {
         )
     }
 
-    /// A match is scoreable once ESPN marks it final (or, defensively, kickoff is
-    /// well past and a score is present).
+    /// A match is scoreable once ESPN marks it genuinely FINAL — `isFinalResult`, not
+    /// `state == "post"` (2026-07-29: a lightning suspension at 27' reports `post`, and the old
+    /// check scored a live match 0–0 then never revisited it).
+    ///
+    /// The kickoff+3h fallback exists because ESPN sometimes never flips a match to `post` at all.
+    /// It now REQUIRES the match not to be mid-flight or explicitly unfinished, so a long weather
+    /// delay can't age its way into a bogus score.
     private func isFinished(_ event: Event) -> Bool {
-        if event.statusState == "post" { return true }
+        if event.isFinalResult { return true }
+        if event.statusState == "in" || event.isUnfinishedPost { return false }
         if let kickoff = event.kickoff { return kickoff < now().addingTimeInterval(-3 * 3600) }
         return false
     }

@@ -20,6 +20,15 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   and default scoreboards stay fresh; only the whole-year query lags. A `_cb=<ts>` param forces ESPN to
   recompute (the app-facing fix is the proxy busting the upstream on MISS, below; the app also moved its
   live poll onto the windowed query, build 26). The app's stuck clock all game was THIS, not an app bug.
+- ⚠️ **`state == "post"` does NOT mean the match finished** (live-proven 2026-07-29, UTA v WAS held
+  for wind at 27'): a suspended/abandoned/postponed match reports `post` with **`completed: false`**
+  and **`name: "STATUS_SUSPENDED"`** — and REVERTS to `in` on resume (`post→in` is otherwise
+  impossible; any backwards state transition proves the prior state was wrong). Anything meaning
+  "the result is settled" must use `Event.isFinalResult`/`isUnfinishedPost` (app) or
+  `isUnfinishedPost` (watcher `src/events.ts`, mirrored set in `src/fixtures.ts`), all FAIL-OPEN:
+  only positive evidence of non-completion blocks. Trusting bare `post` showed FT 0–0 mid-match,
+  graded a Predict entry against the fake final, and made the watcher kill the Live Activity, mark
+  the fixture `ended` (which stops polling), and miss the real full time.
 - Endpoints can change shape, break, or rate-limit without notice. Fail gracefully.
 
 **Proxy (Cloudflare Worker `nwslapp-proxy`)** — sibling repo `~/Projects/nwslapp-proxy`

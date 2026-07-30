@@ -42,6 +42,10 @@ final class PredictXIViewModel {
         /// Set explicitly at construction rather than computed from `Date()` in the view, so the
         /// injected `now()` stays the single clock and the row stays testable.
         var isUnderway: Bool = false
+        /// An underway match that ESPN has moved to a non-final `post` — suspended/abandoned. Renders
+        /// "SUSP" instead of "LIVE", because a match halted for weather is not live (2026-07-29: the
+        /// row claimed LIVE for 80 minutes while UTA v WAS sat under a wind hold).
+        var isSuspended: Bool = false
 
         var id: String { fixture.id }
 
@@ -274,7 +278,7 @@ final class PredictXIViewModel {
             }()
             return PredictionItem(fixture: fixture, prediction: prediction,
                                   score: nil, finalScore: live, phase: .submitted,
-                                  isUnderway: true)
+                                  isUnderway: true, isSuspended: event.isUnfinishedPost)
         }
         .sorted { $0.fixture.kickoff < $1.fixture.kickoff }
     }

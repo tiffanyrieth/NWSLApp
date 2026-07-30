@@ -362,7 +362,7 @@ struct PredictXIView: View {
                 // An underway match shows the live scoreline instead of its kickoff time — it already
                 // kicked off, so "9:00 PM" would read as though it hadn't.
                 matchHeader(fixture, finalScore: item.isUnderway ? item.finalScore : nil,
-                            isLive: item.isUnderway)
+                            isLive: item.isUnderway, isSuspended: item.isSuspended)
 
                 openStatusRow(item)
             }
@@ -389,14 +389,17 @@ struct PredictXIView: View {
             )
         case .submitted:
             statusRow(
-                icon: item.isUnderway ? "dot.radiowaves.left.and.right" : "checkmark.seal.fill",
+                icon: item.isSuspended ? "exclamationmark.triangle.fill"
+                    : (item.isUnderway ? "dot.radiowaves.left.and.right" : "checkmark.seal.fill"),
                 tint: accent,
                 title: "Locked in — \(item.prediction?.formation ?? "")  ·  \(scoreGuessLabel(item))",
                 // Underway: "see how the club is picking" was pre-deadline copy and read as though
                 // there were still something to do. Say where it actually stands.
-                subtitle: item.isUnderway
-                    ? "Match underway · your score posts after full time."
-                    : "Submitted · see how the club is picking."
+                subtitle: item.isSuspended
+                    ? "Match suspended · your score posts once it finishes."
+                    : (item.isUnderway
+                       ? "Match underway · your score posts after full time."
+                       : "Submitted · see how the club is picking.")
             )
         case .closed:
             statusRow(
@@ -574,7 +577,7 @@ struct PredictXIView: View {
     /// labelled every non-nil score "FT", so a match in progress read as full-time — the wrong-but-
     /// plausible kind of wrong that's worse than showing nothing.
     private func matchHeader(_ fixture: PredictionFixture, finalScore: (home: Int, away: Int)?,
-                             isLive: Bool = false) -> some View {
+                             isLive: Bool = false, isSuspended: Bool = false) -> some View {
         let homeAbbr = fixture.isHome ? fixture.teamAbbreviation : fixture.opponentAbbreviation
         let awayAbbr = fixture.isHome ? fixture.opponentAbbreviation : fixture.teamAbbreviation
         return HStack(spacing: 12) {
@@ -587,9 +590,10 @@ struct PredictXIView: View {
             VStack(spacing: 4) {
                 if let final = finalScore {
                     Text("\(final.home)–\(final.away)").dsFont(20, weight: .heavy)
-                    Text(isLive ? "LIVE" : "FT")
+                    Text(isSuspended ? "SUSP" : (isLive ? "LIVE" : "FT"))
                         .dsFont(11, weight: .bold)
-                        .foregroundStyle(isLive ? Color.dsStateLive : Color.dsStateFinal)
+                        .foregroundStyle(isSuspended ? Color.dsWarning
+                                         : (isLive ? Color.dsStateLive : Color.dsStateFinal))
                 } else {
                     Text("KICKOFF")
                         .dsFont(11, weight: .bold).tracking(0.6)

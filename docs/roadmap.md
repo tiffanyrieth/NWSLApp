@@ -1,6 +1,18 @@
 # Roadmap / What's Next
 
-> ### ⛈️ WATCHER — "suspended" is not full time (diagnosed on a LIVE match 2026-07-29; app side FIXED, watcher NOT)
+> ### ✅ DONE + DEPLOYED 2026-07-30 — WATCHER: "suspended" is not full time
+> **Fixed and deployed** (`isUnfinishedPost` → `Match.unfinishedPost`, consulted at all three sites;
+> 87 watcher tests + `test/suspension.test.ts`). The Live Activity path RETURNS EARLY on a suspension
+> rather than broadcasting — the content state derives its phase from `state`, so an update would render
+> a full-time card mid-match, and the teardown can't be undone. Fail-open polarity throughout: only
+> positive evidence of non-completion counts, so a payload missing `completed` behaves exactly as before.
+> ⚠️ NOT done (deliberate, owner call): un-marking `ended` when a fixture is seen `in` again. With the
+> cause fixed, the 6h discovery sweep already covers recovery, and un-ending on `post→in` risks a
+> duplicate full-time push on ESPN's frequent status flapping. Revisit only if a fixture is ever wrongly
+> ended by some other route. **The original diagnosis is kept below — it's the reference for the failure
+> mode, and the fabricated-kickoff variant in the next item is still unguarded.**
+>
+> #### Original diagnosis (2026-07-29)
 > ESPN reports a suspended/abandoned match as **`state == "post"` with `completed == false` and
 > `name == "STATUS_SUSPENDED"`.** The app now guards this (`Event.isFinalResult`, `SuspendedMatchTests`);
 > **the watcher does not**, and it trusts bare `post` at THREE sites. Real consequences, all observed on

@@ -108,14 +108,17 @@ upstream on every `/scoreboard` MISS, and the app's live poll rides the windowed
 base, endpoints break/rate-limit without notice, and **`status.clock` FREEZES at 45:00/90:00 through
 stoppage time** — any live clock must anchor MONOTONICALLY (re-anchor only when the clock advances or
 the period changes; naive `now − clock` re-anchoring pins the display at +1'/snaps the widget to 45:00).
-ESPN also keeps `state=="in"` THROUGH halftime (clock frozen, `description`/shortDetail says "Halftime"/"HT")
-**and advances `period` to 2 at the START of the break** (so a period change alone ≠ the second-half
-restart — the watcher's widget-clock anchor reconciles only while `clockRunning`, else the ~15-min break
-leaked into the clock and the second half read 1:01+), and flips a match "live" ~5–10 min LATE with the
-clock reset — so surfaces show a STATIC "HT" (never a
-ticking clock) when `Event.isHalftime`, and a first sighting already at the 45:00/90:00 cap is UNKNOWABLE
-(don't fabricate +1' — defer to ESPN's string; anchors persist to UserDefaults so a relaunch doesn't reset
-the stoppage count). The **watcher** fetches only a yesterday→tomorrow scoreboard window (not the full
+ESPN also keeps `state=="in"` THROUGH halftime (clock frozen, description "Halftime"/"HT") **and advances
+`period` to 2 at the START of the break** (period change alone ≠ the restart — reconcile anchors only
+while `clockRunning`), and flips a match "live" ~5–10 min LATE with the clock reset — so surfaces show a
+STATIC "HT" when `Event.isHalftime`, and a first sighting at the 45:00/90:00 cap is UNKNOWABLE (defer to
+ESPN's string; anchors persist across relaunch). ⚠️ **`state=="post"` does NOT mean FINISHED** (live-
+proven 2026-07-29: a wind hold at 27' reported `post` + `completed:false` + `STATUS_SUSPENDED` — the app
+showed FT 0–0, Predict graded against the fake final, and the watcher killed the Live Activity, stopped
+polling the fixture, and missed the real full time). Anything meaning "the result is settled" must use
+`Event.isFinalResult`/`isUnfinishedPost` (app) or `isUnfinishedPost` (watcher) — FAIL-OPEN: only
+`completed:false` or an explicit non-final status name blocks; a sparse payload scores as before. Predict
+grades also stamp the scoreline they were computed against and self-heal if it later changes. The **watcher** fetches only a yesterday→tomorrow scoreboard window (not the full
 season) so a per-minute cron tick isn't parsing ~240 events (CPU), and (2026-07-16) polls on a
 **FIXTURE WINDOW** (`src/fixtures.ts`): a ~6h discovery sweep indexes kickoffs in KV; the tick fetches
 ONLY feeds with a fixture in [KO−75m…KO+4h] (zero fixtures near ⇒ ZERO fetches — the old 16-feeds-every-
@@ -138,18 +141,16 @@ retry/double-tap/reinstall can't double-count). Full reasoning: `docs/fan-zone.m
 **Kickoff weather** routes through the proxy's `/weather?event={id}` too — a PAST match's kickoff-hour
 temperature + sky condition from **Open-Meteo** (free, no key; ESPN carries NO NWSL weather). Keyed by a
 static **ESPN-venue-id**→lat/lon table (id-keyed so a rename can't silently break it), the exact kickoff
-HOUR (not the daily high), **cached write-once in KV** (a finished match's weather is immutable → lazy
-backfill covers all history, no cron/watcher); night-aware via `is_day` (sun/moon icon). PAST-ONLY;
+HOUR (not the daily high), **cached write-once in KV** (immutable once
+final; lazy backfill, no cron); night-aware via `is_day`. PAST-ONLY;
 envelope versioned for a later forecast mode. Shows as a quiet stamp under the MatchDetail header.
 **Tier-2 server push** (live match alerts) is a SECOND sibling Worker, **`nwslapp-match-watcher`**
 (`~/Projects/nwslapp-match-watcher`): a `* * * * *` cron that diffs the proxy scoreboard (reached via a
 **service binding** — same-account Worker→Worker over `*.workers.dev` 404s with CF **error 1042**, so a
 public fetch silently fails) for
 kickoff/goal/halftime/full-time + **lineup-posted** (polls `/summary` in a 75-min pre-kickoff window) +
-**RED CARD** (reds ONLY — yellows are per-game noise; keys on ESPN's explicit `redCard` boolean on the
-scoreboard `details` entry, NEVER text; rides the **`goals`** pref column = zero schema change, precedent
-= VAR corrections; per-side `StoredState.redCards` fire-once ledger, a pre-existing KV row baselines
-rather than late-firing) +
+**RED CARD** (reds ONLY; keys on the explicit `redCard` boolean, NEVER text; rides the
+**`goals`** pref column; per-side fire-once ledger, pre-existing KV rows baseline) +
 **VAR goal-correction** (a debounced score *decrease* — re-poll a
 cache-busted scoreboard before firing, so an ESPN glitch never sends a false "Goal Disallowed"), looks
 up `device_tokens` of users with that alert on, and sends APNs (ES256 `.p8` JWT). **Delivery (SHIPPED
@@ -230,17 +231,14 @@ Because the bundle is mostly Tier-2, a signed-out bell tap presents Sign in with
 (intercept: success → enable+cascade+toast, cancel → bell stays off). **Tier 1** = deliverable without
 an account (local: day-before, Player Spotlight — ⚠️ iOS caps PENDING local notifications at 64/app:
 day-before is WINDOWED to the next 2 fixtures per alerting team, never the whole season); **Tier 2** = watcher-triggered ⇒ needs an account ⇒
-sign-in-gated (`tier2Binding` / the bell intercept) + **display-gated on auth** (involuntary-sign-out fix
-2026-07-16: stored Tier-2 intent SURVIVES sign-out and merely READS off while signed out — exact prior
-toggles restore on re-sign-in; `resetServerPushTypes` = account-delete teardown ONLY; a LAPSED session
-with intent stored auto-presents the sign-in sheet app-wide + emits `tier2SignedOutDesync`, while a
-DELIBERATE sign-out never nags — `SignOutSentinels`, `AuthStore.startAuthStateListener` +
-`revalidateSession`; DEBUG repro `-simulateLostSession`). **Lineup-posted (Stage D, done):** the watcher polls
+sign-in-gated (`tier2Binding` / the bell intercept) + **display-gated on auth** (sign-out fix 2026-07-16: Tier-2
+intent SURVIVES sign-out, reads off while signed out, restores exactly on re-sign-in; account-delete
+alone tears down; a LAPSED session auto-presents sign-in + `tier2SignedOutDesync`, a DELIBERATE
+sign-out never nags — `SignOutSentinels`; DEBUG `-simulateLostSession`). **Lineup-posted (Stage D, done):** the watcher polls
 `/summary` (cache-busted via the proxy binding) in a 75-min pre-kickoff window and pushes "Lineups in" the tick
-BOTH XIs are posted (≥11 starters/side; dedup = **retry-until-SENT**, two KV markers — `lineup-pub` latches
-"XIs posted" to stop the /summary re-poll, `lineup:` marks fired only once ≥1 recipient is actually reached, so
-a 0-recipient tick RETRIES next tick and logs the gate breakdown / SUSPICIOUS flag — the old mark-fired-at-0
-silently dropped a real user's alert, 2026-07-18); the app shows the pre-match XI in `MatchDetailView`'s
+BOTH XIs are posted (≥11 starters/side; dedup = **retry-until-SENT** via two KV markers — `lineup-pub`
+latches publication, `lineup:` marks fired only once ≥1 recipient reached, so a 0-recipient tick
+retries — 2026-07-18); the app shows the pre-match XI in `MatchDetailView`'s
 future layout. UI groups kickoff+HT+FT under one "Match updates" toggle (grouping only — each still gates its
 own column server-side). NEVER auto-enable a notification WITHOUT an explicit user
 action. National-team alerts: bell keyed by FIFA code → `competition_alert_preferences` (separate from
@@ -386,9 +384,8 @@ stats). Current parsed-vs-unparsed inventory: `docs/backend.md` (proxy § pass-t
   the build number — it does NOT auto-track "latest". NEVER raise it on every bump (that force-updates
   every user) and NEVER to a build that isn't live+installable yet (walls users with nowhere to go).
   Raise it + redeploy ONLY to retire a broken/incompatible build, and ONLY after the newer build is
-  available. ⚠️ It has **never actually been raised** — `/config` still serves `minBuild 21`, so it cannot
-  fire on any current build. That's why "I set it and nothing happened" — the only raise lived on a branch
-  that was never merged or deployed (dropped 7/27). NOT a TestFlight limitation; that remains untested.
+  available. ⚠️ Never actually raised — `/config` still serves `minBuild 21` (the one raise
+  lived on an unmerged branch, dropped 7/27); NOT a TestFlight limitation.
   Detail: `docs/versioning.md`.
 - **Git:** **squash-merge** PRs (one commit on main; OK to combine related branches). Never commit
   secrets. Commits use the owner's GitHub no-reply email
@@ -466,6 +463,9 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
 - **`docs/navigation.md`** — each tab's lens + adjacency rules (read when adding/redesigning a screen).
 - **`docs/versioning.md`** — the (non-semver) version model + distribution.
 - **`docs/roadmap.md`** — What's Next (pending work).
+- **`docs/roster-source-research.md`** — the 2026-07-29/30 live-verified research on ESPN vs the NWSL
+  SDP API: two error classes (fabrication vs lagging fact), invariants-first correction design, what SDP
+  has/lacks, live-games verdict (stay on ESPN). Read BEFORE any roster-source or cross-check work.
 - **`docs/stress-testing.md`** — the launch-readiness charter: indie-sizing calibration, the two stress
   tests (1k mandatory / 100k headroom), the efficiency-first rule, and the 8-step method for stress-testing
   any subsystem + a checklist of what still needs it. Read before any scaling/sizing/publish-readiness work.

@@ -38,6 +38,10 @@ final class PredictXIViewModel {
         let score: PredictionScore?
         let finalScore: (home: Int, away: Int)?
         let phase: Phase
+        /// A `.submitted` item whose match has KICKED OFF and isn't scored yet (see `inFlightItems`).
+        /// Set explicitly at construction rather than computed from `Date()` in the view, so the
+        /// injected `now()` stays the single clock and the row stays testable.
+        var isUnderway: Bool = false
 
         var id: String { fixture.id }
 
@@ -219,6 +223,38 @@ final class PredictXIViewModel {
             return PredictionItem(fixture: fixture, prediction: prediction,
                                   score: nil, finalScore: nil, phase: phase)
         }
+    }
+
+    /// ⚠️ THE IN-FLIGHT SLATE (2026-07-29, owner-reported bug). Submitted predictions whose match has
+    /// KICKED OFF but is not yet scored — the gap between kickoff and full-time-plus-scoring, ~2+ hours.
+    ///
+    /// Before this existed, a submitted prediction vanished from the screen entirely the moment its match
+    /// started: `buildUpcoming` only keeps fixtures with `kickoff > now`, so it left `openItems`, and
+    /// `resultItems` reads `store.scores`, which isn't populated until the match is FINAL. The fixture you
+    /// had invested in disappeared, while fixtures you IGNORED stayed visible as "Submission closed" —
+    /// backwards, and it read as data loss during the exact window the game should feel most alive.
+    ///
+    /// Derived from `store.submittedAwaitingScore` (submitted, no score yet) rather than the upcoming
+    /// slate, so it cannot re-hide when the horizon moves. No overlap with `openItems` by construction:
+    /// that list requires `kickoff > now`, this one requires the opposite.
+    func inFlightItems(store: PredictionStore) -> [PredictionItem] {
+        store.submittedAwaitingScore.compactMap { fixtureID -> PredictionItem? in
+            guard let prediction = store.prediction(for: fixtureID),
+                  let event = eventsByID[prediction.eventID],
+                  let fixture = fixture(from: event, yourTeam: prediction.teamAbbreviation),
+                  fixture.kickoff <= now() else { return nil }
+            // The live (or final-but-unscored) scoreline, when ESPN has one — so the row can show the
+            // match actually in progress instead of a static "locked in".
+            let live: (home: Int, away: Int)? = {
+                guard let h = event.homeCompetitor?.score.flatMap({ Int($0) }),
+                      let a = event.awayCompetitor?.score.flatMap({ Int($0) }) else { return nil }
+                return (h, a)
+            }()
+            return PredictionItem(fixture: fixture, prediction: prediction,
+                                  score: nil, finalScore: live, phase: .submitted,
+                                  isUnderway: true)
+        }
+        .sorted { $0.fixture.kickoff < $1.fixture.kickoff }
     }
 
     /// Scored predictions inside the RECENT window (this soccer week + last), most recently played first —

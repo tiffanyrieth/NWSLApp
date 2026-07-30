@@ -132,9 +132,16 @@ struct PredictLockedView: View {
                     }
                 }
                 Spacer(minLength: 8)
+                // Once kickoff has passed there is no countdown left — it rendered "— to kickoff",
+                // which reads as missing data on a match that's actually in progress.
                 VStack(alignment: .trailing, spacing: 1) {
-                    Text(countdown).dsFont(15, weight: .heavy).foregroundStyle(tint)
-                    Text("to kickoff").dsFont(10).foregroundStyle(Color.dsFgTertiary)
+                    if hasKickedOff {
+                        Text("LIVE").dsFont(15, weight: .heavy).foregroundStyle(Color.dsStateLive)
+                        Text("underway").dsFont(10).foregroundStyle(Color.dsFgTertiary)
+                    } else {
+                        Text(countdown).dsFont(15, weight: .heavy).foregroundStyle(tint)
+                        Text("to kickoff").dsFont(10).foregroundStyle(Color.dsFgTertiary)
+                    }
                 }
             }
             // Sealed: say it plainly. This used to be gated on the aggregate being absent, because a
@@ -371,6 +378,9 @@ struct PredictLockedView: View {
         let date = community?.closesAt ?? item.fixture.deadline
         return Self.closeFormatter.string(from: date)
     }
+
+    /// Ticks with `now` (the 60s clock), so the card flips to LIVE without a reload.
+    private var hasKickedOff: Bool { item.fixture.kickoff <= now }
 
     private var countdown: String {
         let seconds = item.fixture.kickoff.timeIntervalSince(now)

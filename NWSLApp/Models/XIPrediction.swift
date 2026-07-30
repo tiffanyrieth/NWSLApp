@@ -289,6 +289,20 @@ struct PredictionScore: Codable, Equatable {
     /// are untouched.
     var soccerWeek: Int?
 
+    /// ⚠️ THE SCORELINE THIS GRADE WAS COMPUTED AGAINST (2026-07-30). Stamped at scoring time so a grade
+    /// can be checked against reality later and re-graded if the match's result has since changed.
+    ///
+    /// Why it exists: a lightning suspension makes ESPN report `state == "post"` mid-match, and the app
+    /// (pre-`isFinalResult`) graded UTA v WAS against a fake 0–0. The XI half survived — the starting XI
+    /// was already posted and never changed — but `resultCorrect` was judged against a DRAW, so a correct
+    /// "Washington win" call scored 0. The card still looked right, because the "Actual 0–1" it displays
+    /// comes from the live event, not from the grade. Only these fields make that discrepancy detectable.
+    ///
+    /// OPTIONAL and additive: grades persisted before this decode as nil and are LEFT ALONE (nil means
+    /// "unknown", never "re-grade") — otherwise shipping this would invalidate every historical score.
+    var gradedHomeScore: Int?
+    var gradedAwayScore: Int?
+
     // MARK: - Weights
     //
     // ⚠️ THE SINGLE SOURCE for every scoring surface. Before these existed the weights and the "/ 88"

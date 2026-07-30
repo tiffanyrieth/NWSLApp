@@ -178,32 +178,58 @@ final class PredictXIViewModel {
         return soonest
     }
 
-    /// ⚠️ SELF-HEAL a score that was banked against a match which turned out NOT to be over
-    /// (2026-07-29, owner-hit live). A suspended match reports `state == "post"`, so the old gate
-    /// scored it — and because `submittedAwaitingScore` excludes anything already scored, the real
-    /// full-time result would NEVER have been applied. Dropping the premature score returns the
-    /// fixture to the awaiting set so it re-scores properly when play actually finishes.
+    /// ⚠️ SELF-HEAL a grade that was computed against the wrong reality (2026-07-29/30, owner-hit live).
+    /// A suspended match reports `state == "post"`, so the pre-`isFinalResult` gate graded it — and
+    /// because `submittedAwaitingScore` excludes anything already scored, nothing would ever revisit it.
     ///
-    /// Only ever clears a score whose event is STILL not final, so a legitimately graded match is
-    /// never disturbed. Loud, because a silently vanishing score is exactly the kind of thing that
-    /// should show up in Diagnostics.
-    private func unscorePrematurelyScored(store: PredictionStore) {
+    /// TWO cases, and the second is the subtle one:
+    ///  (a) the match still isn't final ⇒ the grade was premature; drop it and let it re-score.
+    ///  (b) the match IS final, but the grade was computed against a DIFFERENT scoreline. (a) can't
+    ///      catch this once play finishes, yet the grade stays wrong: UTA v WAS was graded at a fake
+    ///      0–0, so a correct "Washington win" call scored 0 even after it ended 0–1. Detectable only
+    ///      because the grade now carries `gradedHomeScore`/`gradedAwayScore`.
+    ///
+    /// Never touches a grade whose stamp is nil (persisted before the stamp existed) — nil means
+    /// "unknown", not "re-grade". Loud in Diagnostics: a silently changing score is exactly the shape
+    /// the no-silent-failures rule bans.
+    private func regradeStaleScores(store: PredictionStore) {
         for fixtureID in store.scores.keys {
             guard let prediction = store.prediction(for: fixtureID),
-                  let event = eventsByID[prediction.eventID],
-                  !isFinished(event) else { continue }
-            store.clearScore(for: fixtureID)
-            Diagnostics.shared.record(
-                .unexpectedEmpty,
-                "predict unscored \(fixtureID): match not final (\(event.status?.type?.name ?? "unknown"))")
+                  let event = eventsByID[prediction.eventID] else { continue }
+
+            // (a) Graded while the match wasn't actually over — drop it; it returns to the awaiting
+            // set and re-scores when play really finishes.
+            if !isFinished(event) {
+                drop(fixtureID, store: store,
+                     why: "match not final (\(event.status?.type?.name ?? "unknown"))")
+                continue
+            }
+
+            // (b) Graded against a scoreline that has since CHANGED. The match is final now, so (a)
+            // can't catch it — but the grade is still judged against the wrong result. This is the
+            // UTA v WAS case: graded at a fake 0–0, so a correct "Washington win" call scored 0 even
+            // after the match finished 0–1.
+            guard let score = store.score(for: fixtureID),
+                  // nil = graded before this stamp existed ⇒ unknown, never re-grade (see the field docs)
+                  let gradedHome = score.gradedHomeScore, let gradedAway = score.gradedAwayScore,
+                  let home = event.homeCompetitor?.score.flatMap({ Int($0) }),
+                  let away = event.awayCompetitor?.score.flatMap({ Int($0) }),
+                  gradedHome != home || gradedAway != away else { continue }
+            drop(fixtureID, store: store,
+                 why: "graded vs \(gradedHome)–\(gradedAway), actual \(home)–\(away)")
         }
+    }
+
+    private func drop(_ fixtureID: String, store: PredictionStore, why: String) {
+        store.clearScore(for: fixtureID)
+        Diagnostics.shared.record(.unexpectedEmpty, "predict re-grading \(fixtureID): \(why)")
     }
 
     /// For each submitted-but-unscored prediction whose match has finished, fetch
     /// `/summary`, build the answer key, score it, and persist. Best-effort: a
     /// failed fetch just retries on the next load.
     private func scoreSettledSubmissions(store: PredictionStore) async {
-        unscorePrematurelyScored(store: store)
+        regradeStaleScores(store: store)
         for fixtureID in store.submittedAwaitingScore {
             guard let prediction = store.prediction(for: fixtureID),
                   let event = eventsByID[prediction.eventID],
@@ -220,6 +246,10 @@ final class PredictXIViewModel {
                     // Stamp the fixture's soccer week — the round-board key (a 2-game week's
                     // fixtures share a week, so their totals sum into one round row).
                     score.soccerWeek = event.kickoff.flatMap { FanZoneCadence.soccerWeek(for: $0) }
+                    // …and the scoreline it was graded against, so `regradeStaleScores` can spot a
+                    // grade computed against a result that has since changed.
+                    score.gradedHomeScore = homeScore
+                    score.gradedAwayScore = awayScore
                     store.recordScore(score, for: fixtureID)
                 }
             } catch {

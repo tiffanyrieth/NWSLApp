@@ -38,6 +38,14 @@ final class PredictXIViewModel {
         let score: PredictionScore?
         let finalScore: (home: Int, away: Int)?
         let phase: Phase
+        /// A `.submitted` item whose match has KICKED OFF and isn't scored yet (see `inFlightItems`).
+        /// Set explicitly at construction rather than computed from `Date()` in the view, so the
+        /// injected `now()` stays the single clock and the row stays testable.
+        var isUnderway: Bool = false
+        /// An underway match that ESPN has moved to a non-final `post` — suspended/abandoned. Renders
+        /// "SUSP" instead of "LIVE", because a match halted for weather is not live (2026-07-29: the
+        /// row claimed LIVE for 80 minutes while UTA v WAS sat under a wind hold).
+        var isSuspended: Bool = false
 
         var id: String { fixture.id }
 
@@ -170,10 +178,58 @@ final class PredictXIViewModel {
         return soonest
     }
 
+    /// ⚠️ SELF-HEAL a grade that was computed against the wrong reality (2026-07-29/30, owner-hit live).
+    /// A suspended match reports `state == "post"`, so the pre-`isFinalResult` gate graded it — and
+    /// because `submittedAwaitingScore` excludes anything already scored, nothing would ever revisit it.
+    ///
+    /// TWO cases, and the second is the subtle one:
+    ///  (a) the match still isn't final ⇒ the grade was premature; drop it and let it re-score.
+    ///  (b) the match IS final, but the grade was computed against a DIFFERENT scoreline. (a) can't
+    ///      catch this once play finishes, yet the grade stays wrong: UTA v WAS was graded at a fake
+    ///      0–0, so a correct "Washington win" call scored 0 even after it ended 0–1. Detectable only
+    ///      because the grade now carries `gradedHomeScore`/`gradedAwayScore`.
+    ///
+    /// Never touches a grade whose stamp is nil (persisted before the stamp existed) — nil means
+    /// "unknown", not "re-grade". Loud in Diagnostics: a silently changing score is exactly the shape
+    /// the no-silent-failures rule bans.
+    private func regradeStaleScores(store: PredictionStore) {
+        for fixtureID in store.scores.keys {
+            guard let prediction = store.prediction(for: fixtureID),
+                  let event = eventsByID[prediction.eventID] else { continue }
+
+            // (a) Graded while the match wasn't actually over — drop it; it returns to the awaiting
+            // set and re-scores when play really finishes.
+            if !isFinished(event) {
+                drop(fixtureID, store: store,
+                     why: "match not final (\(event.status?.type?.name ?? "unknown"))")
+                continue
+            }
+
+            // (b) Graded against a scoreline that has since CHANGED. The match is final now, so (a)
+            // can't catch it — but the grade is still judged against the wrong result. This is the
+            // UTA v WAS case: graded at a fake 0–0, so a correct "Washington win" call scored 0 even
+            // after the match finished 0–1.
+            guard let score = store.score(for: fixtureID),
+                  // nil = graded before this stamp existed ⇒ unknown, never re-grade (see the field docs)
+                  let gradedHome = score.gradedHomeScore, let gradedAway = score.gradedAwayScore,
+                  let home = event.homeCompetitor?.score.flatMap({ Int($0) }),
+                  let away = event.awayCompetitor?.score.flatMap({ Int($0) }),
+                  gradedHome != home || gradedAway != away else { continue }
+            drop(fixtureID, store: store,
+                 why: "graded vs \(gradedHome)–\(gradedAway), actual \(home)–\(away)")
+        }
+    }
+
+    private func drop(_ fixtureID: String, store: PredictionStore, why: String) {
+        store.clearScore(for: fixtureID)
+        Diagnostics.shared.record(.unexpectedEmpty, "predict re-grading \(fixtureID): \(why)")
+    }
+
     /// For each submitted-but-unscored prediction whose match has finished, fetch
     /// `/summary`, build the answer key, score it, and persist. Best-effort: a
     /// failed fetch just retries on the next load.
     private func scoreSettledSubmissions(store: PredictionStore) async {
+        regradeStaleScores(store: store)
         for fixtureID in store.submittedAwaitingScore {
             guard let prediction = store.prediction(for: fixtureID),
                   let event = eventsByID[prediction.eventID],
@@ -190,6 +246,10 @@ final class PredictXIViewModel {
                     // Stamp the fixture's soccer week — the round-board key (a 2-game week's
                     // fixtures share a week, so their totals sum into one round row).
                     score.soccerWeek = event.kickoff.flatMap { FanZoneCadence.soccerWeek(for: $0) }
+                    // …and the scoreline it was graded against, so `regradeStaleScores` can spot a
+                    // grade computed against a result that has since changed.
+                    score.gradedHomeScore = homeScore
+                    score.gradedAwayScore = awayScore
                     store.recordScore(score, for: fixtureID)
                 }
             } catch {
@@ -219,6 +279,38 @@ final class PredictXIViewModel {
             return PredictionItem(fixture: fixture, prediction: prediction,
                                   score: nil, finalScore: nil, phase: phase)
         }
+    }
+
+    /// ⚠️ THE IN-FLIGHT SLATE (2026-07-29, owner-reported bug). Submitted predictions whose match has
+    /// KICKED OFF but is not yet scored — the gap between kickoff and full-time-plus-scoring, ~2+ hours.
+    ///
+    /// Before this existed, a submitted prediction vanished from the screen entirely the moment its match
+    /// started: `buildUpcoming` only keeps fixtures with `kickoff > now`, so it left `openItems`, and
+    /// `resultItems` reads `store.scores`, which isn't populated until the match is FINAL. The fixture you
+    /// had invested in disappeared, while fixtures you IGNORED stayed visible as "Submission closed" —
+    /// backwards, and it read as data loss during the exact window the game should feel most alive.
+    ///
+    /// Derived from `store.submittedAwaitingScore` (submitted, no score yet) rather than the upcoming
+    /// slate, so it cannot re-hide when the horizon moves. No overlap with `openItems` by construction:
+    /// that list requires `kickoff > now`, this one requires the opposite.
+    func inFlightItems(store: PredictionStore) -> [PredictionItem] {
+        store.submittedAwaitingScore.compactMap { fixtureID -> PredictionItem? in
+            guard let prediction = store.prediction(for: fixtureID),
+                  let event = eventsByID[prediction.eventID],
+                  let fixture = fixture(from: event, yourTeam: prediction.teamAbbreviation),
+                  fixture.kickoff <= now() else { return nil }
+            // The live (or final-but-unscored) scoreline, when ESPN has one — so the row can show the
+            // match actually in progress instead of a static "locked in".
+            let live: (home: Int, away: Int)? = {
+                guard let h = event.homeCompetitor?.score.flatMap({ Int($0) }),
+                      let a = event.awayCompetitor?.score.flatMap({ Int($0) }) else { return nil }
+                return (h, a)
+            }()
+            return PredictionItem(fixture: fixture, prediction: prediction,
+                                  score: nil, finalScore: live, phase: .submitted,
+                                  isUnderway: true, isSuspended: event.isUnfinishedPost)
+        }
+        .sorted { $0.fixture.kickoff < $1.fixture.kickoff }
     }
 
     /// Scored predictions inside the RECENT window (this soccer week + last), most recently played first —
@@ -533,10 +625,16 @@ final class PredictXIViewModel {
         )
     }
 
-    /// A match is scoreable once ESPN marks it final (or, defensively, kickoff is
-    /// well past and a score is present).
+    /// A match is scoreable once ESPN marks it genuinely FINAL — `isFinalResult`, not
+    /// `state == "post"` (2026-07-29: a lightning suspension at 27' reports `post`, and the old
+    /// check scored a live match 0–0 then never revisited it).
+    ///
+    /// The kickoff+3h fallback exists because ESPN sometimes never flips a match to `post` at all.
+    /// It now REQUIRES the match not to be mid-flight or explicitly unfinished, so a long weather
+    /// delay can't age its way into a bogus score.
     private func isFinished(_ event: Event) -> Bool {
-        if event.statusState == "post" { return true }
+        if event.isFinalResult { return true }
+        if event.statusState == "in" || event.isUnfinishedPost { return false }
         if let kickoff = event.kickoff { return kickoff < now().addingTimeInterval(-3 * 3600) }
         return false
     }

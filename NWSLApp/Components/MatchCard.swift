@@ -95,7 +95,11 @@ struct MatchCard: View {
             case "in":
                 EmptyView()
             case "post":
-                Text("FULL TIME")
+                // A suspended/abandoned match also reports `post` — show ESPN's own label
+                // ("Suspended") rather than claiming FULL TIME on a match still to be finished.
+                Text(event.isFinalResult
+                     ? "FULL TIME"
+                     : (event.status?.type?.description ?? "SUSPENDED").uppercased())
                     .dsFont(11)
                     .tracking(0.3)
                     .foregroundStyle(Color.dsFgSecondary)
@@ -143,10 +147,11 @@ struct MatchCard: View {
                 }
             }
         case "post":
-            Text("FT")
+            // "Susp" (ESPN's own shortDetail) instead of a green FT on a match that hasn't finished.
+            Text(event.isFinalResult ? "FT" : (event.status?.type?.shortDetail ?? "SUSP"))
                 .dsFont(11, weight: .bold)
                 .tracking(0.6)
-                .foregroundStyle(Color.dsStateFinal)
+                .foregroundStyle(event.isFinalResult ? Color.dsStateFinal : Color.dsWarning)
         default:
             Text("KICKOFF")
                 .dsFont(11, weight: .bold)

@@ -108,7 +108,11 @@ struct PredictXIView: View {
                     })
             }
         case .locked(let fixtureID):
-            if let item = viewModel.openItems(store: store).first(where: { $0.fixture.id == fixtureID }) {
+            // Search BOTH slates: a submitted prediction moves from `openItems` to `inFlightItems` at
+            // kickoff, and looking only in `openItems` meant the locked screen silently failed to
+            // resolve for a match in progress (blank push, no XI).
+            let candidates = viewModel.openItems(store: store) + viewModel.inFlightItems(store: store)
+            if let item = candidates.first(where: { $0.fixture.id == fixtureID }) {
                 PredictLockedView(item: item, viewModel: viewModel)
             }
         }
@@ -179,10 +183,19 @@ struct PredictXIView: View {
                 }
 
                 let open = viewModel.openItems(store: store)
+                let inFlight = viewModel.inFlightItems(store: store)
                 let results = viewModel.resultItems(store: store)
 
-                if open.isEmpty && results.isEmpty {
+                if open.isEmpty && inFlight.isEmpty && results.isEmpty {
                     emptyState
+                }
+
+                // Matches you've locked in that are underway. Sits ABOVE "Open for predictions"
+                // because a match in progress is the most live thing on the screen — and because
+                // before this section existed it vanished entirely at kickoff (see `inFlightItems`).
+                if !inFlight.isEmpty {
+                    sectionLabel(inFlight.count == 1 ? "Underway" : "Underway now")
+                    ForEach(inFlight) { openItemCard($0) }
                 }
 
                 if !open.isEmpty {
@@ -346,7 +359,10 @@ struct PredictXIView: View {
             }
         } label: {
             VStack(alignment: .leading, spacing: 14) {
-                matchHeader(fixture, finalScore: nil)
+                // An underway match shows the live scoreline instead of its kickoff time — it already
+                // kicked off, so "9:00 PM" would read as though it hadn't.
+                matchHeader(fixture, finalScore: item.isUnderway ? item.finalScore : nil,
+                            isLive: item.isUnderway, isSuspended: item.isSuspended)
 
                 openStatusRow(item)
             }
@@ -373,10 +389,17 @@ struct PredictXIView: View {
             )
         case .submitted:
             statusRow(
-                icon: "checkmark.seal.fill",
+                icon: item.isSuspended ? "exclamationmark.triangle.fill"
+                    : (item.isUnderway ? "dot.radiowaves.left.and.right" : "checkmark.seal.fill"),
                 tint: accent,
                 title: "Locked in — \(item.prediction?.formation ?? "")  ·  \(scoreGuessLabel(item))",
-                subtitle: "Submitted · see how the club is picking."
+                // Underway: "see how the club is picking" was pre-deadline copy and read as though
+                // there were still something to do. Say where it actually stands.
+                subtitle: item.isSuspended
+                    ? "Match suspended · your score posts once it finishes."
+                    : (item.isUnderway
+                       ? "Match underway · your score posts after full time."
+                       : "Submitted · see how the club is picking.")
             )
         case .closed:
             statusRow(
@@ -550,7 +573,11 @@ struct PredictXIView: View {
 
     // MARK: - Shared match header
 
-    private func matchHeader(_ fixture: PredictionFixture, finalScore: (home: Int, away: Int)?) -> some View {
+    /// `isLive` distinguishes an UNDERWAY scoreline from a finished one. Without it the header
+    /// labelled every non-nil score "FT", so a match in progress read as full-time — the wrong-but-
+    /// plausible kind of wrong that's worse than showing nothing.
+    private func matchHeader(_ fixture: PredictionFixture, finalScore: (home: Int, away: Int)?,
+                             isLive: Bool = false, isSuspended: Bool = false) -> some View {
         let homeAbbr = fixture.isHome ? fixture.teamAbbreviation : fixture.opponentAbbreviation
         let awayAbbr = fixture.isHome ? fixture.opponentAbbreviation : fixture.teamAbbreviation
         return HStack(spacing: 12) {
@@ -563,7 +590,10 @@ struct PredictXIView: View {
             VStack(spacing: 4) {
                 if let final = finalScore {
                     Text("\(final.home)–\(final.away)").dsFont(20, weight: .heavy)
-                    Text("FT").dsFont(11, weight: .bold).foregroundStyle(Color.dsStateFinal)
+                    Text(isSuspended ? "SUSP" : (isLive ? "LIVE" : "FT"))
+                        .dsFont(11, weight: .bold)
+                        .foregroundStyle(isSuspended ? Color.dsWarning
+                                         : (isLive ? Color.dsStateLive : Color.dsStateFinal))
                 } else {
                     Text("KICKOFF")
                         .dsFont(11, weight: .bold).tracking(0.6)

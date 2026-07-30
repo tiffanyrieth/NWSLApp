@@ -372,6 +372,9 @@ stats). Current parsed-vs-unparsed inventory: `docs/backend.md` (proxy § pass-t
 - **Before "done":** builds AND runs in the sim with no errors, **manually verified in-sim**
   (compiling ≠ working); update `docs/FILEMAP.md`; commit message `<Area>: <what changed>` (specific,
   present-tense); confirm before pushing (don't auto-push).
+- **AX1 check = part of "done" for any new/redesigned screen** (`simctl ui <SIM> content_size
+  accessibility-medium`). Dynamic Type caps at AX1, so it's the largest size the app promises and must
+  lose NO data. Bar, severity ladder, cap rationale: `docs/roadmap.md` ♿ gate.
 - **Stress-test gate = part of "done" for load-bearing features.** Any NEW or REBUILT feature/subsystem
   that adds or changes a **load path** (DB reads/writes, network, push fan-out, KV/storage, cron) must be
   run through the **`docs/stress-testing.md` §5** method and shown to **pass the 1k SIZE test** (+ note the

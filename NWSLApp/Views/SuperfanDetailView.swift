@@ -259,7 +259,12 @@ struct SuperfanDetailView: View {
                 .frame(width: 58, alignment: .leading)
             Text(range).font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(tier.color)
                 .frame(width: 52, alignment: .leading)
-            Text(blurb).dsFont(12).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
+            // Wraps rather than truncates: after three fixed-width columns this one has ~200pt, and at
+            // accessibility text sizes "strong across multiple games" clipped to "strong across
+            // multiple…" — the half of the row that explains the tier. A shrink-to-fit floor only
+            // delayed it. (Verified in-sim at accessibility-medium, 2026-07-29.)
+            Text(blurb).dsFont(12).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
     }

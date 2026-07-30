@@ -80,7 +80,14 @@ final class MatchDetailViewModel {
     }
 
     /// past / live / future, from the scoreboard status state.
+    ///
+    /// ⚠️ A SUSPENDED match is `.live`, not `.past` (2026-07-29). ESPN reports `state == "post"` for a
+    /// lightning suspension, and mapping that to `.past` did two harmful things: it rendered a final
+    /// recap for a match still to be played, and — because the refresh loop runs only while
+    /// `temporalState != .past` — it STOPPED POLLING, so the screen could never recover when play
+    /// resumed. Keeping it `.live` keeps the poll alive and lets the match heal itself.
     var temporalState: MatchTemporalState {
+        if event.isUnfinishedPost { return .live }
         switch event.statusState {
         case "in":   return .live
         case "post": return .past

@@ -1,5 +1,60 @@
 # Roadmap / What's Next
 
+> ### ✅ DONE + DEPLOYED 2026-07-30 — WATCHER: "suspended" is not full time
+> **Fixed and deployed** (`isUnfinishedPost` → `Match.unfinishedPost`, consulted at all three sites;
+> 87 watcher tests + `test/suspension.test.ts`). The Live Activity path RETURNS EARLY on a suspension
+> rather than broadcasting — the content state derives its phase from `state`, so an update would render
+> a full-time card mid-match, and the teardown can't be undone. Fail-open polarity throughout: only
+> positive evidence of non-completion counts, so a payload missing `completed` behaves exactly as before.
+> ⚠️ NOT done (deliberate, owner call): un-marking `ended` when a fixture is seen `in` again. With the
+> cause fixed, the 6h discovery sweep already covers recovery, and un-ending on `post→in` risks a
+> duplicate full-time push on ESPN's frequent status flapping. Revisit only if a fixture is ever wrongly
+> ended by some other route. **The original diagnosis is kept below — it's the reference for the failure
+> mode, and the fabricated-kickoff variant in the next item is still unguarded.**
+>
+> #### Original diagnosis (2026-07-29)
+> ESPN reports a suspended/abandoned match as **`state == "post"` with `completed == false` and
+> `name == "STATUS_SUSPENDED"`.** The app now guards this (`Event.isFinalResult`, `SuspendedMatchTests`);
+> **the watcher does not**, and it trusts bare `post` at THREE sites. Real consequences, all observed on
+> UTA v WAS (wind hold at 27', resumed ~70 min later):
+> - **`fixtures.ts:105,:126` marks the fixture `ended` → `isActive` (`:82`) drops it → POLLING STOPS.**
+>   ⚠️ The worst one, and the least obvious. It was MASKED for 2½h because BAY v GFC was live on the same
+>   ESPN feed (one scoreboard response covers every NWSL match, so the Spirit match kept being diffed as a
+>   side effect — that's why the resumed-half goal + halftime pushes fired). When BAY finished at 00:10
+>   the feed went quiet, and the Spirit's real full time at ~00:27 was **never observed** — KV proved it:
+>   `match:401853954` still read `state:"in"`, fixture `ended:true`. **No full-time push was ever sent.**
+>   Visibility depends on the schedule, which is the worst property a bug can have.
+> - **`events.ts` FT detection** (`prev.state==="in" && state==="post"`) → fires a FALSE full-time push.
+> - **`index.ts` ~:781 Live Activity teardown** → `broadcastEnd` + `deleteChannel` + KV deletes. IRREVERSIBLE:
+>   push-to-start is gated on `ko >= now`, so an already-kicked-off match can never restart its Activity.
+>   The guard must sit BEFORE the delete and bias toward "not ended" when signals conflict.
+>
+> Fix = the same `isFinalResult` concept at all three. Belt: **un-mark `ended` if a supposedly-ended
+> fixture is ever seen `in` again** (see the backwards-transition rule below). Needs a deploy.
+
+> ### 🕐 LIVE STATE — trust the SEQUENCE, never a single snapshot (three variants, one lesson)
+> Live match state has broken three times, each a different mechanism, each from trusting ONE field:
+> | Variant | ESPN says | Reality | Status |
+> |---|---|---|---|
+> | **Stale cache** (2026-07-11) | old-but-valid | clock stuck all game; read `pre` 47min after KO | ✅ fixed build 26 (windowed query + upstream cache-bust) |
+> | **Suspension** (2026-07-29) | `state=post` | in progress | ✅ app fixed; ⛈️ watcher open (above) |
+> | **Fabricated kickoff** (Orlando, ~2026-07-10) | `state=in` at 1' | **never kicked off** | ❌ **NO GUARD EXISTS** |
+>
+> **Fabricated kickoff:** a pre-KO lightning delay; ESPN auto-starts after ~30 min regardless and shows a
+> STATIC placeholder minute. `TickAnchor` keeps the anchor when the clock doesn't advance (correct for
+> stoppage, where ESPN freezes at 2700) — so a permanently static feed clock produced a **climbing display
+> that reached 120'**. Self-healed only when ESPN keyed in a corrected start time.
+> - ⚠️ **Do NOT tighten on status NAMES.** Verified 2026-07-29: a legitimate kickoff arrived as
+>   `STATUS_IN_PROGRESS` (not `STATUS_FIRST_HALF`), and ESPN flapped between the two ~8× in one match.
+>   Name-matching would MISS real kickoffs.
+> - ✅ **Tighten on behaviour instead:** require the feed clock to have been OBSERVED ADVANCING before
+>   ticking locally; until then render ESPN's string verbatim and diag if it never advances. Generalises
+>   the `freshAtCap` rule already in `TickAnchor` ("first sighting at the cap is UNKNOWABLE — don't
+>   fabricate"). Costs ~1 poll cycle; immune to labels and placeholders.
+> - ✅ **Backwards transitions are proof the PRIOR state was wrong** — `post→in` (suspension recovery) and
+>   `in→pre` (fake kickoff correction) are both impossible in a real match. Cheapest in the watcher, which
+>   already persists `prev`.
+
 > ### 🪪 DISPLAY NAMES ARE NOT UNIQUE — decide BEFORE launch (owner 2026-07-29)
 > **Today anyone can take a name someone else already has.** `profiles.display_name` is a plain `text`
 > column with **no unique constraint** (`supabase/schema.sql:34`), `DisplayNameRules` only trims and
@@ -48,10 +103,11 @@
 > in a hand. Fixed for Predict (10pt bar, flexible width, `.dsFont` percentages that scale with
 > Dynamic Type).
 >
-> **⚠️ KNOW HER GAME HAS THE SAME PROBLEM** — its community-results bars (`CommunityResultsView`,
-> shared with NWSL Trivia) are on the small side in exactly the same way. Deliberately NOT fixed in
-> the Predict pass to keep that change focused; it's a small, self-contained edit whenever a
-> community-games session comes up. NWSL Trivia inherits the fix for free (same component).
+> **✅ KNOW HER GAME + NWSL TRIVIA — DONE 2026-07-29.** `CommunityResultsView` went further than a
+> resize: options now STACK (full label on its own line, bar beneath), which killed the truncation AND
+> roughly doubled the bar width since it no longer competes with a label column. Same pass added the
+> "your pick" marking and cut two duplicate header lines. Both community games share the component, so
+> Trivia got it for free as expected.
 >
 > **The general lesson worth keeping:** an 11pt font and a 4pt bar are a *tool* default, not a
 > phone-reading size. When sizing anything a user has to read or compare at arm's length, size it
@@ -197,7 +253,58 @@
 >   UserDefaults on the device. Probably wants wiring up — a deleted account shouldn't leave game history
 >   behind locally.
 
-> ### 🛡️ ESPN ROSTER RELIABILITY — reduce the single-source risk (owner 2026-07-27)
+> ### 🛡️ ESPN ROSTER RELIABILITY — reduce the single-source risk (owner 2026-07-27; RESEARCHED + reframed 2026-07-30)
+>
+> **⭐ 2026-07-30 REFRAME — TWO ERROR CLASSES, and they need DIFFERENT tools. Read before designing.**
+> - **LAGGING FACT** — the value WAS true, reality moved, nobody keyed it in. **Bounded** (one transfer's
+>   worth) and self-correcting. Croix Bethune wore 7 her whole career, moved to KC where 7 was taken, took
+>   8; the official feed still says 7. Understandable and finite.
+> - **FABRICATION** — the value was NEVER true. **Unbounded.** ACFC → 1 player · Orlando ceasing to exist ·
+>   Rodman FWD→MID (nothing stops GK next week) · players who don't exist (Bethi, Ngock on the Spirit) ·
+>   **Spirit showing 5 goalkeepers last month, correctly 3 now.**
+>   Owner's frame: a rename you haven't heard yet is a lagging fact; deciding to call someone "Cats" is
+>   fabrication. ESPN tracks a million sports, mostly men's, and has no incentive to fix NWSL data.
+>
+> **⇒ INVARIANTS catch FABRICATION (one payload, pure logic, unit-testable, NO second source needed):**
+> unique shirt number per squad (this caught Bethune — SDP listed TWO #7s) · **position-group counts**
+> (5 keepers implausible, 0 impossible, 15 defenders impossible) · plausible squad size · a player on
+> exactly one club. **CROSS-SOURCING catches STALENESS** — a lagging value is internally consistent, so
+> only a second opinion reveals it. **Build the invariants FIRST**: cheaper, and it's the half where ESPN
+> actually hurts.
+>
+> **⚠️ "The official feed always wins" is WRONG — jersey correctness goes BOTH ways** (verified live):
+> | Case | ESPN | NWSL SDP | Right | Detectable how |
+> |---|---|---|---|---|
+> | Rodman position | Midfielder ❌ | Forward ✅ | SDP | cross-check |
+> | Bethune jersey | #8 ✅ | #7 ❌ | **ESPN** | invariant (duplicate #7) |
+> | Sentnor jersey | *missing* ❌ | #21 ✅ | **SDP** | missing value |
+> | Bethi/Ngock membership | present ❌ | absent ✅ | SDP | cross-check |
+>
+> **Correction policy:** auto-correct ONLY on a missing value or a violated invariant. When both sources
+> are self-consistent but disagree, **emit a diag and change nothing** — adjudicate via an overrides KV
+> (which the planned admin portal would front). Never guess.
+>
+> **Source research (all verified by direct fetch 2026-07-29, not schema-reading):** NWSL's own public
+> keyless Opta-backed API `https://api-sdp.nwslsoccer.com/v1/nwsl/football` — already used by the proxy in
+> `src/headshots.ts`, whose weekly normalized-name SDP↔ESPN join (~98%) is a ready-made id bridge.
+> `/seasons/{s}/stats/players?teamId=` returns a full squad in one page with `bibNumber` + `roleLabel`.
+> **HAS:** correct squads · 171 season stats vs ESPN's 106 (xG, big chances, progressive carries, duels) ·
+> tactical formation coords · standings `form`/`movement`/`qualification` · assists · paired subs · 2013+.
+> **DOES NOT HAVE (checked, not assumed):** heat maps / average positions (**0 of 78 players populated**) ·
+> distance/sprint/speed (all `0`) · per-match team box score · play-by-play · `/transfers` (returns `[]`) ·
+> national teams + Concacaf W (in the catalog but **WAFCON `/matches` → HTTP 500**; licence is NWSL-scoped,
+> so **ESPN stays for NT permanently**). xG is season-per-player only — NOT per match, so the natural
+> home (home-vs-away comparison bars) is unreachable.
+> **Live games: settled — do NOT migrate.** Latency is a wash (every event within one 30s cycle, no
+> systematic winner across 3 kickoffs / 4 goals / HT / FT / suspension). SDP models state better in one
+> place (`FINISHED` vs `SUSPENDED` where ESPN overloads `post`) and worse in another (`phase` went
+> `PRE_MATCH` for a match at 27'), and degraded harder on the abnormal match (closed it ~10–15 min late).
+>
+> **Legal posture:** both ToS forbid automated access; Disney's says "whether or not for profit", so
+> non-commercial is not a carve-out either way. Switching does NOT improve the position — owner has
+> assessed and accepted this. Only asymmetry: NWSL's terms contemplate written permission, so *asking* is
+> possible there and never with Disney.
+
 > ESPN is the app's most vulnerable dependency. For a solo indie app that's an accepted trade — but the
 > **roster** specifically has been flaky enough to warrant a better guard. Not aiming for perfect; aiming
 > for *better than one unverified source*.
@@ -383,6 +490,37 @@
 >   larger AX sizes — trade-off).
 > - **Color-blind:** never rely on color ALONE — redundant encoding (letter/shape/icon) + respond to
 >   `@Environment(\.accessibilityDifferentiateWithoutColor)`, usually better than a custom mode.
+>
+> #### ✅ Dynamic Type / AX1 — SETTLED 2026-07-29 (the cap question above is now ANSWERED)
+> **The cap STAYS at AX1** (owner decision, after testing MLS / NWSL / MLB / Reddit / Swift Alert on
+> device). Consequences, and the standing rule:
+> - **AX1 is the largest size the app promises, so it must lose NO data.** AX2–AX5 all resolve to AX1
+>   (verified: the maximum system setting renders pixel-identically), so AX1 IS the worst case — there's
+>   nothing above it to test.
+> - **Don't lift the cap.** At AX5 body text is 53pt on a 402pt screen ≈ 7 characters per line; no
+>   layout survives it, which is why every app that permits it breaks (MLB shatters; MLS's club pages
+>   overlap; Swift Alert breaks too). A predictable cap is a more honest contract than an uncapped
+>   layout that collapses. Users who need >AX1 are served by **VoiceOver + iOS Zoom**, which work
+>   regardless of the cap — that's where the remaining effort belongs, not here.
+> - **The bar** is *same layout, same information, nothing hidden, nothing overlapping* — NOT "looks
+>   identical" (bigger text legitimately means fewer cards per screen).
+> - **Severity ladder:** **overlap = always broken** > truncating a value available nowhere else = bug >
+>   truncation where the full value is one tap away (a fixed-size carousel card) = fine, leave it.
+> - ⚠️ **A fixed-HEIGHT container must CLAMP its text** (`lineLimit`), or the text escapes its bounds
+>   and collides — that's exactly how the MLS roster cards break. Clamped truncation is the SAFE
+>   failure mode; unclamped overlap is not.
+> - ⚠️ **MEASURE before redesigning.** Standings was assumed to need a graduated fix from ~xLarge up;
+>   stepping through every size showed it clean across the ENTIRE standard range (xSmall…xxxLarge) and
+>   broken only at AX1 — which shrank the work to one threshold. The reflex to redesign for "large text"
+>   generally overshoots.
+> - **Swept 2026-07-29** (five tabs, both quiz results panels, Bracket, Teams, Schedule, Social,
+>   Superfan, Match Detail): PASS everywhere after fixing Superfan tier blurbs, Bracket edition titles,
+>   Standings, and the Match Detail tiles + kickoff date. Colour-blind pass (deuter/protan/tritan
+>   simulation, `cvd.py` method) found **no failures** — existing rules carry it: ✓/✗ glyph shapes, the
+>   crest+abbreviation naming rule, "your pick"/"YOUR PICK" text labels, positional bars. Thinnest
+>   margin = Standings form chips (W and L are the same colour under deuteranopia; only the W/L/D
+>   letters distinguish them, so never swap those letters for coloured dots).
+> - NOT done, deliberately: the Teams grid's uneven tile borders when club names wrap (cosmetic).
 > Current state = PARTIAL, not zero (FormBadge shows W/D/L letter+color = color-blind safe; text uses
 > `.dsFont`/@ScaledMetric; scattered labels exist) → the work is systematic completion + an audit, then a
 > punch-list. First step when picked up: run the audit (read + VoiceOver in sim). Detail in the

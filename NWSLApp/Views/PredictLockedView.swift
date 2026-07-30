@@ -9,14 +9,18 @@
 //  full time were empty. That gap is why the game read as filing a survey rather than entering a
 //  contest. This gives the wait content, and gives locking in a payoff.
 //
-//  THREE STATES, driven by what is actually knowable rather than by a timer:
-//   1. Sealed, aggregate not yet available → the lock confirmation and a plain reassurance line.
-//   2. Sealed, aggregate available → "312 of 340 fans have locked in" and the promise, spelled out.
-//   3. Revealed (submissions closed) → where you went your own way, share, and the XI with bars.
+//  TWO STATES, driven by what is actually knowable rather than by a timer:
+//   1. Sealed → the lock confirmation, your XI ON THE PITCH, and when things open.
+//   2. Revealed (submissions closed) → where you went your own way, share, and the XI with
+//      ownership bars (the row list, which is the only layout that can carry them).
 //
-//  ⚠️ THE AGGREGATE IS THE ONLY THING SHOWN BEFORE THE CLOSE, AND IT IS NEVER PER-PERSON. A count
-//  of how many fans have locked in creates urgency from a real number; exposing whether a SPECIFIC
-//  user has submitted would disclose someone else's activity and is permanently out of bounds.
+//  ⚠️ NO "N of M FANS HAVE LOCKED IN" COUNTER (removed 2026-07-29, owner). It read confusingly at
+//  small scale — "1 of 56 Washington Spirit fan has locked in" — and mixed two different populations:
+//  the numerator was submissions for THIS fixture, the denominator was fans with ≥1 SCORED match this
+//  season. It also wasn't pulling its weight: whether you're first or hundredth changes nothing about
+//  your own sealed XI. Don't reintroduce it. (The privacy line still stands and always will: any
+//  pre-close aggregate must be a COUNT, never per-person — exposing whether a SPECIFIC user has
+//  submitted discloses someone else's activity and is permanently out of bounds.)
 //
 //  ⚠️ THE STATE COMES FROM THE SERVER, NOT THE CLOCK. `revealed` is decided by the proxy, which
 //  knows kickoff and refuses to serve percentages early. A device clock could be wrong or set
@@ -34,6 +38,9 @@ struct PredictLockedView: View {
 
     @State private var community: PredictCommunity?
     @State private var names: [String: String] = [:]
+    /// athleteID → jersey number, for the pitch marker's fallback when a player has no headshot —
+    /// the picker shows the number there, so this screen must too.
+    @State private var jerseys: [String: String] = [:]
     @State private var isLoading = true
     @State private var now = Date()
 
@@ -59,16 +66,25 @@ struct PredictLockedView: View {
                 } else if revealed {
                     contrarianPanel
                     shareRow
-                } else {
-                    sealedPanel
                 }
                 sectionLabel(revealed ? "YOUR XI VS THE BOARD" : "YOUR LOCKED XI")
-                xiSummary
+                // Before the reveal there are no ownership numbers to show, so the XI is just
+                // your XI — and it gets the same field the picker and the results screen use.
+                // After the reveal the row list earns its place: it carries the ownership bars,
+                // which are the entire point of "vs the board" and can't live on a pitch.
+                if revealed {
+                    xiSummary
+                } else {
+                    pitch
+                }
                 if !revealed, !isLoading {
-                    Text("How \(clubLabel) picked opens \(closeLabel).")
-                        .dsFont(11).foregroundStyle(Color.dsFgTertiary)
-                        .frame(maxWidth: .infinity)
-                        .multilineTextAlignment(.center)
+                    VStack(spacing: 3) {
+                        Text("How \(clubLabel) picked opens \(closeLabel).")
+                        Text("Your score is posted after full time.")
+                    }
+                    .dsFont(11).foregroundStyle(Color.dsFgTertiary)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
                 }
             }
             .padding(20)
@@ -82,9 +98,10 @@ struct PredictLockedView: View {
 
     private func load() async {
         guard let prediction else { isLoading = false; return }
-        names = Dictionary(
-            await viewModel.roster(forTeam: prediction.teamAbbreviation).map { ($0.id, $0.name) },
-            uniquingKeysWith: { first, _ in first })
+        let roster = await viewModel.roster(forTeam: prediction.teamAbbreviation)
+        names = Dictionary(roster.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+        jerseys = Dictionary(roster.compactMap { a in a.jersey.map { (a.id, $0) } },
+                             uniquingKeysWith: { first, _ in first })
         if let week = FanZoneCadence.soccerWeek(for: item.fixture.kickoff) {
             let service = PredictCommunityService()
             let map = await service.distribution(
@@ -115,13 +132,22 @@ struct PredictLockedView: View {
                     }
                 }
                 Spacer(minLength: 8)
+                // Once kickoff has passed there is no countdown left — it rendered "— to kickoff",
+                // which reads as missing data on a match that's actually in progress.
                 VStack(alignment: .trailing, spacing: 1) {
-                    Text(countdown).dsFont(15, weight: .heavy).foregroundStyle(tint)
-                    Text("to kickoff").dsFont(10).foregroundStyle(Color.dsFgTertiary)
+                    if hasKickedOff {
+                        Text("LIVE").dsFont(15, weight: .heavy).foregroundStyle(Color.dsStateLive)
+                        Text("underway").dsFont(10).foregroundStyle(Color.dsFgTertiary)
+                    } else {
+                        Text(countdown).dsFont(15, weight: .heavy).foregroundStyle(tint)
+                        Text("to kickoff").dsFont(10).foregroundStyle(Color.dsFgTertiary)
+                    }
                 }
             }
-            // State 1: nothing to report yet. Say so plainly rather than showing an empty panel.
-            if !revealed, community == nil, !isLoading {
+            // Sealed: say it plainly. This used to be gated on the aggregate being absent, because a
+            // panel underneath carried the reassurance when it was present; that panel is gone, so
+            // the line now shows whenever the board is still sealed.
+            if !revealed, !isLoading {
                 Text("Your picks are sealed. Nothing to do now but wait.")
                     .dsFont(12, weight: .semibold).foregroundStyle(Color.dsSuccess)
             }
@@ -136,53 +162,72 @@ struct PredictLockedView: View {
         )
     }
 
-    // MARK: - State 2: sealed, with the aggregate
+    // MARK: - Your XI, on the pitch
 
+    /// ⚠️ THE PITCH, NOT A LIST (owner, 2026-07-29). This screen used to render the sealed XI as a
+    /// plain text list of eleven names — "a generic text version of your picks that is harsh to read",
+    /// on a game whose other two screens (the picker and the result) both draw a proper field. The app
+    /// already owns the pretty format; the wait screen should use it.
+    ///
+    /// Deliberately built from `Formation.displayRowGroups` + `predictPitchChrome()` — the SAME row
+    /// source and the SAME field modifier as `XIPickerView.pitchGrid` and `PredictPitchView`. That
+    /// shared modifier is the anti-drift seam (owner rule, 2026-07-28): three screens draw this field,
+    /// and they must not diverge.
     @ViewBuilder
-    private var sealedPanel: some View {
-        if let community, community.submissions > 0 {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("\(community.submissions)").dsFont(20, weight: .heavy)
-                    Text(lockedInCopy(community.submissions)).dsFont(13).foregroundStyle(.secondary)
-                }
-                if let total = boardSize, total >= community.submissions {
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color.dsBgTertiary)
-                            Capsule().fill(accent)
-                                .frame(width: geo.size.width * (Double(community.submissions) / Double(total)))
+    private var pitch: some View {
+        if let raw = prediction?.formation, let formation = Formation(raw: raw) {
+            VStack(spacing: 16) {
+                // Identifiable ROW VALUES, never `ForEach(indices)` — that crashed the picker
+                // out-of-bounds when a row count shrank (see Formation.DisplayRow).
+                ForEach(formation.displayRowGroups) { rowGroup in
+                    HStack(alignment: .top, spacing: 8) {
+                        ForEach(rowGroup.slots) { slot in
+                            pitchCell(slot)
                         }
                     }
-                    .frame(height: 10)
                 }
-                Text("Nobody sees anyone's XI until submissions close \(closeLabel) — then the whole board opens at once.")
-                    .dsFont(11.5).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 16).padding(.vertical, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.dsMdCard)
-            .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
+            .padding(.vertical, 22)
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity)
+            .predictPitchChrome()
+        } else {
+            // No parseable formation ⇒ no field to draw. Fall back to the row list rather than an
+            // empty green rectangle: the XI is the content, the pitch is the presentation.
+            xiSummary
         }
     }
 
-    /// ⚠️ The denominator is NOT guaranteed to exist. The only club-size number the app holds is
-    /// `totalPredictors`, which counts fans with at least one SCORED match this season — so early in
-    /// a season the count of people who've locked in can legitimately EXCEED it, and rendering
-    /// "312 of 280" would be visibly wrong. When there's no credible denominator we simply state the
-    /// real number on its own, which is honest and still creates the urgency.
-    private var boardSize: Int? {
-        guard let total = viewModel.standingByTeam[item.fixture.teamAbbreviation]?.total, total > 0 else { return nil }
-        return total
+    /// One pitch marker: headshot (position-band monogram fallback) + surname, mirroring the picker's
+    /// filled slot so a locked XI looks like the XI you just built.
+    private func pitchCell(_ slot: Formation.Slot) -> some View {
+        let id = prediction?.slots[slot.index]
+        return VStack(spacing: 5) {
+            PlayerHeadshot(athleteID: id, size: 46) {
+                ZStack {
+                    Circle().fill(accent)
+                    // Jersey number, exactly like the picker's filled slot — falling back to the
+                    // position band only when the roster carries no number.
+                    Text(id.flatMap { jerseys[$0] } ?? slot.group.shortLabel)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.white)
+                }
+                .frame(width: 46, height: 46)
+            }
+            .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 1))
+            Text(surname(of: id) ?? slot.group.shortLabel)
+                .dsFont(12, weight: .semibold)
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(width: 62)
     }
 
-    private func lockedInCopy(_ submissions: Int) -> String {
-        let fan = submissions == 1 ? "fan has" : "fans have"
-        if let total = boardSize, total >= submissions {
-            return "of \(total) \(clubLabel) \(fan) locked in"
-        }
-        return "\(clubLabel) \(fan) locked in"
+    /// Surname only — full names don't fit a 62pt marker, and the picker shows surnames too.
+    private func surname(of athleteID: String?) -> String? {
+        guard let athleteID, let full = names[athleteID] else { return nil }
+        return full.split(separator: " ").last.map(String.init) ?? full
     }
 
     // MARK: - State 3: crowd revealed
@@ -333,6 +378,9 @@ struct PredictLockedView: View {
         let date = community?.closesAt ?? item.fixture.deadline
         return Self.closeFormatter.string(from: date)
     }
+
+    /// Ticks with `now` (the 60s clock), so the card flips to LIVE without a reload.
+    private var hasKickedOff: Bool { item.fixture.kickoff <= now }
 
     private var countdown: String {
         let seconds = item.fixture.kickoff.timeIntervalSince(now)

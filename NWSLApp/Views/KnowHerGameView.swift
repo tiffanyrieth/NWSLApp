@@ -336,7 +336,8 @@ struct KnowHerGameView: View {
         guard !viewModel.isFinished else { return }
         viewModel.finish()
         store.recordCompletion(editionKey: viewModel.editionKey, weekKey: weekKey,
-                               correct: viewModel.score, outOf: viewModel.questionCount)
+                               correct: viewModel.score, outOf: viewModel.questionCount,
+                               picks: viewModel.picks)
         FanZoneActivity.recordPlay()   // Iron Fan: played a Fan Zone game this week
         // Signed in (gated at Start) → persist the per-question answers to the community aggregate,
         // and push the progress summary (the reinstall-restore row — partial columns, KHG's only).
@@ -394,8 +395,20 @@ struct KnowHerGameView: View {
     private var communityQuestions: [CommunityResultsView.QuestionInfo] {
         // Carry the revealFact so the "learn about her" payoff rides each question's community breakdown
         // (the standalone answer-recap list was removed as a duplicate).
-        player.questions.map { .init(id: $0.id, prompt: $0.prompt, options: $0.options,
-                                     correctIndex: $0.correctIndex, revealFact: $0.revealFact) }
+        let picks = yourPicks
+        return player.questions.enumerated().map { i, q in
+            .init(id: q.id, prompt: q.prompt, options: q.options, correctIndex: q.correctIndex,
+                  revealFact: q.revealFact,
+                  yourPick: picks.indices.contains(i) ? picks[i] : nil)
+        }
+    }
+
+    /// This user's answers, for the panel's "your pick" marks: the live session when she just played,
+    /// otherwise the banked picks for THIS edition. Empty on a last-round player she never played, and on
+    /// an edition completed before picks were persisted (2026-07-29) — the panel then simply shows no
+    /// personal marks rather than inventing them.
+    private var yourPicks: [Int] {
+        viewModel.isFinished ? viewModel.picks : (store.picks(editionKey: viewModel.editionKey) ?? [])
     }
 
     private func letter(_ index: Int) -> String {

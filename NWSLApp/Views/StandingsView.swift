@@ -42,15 +42,32 @@ struct StandingsView: View {
     // Shared fixed column widths + gap so the (non-pinned) header lines up with the
     // rows. Per the §0 crest rule, secondary elements (gaps, the W/D/L columns, the
     // Last-5 width) are kept tight so the 32pt crest + abbreviation + ★ never clip.
-    private enum Col {
-        static let rank: CGFloat = 22     // fits two 14pt digits (10–16) on one line
-        static let pts: CGFloat = 34
-        static let gp: CGFloat = 22
-        static let wdl: CGFloat = 19     // W · D · L
-        static let gd: CGFloat = 26      // signed goal difference: "+12" / "-3"
-        static let form: CGFloat = 69    // five 13pt badges + 1pt gaps
-        static let gap: CGFloat = 5
+    //
+    // ⚠️ TWO SETS, and the split is at ACCESSIBILITY SIZES ONLY (2026-07-29). Measured
+    // across every Dynamic Type step: the standard set carries the whole standard range
+    // — xSmall through xxxLarge — with all nine columns on one line and nothing lost.
+    // At AX1 it doesn't: `W` rendered as "…" and `GD` as "+…", because the text scales
+    // 1.65× inside fixed-width columns and `minimumScaleFactor` runs out. So AX1 (and
+    // only AX1) gets wider columns, funded by moving `Last 5` onto its own line in each
+    // row. Everything below AX1 is byte-for-byte the layout that already worked — the
+    // measurement is the whole reason the threshold sits here and not lower.
+    private struct Columns {
+        let rank, pts, gp, wdl, gd, form, gap: CGFloat
+
+        /// xSmall … xxxLarge. Sized for 14pt digits; verified to fit through xxxLarge.
+        static let standard = Columns(rank: 22, pts: 34, gp: 22, wdl: 19, gd: 26, form: 69, gap: 5)
+        /// AX1 only. `Last 5`'s 69pt is redistributed to the numeric columns, which is
+        /// what stops the ellipsis. Budget is tight by design: the crest stays 32pt (it
+        /// does not shrink — §0) and the abbreviation is `fixedSize`, so the leftover has
+        /// to cover both.
+        static let accessibility = Columns(rank: 26, pts: 40, gp: 28, wdl: 26, gd: 36, form: 69, gap: 5)
     }
+
+    /// The app caps Dynamic Type at AX1 (`RootTabView`), so this is true at exactly one
+    /// size — AX1 — and every larger system setting resolves to it.
+    @Environment(\.dynamicTypeSize) private var typeSize
+    private var isAccessibilitySize: Bool { typeSize.isAccessibilitySize }
+    private var col: Columns { isAccessibilitySize ? .accessibility : .standard }
     // Row content insets (inside the card) and the card's own side margin. The
     // column header sits OUTSIDE the card, so its insets are the sum of the two —
     // that's what keeps the header cells aligned over the row cells.
@@ -106,31 +123,53 @@ struct StandingsView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Standings")
-                    .dsFont(32, weight: .bold)
-                    .foregroundStyle(Color.dsFgPrimary)
-                    // Keep the large title on one line beside the "TOP N ADVANCE" pill at
-                    // larger text sizes (it otherwise wraps mid-word to "Standing"/"s").
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                Spacer()
-                Text("TOP \(playoffSpots) ADVANCE")
-                    .dsFont(11, weight: .bold)
-                    .tracking(0.4)
-                    .foregroundStyle(Color.dsStateKickoff)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .background(Color.dsStateKickoff.opacity(0.14), in: Capsule())
+            // At AX1 the 32pt title and the pill can't share a line — side by side they
+            // overflowed BOTH screen edges (the title clipped left, the pill ran off
+            // right). Stacking them is the only thing that fits, and it's confined to
+            // AX1; below it they stay on one row exactly as before.
+            if isAccessibilitySize {
+                titleText
+                playoffPill
+            } else {
+                HStack(alignment: .firstTextBaseline) {
+                    titleText
+                    Spacer()
+                    playoffPill
+                }
             }
             // `String(...)` so the year renders "2026", not the locale-grouped "2,026".
             Text("\(String(seasonYear)) NWSL · Regular season")
                 .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
         }
+        // Fill the width and stay leading-aligned. The non-AX branch gets this for free from
+        // its HStack's `Spacer()`; the AX branch has no full-width child, so without this the
+        // VStack shrinks to its content and SwiftUI centres the whole header block.
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, DS.pagePadding)
         .padding(.top, 4)
         .padding(.bottom, 12)
+    }
+
+    private var titleText: some View {
+        Text("Standings")
+            .dsFont(32, weight: .bold)
+            .foregroundStyle(Color.dsFgPrimary)
+            // Keep the large title on one line beside the "TOP N ADVANCE" pill at
+            // larger text sizes (it otherwise wraps mid-word to "Standing"/"s").
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+    }
+
+    private var playoffPill: some View {
+        Text("TOP \(playoffSpots) ADVANCE")
+            .dsFont(11, weight: .bold)
+            .tracking(0.4)
+            .foregroundStyle(Color.dsStateKickoff)
+            .lineLimit(1)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(Color.dsStateKickoff.opacity(0.14), in: Capsule())
     }
 
     /// The season the loaded table represents (from the VM's rollover), so the offseason label shows the
@@ -153,16 +192,20 @@ struct StandingsView: View {
     }
 
     private var columnHeader: some View {
-        HStack(spacing: Col.gap) {
-            Text("#").frame(width: Col.rank, alignment: .trailing)
+        HStack(spacing: col.gap) {
+            Text("#").frame(width: col.rank, alignment: .trailing)
             Text("Team").frame(maxWidth: .infinity, alignment: .leading)
-            Text("PTS").frame(width: Col.pts, alignment: .trailing)
-            Text("GP").frame(width: Col.gp, alignment: .trailing)
-            Text("W").frame(width: Col.wdl, alignment: .trailing)
-            Text("D").frame(width: Col.wdl, alignment: .trailing)
-            Text("L").frame(width: Col.wdl, alignment: .trailing)
-            Text("GD").frame(width: Col.gd, alignment: .trailing)
-            Text("Last 5").frame(width: Col.form, alignment: .trailing)
+            Text("PTS").frame(width: col.pts, alignment: .trailing)
+            Text("GP").frame(width: col.gp, alignment: .trailing)
+            Text("W").frame(width: col.wdl, alignment: .trailing)
+            Text("D").frame(width: col.wdl, alignment: .trailing)
+            Text("L").frame(width: col.wdl, alignment: .trailing)
+            Text("GD").frame(width: col.gd, alignment: .trailing)
+            // At AX1 the badges move into the rows' second line, where they carry their
+            // own "LAST 5" caption — so this header cell would label an empty column.
+            if !isAccessibilitySize {
+                Text("Last 5").frame(width: col.form, alignment: .trailing)
+            }
         }
         .trackedCaps(size: 11, tracking: 0.4, weight: .semibold, color: .dsFgSecondary)
         // Keep the tight column headers on one line at larger text (else "GP" stacks
@@ -233,49 +276,65 @@ struct StandingsView: View {
         return Button {
             path.append(row.club)
         } label: {
-            HStack(spacing: Col.gap) {
-                Text("\(row.rank)")
-                    .dsFont(14, weight: .bold, monospacedDigit: true)
-                    .foregroundStyle(rankColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    // Right-aligned + monospaced so 1–9 sit in the ones position under
-                    // the second digit of 10–16, all ending at the same right edge.
-                    .frame(width: Col.rank, alignment: .trailing)
-
-                HStack(spacing: 7) {
-                    // The crest is the hero (§0): 32pt, ring-free. Secondary elements
-                    // around it stay tight so it never has to shrink.
-                    TeamLogo(urlString: row.club.logoURL,
-                             teamAbbreviation: row.club.abbreviation,
-                             size: DS.avatarTeams)
-                    // Abbreviation demoted to a 14pt label beside the crest.
-                    Text(row.club.abbreviation)
-                        .dsFont(14, weight: .bold)
-                        .tracking(0.3)
-                        .foregroundStyle(accent)
+            // At AX1 the row is two lines (numbers, then Last 5); below it, one.
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: col.gap) {
+                    Text("\(row.rank)")
+                        .dsFont(14, weight: .bold, monospacedDigit: true)
+                        .foregroundStyle(rankColor)
                         .lineLimit(1)
-                        .fixedSize()
-                    Spacer(minLength: 2)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                        .minimumScaleFactor(0.7)
+                        // Right-aligned + monospaced so 1–9 sit in the ones position under
+                        // the second digit of 10–16, all ending at the same right edge.
+                        .frame(width: col.rank, alignment: .trailing)
 
-                Text("\(row.points)")
-                    .dsFont(17, weight: .heavy, monospacedDigit: true)
-                    .foregroundStyle(Color.dsFgPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .frame(width: Col.pts, alignment: .trailing)
-                statCell(row.gamesPlayed, width: Col.gp)
-                statCell(row.wins, width: Col.wdl)
-                statCell(row.draws, width: Col.wdl)
-                statCell(row.losses, width: Col.wdl)
-                gdCell(row)
-                formCell(recent)
+                    HStack(spacing: 7) {
+                        // The crest is the hero (§0): 32pt, ring-free. Secondary elements
+                        // around it stay tight so it never has to shrink.
+                        TeamLogo(urlString: row.club.logoURL,
+                                 teamAbbreviation: row.club.abbreviation,
+                                 size: DS.avatarTeams)
+                        // Abbreviation demoted to a 14pt label beside the crest.
+                        Text(row.club.abbreviation)
+                            .dsFont(14, weight: .bold)
+                            .tracking(0.3)
+                            .foregroundStyle(accent)
+                            .lineLimit(1)
+                            .fixedSize()
+                        Spacer(minLength: 2)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Text("\(row.points)")
+                        .dsFont(17, weight: .heavy, monospacedDigit: true)
+                        .foregroundStyle(Color.dsFgPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .frame(width: col.pts, alignment: .trailing)
+                    statCell(row.gamesPlayed, width: col.gp)
+                    statCell(row.wins, width: col.wdl)
+                    statCell(row.draws, width: col.wdl)
+                    statCell(row.losses, width: col.wdl)
+                    gdCell(row)
+                    if !isAccessibilitySize { formCell(recent) }
+                }
+                if isAccessibilitySize, !recent.isEmpty {
+                    // Second line, right-aligned under the numbers it belongs to, with its
+                    // own caption since the column header no longer labels it.
+                    HStack(spacing: 6) {
+                        Spacer(minLength: 0)
+                        Text("LAST 5")
+                            .trackedCaps(size: 10, tracking: 0.4, weight: .semibold, color: .dsFgSecondary)
+                        formCell(recent)
+                    }
+                }
             }
             .padding(.leading, Inset.rowLead)
             .padding(.trailing, Inset.rowTrail)
-            .frame(height: 60)
+            // minHeight, not height: the AX1 row is taller, and a fixed height is exactly
+            // how text ends up escaping its container (the failure mode this pass exists
+            // to avoid). Below AX1 the content is 60pt anyway, so nothing moves.
+            .frame(minHeight: isAccessibilitySize ? 96 : 60)
             .background(isFollowing ? Color.dsFollowTint : Color.clear)
             // 3px team-color left spine — the FOLLOW indicator: only your teams get it
             // (inset from the rounded card corners). Follow nobody → every row keeps its
@@ -312,7 +371,7 @@ struct StandingsView: View {
             .foregroundStyle(row.goalDifference > 0 ? Color.dsFgPrimary : Color.dsFgSecondary)
             .lineLimit(1)
             .minimumScaleFactor(0.7)
-            .frame(width: Col.gd, alignment: .trailing)
+            .frame(width: col.gd, alignment: .trailing)
     }
 
     /// Up to five W/D/L badges, oldest → newest (newest on the right). Teams with
@@ -323,7 +382,7 @@ struct StandingsView: View {
                 FormBadge(result, size: 13, fontSize: 9)
             }
         }
-        .frame(width: Col.form, alignment: .trailing)
+        .frame(width: col.form, alignment: .trailing)
     }
 
     // MARK: - Footer

@@ -237,6 +237,18 @@ final class PredictionStore {
         persist()
     }
 
+    /// ⚠️ THE ONE EXCEPTION to the insert-only rule above, and it does not violate its intent.
+    /// The invariant exists so a reveal can't re-fire for a result the user already watched. When a
+    /// score is discarded because the match wasn't actually over (a lightning suspension reporting
+    /// `state == "post"` — `clearScore`), what the user saw was never a real result. Letting the
+    /// genuine full-time reveal happen is the point of the invariant, not a breach of it.
+    /// Call ONLY from `clearScore`.
+    func unmarkResultSeen(fixtureID: String) {
+        guard seenResultFixtureIDs.contains(fixtureID) else { return }
+        seenResultFixtureIDs.remove(fixtureID)
+        persist()
+    }
+
     /// Scored fixtures whose result the user hasn't opened yet, inside the same current+previous
     /// soccer-week window the results list renders. Home reads this to decide whether the Predict
     /// card should lead with "Match final".
@@ -294,6 +306,19 @@ final class PredictionStore {
     func recordScore(_ score: PredictionScore, for fixtureID: String) {
         scores[fixtureID] = score
         seasonPoints = scores.values.reduce(0) { $0 + $1.total }
+        persist()
+    }
+
+    /// Drop a banked score so the fixture returns to `submittedAwaitingScore` and can be re-scored.
+    /// Exists for ONE case: a score recorded against a match that wasn't actually over (a lightning
+    /// suspension reports `state == "post"` — see `PredictXIViewModel.unscorePrematurelyScored`).
+    /// The prediction itself is untouched; only the grade is discarded. Also clears the
+    /// "seen result" mark, so the corrected result still gets its reveal.
+    func clearScore(for fixtureID: String) {
+        guard scores[fixtureID] != nil else { return }
+        scores[fixtureID] = nil
+        seasonPoints = scores.values.reduce(0) { $0 + $1.total }
+        unmarkResultSeen(fixtureID: fixtureID)
         persist()
     }
 

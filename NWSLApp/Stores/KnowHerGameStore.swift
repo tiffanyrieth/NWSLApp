@@ -31,6 +31,17 @@ final class KnowHerGameStore {
     /// reinstall copy is `superfan_scores.khg_total`.
     private(set) var attempts: [String: Int]
 
+    /// editionKey → the option picked per question, so the community recap can mark YOUR answer
+    /// (2026-07-29 — the panel used to mark only the correct option, making a wrong answer
+    /// indistinguishable from a right one). TriviaStore has carried the same `roundPicks` dict since the
+    /// round rebuild; this is Know Her Game catching up.
+    ///
+    /// Retention is DELIBERATELY shorter than `scores`: scores are season-long (they feed the Superfan
+    /// total), but picks are only ever read by the current and previous edition's recap — the only two a
+    /// user can open — so they're pruned to that window (`prunePicks`) instead of accumulating ~11 ints
+    /// per player per edition for a whole season.
+    private(set) var editionPicks: [String: [Int]]
+
     /// Weekly streak (§14): consecutive Mon–Sun windows in which ≥1 player was completed.
     private(set) var weeklyStreak: Int
     private(set) var bestWeeklyStreak: Int
@@ -68,6 +79,7 @@ final class KnowHerGameStore {
     private enum Key {
         static let scores = "knowher.v1.scores"
         static let attempts = "knowher.v1.attempts"
+        static let picks = "knowher.v1.picks"
         static let weeklyStreak = "knowher.v1.weeklyStreak"
         static let bestWeeklyStreak = "knowher.v1.bestWeeklyStreak"
         static let lastCompletedWeek = "knowher.v1.lastCompletedWeek"
@@ -80,6 +92,7 @@ final class KnowHerGameStore {
         self.service = service
         self.scores = Self.decode([String: Int].self, defaults.data(forKey: Key.scores)) ?? [:]
         self.attempts = Self.decode([String: Int].self, defaults.data(forKey: Key.attempts)) ?? [:]
+        self.editionPicks = Self.decode([String: [Int]].self, defaults.data(forKey: Key.picks)) ?? [:]
         self.weeklyStreak = defaults.integer(forKey: Key.weeklyStreak)
         self.bestWeeklyStreak = defaults.integer(forKey: Key.bestWeeklyStreak)
         self.lastCompletedWeek = defaults.string(forKey: Key.lastCompletedWeek)
@@ -123,6 +136,10 @@ final class KnowHerGameStore {
         guard let oldPool, oldPool.weekKey != newPool.weekKey else { return } // same-edition reload / first load
         previousPool = Self.retainsPreviousWeek(old: oldPool.weekKey, new: newPool.weekKey) ? oldPool : nil
         defaults.set(try? JSONEncoder().encode(previousPool), forKey: Key.previousPool)
+        // The recap window just moved; drop picks for editions that fell out of it. Pruning HERE (not
+        // only on completion) means the dict decays for a player who stops playing, instead of holding
+        // the last edition she played until she plays another.
+        prunePicks(keeping: [newPool.weekKey, previousPool?.weekKey].compactMap { $0 })
     }
 
     /// Whether the outgoing edition should be KEPT as "last week": a different edition AND the immediately-
@@ -169,6 +186,10 @@ final class KnowHerGameStore {
     /// (the `…(for:)` variants assume the current week and would read the wrong edition).
     func isPlayed(editionKey: String) -> Bool { scores[editionKey] != nil }
     func score(editionKey: String) -> Int? { scores[editionKey] }
+    /// The options this user picked in that edition, for the community recap's "your pick" marks. Nil for
+    /// an edition she never played, one played before picks were persisted, or one pruned out of the
+    /// two-edition recap window — all of which render the panel with no personal marks.
+    func picks(editionKey: String) -> [Int]? { editionPicks[editionKey] }
 
     // MARK: Last week (the picker's grace-window section)
 
@@ -282,10 +303,14 @@ final class KnowHerGameStore {
     /// Bank a completed edition and bump the weekly streak (§14). Idempotent per edition —
     /// re-recording a completed edition does nothing (no replay, no double-count). `outOf` is the number of
     /// questions in that player quiz — the accuracy denominator (Superfan 0–100 economy).
-    func recordCompletion(editionKey: String, weekKey: String, correct: Int, outOf total: Int) {
+    func recordCompletion(editionKey: String, weekKey: String, correct: Int, outOf total: Int,
+                          picks answers: [Int] = []) {
         guard scores[editionKey] == nil else { return }
         scores[editionKey] = correct
         attempts[editionKey] = total
+        if !answers.isEmpty { editionPicks[editionKey] = answers }
+        // The retention window moves with the edition just completed.
+        prunePicks(keeping: [weekKey, previousWeekKey].compactMap { $0 })
 
         // Edition streak: continue if the last completed edition was the immediately-prior one (biweekly =
         // 1–2 ISO weeks back), else (re)start at 1. The first completion in a NEW edition bumps it; later
@@ -324,9 +349,20 @@ final class KnowHerGameStore {
         return false
     }
 
+    /// Keep only the picks belonging to the given weekKeys (the current + previous edition — the only two
+    /// whose recap a user can open). An editionKey is "{weekKey}-{team}-{athleteId}", so the match is on
+    /// the "{weekKey}-" prefix; matching the bare weekKey would also match a LONGER week ("2026-W3" vs
+    /// "2026-W30"). Called with an empty list nothing survives, so callers pass the real window.
+    private func prunePicks(keeping weekKeys: [String]) {
+        guard !weekKeys.isEmpty else { return }
+        let prefixes = weekKeys.map { "\($0)-" }
+        editionPicks = editionPicks.filter { key, _ in prefixes.contains { key.hasPrefix($0) } }
+    }
+
     private func persist() {
         defaults.set(try? JSONEncoder().encode(scores), forKey: Key.scores)
         defaults.set(try? JSONEncoder().encode(attempts), forKey: Key.attempts)
+        defaults.set(try? JSONEncoder().encode(editionPicks), forKey: Key.picks)
         defaults.set(weeklyStreak, forKey: Key.weeklyStreak)
         defaults.set(bestWeeklyStreak, forKey: Key.bestWeeklyStreak)
         defaults.set(lastCompletedWeek, forKey: Key.lastCompletedWeek)
@@ -337,6 +373,7 @@ final class KnowHerGameStore {
     func resetForAccountDeletion() {
         scores = [:]
         attempts = [:]
+        editionPicks = [:]
         weeklyStreak = 0
         bestWeeklyStreak = 0
         lastCompletedWeek = nil
@@ -359,6 +396,7 @@ final class KnowHerGameStore {
     static func debugResetState(defaults: UserDefaults = .standard) {
         defaults.set(Data(), forKey: Key.scores)
         defaults.set(Data(), forKey: Key.attempts)
+        defaults.set(Data(), forKey: Key.picks)
         defaults.set(0, forKey: Key.weeklyStreak)
         defaults.set(0, forKey: Key.bestWeeklyStreak)
         defaults.set("", forKey: Key.lastCompletedWeek)

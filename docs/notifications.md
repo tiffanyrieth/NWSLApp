@@ -122,6 +122,10 @@ Three test rounds were misread before this was understood; `prefs-boot` is the t
 
 - **Cron `* * * * *`** — Cloudflare's floor is 1 minute. During a **live window** the tick **double-polls**
   (poll → sleep 30s → poll again cache-busted) so goal/HT/FT latency is ~30s (shipped 2026-07-11).
+Full-time detection, the Live Activity teardown, and the fixture index's `ended` mark all require
+`!unfinishedPost` (2026-07-30): a SUSPENDED match reports `state "post"` with `completed:false` +
+`STATUS_SUSPENDED`, and treating that as final fired a false FT push, irrecoverably ended the LA
+(push-to-start is gated on `ko >= now`), and stopped polling the fixture — `test/suspension.test.ts`.
 - Fetches only a **yesterday→tomorrow scoreboard window** (not the full season — parsing ~240 events/min blew the
   CPU budget), via a **service binding to the proxy** (`PROXY.fetch("https://proxy/scoreboard…")`). A public
   `*.workers.dev` fetch between same-account Workers **404s with CF error 1042** — the binding is mandatory.

@@ -87,3 +87,43 @@ struct NationalTeamFeedTests {
         #expect(NationalTeamFeed.all.first?.slug == "fifa.friendly.w")
     }
 }
+
+/// National-team squad feed selection (bug found on TestFlight build 31, 2026-07-31).
+///
+/// The first rule took the broadest squad — friendlies first. Several feeds publish a squad with
+/// NO shirt numbers, and friendlies is one: USA via `fifa.friendly.w` = 26 players / **0 numbers**,
+/// while `fifa.shebelieves` = 26 / 25. So the USWNT roster shipped with every number missing — and
+/// "who is number 7" is the whole reason a fan opens that page in a stadium.
+struct NationalSquadNumbersTests {
+    private let service = ESPNService()
+
+    private func squad(_ jerseys: [String?]) -> ClubSquad {
+        ClubSquad(
+            athletes: jerseys.enumerated().map { i, j in
+                Athlete(id: "\(i)", name: "P \(i)", shortName: nil, jersey: j,
+                        positionName: "Forward", positionAbbreviation: "F",
+                        age: nil, displayHeight: nil, citizenship: nil)
+            },
+            colorHex: nil, standingSummary: nil, record: nil, cachedAsOf: nil)
+    }
+
+    @Test func aSquadWithNoNumbersIsRejectedAsThePreferredSource() {
+        // The exact USA/friendlies shape: real names, zero numbers.
+        #expect(service.squadHasNumbers(squad(Array(repeating: nil, count: 26))) == false)
+        #expect(service.squadHasNumbers(squad(Array(repeating: "", count: 26))) == false)
+    }
+
+    @Test func aSquadWithNumbersIsPreferred() {
+        #expect(service.squadHasNumbers(squad(["7", "9", "11"])) == true)
+    }
+
+    @Test func oneMissingNumberDoesNotDisqualifyARealSquad() {
+        // A just-called-up player may have no number yet — requiring ALL of them would reject a
+        // good feed (SheBelieves: 26 players, 25 numbered) over a single blank.
+        #expect(service.squadHasNumbers(squad(["7", nil, "11", nil])) == true)
+    }
+
+    @Test func anEmptySquadHasNoNumbers() {
+        #expect(service.squadHasNumbers(squad([])) == false)
+    }
+}

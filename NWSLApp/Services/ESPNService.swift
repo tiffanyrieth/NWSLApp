@@ -304,6 +304,7 @@ struct ESPNService {
     /// nil = NO feed has a squad. The caller shows an honest empty state — never fabricates.
     func nationalTeamSquad(code: String) async -> NationalSquad? {
         let feeds = NationalTeamFeed.scopedFeeds(forFollowedCodes: [code]).feeds
+        var fallback: NationalSquad?   // first non-empty squad seen, numbers or not
         for feed in feeds {
             guard let base = ntSiteBase(feed.slug) else { continue }
             do {
@@ -315,14 +316,22 @@ struct ESPNService {
                         .appendingPathComponent(teamID)
                         .appendingPathComponent("roster")
                 ).squad
-                if !squad.athletes.isEmpty {
-                    return NationalSquad(squad: squad, feed: feed, teamID: teamID)
-                }
+                guard !squad.athletes.isEmpty else { continue }
+                let result = NationalSquad(squad: squad, feed: feed, teamID: teamID)
+                if squadHasNumbers(squad) { return result }   // preferred: named AND numbered
+                if fallback == nil { fallback = result }      // remember, keep looking for numbers
             } catch {
                 continue // a feed without this team/roster is EXPECTED — try the next, quietly
             }
         }
-        return nil
+        return fallback
+    }
+
+    /// True when the squad carries at least one shirt number. Deliberately "at least one", not "all":
+    /// a real roster can legitimately have a gap (a just-called-up player without a number yet), and
+    /// requiring every player to have one would reject a good feed over a single blank.
+    func squadHasNumbers(_ squad: ClubSquad) -> Bool {
+        squad.athletes.contains { ($0.jersey?.isEmpty == false) }
     }
 
     /// Bio fields for one athlete, competition-scoped (works for players NOT in NWSL — the

@@ -275,6 +275,33 @@
 > (a USWNT captain), Spaanstra and Portland's 22 are absent from ESPN league-wide, and an override can
 > only correct a player ESPN already lists, never add one. These stay visible-in-report only. Also open:
 > a 50–80%-overlap partial substitution is caught at the next nightly run, not in real time.
+> ### 🌩️ IDEA (low priority, nice-to-have) — weather radar during a delay (owner 2026-07-31)
+> When a match is in a weather delay, show a **radar** on Match Detail — precipitation plus, ideally,
+> recent lightning (soccer delays are a LIGHTNING call far more than a rain call). Explicitly a
+> "nice to have", not a need. **US / NWSL ONLY** — national teams are a deliberately lighter tier
+> (`docs/national-teams.md` §0), so this does not extend to NT matches.
+>
+> **Source research, all verified live 2026-07-31 — do not re-research:**
+> - ❌ **Open-Meteo (what `/weather` uses today) cannot do it.** `lightning_potential` returns **all
+>   nulls** in the US (only populated for the Central-European models); `cape` DOES work (storm energy,
+>   real values) but is *potential*, not strikes; and it is a JSON forecast API with **no tiles at all**,
+>   so it can't render a map.
+> - ✅ **Radar — two free no-key options.** **RainViewer** public API (13 past frames ⇒ animates,
+>   global, tile fetch verified `200`/PNG, requires attribution) and **NOAA nowCOAST WMS** (US-only,
+>   public domain, `GetCapabilities` verified `200`). US-only is fine here by the scope rule above.
+> - ⚠️ **Lightning is the hard half.** Observed strike data is commercial (Vaisala/Earth Networks).
+>   Free paths: NOAA **GOES-GLM** (satellite; free but NetCDF on S3 — a processing pipeline, not an
+>   API) or **Blitzortung** (community, non-commercial licence). **Better idea:** NWS
+>   `api.weather.gov/alerts/active?point=lat,lon` — free, no key, GeoJSON polygons, **verified working**.
+>   A stadium doesn't suspend for a strike 40 miles away; it suspends because a severe-thunderstorm
+>   warning covers the venue — which is the same authority the stadium is acting on. Strike dots look
+>   better; the warning is the actual reason.
+> - ⚠️ **Tiles must go DEVICE → source directly, never through the Worker.** One radar view is dozens
+>   of tile requests; proxying them repeats the team-stats mistake at far worse volume (every tile = one
+>   Worker invocation against the 100k/day cap). The proxy would serve only the small JSON (frame list,
+>   warning polygons). `MKTileOverlay` renders these natively in MapKit.
+> - Venue lat/lon already exists — the ESPN-venue-id table in the proxy's `/weather`.
+
 > ### 📊 TEAM-PAGE STATS BURST — ~27 direct ESPN calls per team-page open (found 2026-07-30, DEFERRED by owner)
 > `TeamDetailViewModel.load` fans out **one ESPN Core-API call per athlete, in parallel, from the
 > device** — bypassing the proxy entirely (no edge cache, no last-known-good, no cross-user dedupe;

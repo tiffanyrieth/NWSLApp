@@ -63,7 +63,7 @@ struct LineupPlayerStatsView: View {
             athlete: athlete,
             accentHex: ref.accentHex ?? squadColorHex,
             stats: stats,
-            seasonLabel: "SEASON \(AppConfig.currentSeasonYear)"
+            seasonLabel: AppConfig.seasonStatsLabel()
         )
         .task { await load() }
     }

@@ -38,3 +38,26 @@ struct TeamIdentityGateTests {
         #expect(hidden == [0, 1])
     }
 }
+
+/// The season-stats header names its competition on purpose.
+///
+/// Every stat number in the app is an ESPN Core-API line scoped to `leagues/usa.nwsl`, so it is
+/// always an NWSL record — including on a player opened from a NATIONAL-TEAM match. Barbra Banda's
+/// page reached from Zambia vs Egypt shows her Orlando Pride season; unlabelled ("SEASON 2026") a
+/// fan can reasonably read those goals as her Zambia record. The app tracks no international stats
+/// at all, so the header has to say which competition it means.
+struct SeasonStatsLabelTests {
+
+    @Test func labelNamesTheCompetition() {
+        #expect(AppConfig.seasonStatsLabel(year: 2026) == "NWSL SEASON 2026")
+    }
+
+    @Test func labelIsNotBareSeasonYear() {
+        // The exact ambiguity this exists to remove.
+        #expect(AppConfig.seasonStatsLabel(year: 2026) != "SEASON 2026")
+    }
+
+    @Test func labelDefaultsToTheCurrentSeason() {
+        #expect(AppConfig.seasonStatsLabel() == "NWSL SEASON \(AppConfig.currentSeasonYear)")
+    }
+}

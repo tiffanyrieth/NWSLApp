@@ -43,6 +43,20 @@ enum AppConfig {
         return cal.component(.month, from: now) < 3 ? year - 1 : year
     }
 
+    /// Header for a player's season stat block. **Names the competition on purpose.**
+    ///
+    /// Every stat number in the app comes from ESPN's Core API scoped to `leagues/usa.nwsl`, so it is
+    /// always an NWSL line — including on a player reached from a NATIONAL-TEAM match. Barbra Banda's
+    /// page opened from Zambia vs Egypt shows her Orlando Pride record; unlabelled ("SEASON 2026") a
+    /// fan can reasonably read those goals as her Zambia record. The app doesn't track international
+    /// stats at all (`docs/national-teams.md` §0), so the label has to say which competition it means.
+    ///
+    /// Deliberately one definition — the string was written out at three call sites, which is how the
+    /// Bracket rank line ended up with four copies and two different rules.
+    static func seasonStatsLabel(year: Int = AppConfig.currentSeasonYear) -> String {
+        "NWSL SEASON \(year)"
+    }
+
     /// The deployed caching proxy. `GET /scoreboard` here forwards the query
     /// string to ESPN's scoreboard endpoint and returns the bytes unchanged,
     /// so the app's `Scoreboard` decoder needs no changes.

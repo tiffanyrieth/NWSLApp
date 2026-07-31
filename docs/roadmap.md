@@ -326,14 +326,51 @@
 > it survived three weeks.
 >
 > **Scope (owner):** ESPN is FINE for minutes, stats, fixtures, scores. The problem is **roster identity** —
-> who is on the squad, their position, their number. Options to explore, none chosen:
-> 1. **Cross-check** ESPN against nwslsoccer.com and flag/prefer the other source on mismatch
-> 2. **Failover** — a second source promoted when ESPN looks wrong
-> 3. **Replace** the roster source entirely, keeping ESPN for stats/fixtures (hybrid)
+> who is on the squad, their position, their number.
 >
-> Worth pricing the sources first (availability, licensing, shape) before designing. Related:
-> `docs/backend.md` (roster § last-known-good), and the KHG assembler's fail-open behaviour, which should
-> probably also grow a retry before it ships a short pool.
+> ### ✅ SHIPPED 2026-07-30 (proxy #63) — the two live bug fixes
+> - **`fetchRosterResilient`** — the bracket engine + Know Her Game read ESPN RAW with no fallback.
+>   Live-proven the same day: ESPN served **Portland as 1 athlete** and `/knowher/eligible?team=POR`
+>   returned **0**, so an edition generated that day ships 15 teams (exactly the W31 Orlando failure).
+>   Both paths now fall back to `/roster`'s `roster:{id}` last-known-good. Verified live: POR 0 → 17.
+> - **Continuity guard** — a plausibly-sized payload may only REPLACE the last-known-good copy if it
+>   still shares ≥50% of its players. Before this, a contaminated-but-plausible roster overwrote the
+>   good copy on the first request: the fallback destroyed itself at the exact moment it was needed.
+> - **KHG club-completeness gate** — a published edition must cover all 16 clubs. Both validators
+>   checked for DUPLICATE clubs and never for MISSING ones, which is why W31 shipped short and silent.
+> - **Paging** on `rosterContinuityRefused` + `knowherTodoEmpty` (the latter fired for real at W31 and
+>   reached nobody).
+>
+> ### 🕐 NEXT — nightly verification + owner overrides + one admin portal
+> Design settled by the 16-club sweep (**`docs/roster-source-research.md` §10 — read it first**):
+> ESPN stays the membership base, SDP verifies and never replaces. Guards run at BUILD time (nightly
+> cron), never at serve time, so no user path can be slowed or broken by a cross-check.
+> - **Observe-mode verifier** (`src/roster-truth.ts`): Gate A team identity (16 clubs — the Orlando
+>   deletion) · Gate B shape (size, GK count, duplicate jerseys) · Gate C continuity/overlap
+>   (contamination) · Gate D per-player diffs (positions, missing jerseys, ESPN-only additions,
+>   SDP-only-with-minutes = the ESPN-ERASURE signal that caught Fuller/Heaps/Spaanstra).
+> - **Owner overrides KV** with a **90-day TTL** — a permanent pin becomes an invisible lie when the
+>   fact genuinely changes. Expiry is safe BECAUSE the nightly verifier keeps running: an expired
+>   override means the mismatch reappears in the next report instead of silently regressing.
+> - **One admin portal** (owner 2026-07-30) merging the existing Bracket + Know Her Game panels with a
+>   new roster-truth panel — currently two separate password-protected pages.
+>
+> **Still true / still open:** ESPN has erased 3 real players league-wide (Fuller, Heaps, Spaanstra —
+> a USWNT captain among them) and carries 12 position mismatches; NONE are size-detectable, so only
+> the cross-check surfaces them, and only the overrides fix them.
+
+> ### 📊 TEAM-PAGE STATS BURST — ~27 direct ESPN calls per team-page open (found 2026-07-30, DEFERRED by owner)
+> `TeamDetailViewModel.load` fans out **one ESPN Core-API call per athlete, in parallel, from the
+> device** — bypassing the proxy entirely (no edge cache, no last-known-good, no cross-user dedupe;
+> `AthleteStatsCache` is session-scoped so a relaunch refetches everything).
+> ⚠️ **The trigger is opening a TEAM page, not tapping a player** — the team-leaders board needs every
+> squad member's stat line, so the ordinary "who's wearing #7" gameday glance pays the whole burst.
+> **This rules out app-side lazy-loading as a fix.**
+> At 1k users: ~21.6k direct ESPN calls/day. Realistic failure = per-device burst throttling → a stats
+> card with players silently missing rows. **Fix = a bundled `/team-stats?team={id}` proxy route**
+> (27 requests → 1, edge-cached, shared) built on Queues (450 calls > the 50-subrequest budget).
+> Owner deferred 2026-07-30: rosters are the correctness problem, this is a scaling one. Full sizing in
+> **`docs/stress-testing.md` §6**.
 
 > ### 🎮 FAN ZONE — a long-horizon iteration loop, NOT a one-session build (owner 2026-07-27)
 > Four mini-games plus a Superfan point economy tying them together. The owner's framing, worth holding

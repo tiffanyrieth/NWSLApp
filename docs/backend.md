@@ -57,6 +57,33 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   honest "Roster as of …" label (`ClubSquad.cachedAsOf`). Never silent (emits `rosterStaleServe` /
   `rosterImplausibleNoCache` / `rosterUnavailable` diag); deploy gate `health_check_roster.mjs`. ACFC
   was seeded once from the official club site (`scripts/seed_acfc_roster.mjs`).
+- **⚠️ Continuity guard on the CACHE WRITE (2026-07-30).** The size floor cannot tell a real squad
+  from a well-formed WRONG one — a substituted roster is plausibly sized, so it used to overwrite
+  last-known-good on the first request, i.e. the fallback destroyed itself exactly when needed.
+  `rosterCacheRefreshDecision` now requires a new payload to retain **≥`ROSTER_CONTINUITY_MIN` (50%)**
+  of the cached squad's normalized names before it may REPLACE the cache. Measured baseline: normal
+  week-to-week churn ≥90%, cross-sport contamination ~0% — 50% sits in that empty middle. It gates the
+  **write only**: the live payload is still served honestly either way (refusing to serve on a
+  heuristic risks hiding a real roster), and a refusal emits `rosterContinuityRefused`, which **pages**.
+  🔓 **Escape hatch** — if the CACHED copy is ever the bad one, a refusal would block healing: it
+  self-expires at the 90d TTL, or force a re-bootstrap with
+  `wrangler kv key delete --binding FEED_TAGS "roster:{espnTeamId}" --remote`.
+- **⚠️ The engine/KHG path used to bypass all of this.** `bracket-engine.fetchRoster` hit ESPN raw, so
+  Bracket pools and Know Her Game eligibility had NO fallback. Live-proven 2026-07-30: ESPN served
+  Portland as 1 athlete and `/knowher/eligible?team=POR` returned **0** — a KHG edition generated that
+  day would have shipped 15 teams, the same failure that dropped Orlando at W31. Both now call
+  **`fetchRosterResilient(env, teamId, abbr)`**, which reuses the SAME `roster:{id}` record (no second
+  cache, no extra ESPN traffic) and touches KV only when the live squad is implausible — the 5-minute
+  bracket tick has a 50-subrequest budget. It also swallows a per-team fetch failure that previously
+  rejected the whole `Promise.all` and emptied the entire pool. Diags: `rosterEngineFallback` /
+  `rosterEngineFetchFail` / `rosterEngineSmallNoCache` (⚠️ these use bracket-engine's module-local
+  emitter → `diag:` prefix, which the pager deliberately does not scan; the paging signal for the same
+  event is `rosterContinuityRefused` / the nightly verification gate).
+- **Know Her Game club completeness:** a published edition must cover **all 16 clubs**
+  (`KNOWN_CLUB_ABBRS` in `src/knowher.ts`, twinned in `scripts/load_knowher.mjs`). Both validators
+  checked for DUPLICATE clubs but never for MISSING ones — which is why W31 shipped 15 teams silently.
+  Opt-in via `validateKnowHerPool(raw, { requireAllClubs: true })` so the admin `upsertPlayer` op can
+  keep validating a legitimately-incomplete ONE-player frame. Expansion = update both constants.
 - **Playoff override** (`src/playoff-override.ts`): the roster last-known-good philosophy applied to
   the postseason bracket — an operator escape hatch for when ESPN corrupts playoff data (wrong
   winner/score, a dropped game) or the format surprises us. `GET /playoff-override?season=YYYY` →

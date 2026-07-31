@@ -1,11 +1,19 @@
 # Roster source research — ESPN vs the NWSL SDP API
 
-> **Status (2026-07-30):** research COMPLETE, verified against live data (three real matches on
-> 2026-07-29, including a weather suspension). **Decided:** live games stay on ESPN. **Open:** whether
-> and how to use the NWSL SDP API for ROSTER IDENTITY (squad membership, position, jersey). The
-> recommended design (§8) is invariants-first + cross-check, not migration. Every claim in this doc was
-> verified by direct fetch on 2026-07-29/30 — nothing is schema-read or assumed. Related:
-> `docs/roadmap.md` (🛡️ ESPN ROSTER RELIABILITY item), `Reference/Sessions/2026-07-29_live-games-logging-and-roster-sources.md`
+> **Status (2026-07-30, revised after the 16-club sweep — READ §10 FIRST):** research COMPLETE and
+> live-verified. **Decided:** live games stay on ESPN; ESPN also stays the roster MEMBERSHIP base and
+> SDP verifies rather than replaces. **Shipped:** the roster fallback now covers the bracket/KHG paths
+> and the last-known-good cache can no longer be overwritten by a contaminated payload (proxy #63).
+> Every claim was verified by direct fetch on 2026-07-29/30 — nothing is schema-read or assumed.
+>
+> ⚠️ **A specimen in the original write-up was WRONG and is corrected in §10.** "Melissa Bethi" and
+> "Monique Ngock" were recorded here as ESPN *fabrications*; they are **real Washington Spirit
+> signings** that SDP had not ingested yet. ESPN was right and the league feed was late. Anything in
+> §1/§8 that reads as "SDP is authoritative on who is on a squad" is corrected by §10 — designing a
+> cross-check on the original reading would DELETE new signings.
+>
+> Related: `docs/roadmap.md` (🛡️ ESPN ROSTER RELIABILITY item), `docs/backend.md` (roster § — the
+> shipped guards), `Reference/Sessions/2026-07-29_live-games-logging-and-roster-sources.md`
 > (gitignored session narrative with the raw timeline).
 
 ---
@@ -23,7 +31,7 @@ own feed covers one league and every incentive aligns. Observed failures, all re
 | ~2026-06 | **Spirit showed 5 goalkeepers** (correct count is 3); silently self-healed weeks later | fabrication |
 | 2026-07 (3 wks) | **Trinity Rodman listed MIDFIELDER** (career forward); self-healed 2026-07-27 | fabrication |
 | 2026-W31 | **Orlando silently dropped from a KHG edition** — ESPN returned an empty/stat-less roster for ~seconds; the fail-open assembler shipped a 15-team pool | fabrication |
-| 2026-07-29 | **Two phantom Spirit players** — "Melissa Bethi" (no jersey) and "Monique Ngock" (#8) on ESPN's WAS roster (29 athletes); the official league squad has 27 and neither name | fabrication |
+| ~~2026-07-29~~ | ~~**Two phantom Spirit players** — "Melissa Bethi" / "Monique Ngock" on ESPN's WAS roster~~ **RETRACTED (§10): both are real 2026 signings; ESPN was correct, SDP was late** | *not a failure* |
 | ongoing | **Croix Bethune jersey** — ESPN #8 (correct, post-trade), official feed #7 (her career-long number, stale) | lagging fact |
 | 2026-07-29 | **Ally Sentnor jersey missing** on ESPN (Angel City); official feed has #21 | missing value |
 
@@ -45,7 +53,9 @@ cross-sourcing is only needed for staleness.
 1. **Position** — worst. Drives Predict's band bonus, the Bracket's position-filtered pools, and
    whether KHG generates keeper-stat questions. Rodman-as-MID silently corrupted game logic in three
    places for three weeks. A flipped position passes every plausibility check that exists today.
-2. **Squad membership** — breaks whole screens (ACFC→1) or invents people (Bethi). Loud, at least.
+2. **Squad membership** — breaks whole screens (ACFC→1, POR→1). Loud, at least. ⚠️ ESPN has **never
+   been observed inventing a player** (see §10 — the two suspected phantoms were real signings). Its
+   membership failure is the opposite: **erasure**, which is quiet when the rest of the squad is intact.
 3. **Jersey** — display-only (pitch markers, roster rows). Annoying, harms nothing downstream.
 
 ---
@@ -57,8 +67,9 @@ cross-sourcing is only needed for staleness.
 public browser reads. Akamai-fronted. Response header `cache-control: private, max-age=86400`.
 **Provider:** every record carries `providerId: opta:…` — this is the league's official Opta feed
 (NWSL's data partner), i.e. the same upstream ESPN licenses, minus ESPN's entity-mapping layer. The
-mapping layer is where ESPN's fabrications live (phantoms, flipped positions are classic re-ingest /
-entity-join errors — which also explains the silent self-healing: a later re-ingest re-maps correctly).
+mapping layer is where ESPN's corruption lives — flipped positions and dropped players are classic
+re-ingest / entity-join errors, which also explains the silent self-healing (a later re-ingest re-maps
+correctly). Note §10: the failure is *erasure and mislabelling*, not invention.
 **Already integrated:** the proxy's `src/headshots.ts` has consumed this API weekly for months (GUID
 matching for player photos) — including a **normalized-name SDP↔ESPN join running at ~98%** with a
 shortName/nickname secondary index. That join is a ready-made id bridge for any cross-check.
@@ -227,7 +238,7 @@ load-bearing.
 | Rodman position | Midfielder ❌ | Forward ✅ | SDP | cross-check only |
 | Bethune jersey (KC) | #8 ✅ | #7 ❌ (stale) | **ESPN** | **invariant: SDP lists TWO #7s** (Ball + Bethune) — physically impossible |
 | Sentnor jersey (LA) | missing ❌ | #21 ✅ | **SDP** | missing value |
-| Bethi/Ngock membership | present ❌ | absent ✅ | SDP | cross-check (squad diff) |
+| ~~Bethi/Ngock membership~~ | present ✅ | absent ❌ | **ESPN** | ⚠️ **CORRECTED (§10)** — real signings SDP hadn't ingested. A squad diff CANNOT adjudicate membership |
 
 ### Layer 1 — INVARIANTS (build first; no second source; pure logic; unit-testable)
 
@@ -289,3 +300,107 @@ Catches **staleness** and squad diffs. Correction policy (owner-agreed):
   substitution-in/out confirmed). Shape almost certainly matches.
 - SDP GUIDs are already the headshot-map values — reuse as the stable join, but the ~2% name-join
   misses need the overrides path before any correction (not display) use.
+
+---
+
+## 10. The 16-club sweep (2026-07-30) — what a full census actually showed
+
+§1–§9 were built from a handful of sampled clubs. This section is a **complete census of all 16**,
+ESPN vs SDP, with every difference adjudicated against club/league announcements. It **corrects a
+specimen** the earlier sections got wrong and reverses part of the §8 design.
+
+### 10a. ⚠️ The correction: ESPN does not invent players
+
+"Melissa Bethi" and "Monique Ngock" were recorded in §1 as ESPN *phantoms*. They are **real
+signings** — [Ngock announced 2026-07-09](https://washingtonspirit.com/blog/2026/07/09/washington-spirit-signs-cameroonian-standout-monique-ngock/),
+[Bethi 2026-07-23](https://washingtonspirit.com/blog/2026/07/23/washington-spirit-signs-midfielder-melissa-bethi/).
+ESPN had them; SDP had not ingested them. Bethi's *missing jersey* on ESPN is also correct — she
+joins after AFCON and has no squad number yet.
+
+**Across all 16 clubs the sweep found ZERO fabricated players.** Every ESPN-only name was either a
+real recent signing or a name variance. The cross-sport contamination class remains a real *risk*
+(it hit a sibling provider's Bay FC entry) but has **never been observed in ESPN's NWSL feed**.
+
+**Consequence for the design:** the §8 idea of adjudicating membership by squad diff is **dead**. A
+new signing and a fabricated player are indistinguishable from payload shape, and the sweep's
+false-positive rate on membership was 100%. **A cross-check may never delete an ESPN-only player.**
+
+### 10b. What ESPN actually gets wrong: erasure, not invention
+
+| Player | Club | Status | Live check |
+|---|---|---|---|
+| Kennedy Fuller | BAY | [traded from LA 2026-06-17](https://bayfc.com/press-releases/bay-fc-acquire-midfielder-kennedy-fuller-from-angel-city-fc-20260612/) | **absent from ESPN league-wide** |
+| Lindsey Heaps | DEN | [signed through 2029](https://www.cbssports.com/soccer/news/uswnt-captain-lindsey-heaps-returns-to-nwsl-midfield-star-signs-with-denver-summit-fc-through-2029/), debut 07-18 | **absent from ESPN league-wide** |
+| Alexa Spaanstra | UTA | [permanent transfer 2026-07-24](https://www.rsl.com/utahroyals/news/utah-royals-fc-acquire-forward-alexa-spaanstra-in-trade-with-portland-thorns-for-the-remainder-of-the-2026-nwsl-season) | **absent from ESPN league-wide** |
+
+A USWNT captain, missing from her club's roster. **No size- or shape-based guard can catch this** —
+the squad is otherwise full. Only a cross-check sees it.
+
+**Plus a live collapse:** ESPN served **Portland as ONE athlete** (Daiane #34) during the sweep,
+reproducible across cache-busted fetches, with 29 players including Sophia Wilson, Olivia Moultrie
+and Jessie Fleming missing. `/roster` survived on last-known-good; the bracket/KHG path did not
+(`/knowher/eligible?team=POR` → **0**). Fixed same-day in proxy #63.
+
+### 10c. What SDP gets wrong: it is a season-cumulative feed, not a current squad
+
+`/seasons/{s}/stats/players?teamId=` lists everyone **registered to the club at any point this
+season**, so it:
+- **retains departed players** — [Esther González](https://www.gothamfc.com/news/gotham-fc-esther-gonzalez-agree-to-mutual-contract-termination) (left 07-27),
+  Leah Freeman (terminated July), Kyra Carusa (recalled 06-02) all still listed; ESPN correctly removed all three;
+- **lags arrivals** by ~1–3 weeks (Ngock, Bethi, Williams-Mosier);
+- ⚠️ **carries duplicate shirt numbers on 12 of 16 clubs** (a departed player's number reassigned to
+  her replacement, both retained). **SDP `bibNumber` is NOT usable as a current jersey source.**
+
+### 10d. Name-join hazards are the dominant source of false differences
+
+11 of the 34 raw membership differences were the same human under two names. Mononyms and legal-vs-
+known names are everywhere in this league, and one is a marriage:
+
+| SDP | ESPN | |
+|---|---|---|
+| Débora Cristiane de Oliveira | **Debinha** | mononym |
+| Lorena da Silva Leite | **Lorena** | mononym |
+| Ariadina Alves Borges | **Ary Borges** | known name |
+| Jacqueline Ovalle | **Lizbeth Ovalle** | known name |
+| Maitane López | **Maitane** | mononym |
+| Cate Hardin | **Mary Hardin** | name form |
+| Amelia Donna Van Zanten | **Amelia Van Zanten** | name form |
+| Paige Cronin | **Paige Monaghan** | [married Dec 2025; uses Cronin professionally since 2026](https://en.wikipedia.org/wiki/Paige_Cronin) — **ESPN is the stale one** |
+
+**Any join MUST use the `shortName` secondary index** (as `headshots.ts` does). Measured overlap:
+**89–92% with a naive full-name join, 96.3% with the shortName index** (LA a clean 100%). The three
+remaining unmatched are the two Spirit signings plus one genuine gap.
+
+**Threshold implication:** normal overlap sits ≥93%; a cross-sport contamination scores ~0%. Any
+contamination gate belongs in that empty middle (~50–80%), nowhere near real churn.
+
+### 10e. Positions: mixed verdicts — NEITHER source may auto-win
+
+12 mismatches league-wide; 4 adjudicated:
+
+| Player | ESPN | SDP | Right |
+|---|---|---|---|
+| Cristiana Girelli | Midfielder | Forward | **SDP** ([striker](https://bayfc.com/roster/cristiana-girelli/)) |
+| Ashley Sanchez | Forward | Midfielder | **SDP** ([club says midfielder](https://www.nccourage.com/news/nc-courage-extend-midfielder-ashley-sanchez-through-2027-nwsl-season)) |
+| Dani Weatherholt | Defender | Midfielder | **SDP**, leaning (versatile) |
+| **Janine Sonis** | Defender | Forward | **ESPN** ([club lists Defender](https://www.denversummitfc.com/club/roster/janine-sonis/)) |
+
+A blanket "prefer SDP on position" is right ~75% of the time — and would have **mislabelled Denver's
+captain**. This is the Bethune-jersey lesson in a second field: when both sources are internally
+consistent and disagree, **report it and change nothing**; adjudication is an owner ruling via the
+overrides KV, not a heuristic.
+
+Curiosity worth noting: ESPN's own *editorial* pages call Sanchez and Weatherholt midfielders while
+its roster API disagrees. The corruption lives in the entity-mapping layer, not in ESPN's journalism.
+
+### 10f. The rule set this produces
+
+1. **ESPN is the membership base.** It is more current on arrivals AND departures.
+2. **An ESPN-only player is never deleted** — that is the new-signing lane (Ngock, Bethi).
+3. **An SDP-only player with recent minutes is the ESPN-erasure signal** (Fuller, Heaps, Spaanstra).
+   SDP-only with zero minutes is usually a departed/preseason registration — not a signal.
+4. **Membership is adjudicated in AGGREGATE, never per-player.** Per-player diffs are noise;
+   wholesale divergence is the contamination alarm.
+5. **Jerseys: ESPN wins** (SDP has duplicates on 12/16 clubs). Fill only a *missing* ESPN value from
+   a matched SDP pair.
+6. **Positions: no automatic winner.** Report; owner rules via overrides.

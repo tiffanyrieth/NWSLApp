@@ -144,6 +144,22 @@ For each subsystem, walk it explicitly:
       country-followers; club watchers ~700). Fixed: watcher fixture-window polling (§7) + app
       confederation scoping (§7). Residual open item: model a FULL-SLATE matchday (6-7 NWSL games)
       against the per-user costs in the §7 ledger before launch.
+- [ ] ⚠️ **Team-page athlete-stats burst (CLIENT→ESPN DIRECT, never stress-tested)** — found
+      2026-07-30. `TeamDetailViewModel.load` fetches the roster and then fans out **one ESPN Core-API
+      call PER ATHLETE (~25–30) in parallel, straight from the device** — no proxy, no edge cache, no
+      last-known-good, no cross-user dedupe. `AthleteStatsCache` is in-memory + session-scoped, so a
+      relaunch refetches all of it. **The trigger is opening a team page, NOT tapping a player** (the
+      team-leaders board is derived from the whole squad's stat lines) — so the common "who is Portland's
+      #7" gameday glance pays the full burst, and app-side lazy-loading canNOT fix it.
+      **1k sizing:** ~800 team-page opens ⇒ **~21.6k direct ESPN calls/day**, bunched around matches;
+      ~27 per residential IP, so a global block is unlikely — the realistic failure is **per-device burst
+      throttling**, which degrades to a stats card with players silently missing rows (a no-silent-failures
+      smell). At 100k: ~2.1M/day.
+      **Fix (deferred by owner 2026-07-30, rosters prioritised):** a BUNDLED `/team-stats?team={id}`
+      proxy route — whole squad in one edge-cached response, ~27 requests → 1, shared across all users
+      (~800 Worker req/day instead of 21.6k). ⚠️ Naively proxying the existing 27-call fan-out would burn
+      **~22% of the free 100k/day cap at 1k users** — the same trap as the watcher-polling finding above.
+      Build needs Queues (16 clubs × ~28 athletes ≈ 450 calls exceeds the 50-subrequest budget per tick).
 - [~] **Supabase** — DB size, monthly egress, auth MAU, connection limits, RLS query cost;
       `device_tokens` / `*_preferences` read volume per tick. Likely the *second* paid lever (~Pro tier)
       around ~30–50k users. **Verify current free-tier + Pro numbers against primary docs.**

@@ -44,11 +44,17 @@
 > auto-starts after ~30 min regardless and shows a STATIC placeholder minute, so the anchor climbed to
 > 120'. Seen ONCE, and only on a match nothing was logging at the time.
 > ⚠️ **Be precise about what changed:** the 2026-07-30 suspended-match work fixed a DIFFERENT mechanism
-> (`state=post` while play continues). It does NOT guard this one (`state=in` while play has not
-> started). What it did buy is **observation** — that match now runs through the watcher with diags, so
-> a recurrence produces evidence instead of a mystery.
-> **Owner's call: tweak, then watch — don't stack speculative guards on a single unreproduced sighting.**
-> Revisit only if it happens again WITH logs. The design if it does (do not re-derive it):
+> (`state=post` while play continues). It does NOT guard this one (`state=in` while play has not started).
+>
+> **⭐ WHY THIS IS PARKED (owner 2026-07-31) — the reason is EVIDENCE, not priority.** Nothing was
+> monitoring that July match. **We have no tick data for it at all** — the account of what ESPN sent is
+> observational, from watching the app, not from logs. So any guard built now would be designed against
+> an *inferred* mechanism, and we would have no way to tell whether it worked. Contrast the 2026-07-29
+> suspension, which WAS being logged: that is why it could be diagnosed precisely and fixed correctly.
+> The July match also self-healed.
+> **The rule: tweak, watch how the system reacts, then change based on what it shows.** A recurrence
+> now runs through the watcher with diags, so next time there will be evidence to design against.
+> Revisit only when it happens again WITH logs. The design if it does (do not re-derive it):
 > - ⚠️ **Do NOT tighten on status NAMES.** Verified 2026-07-29: a legitimate kickoff arrived as
 >   `STATUS_IN_PROGRESS` (not `STATUS_FIRST_HALF`), and ESPN flapped between the two ~8× in one match.
 >   Name-matching would MISS real kickoffs.

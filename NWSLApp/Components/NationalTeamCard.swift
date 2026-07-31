@@ -40,23 +40,34 @@ struct NationalTeamCard: View {
 
     var body: some View {
         VStack(spacing: 9) {
-            flag
-            Text(team.code)
-                .dsFont(12, weight: .heavy)
-                .tracking(0.4)
-                .foregroundStyle(accent)
-            Text(team.name)
-                .dsFont(14, weight: .semibold)
-                .foregroundStyle(Color.dsFgPrimary)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .lineSpacing(1)
-                // Keep long names (or large text) within two lines rather than spilling
-                // a third line that misaligns the grid; scale down instead.
-                .minimumScaleFactor(0.8)
-                // Reserve two lines so flag (above) + controls (below) stay vertically
-                // aligned across 1- and 2-line names, centered like the club card.
-                .frame(minHeight: 35, alignment: .center)
+            // The identity block (flag/code/name) navigates to the country's team page —
+            // NOT the whole card: the Follow pill + bell below stay plain buttons, mirroring
+            // how a tap and its controls coexist on the club cards. (Browse surface added
+            // 2026-07-31, owner decision — docs/national-teams.md §0.)
+            NavigationLink {
+                NationalTeamDetailView(team: team)
+            } label: {
+                VStack(spacing: 9) {
+                    flag
+                    Text(team.code)
+                        .dsFont(12, weight: .heavy)
+                        .tracking(0.4)
+                        .foregroundStyle(accent)
+                    Text(team.name)
+                        .dsFont(14, weight: .semibold)
+                        .foregroundStyle(Color.dsFgPrimary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .lineSpacing(1)
+                        // Keep long names (or large text) within two lines rather than spilling
+                        // a third line that misaligns the grid; scale down instead.
+                        .minimumScaleFactor(0.8)
+                        // Reserve two lines so flag (above) + controls (below) stay vertically
+                        // aligned across 1- and 2-line names, centered like the club card.
+                        .frame(minHeight: 35, alignment: .center)
+                }
+            }
+            .buttonStyle(.plain)
             controlRow
         }
         .padding(EdgeInsets(top: 18, leading: 12, bottom: 13, trailing: 12))

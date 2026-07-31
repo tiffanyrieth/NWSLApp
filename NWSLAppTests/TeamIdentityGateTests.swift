@@ -61,3 +61,29 @@ struct SeasonStatsLabelTests {
         #expect(AppConfig.seasonStatsLabel() == "NWSL SEASON \(AppConfig.currentSeasonYear)")
     }
 }
+
+/// The national-team browse path (2026-07-31). The pure seam worth pinning is the label↔slug
+/// pair: Match Detail carries only `.international(label)`, and the tapped-player enrichment
+/// needs the SLUG back — a label that silently falls out of sync with `NationalTeamFeed.all`
+/// would quietly kill bio + tournament stats for that competition.
+struct NationalTeamFeedTests {
+
+    @Test func everyFeedLabelRoundTripsToItsSlug() {
+        for feed in NationalTeamFeed.all {
+            #expect(NationalTeamFeed.slug(forLabel: feed.label) == feed.slug)
+        }
+    }
+
+    @Test func unknownLabelResolvesToNilNotAGuess() {
+        #expect(NationalTeamFeed.slug(forLabel: "NWSL Regular Season") == nil)
+        #expect(NationalTeamFeed.slug(forLabel: "") == nil)
+    }
+
+    @Test func friendliesLeadTheFeedOrder() {
+        // nationalTeamSquad tries feeds in .all order and takes the FIRST non-empty squad.
+        // Friendlies first is a deliberate choice: the friendlies list is the broadest squad
+        // picture (Zambia: 26 there vs 23 on the World Cup feed). If someone reorders the
+        // list, squads across the app change silently — this makes that a conscious edit.
+        #expect(NationalTeamFeed.all.first?.slug == "fifa.friendly.w")
+    }
+}

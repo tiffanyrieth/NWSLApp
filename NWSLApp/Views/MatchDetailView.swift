@@ -32,6 +32,13 @@ struct MatchDetailView: View {
     /// Defaults to `.nwsl` so the 99% schedule path is unchanged.
     private let competition: CompetitionType
 
+    /// NT match → the feed slug + label the tapped-player enrichment needs; nil on club matches.
+    private var ntFeedLabel: String? {
+        if case .international(let l) = competition { return l }
+        return nil
+    }
+    private var ntFeedSlug: String? { ntFeedLabel.flatMap { NationalTeamFeed.slug(forLabel: $0) } }
+
     @Environment(MatchStore.self) private var matchStore
     @Environment(\.openURL) private var openURL
     /// Capped at AX1 app-wide (`RootTabView`), so this is true at exactly one size.
@@ -445,12 +452,17 @@ struct MatchDetailView: View {
     }
 
     private func side(_ roster: MatchRoster, _ accent: ResolvedTeamColor) -> CombinedPitchView.Side {
-        CombinedPitchView.Side(
+        // A NATIONAL-TEAM match passes the feed slug instead of a club id: the "club" id here
+        // is a country (Zambia = 20795) and 404s the NWSL roster route — the tapped-player view
+        // uses the slug for competition-scoped bio + tournament stats instead.
+        return CombinedPitchView.Side(
             abbr: roster.team?.abbreviation ?? "—",
             formation: roster.formation,
             players: roster.starters,
             accent: accent,
-            clubID: roster.team?.id
+            clubID: ntFeedSlug == nil ? roster.team?.id : nil,
+            leagueSlug: ntFeedSlug,
+            competitionLabel: ntFeedSlug == nil ? nil : ntFeedLabel
         )
     }
 
@@ -500,7 +512,9 @@ struct MatchDetailView: View {
                     players: roster.starters,
                     accent: accent,
                     abbr: roster.team?.abbreviation,
-                    clubID: roster.team?.id
+                    clubID: ntFeedSlug == nil ? roster.team?.id : nil,
+                    leagueSlug: ntFeedSlug,
+                    competitionLabel: ntFeedSlug == nil ? nil : ntFeedLabel
                 )
             } else {
                 lineupList("Starting XI", players: roster.starters)

@@ -162,6 +162,7 @@ NWSLApp/
 │   ├── TeamsView.swift                — all-16 directory: ONE list (followed floated up); follow-competitions row; per-row 🔔 toggles (+ toast → hub) + nav-bar 🔔 → NotificationsView; first-visit coach mark
 │   ├── CompetitionsView.swift         — follow international comps: Champions Cup card+toggle + National Teams scoped search → SUGGESTED (8 curated, USA-first) over the full data-driven A-Z list; honest loading/error/empty; NT get no detail page
 │   ├── TeamDetailView.swift           — club page: header (⭐ follow) + social row + Squad·Stats tabs
+│   ├── NationalTeamDetailView.swift   — country page (2026-07-31): flag hero + LIVE ESPN-as-is squad (source-feed label; honest empty state; NO storage/verification by design — national-teams.md §0)
 │   ├── MatchDetailView.swift          — state-aware match: full-bleed Card-C header (72pt crests, team-color abbr + score) + bare ‹ chevron over a transparent bar (`nativeBackButton()`); past=Play-by-Play/Lineups/Stats (formation pitch + bench), live=poll (60s) & LIVE pill, future=info + How-to-Watch + comparison + form
 │   ├── CombinedPitchView.swift        — BOTH teams' XIs on ONE pitch; Lineups default; dots are NavigationLinks → LineupPlayerRef (tap a player → her stat screen; Side carries clubID)
 │   ├── FormationPitchView.swift       — single-team XI on a pitch; per-team list fallback; same tappable dots (abbr+clubID params, nil ⇒ non-tappable)

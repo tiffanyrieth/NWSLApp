@@ -135,6 +135,15 @@ struct NationalTeamFeed {
     let slug: String
     let label: String
 
+    /// Slug for a competition LABEL — the reverse of what `MatchStore` does when it tags a
+    /// fetched event `.international(label)`. Labels and slugs are a closed, app-owned pair
+    /// (this same list), so the lookup is exact; nil means "not one of our NT feeds".
+    /// Lets Match Detail turn its `CompetitionType` back into the feed slug the per-athlete
+    /// tournament-stats and bio endpoints need.
+    static func slug(forLabel label: String) -> String? {
+        all.first { $0.label == label }?.slug
+    }
+
     static let all: [NationalTeamFeed] = [
         .init(slug: "fifa.friendly.w",              label: "International Friendly"),
         .init(slug: "fifa.shebelieves",             label: "SheBelieves Cup"),

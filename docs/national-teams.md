@@ -15,15 +15,30 @@ immigrated here, and people abroad who found the league through a player. The ow
 in Zambia who grew up watching **Barbra Banda** and now wants to follow the Orlando Pride *and* Zambia's
 national team. This app lets her do both, in one place. That is the whole reason the NT side exists.
 
-**But "supported" is not "feature-matched."** The NT side deliberately gets the CORE only:
-- fixtures in the calendar alongside club matches
-- scores / live state
-- goal + match alerts for a followed country
+**But "supported" is not "feature-matched."** Precisely what a followed country DOES get
+(owner-specified 2026-07-31):
+- its fixtures in **My Calendar**, alongside club matches
+- the **lineup on match day** when it's announced
+- the **score**, updating live as the match progresses
+- **goal + match alerts**
 
-It does **not** get the full NWSL treatment, and it is not meant to. Depth features — the Fan Zone
-games, roster identity verification, per-player stat surfaces, Match Detail enrichment, and (the case
-that prompted this) a **weather radar during a delay** — are NWSL-only unless there is a specific
-reason otherwise.
+And what it deliberately does NOT get:
+- ⚠️ **No team page at all — and this is STRUCTURAL, not a missing link.** There is no
+  `NationalTeamView` in the codebase; a national-team card is not tappable because the destination
+  was never built. **This is intentional — do not "fix" it with a `NavigationLink`.** Club cards go to
+  `TeamDetailView`; countries have no equivalent, *including the USWNT*.
+- therefore **no roster page and no per-player stats** for any country.
+- no Fan Zone games, no roster identity verification, no Match Detail enrichment, and (the case that
+  prompted writing this) **no weather radar during a delay**.
+
+**The owner's reason, verbatim in substance: "just too much data to monitor, and my focus is NWSL."**
+Roster + stats for ~100 countries is a second app's worth of surface area, monitoring and failure
+modes — for the *secondary* half of the product.
+
+⚠️ **The followable-country count is DYNAMIC — never pin a number.** The curated grid is 16
+(`NationalTeam.all`); Browse-all is data-driven from proxy `/national-teams` (the union of every
+feed's `/teams`), which returned **106** on 2026-07-31 and moves with ESPN's coverage. Earlier drafts
+of this doc said "~200"; that was wrong. Say "~100, data-driven" and let the endpoint be the truth.
 
 **Practical decision rule for a new feature:** if it deepens the *club* experience, build it NWSL-only
 and don't apologise for the asymmetry. If it is core scheduling/scores/alerts, it must cover NT too.

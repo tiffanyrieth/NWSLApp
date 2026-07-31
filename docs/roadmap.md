@@ -38,22 +38,24 @@
 > |---|---|---|---|
 > | **Stale cache** (2026-07-11) | old-but-valid | clock stuck all game; read `pre` 47min after KO | ✅ fixed build 26 (windowed query + upstream cache-bust) |
 > | **Suspension** (2026-07-29) | `state=post` | in progress | ✅ app fixed; ⛈️ watcher open (above) |
-> | **Fabricated kickoff** (Orlando, ~2026-07-10) | `state=in` at 1' | **never kicked off** | ❌ **NO GUARD EXISTS** |
+> | **Fabricated kickoff** (Orlando, ~2026-07-10) | `state=in` at 1' | **never kicked off** | 🅿️ **PARKED — observing (owner 2026-07-31)** |
 >
-> **Fabricated kickoff:** a pre-KO lightning delay; ESPN auto-starts after ~30 min regardless and shows a
-> STATIC placeholder minute. `TickAnchor` keeps the anchor when the clock doesn't advance (correct for
-> stoppage, where ESPN freezes at 2700) — so a permanently static feed clock produced a **climbing display
-> that reached 120'**. Self-healed only when ESPN keyed in a corrected start time.
+> **Fabricated kickoff — PARKED, not solved (owner 2026-07-31).** A pre-KO lightning delay; ESPN
+> auto-starts after ~30 min regardless and shows a STATIC placeholder minute, so the anchor climbed to
+> 120'. Seen ONCE, and only on a match nothing was logging at the time.
+> ⚠️ **Be precise about what changed:** the 2026-07-30 suspended-match work fixed a DIFFERENT mechanism
+> (`state=post` while play continues). It does NOT guard this one (`state=in` while play has not
+> started). What it did buy is **observation** — that match now runs through the watcher with diags, so
+> a recurrence produces evidence instead of a mystery.
+> **Owner's call: tweak, then watch — don't stack speculative guards on a single unreproduced sighting.**
+> Revisit only if it happens again WITH logs. The design if it does (do not re-derive it):
 > - ⚠️ **Do NOT tighten on status NAMES.** Verified 2026-07-29: a legitimate kickoff arrived as
 >   `STATUS_IN_PROGRESS` (not `STATUS_FIRST_HALF`), and ESPN flapped between the two ~8× in one match.
 >   Name-matching would MISS real kickoffs.
-> - ✅ **Tighten on behaviour instead:** require the feed clock to have been OBSERVED ADVANCING before
->   ticking locally; until then render ESPN's string verbatim and diag if it never advances. Generalises
->   the `freshAtCap` rule already in `TickAnchor` ("first sighting at the cap is UNKNOWABLE — don't
->   fabricate"). Costs ~1 poll cycle; immune to labels and placeholders.
-> - ✅ **Backwards transitions are proof the PRIOR state was wrong** — `post→in` (suspension recovery) and
->   `in→pre` (fake kickoff correction) are both impossible in a real match. Cheapest in the watcher, which
->   already persists `prev`.
+> - **Tighten on BEHAVIOUR:** require the feed clock to have been OBSERVED ADVANCING before ticking
+>   locally; until then render ESPN's string verbatim. Generalises `TickAnchor.freshAtCap`.
+> - **Backwards transitions prove the PRIOR state was wrong** — `post→in` and `in→pre` are both
+>   impossible in a real match. Cheapest in the watcher, which already persists `prev`.
 
 > ### 🪪 DISPLAY NAMES ARE NOT UNIQUE — decide BEFORE launch (owner 2026-07-29)
 > **Today anyone can take a name someone else already has.** `profiles.display_name` is a plain `text`
@@ -304,19 +306,12 @@
 > measure, but weight her lived impression above metrics at this scale. Read `docs/fan-zone.md` and
 > `.claude/rules/fan-zone.md` (LOGIC GATE, incl. invariant #7) before touching any of it.
 
-> ### 🎚️ STILL OPEN — halve Predict per-match scoring (flag only; verified NOT yet applied 2026-07-27)
-> ⚠️ Not to be confused with the **Superfan 0–100 accuracy economy**, which WAS redesigned 2026-07-24 —
-> this is a different knob and is still untouched (`XIPrediction.swift` today: formation 5, exact score 10,
-> result 3, perfect XI 15 → max 88).
-> The Predict-the-XI per-match max is **88** (+3/starter ×11, +2/position ×11, +5 formation, +10 exact
-> score, +3 result, +15 perfect XI). The owner flagged this as oversized for a low-scoring sport — consider
-> **halving every value → max 44** pre-launch (relative weights unchanged, so rankings don't move). The
-> Batch-3 switch to an **average-per-match** leaderboard (users never see cumulative totals) made this
-> non-urgent. `+5 formation` is the specific worry (near-free for attentive fans — most clubs run a stable
-> shape). **No code change yet** — this is a deliberate pre-launch decision. Values live in
-> `Models/XIPrediction.swift` (`PredictionScore.*Points`); if halved, the `predictPointRow` rules text +
-> the season card's `/88` ring denominator + `RECENT_RESULTS` breakdown must move to `/44` in lockstep.
-
+> ### ✅ DECIDED 2026-07-31 — Predict per-match scoring stays AS IS (max 88)
+> Flagged 2026-07-27 as possibly oversized for a low-scoring sport (halve every value → max 44).
+> **Owner decided against it:** the season view moved to an AVERAGE-based board (2026-07-24 redesign),
+> which is what actually made the per-match numbers legible — so the raw magnitude no longer misleads.
+> Values stay `XIPrediction.swift`: +3/starter · +2/position · +5 formation · +10 exact score ·
+> +3 result · +15 perfect XI. **Don't re-propose halving** without a new reason.
 
 > ### ✅ DONE 2026-07-24 — Predict average-leaderboard migration (Batch 3)
 > APPLIED by the owner (confirmed 2026-07-27). `supabase/migration_predict_avg_leaderboard.sql` (idempotent,
@@ -433,10 +428,18 @@
 > - README/showcase copy already reframed to match (PR #152); CLAUDE.md carries the
 >   values-vs-mechanics stance so future copy stays consistent.
 
-> ### ♿ PRE-RELEASE GATE — accessibility (owner 2026-07-21; must ship BEFORE launch)
+> ### ♿ PRE-RELEASE GATE — accessibility: **VoiceOver is the only part left** (owner 2026-07-21)
 > Accessibility is a release gate, not a nice-to-have — in an inclusive space like NWSL it must not be
-> overlooked. NOT yet built; this is a scoped workstream to audit + complete before launch. Two parts:
-> - **Blind / low-vision (VoiceOver + Dynamic Type):** systematic pass. Custom-DRAWN elements need
+> overlooked. **Two of the three parts are now DONE** (owner-confirmed 2026-07-31):
+> - ✅ **Dynamic Type / AX1** — cap decided, whole app swept, every screen passes (detail below).
+> - ✅ **Colour-blind** — deuter/protan/tritan simulation across the app found **no failures**;
+>   existing rules carry it (✓/✗ glyph shapes, crest+abbreviation, text "your pick" labels).
+> - ❌ **VoiceOver — THE REMAINING WORK.** Partial today: 16 files carry a11y modifiers, so it is not
+>   zero, but there has been no systematic pass. This is what blind users need to use the app at all,
+>   and it's the reason the AX1 cap is defensible (users needing >AX1 are served by VoiceOver + Zoom).
+>   Scope below.
+>
+> **VoiceOver scope:** custom-DRAWN elements need
 >   explicit `.accessibilityLabel` (formation-pitch dots, `StatComparisonBar`, score header, live clock,
 >   image-only crests/headshots); GROUP compound units so a match card reads as one element ("Chicago 0,
 >   Angel City 2, Full Time") not fragments; revisit the Dynamic Type **AX1 cap** per-screen (density vs
@@ -474,11 +477,11 @@
 >   margin = Standings form chips (W and L are the same colour under deuteranopia; only the W/L/D
 >   letters distinguish them, so never swap those letters for coloured dots).
 > - NOT done, deliberately: the Teams grid's uneven tile borders when club names wrap (cosmetic).
-> Current state = PARTIAL, not zero (FormBadge shows W/D/L letter+color = color-blind safe; text uses
-> `.dsFont`/@ScaledMetric; scattered labels exist) → the work is systematic completion + an audit, then a
-> punch-list. First step when picked up: run the audit (read + VoiceOver in sim). Detail in the
-> accessibility-pre-release-gate memory. (Dark-only is NOT an a11y issue — the app's color balances it.)
-> Also still pending here: profanity-filter the editable leaderboard display name before public launch.
+> **First step when picked up:** run the VoiceOver audit in the sim screen by screen, then work the
+> punch-list. Dynamic Type and colour-blind are closed — do NOT re-audit them.
+> (Dark-only is NOT an a11y issue — the app's colour balances it.)
+> Also still pending here, unrelated to a11y: profanity-filter the editable leaderboard display name
+> before public launch.
 
 > ### ✅ SHIPPED + PROVEN — Know Her Game weekly automation (built 2026-07-13, proven through 2026-07-27)
 > The full no-human weekly loop is BUILT (proxy branch `feature/knowher-weekly-automation`): deterministic

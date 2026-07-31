@@ -71,7 +71,12 @@ final class PredictXIViewModel {
 
     /// The season card's per-team standing: the signed-in user's true rank (nil if signed out / unranked)
     /// and the TOTAL predictor count for the "#N of M · top X%" line. Populated in `loadLeaderboards`.
-    struct TeamStanding: Equatable { let rank: Int?; let total: Int }
+    /// `serverAvg` is MY average as the SERVER has it (`prediction_scores`), independent of anything
+    /// stored on this device. The season card falls back to it when local state is empty, so a wiped
+    /// or reinstalled device can't show "Predict …'s XI to join the board" while the leaderboard
+    /// directly beneath it still ranks the user. nil = the server has no scored row for me either,
+    /// which is the honest "not on the board yet".
+    struct TeamStanding: Equatable { let rank: Int?; let total: Int; var serverAvg: Double? = nil }
     private(set) var standingByTeam: [String: TeamStanding] = [:]
 
     /// The ROUND boards — one per team, for that team's most relevant soccer week (the current week
@@ -518,10 +523,16 @@ final class PredictXIViewModel {
             // The user always counts in their own denominator. A just-scored user can rank one past the
             // server's predictor count (a "#15 of 14"); clamp the shown total up so rank ≤ total always.
             let shownTotal = max(total, trueRank ?? 0)
-            teamStandings[team] = TeamStanding(rank: trueRank, total: shownTotal)
-            boards.append((team: team, rows: rankedRows(
+            let rows = rankedRows(
                 team: team, standings: standings, trueRank: trueRank, store: store, auth: auth,
-                points: myPoints, seasonAvg: myAvg, seasonMatches: myMatches)))
+                points: myPoints, seasonAvg: myAvg, seasonMatches: myMatches)
+            // My average as the SERVER has it — read off my own row on the board we just built, so it
+            // costs no extra request. Used only as a FALLBACK when this device has no local scores
+            // (wipe / reinstall / new device); local stays authoritative when present, since it
+            // includes anything scored since the last board fetch.
+            let serverAvg = myMatches == 0 ? rows.first(where: { $0.isYou })?.avg : nil
+            teamStandings[team] = TeamStanding(rank: trueRank, total: shownTotal, serverAvg: serverAvg)
+            boards.append((team: team, rows: rows))
 
             // The round board: the current week once it has any of MY scores, else my latest scored
             // week (the just-finished round — "did I beat them Sunday"). No round-stamped score yet →

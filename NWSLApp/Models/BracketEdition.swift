@@ -291,3 +291,75 @@ struct BracketEdition: Identifiable, Codable, Equatable {
         return round < currentRound ? .complete : .upcoming   // earlier rounds sort first
     }
 }
+
+// MARK: - Standing display
+
+/// How a fan's standing is worded. Percentiles are a well-understood idiom ("top 1% of listeners"),
+/// but they only carry information when the field is big enough to support one — and only in their
+/// good half.
+///
+/// Two failures this exists to prevent, both real in the shipped copy:
+/// 1. **Small fields make winning look ordinary.** `rank/total` in a 12-player edition renders FIRST
+///    PLACE as "top 8%", and a 2-player edition as "top 50%". The number describes the field size,
+///    not the fan. Below `minPopulationForPercentile` we state the placing instead, which is both
+///    accurate and better news for the person who won.
+/// 2. **A bad percentile styled as praise.** Rank 30 of 32 renders "top 94%" — true, but it was drawn
+///    in the accent colour exactly like "top 3%", so finishing near-last read as congratulations.
+///    The wording is fine; the celebration is what was wrong.
+struct RankDisplay {
+    let rank: Int
+    let total: Int
+
+    /// Below this a percentile says more about the headcount than the fan. At 50, one rank step is
+    /// ~2 points, so the number starts tracking performance instead of field size.
+    static let minPopulationForPercentile = 50
+    /// Above this share, a percentile is a plain fact rather than an achievement — state it, don't
+    /// dress it up.
+    static let praiseThresholdPercent = 25
+
+    var usesPercentile: Bool { total >= Self.minPopulationForPercentile }
+
+    /// Rounded up so the boundary never over-flatters: rank 3 of 100 is "top 3%", never "top 2%".
+    var topPercent: Int {
+        guard total > 0 else { return 100 }
+        return min(100, max(1, Int((Double(rank) / Double(total) * 100).rounded(.up))))
+    }
+
+    /// "1st", "2nd", "3rd", "4th" … (11th/12th/13th are the usual exceptions).
+    var ordinal: String {
+        let teens = 11...13
+        let suffix: String
+        if teens.contains(rank % 100) {
+            suffix = "th"
+        } else {
+            switch rank % 10 {
+            case 1: suffix = "st"
+            case 2: suffix = "nd"
+            case 3: suffix = "rd"
+            default: suffix = "th"
+            }
+        }
+        return "\(rank)\(suffix)"
+    }
+
+    /// Only the good half of the scale earns accent styling.
+    var isPraiseworthy: Bool { usesPercentile && topPercent <= Self.praiseThresholdPercent }
+
+    private func unitLabel(_ unit: String) -> String { "\(total) \(unit)\(total == 1 ? "" : "s")" }
+
+    /// "top 3% of 120 fans" · "4th of 12 fans"
+    func summary(unit: String = "fan") -> String {
+        usesPercentile ? "top \(topPercent)% of \(unitLabel(unit))" : "\(ordinal) of \(unitLabel(unit))"
+    }
+
+    /// Compact form for a line that already states the rank elsewhere: "top 3%" · "of 12 fans"
+    func suffix(unit: String = "fan") -> String {
+        usesPercentile ? "top \(topPercent)%" : "of \(unitLabel(unit))"
+    }
+
+    /// Results-screen sentence. Reads as an achievement only when it is one.
+    var resultsSentence: String {
+        guard usesPercentile else { return "You finished \(ordinal) of \(total)" }
+        return isPraiseworthy ? "You're in the top \(topPercent)%" : "You finished in the top \(topPercent)%"
+    }
+}

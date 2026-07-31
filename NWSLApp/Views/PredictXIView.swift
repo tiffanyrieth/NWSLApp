@@ -654,7 +654,12 @@ struct PredictXIView: View {
         let standing = viewModel.standingByTeam[team]
         let points = store.points(forTeam: team)
         let matches = store.scoredMatchCount(forTeam: team)
-        let avg: Double? = matches > 0 ? Double(points) / Double(matches) : nil
+        // Local first (it includes anything scored since the last board fetch), then the SERVER's
+        // average for me. Without the fallback this card reads local-only, so a wiped or reinstalled
+        // device says "Predict …'s XI to join the board" while the leaderboard directly below still
+        // ranks the user — which is exactly what the owner hit on TestFlight after the old reset
+        // button wiped local state and left `prediction_scores` intact.
+        let avg: Double? = matches > 0 ? Double(points) / Double(matches) : standing?.serverAvg
         let teamName = viewModel.teamLabel(team)
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 14) {

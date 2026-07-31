@@ -396,7 +396,7 @@ struct BracketBattleView: View {
     /// The "YOUR RANK" identity card — rank circle, accuracy + percentile, points, and round-over-round
     /// movement (green up / red down / gray no-change).
     private func rankCard(you: BracketStanding, total: Int) -> some View {
-        let topPercent = total > 0 ? max(1, Int((Double(you.rank) / Double(total) * 100).rounded())) : 100
+        let standing = RankDisplay(rank: you.rank, total: total)
         let accuracyText = you.accuracy.map { "\(Int(($0 * 100).rounded()))% accurate" }
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 14) {
@@ -408,7 +408,7 @@ struct BracketBattleView: View {
                 .frame(width: 56, height: 56)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("YOUR RANK").dsFont(11, weight: .bold).tracking(1.2).foregroundStyle(accent)
-                    Text([accuracyText, "top \(topPercent)% of \(total) fan\(total == 1 ? "" : "s")"]
+                    Text([accuracyText, standing.summary()]
                             .compactMap { $0 }.joined(separator: " · "))
                         .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 }
@@ -522,9 +522,12 @@ struct BracketBattleView: View {
                 .padding(14).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else if let you = viewModel.standings.you {
                 // Outside the visible top → compact summary.
-                let topPercent = total > 0 ? max(1, Int((Double(you.rank) / Double(total) * 100).rounded())) : 100
+                let standing = RankDisplay(rank: you.rank, total: total)
                 VStack(spacing: 4) {
-                    Text("#\(you.rank) of \(total) fan\(total == 1 ? "" : "s") · top \(topPercent)%")
+                    // The rank is already stated, so append only the percentile (when it means
+                    // something) rather than repeating "of N".
+                    Text("#\(you.rank) of \(total) fan\(total == 1 ? "" : "s")"
+                         + (standing.usesPercentile ? " · \(standing.suffix())" : ""))
                         .dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
                     fullLeaderboardLink
                 }
@@ -696,7 +699,7 @@ struct BracketBattleView: View {
     /// (`lastSeenRank`, read BEFORE the CTA advances it) to the current rank.
     @ViewBuilder
     private func resultsRankLine(currentRank: Int, total: Int) -> some View {
-        let topPercent = total > 0 ? max(1, Int((Double(currentRank) / Double(total) * 100).rounded())) : 100
+        let standing = RankDisplay(rank: currentRank, total: total)
         let delta = store.lastSeenRank.map { $0 - currentRank }
         VStack(spacing: 4) {
             HStack(spacing: 6) {
@@ -708,7 +711,11 @@ struct BracketBattleView: View {
                     Text("Rank #\(currentRank)").dsFont(13, weight: .bold).foregroundStyle(accent)
                 }
             }
-            Text("You're in the top \(topPercent)%").dsFont(12).foregroundStyle(accent)
+            // Accent (praise) styling only when the standing is actually good news — a near-last
+            // finish stated in the celebration colour is what made "top 94%" read as an award.
+            Text(standing.resultsSentence)
+                .dsFont(12)
+                .foregroundStyle(standing.isPraiseworthy ? accent : Color.dsFgSecondary)
         }
     }
 

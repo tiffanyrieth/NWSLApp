@@ -155,6 +155,15 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   show in `/admin` with an `auto` pill + clickable source, expire in 90d, and an expired ruling
   puts the item back on the todo (self-closing loop). Script: `scripts/roster-adjudicate-routine.md`
   (the key lives only in the trigger config, never the repo).
+  ⚠️ **THE TRANSFER RULE (added after the first live run).** A mismatch needs the two feeds to
+  DISAGREE — so when both are stale *together* nothing is flagged. That happens on a specific,
+  predictable cohort: a transfer moves a player's NUMBER and her ROLE at the same moment (new number
+  if the old is taken; new coach may play her differently) and neither feed re-keys her.
+  **A blank ESPN jersey is the free signal that marks it** — a missing number is what a
+  half-processed arrival looks like. So the routine reads BOTH number and position for anyone on the
+  `jerseys` list and rules on position even though the todo didn't ask (~3 players league-wide).
+  Proven case: Ally Sentnor, KC→Angel City July 2026 — ESPN blank, league feed her old #21, both
+  feeds "Forward"; angelcity.com said **"midfielder #17"**, right on both counts.
 - **🗂️ One admin portal: `GET /admin`** (`src/admin-portal.ts`) — one URL, one password, three tabs
   (Roster · The Bracket · Know Her Game), same HTTP Basic realm so the browser authenticates once for
   the origin. Ops at `POST /admin/roster` (`state` / `run` / `setOverride` / `renewOverride` /

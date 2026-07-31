@@ -358,12 +358,19 @@
 > Portland's real collapse) + 4 real signings. **This is the case for observe-mode-before-serving:**
 > wired to `/roster`, run one would have been noise rather than a bug report.
 >
-> ### 🕐 NEXT — tweak 2: serve from the verified snapshot
-> Overrides already reach users; the SNAPSHOT does not. Decide after ~a week of nightly reports shows
-> what normal drift looks like, then set enforcement thresholds from measurements instead of judgement.
+> ### ✅ SHIPPED 2026-07-31 — tweak 2: serve from verified state (owner approved same day)
+> The observe-only gap ("paged but still on screen") is closed. Two demotion signals in `/roster`
+> (`goodPathPlan`, unit-tested; mechanism in `docs/backend.md`): a real-time continuity refusal now
+> serves the trusted copy instead of the suspect payload, and a nightly per-club VERDICT holds a
+> gate-failing club on last-known-good (≤ ~24h stale for that club only — owner accepted; healthy
+> clubs stay live). Fail-open everywhere; 48h verdict TTL = kill switch; unverified ≠ failed.
+> Residual gap (documented): a 50–80%-overlap partial substitution is caught at the next nightly
+> run, not in real time.
+>
 > **Still open, and only the owner can close them:** ESPN has erased real players league-wide (Fuller,
 > Heaps — a USWNT captain — Spaanstra) and carries **12 position mismatches**; none are size-detectable.
-> The verifier now SURFACES them nightly; each still needs a ruling in the portal to reach users.
+> The verifier surfaces them nightly in `/admin`; each needs a pin to reach users. Owner has said the
+> position ones aren't urgent — the override lever exists for when one starts to matter.
 
 > ### 📊 TEAM-PAGE STATS BURST — ~27 direct ESPN calls per team-page open (found 2026-07-30, DEFERRED by owner)
 > `TeamDetailViewModel.load` fans out **one ESPN Core-API call per athlete, in parallel, from the

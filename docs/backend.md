@@ -112,6 +112,24 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   - **Diags:** `rosterTruthGateFail` + `rosterTruthRunFail` **page**; `rosterTruthSummary` never does.
     Severity scales with blast radius for free — one club is 1–2 events (under the 8-event threshold),
     a contamination or deleted club fails many gates in one batch and crosses it.
+- **🛑 Serving from verified state (tweak 2, owner-approved + shipped 2026-07-31).** Two distrust
+  signals can DEMOTE a plausibly-sized live payload to the trusted last-known-good copy (honest
+  "Roster as of" marker) — closing the "paged but still on screen" gap:
+  1. **Real-time — continuity refusal now changes what is SERVED**, not just what is cached: a live
+     payload sharing <50% of its players with the trusted copy serves the trusted copy instead.
+     Before, contamination was refused the cache but still shown to users until it healed.
+  2. **Nightly — the verdict hold**: `runRosterTruth` writes `roster-truth-verdicts-v1`
+     (`{at, clubs:{[espnTeamId]:{abbr, ok}}}`, **48h TTL = kill switch**); `/roster` holds a club
+     whose last verification FAILED on its last-known-good until it passes. Only the broken club
+     goes stale (≤ ~24h — owner accepted this over serving wrong data); the other 15 stay live.
+  Pure decision = `goodPathPlan` (index.ts, unit-tested). **Fail-open by construction:** no cache,
+  no verdict key, expired verdicts, or a KV error ⇒ the old live-first behavior exactly; an
+  UNVERIFIED club (fetch blip during the run) is marked ok — unverified ≠ failed, so a blip can
+  never hold a club stale. The cache is never refreshed from a payload either signal distrusts,
+  and a no-cache + distrusted payload serves live but is NOT archived (never seed the fallback with
+  suspect data). Diag: `rosterVerdictHold` (deliberately not paged — the nightly gate failure that
+  caused it already did). ⚠️ Residual gap, documented not hidden: a 50–80%-overlap partial
+  substitution passes the real-time check and is only caught (and held) after the next nightly run.
 - **🔧 Owner overrides (`roster-truth:overrides`, 90-day TTL).** Applied in `/roster` to whatever is
   served (live or cached), AFTER the cache write — so the stored last-known-good stays raw ESPN and an
   override is a presentation-time correction, never baked into the archive. Marks the athlete

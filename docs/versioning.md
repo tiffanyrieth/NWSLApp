@@ -23,6 +23,9 @@ _Read when bumping the version or preparing a build/release._
   - **It only governs builds that contain the gate (21+).** Older builds predate the mechanism and never
     call `/config`, so they can't be retroactively blocked — the gate bites a user only once they're on a
     gated build and fall behind a later `minBuild`.
+  - **History:** raised for the FIRST time on 2026-07-31 — `21 → 31` alongside the build-31 TestFlight,
+    retiring builds ≤30 (28 was known-broken). Before that it had sat at 21 since introduction, so the
+    gate had never fired for anyone; an earlier raise was written but lost on an unmerged branch (7/27).
   - **To force an update:** after the fixed build is live, raise `MIN_APP_BUILD` + `wrangler deploy` the
     proxy. The app side fails OPEN (an unreachable `/config` never blocks), so the endpoint being down is
     safe. See `AppGateView` / `ForceUpdateService`.

@@ -440,14 +440,14 @@
 > 4. **UptimeRobot** (route uptime): free account → HTTP monitors on the proxy `/config` and the
 >    watcher `/` root. No code involved.
 
-> ### 🚦 FORCE-UPDATE GATE — never raised; `/config` still serves `minBuild 21` (found 2026-07-31)
-> Verified live: `GET /config` → `{"minVersion":"0.4.2","minBuild":21}` while the app is on **build 30**.
-> The gate has therefore never fired for anyone. ⚠️ **This is NOT a bug in itself** — `minBuild` is a
-> deliberate MANUAL floor that must not auto-track the latest build (raising it on every bump
-> force-updates everyone). The open question is narrower: **build 28 is known-broken and is still
-> permitted.** The raise to 29 was written but lived on a branch that was never merged or deployed
-> (dropped 2026-07-27). Decide whether to set `MIN_APP_BUILD=29` and redeploy the proxy to retire it.
-> Detail: `docs/versioning.md`. Was missing from this roadmap entirely.
+> ### ✅ ACTIONED 2026-07-31 — force-update gate raised for the FIRST time (`minBuild` 21 → 31)
+> `/config` had served `minBuild 21` since forever, so the gate had never fired for anyone and the
+> known-broken **build 28** was still permitted. Build 31 (TestFlight) ships with `MIN_APP_BUILD = 31`,
+> retiring everything ≤30.
+> ⚠️ **ORDER MATTERS AND IS THE WHOLE RISK.** The proxy deploy must come AFTER build 31 is live and
+> installable on TestFlight — deploying the gate first walls every user on 30 (including the owner's own
+> device) with nowhere to go. The app bump merged first; the proxy change is committed and deploys on
+> confirmation. See `docs/versioning.md`.
 
 > ### 📋 PRE-PUBLISH — privacy package (needed BEFORE App Store submission; target mid-Aug)
 > Lower priority than ALIVE work but MUST exist at submission (owner 2026-07-16 — track it here so

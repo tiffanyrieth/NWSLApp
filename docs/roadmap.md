@@ -166,18 +166,16 @@
 > - `PredictionScore`'s four Bools can't express "pending" (false is indistinguishable from unresolved),
 >   so the pending rows need a separate transient type.
 
-> ### 🐞 THE BRACKET — "top 94%" reads as praise and means near-last (found 2026-07-28)
-> `resultsRankLine` computes `topPercent = rank / total * 100`, so rank 30 of 32 renders
-> **"You're in the top 94%"** in the accent colour, as if it were an achievement. Three problems:
-> the wording is inverted (Overwatch never said "top 94%" — it said *Bronze*), and the `max(1, …)`
-> guard only protects the good end.
->
-> ⚠️ **Four call sites, not one** — fix together or the inconsistency spreads:
-> `BracketBattleView.swift:411`, `:527`, `:699`, and `BracketLeaderboardView.swift:163`.
->
-> Predict adopted the replacement on 2026-07-28: state the POPULATION ("#8 of 20") and, where a
-> neighbouring row is actually in hand, the next rung ("0.4 behind CapitalKick at #7"). Found while
-> building that; out of scope for the Predict handoff, logged here rather than silently widened.
+> ### ✅ FIXED 2026-07-31 — Bracket rank line (was: "top 94%" reads as praise)
+> **The wording was never the problem** — "top 1%" is a well-understood idiom (Spotify Wrapped, class
+> rank) and STAYS. Two real defects, both fixed via a new `RankDisplay` (`Models/BracketEdition.swift`)
+> that owns the rules so the four call sites can't drift apart (they already had: the leaderboard used
+> a ≥5 floor and rounded up, the battle views used no floor and rounded to nearest):
+> - **A percentile over a field too small to support one.** `rank/total` renders FIRST PLACE in a
+>   12-player edition as "top 8%" and in a 2-player one as "top 50%" — describing the field size, not
+>   the fan. Under **50 players** it now states the placing ("1st of 12").
+> - **A bad percentile in the PRAISE colour.** Rank 30/32 was styled exactly like rank 1/32. Accent
+>   styling now applies only at ≤25%. Stating a weak finish is fine; celebrating it isn't.
 
 > ### 🔐 MULTI-DEVICE INTEGRITY (owner 2026-07-27; diagnosed further 2026-07-29)
 > Trigger: the owner runs the app in THREE places under the same Apple ID — TestFlight, an Xcode USB
@@ -243,23 +241,17 @@
 > Fan Zone contamination only; the broader 3-install cross-talk still wants a test Apple ID + `.debug`
 > bundle id (see the signOut/global-scope finding).
 
-> ### 🩹 SMALL PREDICT FOLLOW-UPS (from the reset-button incident, 2026-07-27)
-> **✅ CONFIRMED IN THE WILD 2026-07-29.** The owner hit that button on TestFlight (build 29, which
-> predates its removal in #188) to see what it did — and it wiped her local Predict history exactly as
-> described, leaving the server's `prediction_scores` intact. That is why her season card read
-> "Predict Washington's XI to join the board" all through the 2026-07-28/29 session while the
-> leaderboard directly beneath it ranked her 3rd at 54.0 avg. **Build 30 is the first TestFlight build
-> without the button.** The underlying follow-up below still stands: the season card reads LOCAL-only
-> state, so any future local wipe (or a fresh device) reproduces the same contradiction.
-> - **The season card reads LOCAL-only state** (`store.points(forTeam:)` / `scoredMatchCount`) even though
->   `prediction_scores` holds the authoritative numbers. So a local wipe makes the card say "Predict …'s XI
->   to join the board" while the leaderboard directly below still ranks the user. Reading the server row
->   would make the card honest and self-healing. (This also means `docs/fan-zone.md` §3's local-vs-server
->   table is right about *storage* but doesn't flag that a local-only READ can contradict the server.)
-> - **Account delete does not clear local Predict state.** `PredictionStore.reset()` now has no caller;
->   `AuthStore.deleteAccount` tears down the session and identity but leaves predictions/scores in
->   UserDefaults on the device. Probably wants wiring up — a deleted account shouldn't leave game history
->   behind locally.
+> ### ✅ FIXED 2026-07-31 — Predict follow-ups (from the reset-button incident)
+> - **Season card read LOCAL-only state** while the leaderboard beneath it read the server, so a wiped
+>   or reinstalled device showed "Predict …'s XI to join the board" above a board still ranking the
+>   user — exactly what the owner hit on TestFlight. The card now falls back to the SERVER's average
+>   for that user (`TeamStanding.serverAvg`, read off the board row already fetched — no extra
+>   request). Local stays authoritative when present, since it includes anything scored since the last
+>   fetch.
+> - **"Account delete leaves local Predict state" was ALREADY FIXED** — verified, not assumed:
+>   `resetForAccountDeletion()` is wired into `ProfileView.runDeleteAccount`. What actually existed was
+>   a dead `reset()`, byte-identical and uncalled; removed, since two ways to wipe the same state is
+>   how one stops matching the other.
 
 > ### ✅ COMPLETE 2026-07-31 — ESPN ROSTER RELIABILITY (opened 2026-07-27)
 > ESPN is the app's most fragile dependency and the roster failed as **wrong-but-plausible data served
@@ -420,6 +412,15 @@
 >    ~/Projects/nwslapp-match-watcher. If the watcher cron ever stops, THEY email you.
 > 4. **UptimeRobot** (route uptime): free account → HTTP monitors on the proxy `/config` and the
 >    watcher `/` root. No code involved.
+
+> ### 🚦 FORCE-UPDATE GATE — never raised; `/config` still serves `minBuild 21` (found 2026-07-31)
+> Verified live: `GET /config` → `{"minVersion":"0.4.2","minBuild":21}` while the app is on **build 30**.
+> The gate has therefore never fired for anyone. ⚠️ **This is NOT a bug in itself** — `minBuild` is a
+> deliberate MANUAL floor that must not auto-track the latest build (raising it on every bump
+> force-updates everyone). The open question is narrower: **build 28 is known-broken and is still
+> permitted.** The raise to 29 was written but lived on a branch that was never merged or deployed
+> (dropped 2026-07-27). Decide whether to set `MIN_APP_BUILD=29` and redeploy the proxy to retire it.
+> Detail: `docs/versioning.md`. Was missing from this roadmap entirely.
 
 > ### 📋 PRE-PUBLISH — privacy package (needed BEFORE App Store submission; target mid-Aug)
 > Lower priority than ALIVE work but MUST exist at submission (owner 2026-07-16 — track it here so

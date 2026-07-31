@@ -97,7 +97,7 @@
 > **Separate but adjacent, worth deciding at the same time:** a reserved/blocked-name list. Nothing
 > currently stops impersonating an NWSL player, a club, or the app itself.
 
-> ### 📏 PHONE-SIZED, NOT PREVIEW-SIZED — community bars + small type (owner, 2026-07-28)
+> ### 📏 TYPE AUDIT — the DATA-BAR sweep is ✅ DONE; ~125 small-type uses remain (owner, 2026-07-28)
 > Caught reviewing Predict's fan-picks bars: they shipped as a **4pt-tall bar in a fixed 70pt slot
 > with an 11pt fixed-size percentage**. That reads fine in a design tool on a desktop and is squinty
 > in a hand. Fixed for Predict (10pt bar, flexible width, `.dsFont` percentages that scale with
@@ -253,127 +253,28 @@
 >   UserDefaults on the device. Probably wants wiring up — a deleted account shouldn't leave game history
 >   behind locally.
 
-> ### 🛡️ ESPN ROSTER RELIABILITY — reduce the single-source risk (owner 2026-07-27; RESEARCHED + reframed 2026-07-30)
+> ### ✅ COMPLETE 2026-07-31 — ESPN ROSTER RELIABILITY (opened 2026-07-27)
+> ESPN is the app's most fragile dependency and the roster failed as **wrong-but-plausible data served
+> confidently** — ACFC→1 player, Orlando deleted as a club, Portland→1, Rodman mislabelled MIDFIELDER for
+> three weeks. Closed end-to-end in one arc: research → two live bug fixes → nightly verification →
+> owner overrides → one admin portal → serving from verified state → weekly auto-adjudication.
 >
-> **⭐ 2026-07-30 REFRAME — TWO ERROR CLASSES, and they need DIFFERENT tools. Read before designing.**
-> - **LAGGING FACT** — the value WAS true, reality moved, nobody keyed it in. **Bounded** (one transfer's
->   worth) and self-correcting. Croix Bethune wore 7 her whole career, moved to KC where 7 was taken, took
->   8; the official feed still says 7. Understandable and finite.
-> - **FABRICATION** — the value was NEVER true. **Unbounded.** ACFC → 1 player · Orlando ceasing to exist ·
->   Rodman FWD→MID (nothing stops GK next week) · players who don't exist (Bethi, Ngock on the Spirit) ·
->   **Spirit showing 5 goalkeepers last month, correctly 3 now.**
->   Owner's frame: a rename you haven't heard yet is a lagging fact; deciding to call someone "Cats" is
->   fabrication. ESPN tracks a million sports, mostly men's, and has no incentive to fix NWSL data.
+> **📖 The reasoning now lives in the system docs — read these, not this entry:**
+> `docs/roster-source-research.md` (⭐ **§10 = the 16-club census**: the two error classes, why "the
+> official feed always wins" is WRONG in BOTH directions, ESPN erases rather than fabricates, SDP is
+> season-cumulative with duplicate numbers on 12/16 clubs, the name-join hazards, and the mixed position
+> verdicts) · `docs/backend.md` roster §§ (gates, verdict hold, overrides, the transfer rule, the three
+> join traps) · proxy PRs #63–#68.
 >
-> **⇒ INVARIANTS catch FABRICATION (one payload, pure logic, unit-testable, NO second source needed):**
-> unique shirt number per squad (this caught Bethune — SDP listed TWO #7s) · **position-group counts**
-> (5 keepers implausible, 0 impossible, 15 defenders impossible) · plausible squad size · a player on
-> exactly one club. **CROSS-SOURCING catches STALENESS** — a lagging value is internally consistent, so
-> only a second opinion reveals it. **Build the invariants FIRST**: cheaper, and it's the half where ESPN
-> actually hurts.
+> **What runs unattended now:** nightly 08:00 UTC verification of all 16 clubs (gates A–D) → a
+> gate-failing club is held on last-known-good → Monday 12:00 UTC adjudication resolves new
+> position/jersey mismatches against the CLUB'S OWN site with a cited 90-day pin. First manual run
+> cleared all 15 open mismatches.
 >
-> **⚠️ "The official feed always wins" is WRONG — jersey correctness goes BOTH ways** (verified live):
-> | Case | ESPN | NWSL SDP | Right | Detectable how |
-> |---|---|---|---|---|
-> | Rodman position | Midfielder ❌ | Forward ✅ | SDP | cross-check |
-> | Bethune jersey | #8 ✅ | #7 ❌ | **ESPN** | invariant (duplicate #7) |
-> | Sentnor jersey | *missing* ❌ | #21 ✅ | **SDP** | missing value |
-> | Bethi/Ngock membership | present ❌ | absent ✅ | SDP | cross-check |
->
-> **Correction policy:** auto-correct ONLY on a missing value or a violated invariant. When both sources
-> are self-consistent but disagree, **emit a diag and change nothing** — adjudicate via an overrides KV
-> (which the planned admin portal would front). Never guess.
->
-> **Source research (all verified by direct fetch 2026-07-29, not schema-reading):** NWSL's own public
-> keyless Opta-backed API `https://api-sdp.nwslsoccer.com/v1/nwsl/football` — already used by the proxy in
-> `src/headshots.ts`, whose weekly normalized-name SDP↔ESPN join (~98%) is a ready-made id bridge.
-> `/seasons/{s}/stats/players?teamId=` returns a full squad in one page with `bibNumber` + `roleLabel`.
-> **HAS:** correct squads · 171 season stats vs ESPN's 106 (xG, big chances, progressive carries, duels) ·
-> tactical formation coords · standings `form`/`movement`/`qualification` · assists · paired subs · 2013+.
-> **DOES NOT HAVE (checked, not assumed):** heat maps / average positions (**0 of 78 players populated**) ·
-> distance/sprint/speed (all `0`) · per-match team box score · play-by-play · `/transfers` (returns `[]`) ·
-> national teams + Concacaf W (in the catalog but **WAFCON `/matches` → HTTP 500**; licence is NWSL-scoped,
-> so **ESPN stays for NT permanently**). xG is season-per-player only — NOT per match, so the natural
-> home (home-vs-away comparison bars) is unreachable.
-> **Live games: settled — do NOT migrate.** Latency is a wash (every event within one 30s cycle, no
-> systematic winner across 3 kickoffs / 4 goals / HT / FT / suspension). SDP models state better in one
-> place (`FINISHED` vs `SUSPENDED` where ESPN overloads `post`) and worse in another (`phase` went
-> `PRE_MATCH` for a match at 27'), and degraded harder on the abnormal match (closed it ~10–15 min late).
->
-> **Legal posture:** both ToS forbid automated access; Disney's says "whether or not for profit", so
-> non-commercial is not a carve-out either way. Switching does NOT improve the position — owner has
-> assessed and accepted this. Only asymmetry: NWSL's terms contemplate written permission, so *asking* is
-> possible there and never with Disney.
-
-> ESPN is the app's most vulnerable dependency. For a solo indie app that's an accepted trade — but the
-> **roster** specifically has been flaky enough to warrant a better guard. Not aiming for perfect; aiming
-> for *better than one unverified source*.
->
-> **The failure mode is WRONG-BUT-PLAUSIBLE DATA, served confidently, then self-healing** — not outages.
-> Three observed cases:
-> - **ACFC roster collapsed to 1 player for ~a week** after a KC Current transfer; self-healed at the next
->   match. Bandaid shipped: `/roster` keeps a last-known-good KV copy and serves it with a
->   `proxyCachedAsOf` marker when live looks implausibly small.
-> - **Orlando silently dropped from KHG edition 2026-W31** (`knowherTodoEmpty`, 06:02:44Z) — ESPN returned
->   an empty/stat-less roster for ~seconds. The assembler is fail-open, so it logged a GAP and shipped a
->   15-team pool. Pride fans opened the game to nothing.
-> - **Trinity Rodman listed as MIDFIELDER instead of FORWARD for ~3 weeks**; self-healed 2026-07-27
->   (owner-confirmed in-app; all ESPN surfaces — site roster, athlete endpoint, proxy `/roster`, and the KV
->   last-known-good — now agree on Forward).
->
-> **The gap:** every existing bandaid catches *missing* or *implausibly small* data. Nothing catches data
-> that is wrong but well-formed — a flipped position passes every plausibility check we have, which is why
-> it survived three weeks.
->
-> **Scope (owner):** ESPN is FINE for minutes, stats, fixtures, scores. The problem is **roster identity** —
-> who is on the squad, their position, their number.
->
-> ### ✅ SHIPPED 2026-07-30 (proxy #63) — the two live bug fixes
-> - **`fetchRosterResilient`** — the bracket engine + Know Her Game read ESPN RAW with no fallback.
->   Live-proven the same day: ESPN served **Portland as 1 athlete** and `/knowher/eligible?team=POR`
->   returned **0**, so an edition generated that day ships 15 teams (exactly the W31 Orlando failure).
->   Both paths now fall back to `/roster`'s `roster:{id}` last-known-good. Verified live: POR 0 → 17.
-> - **Continuity guard** — a plausibly-sized payload may only REPLACE the last-known-good copy if it
->   still shares ≥50% of its players. Before this, a contaminated-but-plausible roster overwrote the
->   good copy on the first request: the fallback destroyed itself at the exact moment it was needed.
-> - **KHG club-completeness gate** — a published edition must cover all 16 clubs. Both validators
->   checked for DUPLICATE clubs and never for MISSING ones, which is why W31 shipped short and silent.
-> - **Paging** on `rosterContinuityRefused` + `knowherTodoEmpty` (the latter fired for real at W31 and
->   reached nobody).
->
-> ### ✅ SHIPPED 2026-07-31 — nightly verification + owner overrides + one admin portal
-> Design settled by the 16-club sweep (**`docs/roster-source-research.md` §10 — read it first**):
-> ESPN stays the membership base, SDP verifies and never replaces. Guards run at BUILD time (nightly
-> `0 8 * * *`), never at serve time. Mechanism + the two join traps: **`docs/backend.md`** roster §.
-> - **Observe-mode verifier** (`src/roster-truth.ts`), gates A–D. Changes NOTHING users see.
-> - **Owner overrides**, 90-day TTL, applied in `/roster`. Can only correct position/jersey on a
->   player ESPN already lists — never adds or removes, so a stale pin can't hide a real player.
-> - **`GET /admin`** — one URL, one password, three tabs. Bracket + KHG are iframed (both work; one
->   drives a live game), so the shell is additive and reversible.
->
-> **⚠️ First-run lesson, worth keeping:** run one flagged **66** players as "missing from ESPN" —
-> mostly false. Two join bugs, both found by reproducing against live data: a player collided with
-> HERSELF when two of her own name forms normalized alike, and one person spelled differently on each
-> side was counted twice (as an addition AND an erasure). Now 8 paired variances + 29 erasures (22 =
-> Portland's real collapse) + 4 real signings. **This is the case for observe-mode-before-serving:**
-> wired to `/roster`, run one would have been noise rather than a bug report.
->
-> ### ✅ SHIPPED 2026-07-31 — tweak 2: serve from verified state (owner approved same day)
-> The observe-only gap ("paged but still on screen") is closed. Two demotion signals in `/roster`
-> (`goodPathPlan`, unit-tested; mechanism in `docs/backend.md`): a real-time continuity refusal now
-> serves the trusted copy instead of the suspect payload, and a nightly per-club VERDICT holds a
-> gate-failing club on last-known-good (≤ ~24h stale for that club only — owner accepted; healthy
-> clubs stay live). Fail-open everywhere; 48h verdict TTL = kill switch; unverified ≠ failed.
-> Residual gap (documented): a 50–80%-overlap partial substitution is caught at the next nightly
-> run, not in real time.
->
-> **Position/jersey mismatches now self-resolve weekly** (2026-07-31, proxy #66): a Monday Claude
-> routine checks each open mismatch against the player's CLUB roster page and posts cited 90-day
-> auto-pins (server-enforced: no citation → rejected; owner pins never overwritten; declines free).
-> First automated run: Mon 2026-08-03. **The ERASURES stay visible-only** (Fuller, Heaps, Spaanstra +
-> Portland's collapse) — an override can never ADD a player, so those wait on ESPN healing; the
-> verifier tracks them nightly.
-
+> **⚠️ Deliberately NOT solved, and not solvable this way:** ESPN **erasures** — Fuller, Heaps
+> (a USWNT captain), Spaanstra and Portland's 22 are absent from ESPN league-wide, and an override can
+> only correct a player ESPN already lists, never add one. These stay visible-in-report only. Also open:
+> a 50–80%-overlap partial substitution is caught at the next nightly run, not in real time.
 > ### 📊 TEAM-PAGE STATS BURST — ~27 direct ESPN calls per team-page open (found 2026-07-30, DEFERRED by owner)
 > `TeamDetailViewModel.load` fans out **one ESPN Core-API call per athlete, in parallel, from the
 > device** — bypassing the proxy entirely (no edge cache, no last-known-good, no cross-user dedupe;

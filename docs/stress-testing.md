@@ -144,6 +144,15 @@ For each subsystem, walk it explicitly:
       country-followers; club watchers ~700). Fixed: watcher fixture-window polling (§7) + app
       confederation scoping (§7). Residual open item: model a FULL-SLATE matchday (6-7 NWSL games)
       against the per-user costs in the §7 ledger before launch.
+- [x] **Nightly roster verification (`roster-truth`, shipped 2026-07-31)** — ✅ **passes 1k and 100k
+      unchanged: the load is FIXED, not per-user.** One cron run/night: ~36 upstream fetches + ~5 KV
+      ops + **one** batched diag write, regardless of whether the app has 2 users or 100,000. Adds
+      ~30 Worker requests/day against the 100k/day free cap (~0.03%). The per-user path is untouched —
+      `/roster` gains a single KV read for overrides, absorbed by the existing 6h edge cache.
+      ⚠️ **The binding constraint is per-invocation, not per-day:** the free plan allows 50
+      subrequests and KV ops count, so the run budgets ~39. That is why it does **no retries** and
+      batches diags into one write; adding either would silently start failing runs. A 17th club
+      would cost 2 more (~41) — still fine, but the margin is the thing to watch on expansion.
 - [ ] ⚠️ **Team-page athlete-stats burst (CLIENT→ESPN DIRECT, never stress-tested)** — found
       2026-07-30. `TeamDetailViewModel.load` fetches the roster and then fans out **one ESPN Core-API
       call PER ATHLETE (~25–30) in parallel, straight from the device** — no proxy, no edge cache, no

@@ -341,23 +341,29 @@
 > - **Paging** on `rosterContinuityRefused` + `knowherTodoEmpty` (the latter fired for real at W31 and
 >   reached nobody).
 >
-> ### 🕐 NEXT — nightly verification + owner overrides + one admin portal
+> ### ✅ SHIPPED 2026-07-31 — nightly verification + owner overrides + one admin portal
 > Design settled by the 16-club sweep (**`docs/roster-source-research.md` §10 — read it first**):
 > ESPN stays the membership base, SDP verifies and never replaces. Guards run at BUILD time (nightly
-> cron), never at serve time, so no user path can be slowed or broken by a cross-check.
-> - **Observe-mode verifier** (`src/roster-truth.ts`): Gate A team identity (16 clubs — the Orlando
->   deletion) · Gate B shape (size, GK count, duplicate jerseys) · Gate C continuity/overlap
->   (contamination) · Gate D per-player diffs (positions, missing jerseys, ESPN-only additions,
->   SDP-only-with-minutes = the ESPN-ERASURE signal that caught Fuller/Heaps/Spaanstra).
-> - **Owner overrides KV** with a **90-day TTL** — a permanent pin becomes an invisible lie when the
->   fact genuinely changes. Expiry is safe BECAUSE the nightly verifier keeps running: an expired
->   override means the mismatch reappears in the next report instead of silently regressing.
-> - **One admin portal** (owner 2026-07-30) merging the existing Bracket + Know Her Game panels with a
->   new roster-truth panel — currently two separate password-protected pages.
+> `0 8 * * *`), never at serve time. Mechanism + the two join traps: **`docs/backend.md`** roster §.
+> - **Observe-mode verifier** (`src/roster-truth.ts`), gates A–D. Changes NOTHING users see.
+> - **Owner overrides**, 90-day TTL, applied in `/roster`. Can only correct position/jersey on a
+>   player ESPN already lists — never adds or removes, so a stale pin can't hide a real player.
+> - **`GET /admin`** — one URL, one password, three tabs. Bracket + KHG are iframed (both work; one
+>   drives a live game), so the shell is additive and reversible.
 >
-> **Still true / still open:** ESPN has erased 3 real players league-wide (Fuller, Heaps, Spaanstra —
-> a USWNT captain among them) and carries 12 position mismatches; NONE are size-detectable, so only
-> the cross-check surfaces them, and only the overrides fix them.
+> **⚠️ First-run lesson, worth keeping:** run one flagged **66** players as "missing from ESPN" —
+> mostly false. Two join bugs, both found by reproducing against live data: a player collided with
+> HERSELF when two of her own name forms normalized alike, and one person spelled differently on each
+> side was counted twice (as an addition AND an erasure). Now 8 paired variances + 29 erasures (22 =
+> Portland's real collapse) + 4 real signings. **This is the case for observe-mode-before-serving:**
+> wired to `/roster`, run one would have been noise rather than a bug report.
+>
+> ### 🕐 NEXT — tweak 2: serve from the verified snapshot
+> Overrides already reach users; the SNAPSHOT does not. Decide after ~a week of nightly reports shows
+> what normal drift looks like, then set enforcement thresholds from measurements instead of judgement.
+> **Still open, and only the owner can close them:** ESPN has erased real players league-wide (Fuller,
+> Heaps — a USWNT captain — Spaanstra) and carries **12 position mismatches**; none are size-detectable.
+> The verifier now SURFACES them nightly; each still needs a ruling in the portal to reach users.
 
 > ### 📊 TEAM-PAGE STATS BURST — ~27 direct ESPN calls per team-page open (found 2026-07-30, DEFERRED by owner)
 > `TeamDetailViewModel.load` fans out **one ESPN Core-API call per athlete, in parallel, from the

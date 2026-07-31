@@ -79,6 +79,58 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   `rosterEngineFetchFail` / `rosterEngineSmallNoCache` (⚠️ these use bracket-engine's module-local
   emitter → `diag:` prefix, which the pager deliberately does not scan; the paging signal for the same
   event is `rosterContinuityRefused` / the nightly verification gate).
+- **🛡️ Nightly roster verification (`src/roster-truth.ts`, 2026-07-31).** Cron `0 8 * * *` compares
+  all 16 ESPN rosters against the league's own SDP feed and writes a report. **OBSERVE ONLY — it
+  changes nothing users see.** Verification runs at BUILD time by design: no user request ever waits
+  on a cross-check, and a cross-check can never be why a roster fails to load. SDP unreachable ⇒ the
+  run records less; nothing degrades.
+  - **Gate A — team identity:** 16 clubs, ESPN's set == SDP's (ESPN briefly deleted Orlando 2026-07-27).
+  - **Gate B — shape:** size 16–34, GK 1–4 (**WAS legitimately carries 4**; the Spirit's bad "5" is the
+    floor of implausible), no duplicate ESPN jerseys.
+  - **Gate C — continuity:** ESPN↔SDP name overlap ≥80% (measured normal 93–100%; contamination ~0%)
+    and ≥50% of last night's ESPN squad still present. **The only detector for a plausible squad of
+    the wrong humans** — 24 players from another sport passes every size/shape check.
+  - **Gate D — per-player diffs (never a gate failure, never pages):** position mismatches (Rodman
+    class) · missing jerseys (Sentnor) · ESPN-only additions (Ngock/Bethi — new-signing lane, NEVER
+    removed) · **SDP-only-with-minutes = the ESPN-ERASURE signal** (Fuller/Heaps/Spaanstra) ·
+    likely name variances.
+  - ⚠️ **Two join traps, both cost a wrong first run — do not reintroduce.** (1) A player collides
+    with HERSELF when two of her own name forms normalize alike (Temwa Chawinga's shortName IS her
+    full name; Lorena's shortName and shirtName are both "Lorena"). Only a collision between two
+    different `guid`s is ambiguous. (2) One person spelled differently on each side was counted
+    TWICE — as an addition and as an erasure. `pairNameVariances` pairs leftovers **by shirt number**
+    (unique within a squad); it pairs every known variance and mis-pairs none, because a genuinely
+    erased player has no same-numbered ESPN counterpart. A numberless signing (Bethi) can't be paired
+    away. Together these took a live run from 66 bogus "erasures" to 8 variances + 29 erasures (22 =
+    Portland's real collapse) + 4 real signings.
+  - **KV:** `sdp-squads-v1` (league snapshot, 30d TTL = kill switch) · `roster-truth-report-v1`
+    (report + per-club ESPN names for the next night's continuity) · `sdp-season-v1` (7d; saves two
+    setup fetches) · `roster-truth:overrides`.
+  - ⚠️ **Subrequest budget is the governing constraint** (~39 of the free plan's 50; KV ops count).
+    Hence **no retries** (a failed club is `verified:false`, skipped not judged) and **one batched
+    diag write** (`emitDiagBatch`). Adding a retry or a per-finding put will silently break runs.
+  - **Diags:** `rosterTruthGateFail` + `rosterTruthRunFail` **page**; `rosterTruthSummary` never does.
+    Severity scales with blast radius for free — one club is 1–2 events (under the 8-event threshold),
+    a contamination or deleted club fails many gates in one batch and crosses it.
+- **🔧 Owner overrides (`roster-truth:overrides`, 90-day TTL).** Applied in `/roster` to whatever is
+  served (live or cached), AFTER the cache write — so the stored last-known-good stays raw ESPN and an
+  override is a presentation-time correction, never baked into the archive. Marks the athlete
+  `proxyOverridden: true` (inert; Swift ignores unknown keys).
+  **Deliberately narrow: it can only correct `position`/`jersey` on a player ESPN already lists — it
+  can never add or remove anyone**, so a stale ruling can't make a real player vanish.
+  **Why they expire:** a permanent pin becomes an invisible lie the day the fact genuinely changes
+  (Rodman really could convert to midfield). Expiry is safe *because* the nightly verifier keeps
+  running — a lapsed ruling means the mismatch simply reappears in the next report. Entries are kept
+  past expiry (1y TTL) so the portal can still show and renew them; a vanished row would hide the
+  regression. Neither feed may auto-win a position disagreement (SDP right on Rodman/Girelli/Sanchez,
+  **ESPN right on Sonis**) — the machine reports, the owner rules.
+- **🗂️ One admin portal: `GET /admin`** (`src/admin-portal.ts`) — one URL, one password, three tabs
+  (Roster · The Bracket · Know Her Game), same HTTP Basic realm so the browser authenticates once for
+  the origin. Ops at `POST /admin/roster` (`state` / `run` / `setOverride` / `renewOverride` /
+  `removeOverride`); every op returns the same `{report, overrides, ttlDays}` shape so the page
+  re-renders from the response instead of keeping client state that can drift from KV.
+  ⚠️ **The Bracket + KHG tabs are IFRAMED, not rewritten** — both are complete working documents and
+  one drives a live game; their own URLs still work, so the shell is additive and reversible.
 - **Know Her Game club completeness:** a published edition must cover **all 16 clubs**
   (`KNOWN_CLUB_ABBRS` in `src/knowher.ts`, twinned in `scripts/load_knowher.mjs`). Both validators
   checked for DUPLICATE clubs but never for MISSING ones — which is why W31 shipped 15 teams silently.

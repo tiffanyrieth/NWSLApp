@@ -29,6 +29,20 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   only positive evidence of non-completion blocks. Trusting bare `post` showed FT 0–0 mid-match,
   graded a Predict entry against the fake final, and made the watcher kill the Live Activity, mark
   the fixture `ended` (which stops polling), and miss the real full time.
+- ⚠️ **`goalKeeping.savePct` is NOT a save percentage — it is `saves ÷ 100`** (live-verified
+  2026-07-31 in BOTH leagues, 4 keepers). Angelina Anderson: 48 saves / 16 conceded, true rate
+  **75%**, ESPN sends `0.48`. Hazel Nali: 3 saves / **0** conceded, true rate **100%**, ESPN sends
+  `0.03`. The tell is the FORMAT — ESPN prints it batting-average style (`.360`, `.030`) while every
+  genuine rate in the same payload comes back as `0.7`. Save % is therefore **COMPUTED** app-side
+  from `saves / (saves + goalsConceded)` (`PlayerStats.seasonSections`, regression-tested with these
+  specimens); never read the field. It shipped for weeks reading plausible-but-wrong on every keeper
+  page — the archetypal failure-that-looks-like-success, and unlike a missing value nothing about it
+  looked broken. **Sibling `*Pct` fields are fine** (`general.passPct` 0.707 = 147/208 accurate ✓);
+  the defect is isolated to `savePct`, so don't generalize the distrust — or the fix.
+- ⚠️ **Athlete names are not "First Last"** — for national teams ESPN carries whatever the federation
+  registers, including full patronymic chains ("Yassmin Mohamed Abdelaziz Hassanin") and genuine
+  in-payload repeats ("Maha Eldemerdash Eldemerdash Shehata", `lastName` = "Eldemerdash Eldemerdash
+  Shehata"). Any surface rendering a name needs a horizontal bound and must WRAP, never truncate.
 - Endpoints can change shape, break, or rate-limit without notice. Fail gracefully.
 
 **Proxy (Cloudflare Worker `nwslapp-proxy`)** — sibling repo `~/Projects/nwslapp-proxy`

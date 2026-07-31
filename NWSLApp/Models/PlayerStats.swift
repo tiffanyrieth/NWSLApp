@@ -68,6 +68,21 @@ extension PlayerSeasonStats {
             guard let v = all[key], v > 0 else { return nil }
             return SeasonStatItem(label: label, value: "\(Int((v <= 1 ? v * 100 : v).rounded()))%")
         }
+        // ⚠️ DO NOT render ESPN's `goalKeeping.savePct` — it is NOT a save percentage.
+        // It is literally saves ÷ 100 (verified live 2026-07-31 in BOTH leagues: Lorena
+        // 36 saves / 17 conceded → ESPN `.360` where the true rate is 68%; Nali 3 saves /
+        // 0 conceded → ESPN `.030` where the true rate is 100%). The tell is the display
+        // format: ESPN prints it batting-average style (".360") while every genuine rate
+        // in the same payload comes back as "0.7". Showing it produced a plausible-looking
+        // wrong number on every keeper page, which is the banned failure-that-looks-like-
+        // success — so we compute the rate from two fields ESPN does get right.
+        func saveRate() -> SeasonStatItem? {
+            let saves = all["goalKeeping.saves"] ?? 0
+            let conceded = all["goalKeeping.goalsConceded"] ?? 0
+            let faced = saves + conceded
+            guard faced > 0 else { return nil } // no shots faced ⇒ no rate, not "0%"
+            return SeasonStatItem(label: "Save %", value: "\(Int((saves / faced * 100).rounded()))%")
+        }
         func section(_ title: String, _ items: [SeasonStatItem?]) -> SeasonStatSection? {
             let real = items.compactMap { $0 }
             return real.isEmpty ? nil : SeasonStatSection(title: title, items: real)
@@ -84,7 +99,7 @@ extension PlayerSeasonStats {
             out += [
                 section("Goalkeeping", [
                     count("goalKeeping.saves", "Saves"),
-                    pct("goalKeeping.savePct", "Save %"),
+                    saveRate(), // computed — see saveRate(); ESPN's savePct is saves÷100
                     count("goalKeeping.cleanSheet", "Clean sheets"),
                     count("goalKeeping.goalsConceded", "Goals conceded"),
                     count("goalKeeping.penaltyKicksSaved", "Penalties saved"),

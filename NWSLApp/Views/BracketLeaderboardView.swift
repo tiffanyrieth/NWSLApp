@@ -157,13 +157,9 @@ struct BracketLeaderboardView: View {
     private func rankSubtitle(_ you: BracketStanding) -> String {
         var parts: [String] = []
         if let acc = you.accuracy { parts.append("\(pct(acc)) accurate") }
-        // Percentile / "of N" reflects the TRUE total player count, not the capped list.
-        if totalPlayers >= 5 {
-            let p = max(1, Int((Double(you.rank) / Double(totalPlayers) * 100).rounded(.up)))
-            parts.append("top \(p)% of \(totalPlayers)")
-        } else {
-            parts.append("of \(totalPlayers)")
-        }
+        // Percentile / placing reflects the TRUE total player count, not the capped list. Shared
+        // with the Bracket views so one rule governs when a percentile is meaningful (RankDisplay).
+        parts.append(RankDisplay(rank: you.rank, total: totalPlayers).summary())
         return parts.joined(separator: " · ")
     }
 

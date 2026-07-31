@@ -322,23 +322,11 @@ final class PredictionStore {
         persist()
     }
 
-    /// Clear all local prediction state. Retained as a store capability (an account-delete teardown
-    /// would want it), but it is deliberately NOT wired to any UI: the "Reset predictions" button that
-    /// used to call this shipped ungated from #47, wiped history on one tap with no confirmation, and
-    /// left the server's `prediction_scores` intact — so the season card claimed the user wasn't on the
-    /// board while the leaderboard below still ranked them. Removed 2026-07-27; don't re-add a UI entry
-    /// point without a confirmation AND a matching server-side reset.
-    func reset() {
-        predictions = [:]
-        scores = [:]
-        seasonPoints = 0
-        rankSnapshotByTeam = [:]
-        rankDeltaByTeam = [:]
-        seenResultFixtureIDs = []
-        uploadedPickFixtureIDs = []
-        seasonBests = .empty(season: seasonBests.season)
-        persist()
-    }
+    // NOTE: local teardown lives in `resetForAccountDeletion()` below — there is exactly ONE such
+    // method on purpose. A second, identical `reset()` existed here with no callers; two ways to wipe
+    // the same state is how one of them silently stops matching the other. Don't re-add a UI entry
+    // point without a confirmation AND a matching server-side reset: the old "Reset predictions"
+    // button shipped ungated from #47, wiped history on one tap, and left `prediction_scores` intact.
 
     // MARK: - Helpers
 

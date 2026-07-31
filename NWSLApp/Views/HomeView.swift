@@ -285,9 +285,9 @@ struct HomeView: View {
                         ContentCardView(
                             card: card,
                             club: viewModel.club(forAbbreviation: card.teamAbbreviation ?? ""),
-                            // Following one team → drop the redundant team badge +
-                            // name on every card (chip redesign, adaptive labels).
-                            hideTeamIdentity: teams.count <= 1
+                            // Following one team → drop the redundant team badge, name and
+                            // left-edge color bar (one rule, defined on ContentCardView).
+                            hideTeamIdentity: ContentCardView.hidesTeamIdentity(followedTeamCount: teams.count)
                         )
                     }
                 }

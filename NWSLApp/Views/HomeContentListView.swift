@@ -36,7 +36,7 @@ struct HomeContentListView: View {
                         ContentCardView(
                             card: card,
                             club: viewModel.club(forAbbreviation: card.teamAbbreviation ?? ""),
-                            hideTeamIdentity: teams.count <= 1
+                            hideTeamIdentity: ContentCardView.hidesTeamIdentity(followedTeamCount: teams.count)
                         )
                     }
                 }

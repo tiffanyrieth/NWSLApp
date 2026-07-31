@@ -127,3 +127,56 @@ struct NationalSquadNumbersTests {
         #expect(service.squadHasNumbers(squad([])) == false)
     }
 }
+
+/// Jersey back-fill (2026-07-31, second pass). "First feed with ANY number" was still wrong: the
+/// friendlies feed carries ~no numbers for anyone (USA 0/26, China 5/26, Japan 5/26), so a squad with
+/// 5 numbered players satisfied "has numbers" and stopped the search while a fully-numbered feed sat
+/// two entries down (Japan's World Cup roster: 23/23). Now a squad must be WELL numbered to stop the
+/// search; a sparse one keeps going and has its blanks filled per-player.
+struct NationalSquadBackfillTests {
+    private let service = ESPNService()
+
+    private func squad(_ pairs: [(String, String?)]) -> ClubSquad {
+        ClubSquad(
+            athletes: pairs.map { id, j in
+                Athlete(id: id, name: "P \(id)", shortName: nil, jersey: j,
+                        positionName: "Forward", positionAbbreviation: "F",
+                        age: nil, displayHeight: nil, citizenship: nil)
+            },
+            colorHex: nil, standingSummary: nil, record: nil, cachedAsOf: nil)
+    }
+
+    @Test func fiveOfTwentySixStillCountsAsHavingNumbers() {
+        // Why the first fix wasn't enough: this passes `squadHasNumbers` and used to end the search.
+        var pairs: [(String, String?)] = (0..<5).map { ("\($0)", "\($0 + 1)") }
+        pairs += (5..<26).map { ("\($0)", nil) }
+        #expect(service.squadHasNumbers(squad(pairs)) == true)
+    }
+
+    @Test func backfillFillsOnlyTheBlanks_andNeverOverwritesAnExistingNumber() {
+        // The chosen squad's own numbers are the national-team numbers — another feed must not
+        // replace them (that's how a club number would leak into a national-team page).
+        let chosen = squad([("a", "7"), ("b", nil), ("c", nil)])
+        let other = squad([("a", "99"), ("b", "11")])
+        let out = service.backfillJerseysForTesting(into: chosen, from: [other])
+        #expect(out.athletes.first { $0.id == "a" }?.jersey == "7")   // kept, not overwritten
+        #expect(out.athletes.first { $0.id == "b" }?.jersey == "11")  // filled
+        #expect(out.athletes.first { $0.id == "c" }?.jersey == nil)   // no source, stays honest
+    }
+
+    @Test func backfillNeverAddsOrRemovesPlayers() {
+        // Membership comes from ONE feed — unioning player lists was measured and is wrong
+        // (USA 26 → 64, i.e. everyone who ever appeared, not a squad).
+        let chosen = squad([("a", nil), ("b", nil)])
+        let other = squad([("a", "5"), ("z", "9")])   // "z" is not on the chosen squad
+        let out = service.backfillJerseysForTesting(into: chosen, from: [other])
+        #expect(out.athletes.count == 2)
+        #expect(out.athletes.contains { $0.id == "z" } == false)
+    }
+
+    @Test func aFullyNumberedSquadIsReturnedUntouched() {
+        let chosen = squad([("a", "1"), ("b", "2")])
+        let out = service.backfillJerseysForTesting(into: chosen, from: [squad([("a", "99")])])
+        #expect(out.athletes.map(\.jersey) == ["1", "2"])
+    }
+}

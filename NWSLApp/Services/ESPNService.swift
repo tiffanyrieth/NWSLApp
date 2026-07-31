@@ -304,7 +304,10 @@ struct ESPNService {
     /// nil = NO feed has a squad. The caller shows an honest empty state — never fabricates.
     func nationalTeamSquad(code: String) async -> NationalSquad? {
         let feeds = NationalTeamFeed.scopedFeeds(forFollowedCodes: [code]).feeds
-        var fallback: NationalSquad?   // first non-empty squad seen, numbers or not
+        var fallback: NationalSquad?          // first non-empty squad seen, numbers or not
+        var seen: [ClubSquad] = []            // every squad fetched, for the back-fill lookup
+        var chosen: NationalSquad?
+
         for feed in feeds {
             guard let base = ntSiteBase(feed.slug) else { continue }
             do {
@@ -317,14 +320,67 @@ struct ESPNService {
                         .appendingPathComponent("roster")
                 ).squad
                 guard !squad.athletes.isEmpty else { continue }
+                seen.append(squad)
                 let result = NationalSquad(squad: squad, feed: feed, teamID: teamID)
-                if squadHasNumbers(squad) { return result }   // preferred: named AND numbered
-                if fallback == nil { fallback = result }      // remember, keep looking for numbers
+                if fallback == nil { fallback = result }
+                if chosen == nil, squadHasNumbers(squad) { chosen = result }
+                // Stop as soon as we hold a WELL-numbered squad. A sparse one keeps the loop going so
+                // the remaining feeds can back-fill its blanks (below) — that costs extra requests, so
+                // it is paid ONLY when the numbers are actually missing.
+                if let chosen, numberedShare(chosen.squad) >= Self.wellNumberedShare { break }
             } catch {
                 continue // a feed without this team/roster is EXPECTED — try the next, quietly
             }
         }
-        return fallback
+
+        guard let base = chosen ?? fallback else { return nil }
+        return NationalSquad(squad: backfillJerseys(into: base.squad, from: seen),
+                             feed: base.feed, teamID: base.teamID)
+    }
+
+    /// A squad this well numbered is good enough to stop looking; below it, keep fetching feeds so
+    /// the blanks can be filled. 0.8 is chosen from measurement, not taste: every country swept on
+    /// 2026-07-31 was either ~100% numbered (stop immediately — 9 of 12 gained NOTHING from a
+    /// back-fill) or badly sparse (Japan: 5 of 26). Nothing sat in between, so the threshold buys
+    /// Japan's fix without making the other 100+ countries pay for extra round-trips.
+    private static let wellNumberedShare = 0.8
+
+    private func numberedShare(_ squad: ClubSquad) -> Double {
+        guard !squad.athletes.isEmpty else { return 0 }
+        let n = squad.athletes.filter { $0.jersey?.isEmpty == false }.count
+        return Double(n) / Double(squad.athletes.count)
+    }
+
+    /// Fill MISSING shirt numbers on the chosen squad from any other feed that has them, matched by
+    /// ESPN athlete id.
+    ///
+    /// ⚠️ Deliberately NOT a squad merge. Unioning the feeds' PLAYER LISTS was measured and is plainly
+    /// wrong — it produces 64 players for the USA and 52 for Brazil, i.e. everyone who has appeared in
+    /// any competition across years, not a current squad (the same "season-cumulative" trap the NWSL
+    /// roster work hit). Membership therefore comes from ONE feed, which is also what the page's
+    /// "Squad · <feed>" label claims; only the per-player NUMBER is borrowed. Japan goes 5→22 of 26.
+    func backfillJerseysForTesting(into squad: ClubSquad, from others: [ClubSquad]) -> ClubSquad {
+        backfillJerseys(into: squad, from: others)
+    }
+
+    private func backfillJerseys(into squad: ClubSquad, from others: [ClubSquad]) -> ClubSquad {
+        guard squad.athletes.contains(where: { $0.jersey?.isEmpty != false }) else { return squad }
+        var byID: [String: String] = [:]
+        for other in others {
+            for a in other.athletes where a.jersey?.isEmpty == false {
+                if byID[a.id] == nil { byID[a.id] = a.jersey }
+            }
+        }
+        guard !byID.isEmpty else { return squad }
+        let filled = squad.athletes.map { a -> Athlete in
+            guard a.jersey?.isEmpty != false, let j = byID[a.id] else { return a }
+            return Athlete(id: a.id, name: a.name, shortName: a.shortName, jersey: j,
+                           positionName: a.positionName, positionAbbreviation: a.positionAbbreviation,
+                           age: a.age, displayHeight: a.displayHeight, citizenship: a.citizenship)
+        }
+        return ClubSquad(athletes: filled, colorHex: squad.colorHex,
+                         standingSummary: squad.standingSummary, record: squad.record,
+                         cachedAsOf: squad.cachedAsOf)
     }
 
     /// True when the squad carries at least one shirt number. Deliberately "at least one", not "all":

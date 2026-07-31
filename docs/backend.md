@@ -142,6 +142,19 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   past expiry (1y TTL) so the portal can still show and renew them; a vanished row would hide the
   regression. Neither feed may auto-win a position disagreement (SDP right on Rodman/Girelli/Sanchez,
   **ESPN right on Sonis**) — the machine reports, the owner rules.
+- **🤖 Weekly auto-adjudication (shipped 2026-07-31, proxy #66).** A Claude cloud routine (Mondays
+  12:00 UTC, `trig_01TDf4WZRsRT2MnFfczvqtXV`, model set in the TRIGGER RECORD per the KHG lesson)
+  reads `GET /roster-truth/todo` (open position/jersey mismatches), checks each player on **her
+  club's own roster site** (⚠️ Wikipedia = fallback ONLY — it carries CAREER position and says
+  "forward" for Janine Sonis, whom her club lists Defender; check married/maiden name forms:
+  Sonis=Beckie, Cronin=Monaghan, Heaps=Horan), and posts cited rulings to
+  `POST /roster-truth/rulings`. Auth = dedicated `ROSTER_ADJUDICATE_KEY` (blast radius = this one
+  feature). Hard rules SERVER-side in `applyAutoRulings`, never trusted to the prompt: no source
+  URL → rejected · an owner pin is NEVER overwritten (auto replaces only auto/expired) · positions
+  + jerseys only (membership structurally untouchable) · declining = not posting (free). Auto pins
+  show in `/admin` with an `auto` pill + clickable source, expire in 90d, and an expired ruling
+  puts the item back on the todo (self-closing loop). Script: `scripts/roster-adjudicate-routine.md`
+  (the key lives only in the trigger config, never the repo).
 - **🗂️ One admin portal: `GET /admin`** (`src/admin-portal.ts`) — one URL, one password, three tabs
   (Roster · The Bracket · Know Her Game), same HTTP Basic realm so the browser authenticates once for
   the origin. Ops at `POST /admin/roster` (`state` / `run` / `setOverride` / `renewOverride` /

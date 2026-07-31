@@ -4,6 +4,33 @@ The reference for everything women's-international: how ~200 followable countrie
 ~16 competition feeds, which component polls what (and when), and what to touch when adding a
 country or a competition. Written 2026-07-16 alongside the fixture-window/confederation polling fix.
 
+## 0. ⭐ WHY national teams exist — and what tier they occupy (owner, 2026-07-31)
+
+**Read this before deciding whether any new feature should extend to national teams. The default
+answer is NO, and that is a product decision, not a resourcing one.**
+
+**This is an NWSL app first and foremost, above everything else.** National teams are here because of
+who NWSL fans actually are — the fanbase comes from every background: people born here, people who
+immigrated here, and people abroad who found the league through a player. The owner's example: someone
+in Zambia who grew up watching **Barbra Banda** and now wants to follow the Orlando Pride *and* Zambia's
+national team. This app lets her do both, in one place. That is the whole reason the NT side exists.
+
+**But "supported" is not "feature-matched."** The NT side deliberately gets the CORE only:
+- fixtures in the calendar alongside club matches
+- scores / live state
+- goal + match alerts for a followed country
+
+It does **not** get the full NWSL treatment, and it is not meant to. Depth features — the Fan Zone
+games, roster identity verification, per-player stat surfaces, Match Detail enrichment, and (the case
+that prompted this) a **weather radar during a delay** — are NWSL-only unless there is a specific
+reason otherwise.
+
+**Practical decision rule for a new feature:** if it deepens the *club* experience, build it NWSL-only
+and don't apologise for the asymmetry. If it is core scheduling/scores/alerts, it must cover NT too.
+When unsure, ask — don't quietly build parity, and don't quietly drop NT from something core.
+(This also keeps the cost side honest: NT polling is already the most expensive fan-out in the
+app, which is why §3's confederation scoping exists.)
+
 ## 1. The core shape: countries ≠ feeds
 
 - The app lets users follow **countries** (FIFA code — "USA", "ZAM"). The curated grid is 16 teams

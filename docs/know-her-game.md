@@ -135,6 +135,12 @@ API** = fallback. Owner-validated via independent research.
 - **Division of work:** *I build* — the tight guardrailed generation PROMPT, a secret-gated Worker
   **`/ingest` endpoint → KV**, and the app/proxy pieces. *Owner sets up* — the Remote Routine in her
   Claude account (claude.ai/code/routines), pastes the prompt, points its output at `/ingest`.
+- ⚠️⚠️ **THE MODEL LIVES IN THE TRIGGER RECORD, AND THE claude.ai UI DOES NOT WRITE IT.** The routine's
+  model is `job_config.ccr.session_context.model` on the trigger. Setting it in the routine UI **looks like
+  it worked** and then every scheduled run silently reverts to the stored value — this cost weeks of
+  wrong-model output before anyone noticed the pools had degraded. **Change it via the RemoteTrigger /
+  HTTP API only**, and re-`get` the trigger afterwards to confirm the value actually persisted.
+  (Moved here from CLAUDE.md 2026-07-31 so the trap lives with the pipeline it belongs to.)
 - **Cost discipline lives in the prompt** (the whole reason for the redesign): **≤~3 searches/player**,
   ≥2-source corroboration, "skip failed fetches & continue" — so each run stays within the subscription
   daily cap. NOT open-ended search.

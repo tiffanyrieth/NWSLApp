@@ -21,7 +21,12 @@ struct CombinedPitchView: View {
         let players: [MatchPlayer]   // starters
         let accent: ResolvedTeamColor
         /// Team's ESPN club id — lets a tapped player fetch her full roster bio + stats.
+        /// nil for a NATIONAL-TEAM side (the id would be a country and 404 the roster route).
         var clubID: String? = nil
+        /// NT match only: the competition feed slug + label, for the tapped player's
+        /// competition-scoped bio and tournament stat line.
+        var leagueSlug: String? = nil
+        var competitionLabel: String? = nil
     }
 
     let home: Side
@@ -79,7 +84,9 @@ struct CombinedPitchView: View {
             NavigationLink {
                 LineupPlayerStatsView(ref: LineupPlayerRef(athlete: athlete,
                                                            clubID: side.clubID,
-                                                           accentHex: DesignTeamColors.hex(for: side.abbr)))
+                                                           accentHex: DesignTeamColors.hex(for: side.abbr),
+                                                           leagueSlug: side.leagueSlug,
+                                                           competitionLabel: side.competitionLabel))
             } label: {
                 PitchDot(player: player, accent: side.accent)
             }

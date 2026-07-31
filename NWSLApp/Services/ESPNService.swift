@@ -197,8 +197,13 @@ struct ESPNService {
     // returns []. Results (including all-zero lines) are cached per athlete+year so
     // reopening a team page hits no network. `isGoalkeeper` comes from the roster
     // position, not from which stat categories ESPN returns.
+    /// `quietMisses`: the NATIONAL-TEAM player path sets this — most NT players have no NWSL
+    /// line, so a fetch failure there is the expected "not in NWSL" answer, not an incident.
+    /// Logging it would flood Diagnostics with false apiFailures (the same bug the doomed
+    /// club-roster fetch had on NT lineups). Club paths keep full logging.
     func seasonStats(for athletes: [Athlete],
-                     year: Int = AppConfig.currentSeasonYear) async -> [PlayerSeasonStats] {
+                     year: Int = AppConfig.currentSeasonYear,
+                     quietMisses: Bool = false) async -> [PlayerSeasonStats] {
         await withTaskGroup(of: PlayerSeasonStats?.self) { group in
             for athlete in athletes {
                 group.addTask {
@@ -219,8 +224,10 @@ struct ESPNService {
                         // Best-effort: a single bad athlete is omitted, not fatal — but NOT
                         // silently (no-silent-failures rule). A genuine failure is logged so a
                         // blank stats card is diagnosable rather than looking like "no stats".
-                        Diagnostics.shared.record(.apiFailure,
-                            "season stats \(athlete.id) (\(year)): \(error.localizedDescription)")
+                        if !quietMisses {
+                            Diagnostics.shared.record(.apiFailure,
+                                "season stats \(athlete.id) (\(year)): \(error.localizedDescription)")
+                        }
                         return nil
                     }
                 }
@@ -247,6 +254,108 @@ struct ESPNService {
             .appendingPathComponent(id)
             .appendingPathComponent("statistics")
         return try await fetch(AthleteStatistics.self, from: url)
+    }
+
+    // MARK: - National teams (live, ESPN-as-is)
+    //
+    // ⚠️ The deliberate INVERSE of the NWSL roster stack (docs/national-teams.md §0). NWSL
+    // rosters are stored, verified nightly against the league feed, and owner-corrected,
+    // because the app has both a second source and an authority to appeal to. National teams
+    // have neither, and the owner's accepted trade is ESPN-AS-IS: everything here is fetched
+    // live at view time, device→ESPN direct — no proxy layer, no KV, no cron, nothing stored,
+    // so nothing can go stale and there is nothing to monitor. Do not "harden" this path with
+    // caches or cross-checks without reopening that decision.
+
+    /// A country's current squad plus which competition feed supplied it.
+    struct NationalSquad {
+        let squad: ClubSquad
+        let feed: NationalTeamFeed
+        let teamID: String
+    }
+
+    private func ntSiteBase(_ slug: String) -> URL? {
+        URL(string: "https://site.api.espn.com/apis/site/v2/sports/soccer/\(slug)/")
+    }
+
+    /// Minimal decode of a feed's `/teams` — just enough to join by FIFA code.
+    private struct NTTeamsList: Decodable {
+        struct Sport: Decodable { let leagues: [League]? }
+        struct League: Decodable { let teams: [Entry]? }
+        struct Entry: Decodable { let team: Team? }
+        struct Team: Decodable { let id: String?; let abbreviation: String? }
+        let sports: [Sport]?
+
+        func teamID(code: String) -> String? {
+            sports?.first?.leagues?.first?.teams?
+                .first { $0.team?.abbreviation?.uppercased() == code.uppercased() }?.team?.id
+        }
+    }
+
+    /// The country's squad from the FIRST feed that carries one, in `NationalTeamFeed.all`
+    /// order — friendlies first, deliberately: the friendlies list is the BROADEST squad
+    /// picture, where a tournament feed carries only that tournament's registered squad
+    /// (measured 2026-07-31: Zambia = 26 via friendlies, 23 via the World Cup feed). Match
+    /// screens keep using the match's own lineup either way.
+    ///
+    /// ⚠️ Team ids are PER-WOMEN'S-PROGRAM, not the famous men's ids — USWNT is 2765 in these
+    /// feeds, not 660. Always join by FIFA code via the feed's own `/teams`; assuming an id
+    /// produced a false "USWNT has no roster" during research.
+    ///
+    /// nil = NO feed has a squad. The caller shows an honest empty state — never fabricates.
+    func nationalTeamSquad(code: String) async -> NationalSquad? {
+        let feeds = NationalTeamFeed.scopedFeeds(forFollowedCodes: [code]).feeds
+        for feed in feeds {
+            guard let base = ntSiteBase(feed.slug) else { continue }
+            do {
+                let list = try await fetch(NTTeamsList.self, from: base.appendingPathComponent("teams"))
+                guard let teamID = list.teamID(code: code) else { continue }
+                let squad = try await fetch(
+                    RosterResponse.self,
+                    from: base.appendingPathComponent("teams")
+                        .appendingPathComponent(teamID)
+                        .appendingPathComponent("roster")
+                ).squad
+                if !squad.athletes.isEmpty {
+                    return NationalSquad(squad: squad, feed: feed, teamID: teamID)
+                }
+            } catch {
+                continue // a feed without this team/roster is EXPECTED — try the next, quietly
+            }
+        }
+        return nil
+    }
+
+    /// Bio fields for one athlete, competition-scoped (works for players NOT in NWSL — the
+    /// club-roster path can't reach them). BIO-ONLY on purpose: the same record carries the
+    /// athlete's CLUB jersey and position, which must never overwrite the match-specific
+    /// values (her national-team number and role differ from her club's — Kundananji is Bay
+    /// FC #9 and Zambia #17).
+    struct AthleteBio: Decodable {
+        let age: Int?
+        let displayHeight: String?
+        let citizenship: String?
+    }
+
+    func athleteBio(leagueSlug: String, athleteID: String) async throws -> AthleteBio {
+        guard let url = URL(
+            string: "https://sports.core.api.espn.com/v2/sports/soccer/leagues/\(leagueSlug)/athletes/\(athleteID)"
+        ) else { throw ESPNServiceError.badURL }
+        return try await fetch(AthleteBio.self, from: url)
+    }
+
+    /// One athlete's stat line for a specific COMPETITION (e.g. WAFCON) — same Core API shape
+    /// as the NWSL season fetch, different league scope. Verified live 2026-07-31 (Banda:
+    /// 4 goals in the WAFCON opener). Best-effort like `seasonStats`; a miss returns nil and
+    /// does NOT log — a player with no line in this tournament is expected, not a failure.
+    /// Deliberately NOT routed through `AthleteStatsCache`: its key is (athleteID, year), so
+    /// caching a WAFCON line there would collide with the player's NWSL line.
+    func tournamentStats(for athlete: Athlete, leagueSlug: String,
+                         year: Int = AppConfig.currentSeasonYear) async -> PlayerSeasonStats? {
+        guard let url = URL(
+            string: "https://sports.core.api.espn.com/v2/sports/soccer/leagues/\(leagueSlug)/seasons/\(year)/types/1/athletes/\(athlete.id)/statistics"
+        ) else { return nil }
+        guard let raw = try? await fetch(AthleteStatistics.self, from: url) else { return nil }
+        return raw.playerSeasonStats(athleteID: athlete.id, isGoalkeeper: athlete.isGoalkeeper)
     }
 
     // Shared GET-and-decode: one place for the status check and typed-error

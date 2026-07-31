@@ -35,6 +35,9 @@ struct FormationPitchView: View {
     var abbr: String? = nil
     /// Team's ESPN club id — lets a tapped player fetch her full roster bio + stats.
     var clubID: String? = nil
+    /// NT match only — see CombinedPitchView.Side.
+    var leagueSlug: String? = nil
+    var competitionLabel: String? = nil
 
     /// Whether a pitch can be drawn for these starters (else the caller lists them).
     static func supports(formation: String?, players: [MatchPlayer]) -> Bool {
@@ -59,7 +62,9 @@ struct FormationPitchView: View {
             NavigationLink {
                 LineupPlayerStatsView(ref: LineupPlayerRef(athlete: athlete,
                                                            clubID: clubID,
-                                                           accentHex: DesignTeamColors.hex(for: abbr)))
+                                                           accentHex: DesignTeamColors.hex(for: abbr),
+                                                           leagueSlug: leagueSlug,
+                                                           competitionLabel: competitionLabel))
             } label: {
                 PitchDot(player: player, accent: accent)
             }

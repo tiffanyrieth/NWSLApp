@@ -26,6 +26,11 @@ struct PlayerDetailView: View {
     /// the competition because this page is also reached from NATIONAL-TEAM lineups, where the
     /// numbers are still the player's NWSL record — see that helper.
     let seasonLabel: String
+    /// Second stat block for a NATIONAL-TEAM context: the player's line in THAT tournament
+    /// (e.g. "WOMEN'S AFRICA CUP OF NATIONS 2026"). Rendered ABOVE the NWSL block — you tapped
+    /// her in this tournament, so this tournament answers first. nil on every club path.
+    var tournamentStats: PlayerSeasonStats? = nil
+    var tournamentLabel: String? = nil
 
     var body: some View {
         let accent = Color.teamAccent(hex: accentHex)
@@ -54,8 +59,11 @@ struct PlayerDetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd))
                     }
 
+                    if let tournamentStats, let tournamentLabel {
+                        statsCard(tournamentStats, label: tournamentLabel)
+                    }
                     if let stats {
-                        statsCard(stats)
+                        statsCard(stats, label: seasonLabel)
                     }
                 }
                 .padding()
@@ -135,10 +143,10 @@ struct PlayerDetailView: View {
     // The season stat block — grouped, position-aware sections (Attacking / Passing / Defending /
     // Discipline for outfield; Goalkeeping / Distribution for keepers) from ESPN's full stat set,
     // non-zero only. Falls back to the headline line when the full set isn't available.
-    private func statsCard(_ stats: PlayerSeasonStats) -> some View {
+    private func statsCard(_ stats: PlayerSeasonStats, label: String) -> some View {
         let sections = stats.seasonSections
         return VStack(alignment: .leading, spacing: 14) {
-            Text(seasonLabel)
+            Text(label)
                 .dsFont(12, weight: .semibold)
                 .foregroundStyle(Color.dsFgSecondary)
             if sections.isEmpty {

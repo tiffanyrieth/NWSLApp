@@ -22,6 +22,11 @@ struct LineupPlayerRef: Hashable {
     let athlete: Athlete
     let clubID: String?
     let accentHex: String?
+    /// Set for a NATIONAL-TEAM match (or NT squad row): the competition feed slug
+    /// ("caf.w.nations"). nil = an NWSL club match — the original path, unchanged.
+    var leagueSlug: String? = nil
+    /// Human label for the tournament stat block ("Women's Africa Cup of Nations").
+    var competitionLabel: String? = nil
 }
 
 extension MatchPlayer {
@@ -52,18 +57,38 @@ struct LineupPlayerStatsView: View {
 
     @State private var rosterAthlete: Athlete?
     @State private var stats: PlayerSeasonStats?
+    @State private var tournamentStats: PlayerSeasonStats?
+    @State private var bio: ESPNService.AthleteBio?
     @State private var squadColorHex: String?
     private let service = ESPNService()
 
-    /// The full roster Athlete once loaded (age/height/nationality), else the match one.
-    private var athlete: Athlete { rosterAthlete ?? ref.athlete }
+    /// The athlete to display. Club path: the full roster Athlete once loaded. NT path: the
+    /// match athlete enriched with BIO ONLY (age/height/nationality) — jersey and position stay
+    /// the MATCH's values on purpose: a player's national-team number and role often differ
+    /// from her club's (Kundananji: Bay FC #9, Zambia #17), and the per-athlete record carries
+    /// her CLUB values, which must not leak into a national-team context.
+    private var athlete: Athlete {
+        if let rosterAthlete { return rosterAthlete }
+        guard let bio else { return ref.athlete }
+        let a = ref.athlete
+        return Athlete(
+            id: a.id, name: a.name, shortName: a.shortName,
+            jersey: a.jersey,
+            positionName: a.positionName, positionAbbreviation: a.positionAbbreviation,
+            age: a.age ?? bio.age,
+            displayHeight: a.displayHeight ?? bio.displayHeight,
+            citizenship: a.citizenship ?? bio.citizenship
+        )
+    }
 
     var body: some View {
         PlayerDetailView(
             athlete: athlete,
             accentHex: ref.accentHex ?? squadColorHex,
             stats: stats,
-            seasonLabel: AppConfig.seasonStatsLabel()
+            seasonLabel: AppConfig.seasonStatsLabel(),
+            tournamentStats: tournamentStats,
+            tournamentLabel: ref.competitionLabel.map { "\($0.uppercased()) \(AppConfig.currentSeasonYear)" }
         )
         .task { await load() }
     }
@@ -73,6 +98,24 @@ struct LineupPlayerStatsView: View {
         // failed first fetch must be able to RETRY on the next appearance instead of latching a
         // permanently blank card (the transient-blank-stats hardening, 2026-07-21). `.task` runs
         // once per appearance, so a success sticks and won't refetch.
+
+        // NATIONAL-TEAM path: the club-roster fetch below CANNOT work (an NT team id 404s the
+        // NWSL roster route — before this gate every NT player tap fired a doomed request and
+        // logged a false apiFailure). Instead: competition-scoped bio + tournament stat line,
+        // plus her NWSL season line IF she has one (quiet on the expected miss — most NT
+        // players aren't in NWSL, and "not in NWSL" is an answer, not an incident).
+        if let slug = ref.leagueSlug {
+            if bio == nil, athlete.age == nil {
+                bio = try? await service.athleteBio(leagueSlug: slug, athleteID: ref.athlete.id)
+            }
+            if tournamentStats == nil {
+                tournamentStats = await service.tournamentStats(for: ref.athlete, leagueSlug: slug)
+            }
+            if stats == nil {
+                stats = await service.seasonStats(for: [ref.athlete], quietMisses: true).first
+            }
+            return
+        }
 
         // Full bio (age/height/nationality/position) lives in the TEAM ROSTER — the same
         // fetch Teams → team uses. Find her by id; a miss keeps the match identity.

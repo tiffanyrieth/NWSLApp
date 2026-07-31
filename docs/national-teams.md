@@ -50,9 +50,14 @@ So the real boundary is narrower and sharper than "NT gets less at match time":
 club context, so those Orlando Pride numbers can read as her Zambia record. Not fabricated, but
 ambiguously attributed — a label like "NWSL 2026" would close it.
 
-**The owner's reason, verbatim in substance: "just too much data to monitor, and my focus is NWSL."**
-Roster + stats for ~100 countries is a second app's worth of surface area, monitoring and failure
-modes — for the *secondary* half of the product.
+**⭐ THE TRUST MODEL — why browse became acceptable (owner, 2026-07-31).** The original "no browse"
+reasoning conflated two costs. The one that stands: NT data is unverifiable (no second source, no
+club pages to appeal to) and MONITORED NT data would be a second app's worth of failure modes. The
+one that fell: serving it at all. The resolution: **NT surfaces are LIVE-FETCHED, ESPN-AS-IS —
+no storage, no proxy layer, no last-known-good, no nightly verification, no overrides, no crons.**
+"We show what ESPN says" is the accepted accuracy bar for ~100 countries, where NWSL gets the full
+verification stack. The boundary is now *no stored/verified/monitored NT data*, not *no browse*.
+Honesty still applies in full: no squad from any feed → an explicit empty state, never fabrication.
 
 ### ⛔ And the data would not be trustworthy even if we did monitor it (measured 2026-07-31)
 
@@ -82,6 +87,11 @@ national teams do not have:
 So NT roster/stat data would be **unverifiable by construction** — permanently the position the app was
 in with Portland before this week, across ~100 countries. That is the real reason this stays out, and
 it is not a resourcing excuse: more effort would not make the underlying data checkable.
+
+⚠️ **Feed traps, all paid for:** ESPN team ids are PER-WOMEN'S-PROGRAM (USWNT = **2765**, not the
+men's 660 — assuming 660 produced a false "USWNT has no roster" during research, wrong in the record
+for a day). Squads DIFFER per feed (Zambia: 26 via friendlies, 23 via the WC feed) — the browse page
+prefers the friendlies list (broadest) and LABELS its source. Some rosters carry no jersey numbers.
 
 ⚠️ **The followable-country count is DYNAMIC — never pin a number.** The curated grid is 16
 (`NationalTeam.all`); Browse-all is data-driven from proxy `/national-teams` (the union of every

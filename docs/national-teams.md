@@ -35,6 +35,35 @@ And what it deliberately does NOT get:
 Roster + stats for ~100 countries is a second app's worth of surface area, monitoring and failure
 modes — for the *secondary* half of the product.
 
+### ⛔ And the data would not be trustworthy even if we did monitor it (measured 2026-07-31)
+
+The owner's sharper point: ESPN had just deleted essentially the whole **Portland Thorns** roster for
+three days — *"how much do you trust the accuracy of the national team roster ESPN reports for
+Zambia?"* Tested directly, and it is worse than the question implies:
+
+| Query | Result |
+|---|---|
+| Zambia via `fifa.friendly.w` | **26 athletes** — #16 = Hazel Nali |
+| Zambia via `fifa.wwc` | **23 athletes** — #16 = Leticia Lungu |
+| **USWNT** via `fifa.friendly.w` | **0 athletes** |
+
+**A country returns a DIFFERENT roster depending on which competition feed you ask** — different squad
+sizes, and the same shirt number on a different player. There is no single "Zambia roster" to import;
+there are several, and they disagree. The most prominent women's national team in the world returns an
+empty array.
+
+**⭐ The structural reason this cannot be fixed the way the NWSL roster was.** Everything built on
+2026-07-30/31 (`docs/roster-source-research.md`, `docs/backend.md` roster §§) depends on two things
+national teams do not have:
+1. **A second source.** The NWSL cross-check works because the league publishes its own Opta feed.
+   There is no equivalent second feed for Zambia.
+2. **An authority to appeal to.** The weekly adjudicator works because every NWSL club publishes an
+   official roster page. ~100 federations do not, not consistently, and not in one scrapeable shape.
+
+So NT roster/stat data would be **unverifiable by construction** — permanently the position the app was
+in with Portland before this week, across ~100 countries. That is the real reason this stays out, and
+it is not a resourcing excuse: more effort would not make the underlying data checkable.
+
 ⚠️ **The followable-country count is DYNAMIC — never pin a number.** The curated grid is 16
 (`NationalTeam.all`); Browse-all is data-driven from proxy `/national-teams` (the union of every
 feed's `/teams`), which returned **106** on 2026-07-31 and moves with ESPN's coverage. Earlier drafts

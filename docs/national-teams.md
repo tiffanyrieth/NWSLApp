@@ -22,14 +22,33 @@ national team. This app lets her do both, in one place. That is the whole reason
 - the **score**, updating live as the match progresses
 - **goal + match alerts**
 
-And what it deliberately does NOT get:
-- ⚠️ **No team page at all — and this is STRUCTURAL, not a missing link.** There is no
-  `NationalTeamView` in the codebase; a national-team card is not tappable because the destination
-  was never built. **This is intentional — do not "fix" it with a `NavigationLink`.** Club cards go to
-  `TeamDetailView`; countries have no equivalent, *including the USWNT*.
-- therefore **no roster page and no per-player stats** for any country.
-- no Fan Zone games, no roster identity verification, no Match Detail enrichment, and (the case that
-  prompted writing this) **no weather radar during a delay**.
+⚠️ **CORRECTION 2026-07-31 — an earlier draft of this section was WRONG.** It claimed national teams
+get "no per-player stats". They do, and the match experience is much richer than that implied. Verified
+on the real ZAM 6–0 EGY (WAFCON) screen:
+
+**A national-team MATCH gets the full Match Detail treatment**, identical to a club match — play-by-play,
+the formation pitch with both benches and substitution arrows, team stats (possession/shots/corners/
+passes), and Top performers. This is not special-cased: it all rides ESPN's `/summary` for the event,
+which doesn't care which competition the event belongs to. **Tapping a player in an NT lineup opens
+`PlayerDetailView`** (via `LineupPlayerStatsView`), the same as a club match.
+
+**The stats on that player page are NWSL stats.** `ESPNService`'s Core-API base is
+`leagues/usa.nwsl`, so a player has a stat line only if she also plays in NWSL:
+- **Barbra Banda** (Orlando Pride) → full 2026 line: 15 apps, 12 starts, 1102 minutes, 12 goals.
+- **Rhoda Chileshe** (not in NWSL) → jersey + position only; the query legitimately returns nothing.
+
+So the real boundary is narrower and sharper than "NT gets less at match time":
+- ❌ **No national-team BROWSE surface.** There is no `NationalTeamView` in the codebase — a country
+  card is not tappable because the destination was never built, *including for the USWNT*. Club cards
+  go to `TeamDetailView`; countries have no equivalent, so **no NT roster page and no squad list**.
+  **This is intentional — do not "fix" it with a `NavigationLink`.**
+- ❌ **No NT-specific player stats.** Nothing tracks caps, international goals, or a country's season
+  totals. What you see is her NWSL record, surfaced because she happens to be in the lineup.
+- ❌ No Fan Zone games, no roster identity verification, no weather radar (the case that prompted this).
+
+🕐 **Open, small, owner's call:** Banda's page opened from a *WAFCON* match shows "SEASON 2026" with no
+club context, so those Orlando Pride numbers can read as her Zambia record. Not fabricated, but
+ambiguously attributed — a label like "NWSL 2026" would close it.
 
 **The owner's reason, verbatim in substance: "just too much data to monitor, and my focus is NWSL."**
 Roster + stats for ~100 countries is a second app's worth of surface area, monitoring and failure

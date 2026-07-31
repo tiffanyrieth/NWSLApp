@@ -96,6 +96,19 @@ struct PlayerDetailView: View {
                 .frame(width: 96, height: 96)
             }
 
+            // ⚠️ Names here are NOT all "First Last". Reached from a national-team lineup,
+            // this header renders whatever the federation registers — Egypt's WAFCON squad
+            // carries the full patronymic chain ("Yassmin Mohamed Abdelaziz Hassanin"), and
+            // ESPN's own payload genuinely repeats a token in "Maha Eldemerdash Eldemerdash
+            // Shehata". With no horizontal bound those ran edge-to-edge, letters touching
+            // both screen edges. Hence the explicit inset.
+            //
+            // ⚠️ Deliberately NO lineLimit and NO minimumScaleFactor: a name must WRAP, never
+            // truncate or shrink. It's the one string on this screen that is a person's
+            // identity, and "Yassmin Mohamed Abdelaziz…" is worse than three lines. It also
+            // keeps the AX1 gate trivially satisfied — unlimited wrapping cannot lose a
+            // character at any Dynamic Type size. Same for position ("Attacking Midfielder
+            // Right" is a real ESPN value that needs two lines at AX1).
             VStack(spacing: 4) {
                 Text(athlete.name)
                     .dsFont(22, weight: .bold)
@@ -105,8 +118,10 @@ struct PlayerDetailView: View {
                     Text(position)
                         .dsFont(15)
                         .foregroundStyle(Color.dsFgSecondary)
+                        .multilineTextAlignment(.center)
                 }
             }
+            .padding(.horizontal, 24)
         }
         .padding(.top, 8)
         .padding(.bottom, 20)

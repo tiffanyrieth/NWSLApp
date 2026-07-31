@@ -105,23 +105,65 @@ struct AthleteStatisticsTests {
         for section in sections { for item in section.items { #expect(item.value != "0") } }
     }
 
-    @Test func seasonSectionsShowGoalkeepingWithPercent() throws {
+    /// Builds a keeper's sections from raw ESPN-shaped goalKeeping stats.
+    private func keeperSections(_ stats: [(String, Double)]) throws -> [SeasonStatSection] {
+        let gk = stats.map { #"{ "name": "\#($0.0)", "value": \#($0.1) }"# }.joined(separator: ",")
         let json = """
         { "splits": { "categories": [
             { "name": "general", "stats": [ { "name": "appearances", "value": 10 }, { "name": "minutes", "value": 900 } ] },
-            { "name": "goalKeeping", "stats": [
-                { "name": "saves", "value": 31 }, { "name": "cleanSheet", "value": 3 }, { "name": "savePct", "value": 0.75 }
-            ] }
+            { "name": "goalKeeping", "stats": [ \(gk) ] }
         ] } }
         """
-        let stats = try JSONDecoder().decode(AthleteStatistics.self, from: Data(json.utf8))
-        let sections = stats.playerSeasonStats(athleteID: "gk", isGoalkeeper: true).seasonSections
+        return try JSONDecoder()
+            .decode(AthleteStatistics.self, from: Data(json.utf8))
+            .playerSeasonStats(athleteID: "gk", isGoalkeeper: true)
+            .seasonSections
+    }
+
+    @Test func seasonSectionsShowGoalkeepingSections() throws {
+        let sections = try keeperSections([("saves", 31), ("cleanSheet", 3), ("goalsConceded", 12)])
         let titles = sections.map(\.title)
         #expect(titles.contains("Goalkeeping"))
         #expect(!titles.contains("Attacking"))       // keeper → no outfield attacking section
 
         let gk = try #require(sections.first { $0.title == "Goalkeeping" })
         #expect(gk.items.contains { $0.label == "Saves" && $0.value == "31" })
-        #expect(gk.items.contains { $0.label == "Save %" && $0.value == "75%" })   // 0.75 fraction → 75%
+    }
+
+    // ⚠️ Regression guard, live-verified 2026-07-31. ESPN's `goalKeeping.savePct` is NOT a
+    // save percentage — it is saves ÷ 100. Rendering it shipped a wrong-but-plausible number
+    // on every keeper page (Lorena's 68% read as "36%"). Save % is now COMPUTED, and these
+    // specimens are the real payloads, so a future "simplification" back to ESPN's field
+    // fails here instead of on a user's screen.
+
+    @Test func savePctIsComputedNotReadFromEspnsBrokenField() throws {
+        // Lorena, NWSL 2026: 36 saves, 17 conceded. ESPN sends savePct .360 (= saves/100);
+        // the true rate is 36/53 = 68%. The broken field is present and must be IGNORED.
+        let gk = try #require(try keeperSections([
+            ("saves", 36), ("goalsConceded", 17), ("savePct", 0.36),
+        ]).first { $0.title == "Goalkeeping" })
+        #expect(gk.items.contains { $0.label == "Save %" && $0.value == "68%" })
+        #expect(!gk.items.contains { $0.label == "Save %" && $0.value == "36%" })
+    }
+
+    @Test func savePctHandlesAPerfectAndAPoorKeeper() throws {
+        // Nali, WAFCON: 3 saves, 0 conceded → 100% (ESPN said .030).
+        let perfect = try #require(try keeperSections([
+            ("saves", 3), ("goalsConceded", 0), ("savePct", 0.03),
+        ]).first { $0.title == "Goalkeeping" })
+        #expect(perfect.items.contains { $0.label == "Save %" && $0.value == "100%" })
+
+        // Eldemerdash, WAFCON: 6 saves, 6 conceded → 50% (ESPN said .060).
+        let even = try #require(try keeperSections([
+            ("saves", 6), ("goalsConceded", 6), ("savePct", 0.06),
+        ]).first { $0.title == "Goalkeeping" })
+        #expect(even.items.contains { $0.label == "Save %" && $0.value == "50%" })
+    }
+
+    @Test func savePctIsOmittedWhenNoShotsWereFaced() throws {
+        // A keeper who faced nothing has no rate. "0%" would be a lie — omit the row.
+        let sections = try keeperSections([("saves", 0), ("goalsConceded", 0), ("cleanSheet", 1)])
+        let gk = sections.first { $0.title == "Goalkeeping" }
+        #expect(gk?.items.contains { $0.label == "Save %" } != true)
     }
 }

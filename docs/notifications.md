@@ -210,9 +210,20 @@ App side (`NWSLApp`):
 **V1 is the interrupt; V2 is the quiet glance.** They are additive and fire *together* on one event (e.g. a goal:
 V1 buzzes with the card, V2 silently updates the lock-screen score).
 
-- **V1 push shape** (copy v4, device-tested): title = subject-first with a COLON (`GOAL: Seattle Reign FC`),
-  subtitle = scan-ordered detail (`S. Menti 19' · NC 0–1 SEA`); a square crest tile attaches **only** to a GOAL
-  (scorer's club) or RED CARD (carded club); kickoff/lineup/HT/FT/VAR are neutral text.
+- **V1 push shape — copy v4, device-tested. THIS IS THE FULL SPEC** (it used to live in CLAUDE.md; moved here
+  2026-07-31 so there is exactly one copy). Title = subject-first with a **COLON**, never an em-dash
+  (`GOAL: Seattle Reign FC`). Subtitle = **scan-ordered** detail, and the order differs PER EVENT because what
+  you need first differs:
+  | Event | Subtitle | Why |
+  |---|---|---|
+  | Goal | **scorer first, then scoreboard** — `S. Menti 19' · NC 0–1 SEA` | you already know who's playing; you want who scored |
+  | Red card | **minute-first player, NO scoreline** — `23' E. Wheeler` | the scoreline is not the news, and including it implies it changed |
+  | Halftime / Full-time | **scoreline ONLY** — no last-scorer at HT, no "…win" tail at FT | the result IS the message; anything appended dilutes it |
+  **Caps** are used ONLY on `GOAL` / `NO GOAL`. **No `body`** — title + subtitle only.
+  A square crest **tile** attaches **only** to a GOAL (scorer's club) or RED CARD (carded club);
+  kickoff / lineup / HT / FT / VAR corrections are **NEUTRAL** — no image, no `mutable-content`. ⚠️ Owner rule
+  (2026-07-10, after an away-team "Lineups in" shipped the HOME crest): a single crest **misreads for the other
+  team's fans** on any event that isn't attributable to one club.
 - **V2 render law** (⚠️ read `live-activity-v2.md` §0 before touching any payload): the start push MUST carry an
   `alert` AND be wrapped in `{ aps: … }`, or iOS silently drops it. Buzz-once = `sound:"default"` on start;
   updates/end silent.

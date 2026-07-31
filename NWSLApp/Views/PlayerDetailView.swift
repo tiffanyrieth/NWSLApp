@@ -22,7 +22,9 @@ struct PlayerDetailView: View {
     /// the brief window before the roster/stats finish loading, or if the stats
     /// fetch couldn't reach this athlete (best-effort).
     let stats: PlayerSeasonStats?
-    /// The season the stats are for, e.g. "SEASON 2026", from TeamDetailViewModel.
+    /// The season the stats are for, e.g. "NWSL SEASON 2026" (`AppConfig.seasonStatsLabel`). Names
+    /// the competition because this page is also reached from NATIONAL-TEAM lineups, where the
+    /// numbers are still the player's NWSL record — see that helper.
     let seasonLabel: String
 
     var body: some View {
@@ -218,6 +220,6 @@ struct PlayerDetailView: View {
             athleteID: "1", appearances: 18, minutes: 1540,
             goals: 9, assists: 4, shots: 41,
             saves: 0, cleanSheets: 0, goalsAgainst: 0, isGoalkeeper: false
-        ), seasonLabel: "SEASON 2026")
+        ), seasonLabel: AppConfig.seasonStatsLabel(year: 2026))
     }
 }

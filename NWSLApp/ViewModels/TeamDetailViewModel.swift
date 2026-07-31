@@ -33,7 +33,7 @@ final class TeamDetailViewModel {
 
     /// The season the stats are for; surfaced to the player pages' "SEASON …" label.
     let seasonYear = AppConfig.currentSeasonYear
-    var seasonLabel: String { "SEASON \(seasonYear)" }
+    var seasonLabel: String { AppConfig.seasonStatsLabel(year: seasonYear) }
 
     private let service: ESPNService
     private let socialLinksProvider: TeamSocialLinksProvider

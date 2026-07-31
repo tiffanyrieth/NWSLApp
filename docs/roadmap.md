@@ -367,10 +367,12 @@
 > Residual gap (documented): a 50–80%-overlap partial substitution is caught at the next nightly
 > run, not in real time.
 >
-> **Still open, and only the owner can close them:** ESPN has erased real players league-wide (Fuller,
-> Heaps — a USWNT captain — Spaanstra) and carries **12 position mismatches**; none are size-detectable.
-> The verifier surfaces them nightly in `/admin`; each needs a pin to reach users. Owner has said the
-> position ones aren't urgent — the override lever exists for when one starts to matter.
+> **Position/jersey mismatches now self-resolve weekly** (2026-07-31, proxy #66): a Monday Claude
+> routine checks each open mismatch against the player's CLUB roster page and posts cited 90-day
+> auto-pins (server-enforced: no citation → rejected; owner pins never overwritten; declines free).
+> First automated run: Mon 2026-08-03. **The ERASURES stay visible-only** (Fuller, Heaps, Spaanstra +
+> Portland's collapse) — an override can never ADD a player, so those wait on ESPN healing; the
+> verifier tracks them nightly.
 
 > ### 📊 TEAM-PAGE STATS BURST — ~27 direct ESPN calls per team-page open (found 2026-07-30, DEFERRED by owner)
 > `TeamDetailViewModel.load` fans out **one ESPN Core-API call per athlete, in parallel, from the

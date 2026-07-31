@@ -41,7 +41,7 @@ table stakes that must work but are **not** the differentiator.
 
 ## State
 
-Production-quality **v0.4.5**, used daily. **Online-only: NO demo/seed/fake data in the running app**
+Production-quality **v0.4.5 (build 31)**, used daily. **Online-only: NO demo/seed/fake data in the running app**
 — every surface shows live data or an honest "Couldn't load — tap to retry" (seed/fixtures live only
 in previews + tests). Treat it as a real product; never suggest a demo/placeholder mode.
 
@@ -127,9 +127,16 @@ NOTE a proxy cache HIT still counts as a Worker request). App-side twin: the NT 
 **CONFEDERATION-SCOPED** (`ConfederationMap.swift` — ZAM polls ~7 feeds not 15; unmapped code fails OPEN
 to all + diag; system doc `docs/national-teams.md`). Most traffic routes through the **`nwslapp-proxy`
 Cloudflare Worker** (sibling repo `~/Projects/nwslapp-proxy`); DEBUG `-useESPNDirect` bypasses it.
-**Roster** routes through the proxy's `/roster` too (last-known-good KV: ESPN intermittently serves an
-implausibly small squad — e.g. 1 player — so the proxy caches a plausible roster and serves it with a
-`proxyCachedAsOf` marker → app shows a "Roster as of …" note; teams/standings still hit ESPN directly).
+**Roster** = a VERIFIED pipeline via `/roster` (2026-07-31, proxy #63–#68; mechanism `docs/backend.md`
+roster §§, reasoning `docs/roster-source-research.md` §10). Layers: last-known-good KV (ESPN serves
+implausible squads — Portland sat at 1 player for days → `proxyCachedAsOf` + "Roster as of …") ·
+**continuity guard** (a plausibly-sized payload sharing <50% of the trusted squad is neither cached NOR
+served; contamination ≈0%) · **nightly 08:00 UTC ESPN×NWSL verification** (16-club identity/shape/overlap/
+per-player) whose per-club verdict holds a failing club on last-known-good · **90-day owner overrides**
+(position+jersey ONLY, never add/remove a player), settled weekly by a Claude routine against the club's
+OWN roster page. ⚠️ **Neither feed auto-wins:** ESPN erases real players (Fuller, Heaps, Spaanstra); the
+NWSL feed lags transfers 1–3wks + duplicates numbers on 12/16 clubs. Ops: `GET /admin` (one portal —
+Roster · Bracket · KHG). Teams/standings still hit ESPN direct.
 **Predict community picks** route through the proxy's `/predict/community` (2026-07-28) — how many of a
 club's predictors picked each player, for Predict's results screen. ⚠️ THIS ROUTE IS A DEADLINE GATE and
 fails CLOSED: readable percentages while people are still picking would let users copy the consensus and
@@ -157,14 +164,13 @@ up `device_tokens` of users with that alert on, and sends APNs (ES256 `.p8` JWT)
 2026-07-09, `docs/push-fanout-scaling.md`): V1 buzz + Live Activity push-to-start fan out via Cloudflare
 Queues** (cron enqueues chunked tokens → a consumer drains each batch with its own fresh subrequest
 budget → no launch-scale cap; `apns-collapse-id` dedupes); **V2 in-match Live Activity updates ride APNs
-Broadcast Channels** (channel-per-match, one POST/event, iOS 18+; iOS 17 = V1-only). **V1 push shape (copy v4, 2026-07-07 — device-tested): title = subject-first with a
-COLON (`GOAL: Seattle Reign FC`, never an em-dash), subtitle = scan-ordered detail — goal = SCORER
-first then scoreboard (`S. Menti 19' · NC 0–1 SEA`); red card = minute-first player, NO scoreline
-(`23' E. Wheeler`); halftime + full-time = scoreline ONLY (no last-scorer at HT, no "…win" tail at FT).
-Caps only on GOAL/NO GOAL. NO body; a square crest TILE attaches **ONLY to a GOAL (scorer's club) or
-RED CARD (carded club)** — kickoff/lineup/halftime/full-time + VAR corrections are **NEUTRAL (no image,
-no `mutable-content`)**: a single crest misreads for the OTHER team's fans (owner rule 2026-07-10; the
-away-team "Lineups in" showed the HOME crest). The tile comes from the THIRD sibling Worker
+Broadcast Channels** (channel-per-match, one POST/event, iOS 18+; iOS 17 = V1-only). **V1 push shape (copy v4, device-tested; full spec + examples in `docs/notifications.md`):** title =
+subject-first with a COLON (`GOAL: Seattle Reign FC`, never an em-dash); subtitle = scan-ordered detail
+(goal = SCORER then scoreboard; red card = minute-first player, NO scoreline; HT/FT = scoreline ONLY).
+Caps only on GOAL/NO GOAL. NO body. A square crest TILE attaches **ONLY to a GOAL (scorer's club) or RED
+CARD (carded club)** — kickoff/lineup/HT/FT + VAR corrections are **NEUTRAL** (no image, no
+`mutable-content`): one crest misreads for the OTHER team's fans (owner rule 2026-07-10, after an away-team
+"Lineups in" showed the HOME crest). The tile comes from the THIRD sibling Worker
 `nwslapp-card`** (`/thumb/{ABBR}`, team-color wash, crest
 overscanned past the source PNGs' 41px baked-in border; same repo as the watcher, own
 `wrangler.card.jsonc`). The card/thumb renderer lives in that separate fetch-only worker because
@@ -189,17 +195,15 @@ Broadcast Channels; the "never push per-minute" rule yields for stoppage only). 
 mm:ss for a regression. The watcher **30s-double-polls** live windows (goal/HT/FT latency ~30s) and
 resyncs the widget clock the instant the anchor jumps ≥30s (each half's late live-flip). ⚠️ Gotcha (device-proven 2026-07-04,
 contradicts Apple's docs): the push-to-start **`alert` is REQUIRED to render** — omit it and APNs 200s but
-iOS NEVER presents the card. ⚠️ **START-PAYLOAD LAW (device-proven 2026-07-11 — THE §0 of
-`docs/live-activity-v2.md`; read it before touching any V2 payload).** TWO INDEPENDENT things, never
-conflate them (doing so cost weeks): **(1) RENDER** needs BOTH an `alert` object AND the payload wrapped
-in `{ aps: {…} }` on the wire (`buildStartAps` returns the CONTENTS — the sender must wrap; the 7/9 Queues
-redesign stored it UNWRAPPED in `enqueueLaStart`, so every queued start went out with no `aps` envelope →
-APNs `1 sent` but iOS silently dropped it → the 7/10 total no-show on three real games; fixed by
-`payload: { aps: buildStartAps(...) }`). **(2) BUZZ** is purely the `sound`: `"default"` = one arrival
-buzz (SHIPPED), `""` = renders but SILENT. The old "`sound:""` is flaky / never presents" claim was
-**WRONG — that was the missing envelope, not the sound.** 🔒 **CHANGE-RULE:** NEVER change the start
-payload's envelope/alert/sound on Apple-docs or theory — only a REAL-DEVICE test (real game OR the
-**fake-match harness** `POST /debug/fake-match`, watcher) counts; `1 sent` ≠ rendered. Also: iOS shows a one-time per-app "Allow Live Activities?" prompt with the
+iOS NEVER presents the card. ⚠️ **START-PAYLOAD LAW (device-proven 2026-07-11) — read `docs/live-activity-v2.md` §0 BEFORE touching
+any V2 payload.** Two INDEPENDENT things, never conflate them (doing so cost weeks): **RENDER** needs BOTH
+an `alert` object AND the payload wrapped in `{ aps: {…} }` on the wire (`buildStartAps` returns the
+CONTENTS — the sender must wrap; the 7/9 Queues redesign stored it UNWRAPPED, so APNs said `1 sent` and iOS
+silently dropped every start). **BUZZ** is purely the `sound`: `"default"` = one arrival buzz (SHIPPED),
+`""` = renders but silent. The old "`sound:\"\"` is flaky" claim was WRONG — that was the missing envelope.
+🔒 **CHANGE-RULE:** never change the start payload's envelope/alert/sound on Apple-docs or theory — only a
+REAL-DEVICE test (real game OR the fake-match harness `POST /debug/fake-match`) counts; `1 sent` ≠ rendered.
+Also: iOS shows a one-time per-app "Allow Live Activities?" prompt with the
 app's FIRST presented Activity (a reinstall resets it). Push-to-
 start fires **≤20 min pre-kickoff** (a device can take minutes to register its per-Activity token) + a
 catch-up push for late tokens. `POST /test-activity` + `scripts/replay.mjs` drive it; app `LiveActivityManager`
@@ -248,7 +252,11 @@ app `NationalTeamFeed.all`, proxy `WOMENS_NT_FEEDS`+allowlist, and watcher `NT_L
 ⚠️ Display + alerts must stay aligned (the ESPN `all/teams/{id}/schedule` endpoint is HISTORY-only, so the
 schedule's UPCOMING fixtures come only from these per-competition scoreboards — a new competition = add the
 slug to all three lists AND tag its `scope` in `ConfederationMap.swift`; untagged defaults to global/polled-
-for-everyone, fail-open). Full NT system doc: `docs/national-teams.md`.
+for-everyone, fail-open). ⚠️ **NT = a deliberately LIGHTER tier, but BROWSABLE since 2026-07-31:** country
+cards → `NationalTeamDetailView` (live squad, tap-through; player pages show the TOURNAMENT block + the
+NWSL one when both exist). All NT data is **LIVE-FETCHED, ESPN-AS-IS — no storage/verification/crons**,
+the deliberate inverse of the roster stack above (no second source exists to verify against). ⚠️ NT team
+ids are per-WOMEN'S-program: USWNT = **2765**, not 660. Trust model + system doc: `docs/national-teams.md` §0.
 Per-user state in **Supabase**, offline-first (UserDefaults cache). **Follows sync = UPWARD-ONLY
 (2026-07-23):** the DEVICE is the source of truth; Supabase is backend bookkeeping the user never hears
 about. There is **no restore-down** — signing in never rewrites follows, completes onboarding, or changes
@@ -274,30 +282,19 @@ the **operation**: the watcher's `pruneDeadTokens` DELETEs `device_tokens`, so a
 strands dead tokens — grant `select, delete`. And any secret the proxy signs into a JWT **raw** (SIWA
 `APPLE_TEAM_ID`/`SIWA_KEY_ID`) must be whitespace-clean — a trailing newline signs a JWT Apple rejects
 as `invalid_client`; set via **stdin, never copy-paste** (`printf '%s' … | wrangler secret put`).
-**Know Her Game content = fully-automated BIWEEKLY (proxy):** a **Claude cloud Routine**
-(claude.ai/code/routines, on the OWNER's subscription — $0 metered API) runs `scripts/knowher-weekly-
-routine.md` overnight → assembles the Rodman-faithful prompt (`assemble_knowher_prompt.mjs`
-from `/knowher/todo`) → generates the 16-player pool → `POST /knowher/ingest` (dedicated
-`KNOWHER_INGEST_KEY`, validate→KV→featured-ledger). ⚠️ **The routine's MODEL lives in the trigger record's
-`job_config.ccr.session_context.model` and the claude.ai UI does NOT write it** — setting it there looks
-like it worked and every scheduled run silently reverts (cost weeks of Sonnet-4.6 output). Change it via
-the RemoteTrigger/HTTP API only. ⚠️ **Publishing goes ONLY through `/knowher/ingest` or the admin paste —
-they alone run `markFeatured`.** `scripts/load_knowher.mjs` writes KV direct and SKIPS the ledger, so its
-players stay eligible and repeat (2026-W27 → Rodman twice); it now REFUSES without `--allow-ledger-bypass`,
-`scripts/backfill_knowher_ledger.mjs` repairs a gap (`--remove` reclaims a discarded edition), and the
-health check FAILs a live pool with no server-stamped `round`. **Cadence: BIWEEKLY — alternates the Fan Zone quiz slot
-with NWSL Trivia (Week 1 = KHG); gated on a COMMITTED `SEASON_ANCHOR` constant in `assemble_knowher_prompt.mjs`
-(the routine UI has NO env-var field, so the constant is the source; `KHG_SEASON_ANCHOR` env var = test
-override only). Content-quality lints gate the routine's dry-run (`load_knowher.mjs` `validatePool`: ≥10 Qs/
-player, ≥6 human/≤5 stat, ≤65% "True" across T/F) + the pool is built in ~4-player batches (beats the 32k
-output cap). ⚠️ The routine writes **HUMAN-ONLY** questions — the 2 deterministic stat (`herGame`)
-questions per player are generated in CODE (`scripts/knowher-stat-questions.mjs` → merged by
-`inject_stat_questions.mjs` BEFORE the dry-run), because a stat answer IS a number the proxy already has
-and the model kept producing options a few units apart (a math test, not a quiz).** Prompt template
-wording is **owner-owned — never edit without an explicit decision.** ⚠️ **Cloud routines egress-allowlist by default ("Trusted") →
-`*.workers.dev` 403s `host_not_allowed`; the routine environment MUST be set to FULL network access**
-(the sourcing needs the open web anyway). Don't fan out per-player sub-agents (16× the session cost).
-Detail: `docs/know-her-game.md` §5d.
+**Know Her Game = fully-automated BIWEEKLY** (a Claude cloud Routine on the owner's subscription → the
+Rodman-faithful prompt → 16-player pool → `POST /knowher/ingest`). Full pipeline: `docs/know-her-game.md`
+§5d. ⚠️ **The traps, all paid for:** the routine's MODEL lives in the trigger record's
+`job_config.ccr.session_context.model` and the claude.ai UI does NOT write it — setting it there looks like
+it worked and every scheduled run silently reverts (cost weeks of wrong-model output); change it via the
+RemoteTrigger/HTTP API only. Publishing goes ONLY through `/knowher/ingest` or the admin paste — they alone
+run `markFeatured`; `scripts/load_knowher.mjs` writes KV direct and SKIPS the ledger (that repeated Rodman
+in 2026-W27→W31), so it now refuses without `--allow-ledger-bypass`. Cadence alternates with NWSL Trivia off
+a COMMITTED `SEASON_ANCHOR` constant (the routine UI has no env-var field). Content lints gate the dry-run;
+the 2 stat questions per player are generated in CODE, not by the model (it kept producing options a few
+units apart — a math test, not a quiz). Cloud routines egress-allowlist by default → `*.workers.dev` 403s
+`host_not_allowed`, so the routine environment MUST be full-network. Prompt wording is **owner-owned — never
+edit without an explicit decision.** Don't fan out per-player sub-agents (16× the session cost).
 **Feeds carry more than we parse — check there FIRST** before proposing any new data source/fetch: the
 already-fetched ESPN responses have repeatedly held whole features unparsed (2026-07-18, 3-for-3: `/summary`
 `commentary`→full play-by-play, `leaders`→top performers, `videos`→highlights; athlete `/statistics` ~100
@@ -384,9 +381,9 @@ stats). Current parsed-vs-unparsed inventory: `docs/backend.md` (proxy § pass-t
   the build number — it does NOT auto-track "latest". NEVER raise it on every bump (that force-updates
   every user) and NEVER to a build that isn't live+installable yet (walls users with nowhere to go).
   Raise it + redeploy ONLY to retire a broken/incompatible build, and ONLY after the newer build is
-  available. ⚠️ Never actually raised — `/config` still serves `minBuild 21` (the one raise
-  lived on an unmerged branch, dropped 7/27); NOT a TestFlight limitation.
-  Detail: `docs/versioning.md`.
+  available. ⚠️ **Raised for the first time 2026-07-31: `MIN_APP_BUILD = 31`, retiring builds ≤30.**
+  ORDER MATTERS — the app bump ships first, then the proxy deploys once build 31 is live on TestFlight;
+  deploying the gate early walls every user on 30 with nowhere to go. Detail: `docs/versioning.md`.
 - **Git:** **squash-merge** PRs (one commit on main; OK to combine related branches). Never commit
   secrets. Commits use the owner's GitHub no-reply email
   `286203575+tiffanyrieth@users.noreply.github.com`. CLAUDE.md / commits / PRs / comments stay
@@ -473,9 +470,8 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
   proven 2026-07-09**: **V1 buzz + LA push-to-start → Cloudflare Queues** ($0); **V2 in-match updates →
   APNs Broadcast Channels** (channel-per-match, iOS 18+; iOS 17 = V1-only graceful degradation); Firebase
   declined; Workers Paid $5/mo = the ~10–15k-user expansion slot. Read before push-scale/launch work.
-- **`.claude/rules/bracket-battle.md`** + **`.claude/rules/fan-zone.md`** + **`.claude/rules/live-activity-
-  notifications.md`** — feature rules that **auto-load** (path-scoped): the first two when you touch Bracket /
-  Predict-the-XI / Fan-Zone / Trivia / Home-games files (the Fan-Zone one carries the **build/change LOGIC
-  GATE** — six invariants to run before any game or scoring change); the last on any Live-Activity / MatchClock /
-  push-token / NSE / widget file — it FORCES the notification+LA source-of-truth docs into context, because that
-  fragile subsystem must never be edited from first principles. You don't need to open them manually.
+- **`.claude/rules/{bracket-battle,fan-zone,live-activity-notifications}.md`** — path-scoped rules that
+  **auto-load**: the first two on Bracket / Predict / Fan-Zone / Trivia / Home-games files (fan-zone carries
+  the build/change LOGIC GATE — six invariants before any game or scoring change); the last on any
+  Live-Activity / MatchClock / push-token / NSE / widget file, forcing the notification+LA source-of-truth
+  docs into context (that subsystem must never be edited from first principles). No need to open manually.

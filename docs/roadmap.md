@@ -32,12 +32,27 @@
 > Fix = the same `isFinalResult` concept at all three. Belt: **un-mark `ended` if a supposedly-ended
 > fixture is ever seen `in` again** (see the backwards-transition rule below). Needs a deploy.
 
-> ### 🕐 LIVE STATE — trust the SEQUENCE, never a single snapshot (three variants, one lesson)
+> ### ✅ DONE + DEPLOYED 2026-07-31 — PROXY CACHE: the third site of the same `post` bug
+> `chooseSummaryTTL` read a bare `state === "post"` as "finished, cache for a year", so WAS @ UTA was
+> pinned at the instant it was suspended (23', attendance 0) while ESPN had the full 90'+7' and 9,538.
+> **The lesson worth keeping: a cache is the worst place for this bug.** The app and the watcher
+> recover on their next read — a cache never gets a second look, which is why the scoreboard healed on
+> resume and the summary could not. When a rule like `post`≠final turns out to be wrong, the sweep has
+> to cover everywhere the assumption is ENCODED, not just where it was noticed.
+> Also fixed alongside: immutable now requires COMPLETE, not merely settled (attendance lands days late
+> at some venues, and a 1yr cache meant it was never seen); `CACHE_EPOCH` as the only practical global
+> purge (the Cache API is per-colo, `workers.dev` has no zone); and a client-facing `max-age` cap,
+> because a device that cached a year-long response is unreachable by ANY server fix. App side: the
+> one-time `URLCache.shared` eviction (#223) for devices already holding one — ⚠️ an app UPDATE does
+> not clear `Library/Caches`, so build 32 needs that migration to reach them.
+>
+> ### 🕐 LIVE STATE — trust the SEQUENCE, never a single snapshot (variants of one lesson)
 > Live match state has broken three times, each a different mechanism, each from trusting ONE field:
 > | Variant | ESPN says | Reality | Status |
 > |---|---|---|---|
-> | **Stale cache** (2026-07-11) | old-but-valid | clock stuck all game; read `pre` 47min after KO | ✅ fixed build 26 (windowed query + upstream cache-bust) |
-> | **Suspension** (2026-07-29) | `state=post` | in progress | ✅ app fixed; ⛈️ watcher open (above) |
+> | **Stale cache — ESPN's** (2026-07-11) | old-but-valid | clock stuck all game; read `pre` 47min after KO | ✅ fixed build 26 (windowed query + upstream cache-bust) |
+> | **Stale cache — OURS** (2026-07-31) | frozen mid-suspension | resumed + finished | ✅ fixed proxy #70 (see below) |
+> | **Suspension** (2026-07-29) | `state=post` | in progress | ✅ app + watcher + proxy cache all fixed |
 > | **Fabricated kickoff** (Orlando, ~2026-07-10) | `state=in` at 1' | **never kicked off** | 🅿️ **PARKED — observing (owner 2026-07-31)** |
 >
 > **Fabricated kickoff — PARKED, not solved (owner 2026-07-31).** A pre-KO lightning delay; ESPN

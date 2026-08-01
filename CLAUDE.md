@@ -116,7 +116,8 @@ ESPN's string; anchors persist across relaunch). ⚠️ **`state=="post"` does N
 proven 2026-07-29: a wind hold at 27' reported `post` + `completed:false` + `STATUS_SUSPENDED` — the app
 showed FT 0–0, Predict graded against the fake final, and the watcher killed the Live Activity, stopped
 polling the fixture, and missed the real full time). Anything meaning "the result is settled" must use
-`Event.isFinalResult`/`isUnfinishedPost` (app) or `isUnfinishedPost` (watcher) — FAIL-OPEN: only
+`Event.isFinalResult`/`isUnfinishedPost` (app), `isUnfinishedPost` (watcher), or `chooseSummaryTTL`
+(proxy — a 1yr cache on a suspended match FROZE it for days; a cache can't self-heal) — FAIL-OPEN: only
 `completed:false` or an explicit non-final status name blocks; a sparse payload scores as before. Predict
 grades also stamp the scoreline they were computed against and self-heal if it later changes. The **watcher** fetches only a yesterday→tomorrow scoreboard window (not the full
 season) so a per-minute cron tick isn't parsing ~240 events (CPU), and (2026-07-16) polls on a

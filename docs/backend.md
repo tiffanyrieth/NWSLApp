@@ -49,6 +49,29 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
 (GitHub `tiffanyrieth/nwslapp-proxy`), live at `https://nwslapp-proxy.tiffany-rieth.workers.dev`.
 - **Pass-through caching:** `GET /scoreboard`, `GET /summary?event={id}` forward to ESPN
   and return bytes **unchanged** (app decoders untouched); match-state-aware TTL.
+  - ⚠️ **`chooseSummaryTTL` is a THIRD place the `post`≠finished trap bites, and the worst one.**
+    The app and watcher recover on their next read; a cache does not. Live-proven 2026-07-31: WAS @ UTA
+    was suspended for weather at 23', the summary was cached AT THAT INSTANT under `IMMUTABLE_TTL`
+    (1yr), and 1.9 days later the app still showed a 23-minute play-by-play and attendance 0 while
+    ESPN had the full 90'+7' and 9,538. The scoreboard healed on resume; the summary could not,
+    because nothing ever asked ESPN again. `post` now counts as final only if SETTLED (mirrors the
+    watcher's `isUnfinishedPost`); unsettled → live cadence, or hourly for the statuses that can't
+    resume (postponed/canceled/abandoned).
+  - **Immutable means COMPLETE, not merely settled.** Attendance lands late at some venues — hours,
+    sometimes days (GFC @ BAY was a normal final still reporting 0 two days on). A settled summary
+    missing `gameInfo.attendance` gets **6h** (`SUMMARY_PENDING_TTL`) and only becomes immutable once
+    the number is really there, bounded by `SUMMARY_PENDING_MAX_AGE_MS` (14d) because most NT matches
+    never report attendance at all. Same shape as the kickoff-weather write-once rule. Before this,
+    a figure that arrived on Tuesday was never seen by anyone — the app-side twin is that 0 renders
+    as a bare "Attendance:" label, never a fake zero.
+  - **Two invalidation levers, because there are two cache layers.** `CACHE_EPOCH` is a cache-KEY
+    component: bump it and every cached entry is orphaned **globally** on deploy. That is the only
+    practical purge — the Cache API is PER-COLO (a Worker can delete only from the colo that served
+    its own request) and `workers.dev` has no zone to purge through the Cloudflare API. Separately,
+    `withClientTTL` caps what the **client** is told to cache (`CLIENT_MAX_TTL`, 1h) while the edge
+    entry keeps its full TTL: `URLSession.shared` honours `max-age`, so a device handed `max-age=1yr`
+    is unreachable by ANY server-side fix — it never asks again. A client revalidation is an edge HIT,
+    not an ESPN fetch, so the correctness is nearly free.
   - **The `/summary` payload carries far more than the app originally parsed** — as of 2026-07-18 the
     app also decodes `commentary` (the FULL play-by-play: shots/saves/fouls/corners/offsides/VAR),
     `leaders` (per-team match top performers), and `videos` (highlight clips, deep-link-out only;

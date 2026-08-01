@@ -55,6 +55,11 @@ final class Diagnostics {
         // trivia numerator-only-restore bug). The value is capped for display, but it must NEVER pass
         // silently: an impossible ratio clamped to "100%" is the banned failure-that-looks-like-success.
         case fanZoneAccuracyInvariant
+        // The one-time eviction of `URLCache.shared` ran (NWSLAppApp.evictLegacyPinnedResponses).
+        // Pre-#70 the proxy pinned match summaries client-side for a YEAR, which put a suspended
+        // match's frozen snapshot permanently out of reach of any server fix. Breadcrumb only —
+        // it should appear exactly once per install, and never again after the migration is dropped.
+        case cacheEvicted
     }
 
     struct Event: Identifiable {

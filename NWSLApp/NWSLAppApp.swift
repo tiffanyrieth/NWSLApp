@@ -19,6 +19,7 @@ struct NWSLAppApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     init() {
+        Self.evictLegacyPinnedResponses()
         #if DEBUG
         // Dev-only: pass `-resetOnboarding` in the Run scheme's launch arguments
         // to wipe followed teams + the onboarding flag AND the notification first-run
@@ -54,6 +55,32 @@ struct NWSLAppApp: App {
             defaults.set(false, forKey: "fanZone.introSeen")
         }
         #endif
+    }
+
+    /// ⚠️ TEMP — one-time migration, added for build 32 (2026-07-31). Safe to delete once no
+    /// install below build 32 remains (the forced-update floor is the clean trigger).
+    ///
+    /// Until proxy #70 the proxy sent `Cache-Control: public, max-age=31536000` on match
+    /// summaries. `URLSession.shared` uses `URLCache.shared` and honours that literally, so any
+    /// device that opened a match while it was SUSPENDED holds that frozen snapshot for a **year**
+    /// — WAS @ UTA stuck at 23' with attendance 0. Such a device is unreachable by any server-side
+    /// fix, because it never asks again; confirmed by reading the on-disk `Cache.db`, which stores
+    /// whatever `max-age` was in force at fetch time. Capping the header (proxy `withClientTTL`)
+    /// fixed future writes; only this clears what was already written — and an app UPDATE does not,
+    /// since `Library/Caches` survives updates.
+    ///
+    /// Clearing the whole shared cache is deliberate and cheap: it holds only proxy/ESPN JSON,
+    /// which re-fetches on demand. Image bytes are NOT affected — `ImageCache` runs its own
+    /// dedicated `URLCache` precisely so the two can't collide (see that file).
+    private static func evictLegacyPinnedResponses() {
+        let key = "urlCache.legacyImmutableEvicted.v1"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        URLCache.shared.removeAllCachedResponses()
+        UserDefaults.standard.set(true, forKey: key)
+        Diagnostics.shared.record(
+            .cacheEvicted,
+            "Cleared URLCache.shared once — pre-#70 summaries were pinned client-side for a year"
+        )
     }
 
     var body: some Scene {

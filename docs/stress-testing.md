@@ -458,3 +458,20 @@ For each subsystem, walk it explicitly:
   ⚠️ **Owner action for the board to populate:** apply `migration_predict_avg_leaderboard.sql` (roadmap) —
   until then the season board's rivals degrade to empty (honest), the rest works.
 - (append as items resolve)
+
+- **Summary cache TTL rework (2026-07-31): ✅ passes 1k; nothing new needed at 100k.**
+  Two new load paths, both tiny and both bounded. (a) An **unsettled** `post` summary now polls at
+  live cadence instead of being frozen — but that is the same 30s tier a live match already sits in,
+  edge-collapsed across every viewer, and it applies only while a match is actually suspended (rare,
+  and self-terminating). Non-resumable statuses drop to hourly precisely so a canceled fixture can't
+  hold a permanent 30s hot path. (b) A **settled-but-incomplete** summary re-checks every 6h until
+  attendance lands, bounded at 14 days — so the population is "finals from the last fortnight still
+  missing a crowd figure", typically 0–3 matches, ⇒ **≤12 origin fetches/day worst case**, independent
+  of user count.
+  ⚠️ The axis that actually moves is **client revalidation**: capping the client-facing `max-age` at
+  1h means a device re-asks for a past match it re-opens later, and a cache HIT still counts as a
+  Worker request. That is user-linear — but it is bounded by *screen opens*, not by matches: 1k users
+  re-opening a handful of past matches a day is ~low thousands of requests against the 100k/day cap,
+  next to the existing fixed traffic. Accepted deliberately: the alternative is unreachable devices
+  pinning wrong data for a year, which no server-side fix can correct. **PASSES.**
+  **100k lever:** Workers Paid ($5/mo) — the same already-documented slot; no new mechanism.

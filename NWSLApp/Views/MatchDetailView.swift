@@ -482,9 +482,9 @@ struct MatchDetailView: View {
                 .dsFont(12, weight: .semibold)
                 .tracking(0.5)
                 .foregroundStyle(.secondary)
-            FlowLayout(spacing: 6) {
+            FlowLayout(spacing: 8) {
                 ForEach(Array(roster.substitutes.enumerated()), id: \.offset) { _, player in
-                    substituteChip(player)
+                    substituteChip(player, roster: roster)
                 }
             }
         }
@@ -521,7 +521,7 @@ struct MatchDetailView: View {
             }
 
             if !roster.substitutes.isEmpty {
-                substituteChips(roster.substitutes)
+                substituteChips(roster)
             }
         }
         .padding()
@@ -538,37 +538,76 @@ struct MatchDetailView: View {
 
     // Compact wrapping chips: "18 MacIver  14 Carle 61'". The minute shows for a
     // player who came on. Reuses FlowLayout so they wrap across lines.
-    private func substituteChips(_ subs: [MatchPlayer]) -> some View {
+    private func substituteChips(_ roster: MatchRoster) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("BENCH")
                 .dsFont(12, weight: .semibold)
                 .tracking(0.5)
                 .foregroundStyle(.secondary)
-            FlowLayout(spacing: 6) {
-                ForEach(Array(subs.enumerated()), id: \.offset) { _, player in
-                    substituteChip(player)
+            FlowLayout(spacing: 8) {
+                ForEach(Array(roster.substitutes.enumerated()), id: \.offset) { _, player in
+                    substituteChip(player, roster: roster)
                 }
             }
         }
     }
 
-    private func substituteChip(_ player: MatchPlayer) -> some View {
-        HStack(spacing: 4) {
+    /// One bench player. Tappable through to her player page — you look at the bench precisely
+    /// BECAUSE you're wondering about someone who isn't on the pitch, so the starters being the
+    /// only tappable names was backwards. Uses the same closure-based NavigationLink as the pitch
+    /// dots (see CombinedPitchView.playerDot for why a value-based destination breaks here), and
+    /// degrades to a plain chip when ESPN gave no athlete id — there'd be nothing to open.
+    @ViewBuilder
+    private func substituteChip(_ player: MatchPlayer, roster: MatchRoster) -> some View {
+        if let athlete = player.asAthlete {
+            NavigationLink {
+                LineupPlayerStatsView(ref: LineupPlayerRef(
+                    athlete: athlete,
+                    // A national-team "club" id is a country and 404s the NWSL roster route;
+                    // the feed slug drives competition-scoped bio + tournament stats instead.
+                    clubID: ntFeedSlug == nil ? roster.team?.id : nil,
+                    accentHex: DesignTeamColors.hex(for: roster.team?.abbreviation ?? ""),
+                    leagueSlug: ntFeedSlug,
+                    competitionLabel: ntFeedSlug == nil ? nil : ntFeedLabel
+                ))
+            } label: {
+                substituteChipLabel(player)
+            }
+            .buttonStyle(.plain)
+        } else {
+            substituteChipLabel(player)
+        }
+    }
+
+    /// ⚠️ Sizing is deliberate, not incidental. At 11pt the name was borderline and the sub-in
+    /// marker — a 9pt glyph at 80% opacity — read on a real phone as an unidentifiable green
+    /// dot, so the one thing the chip exists to tell you (SHE CAME ON) was the least legible
+    /// part of it. Owner call 2026-07-31: the bench should sit at roughly what AX1 was showing.
+    /// The arrow now matches the text size and runs at full strength.
+    private func substituteChipLabel(_ player: MatchPlayer) -> some View {
+        HStack(spacing: 5) {
             Text(player.jersey ?? "–")
-                .dsFont(11, weight: .bold)
+                .dsFont(14, weight: .bold)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
             Text(subLastName(player))
-                .dsFont(11)
+                .dsFont(14)
+                .foregroundStyle(Color.dsFgPrimary)
             if player.didSubIn {
                 Image(systemName: "arrow.up.circle.fill")
-                    .dsFont(9)
-                    .foregroundStyle(.green.opacity(0.8))
+                    .dsFont(14)
+                    .foregroundStyle(Color.dsSuccess)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 7)
         .background(Color.dsBgTertiary, in: Capsule())
+        // One node per player for VoiceOver, with the sub-in stated rather than left to a glyph.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(player.jersey.map { "Number \($0), " } ?? "")\(subLastName(player))"
+                + (player.didSubIn ? ", came on as a substitute" : "")
+        )
     }
 
     private func subLastName(_ player: MatchPlayer) -> String {
@@ -939,20 +978,45 @@ struct MatchDetailView: View {
 
     // Broadcast color chip + venue (+ attendance for a finished match) — the
     // schedule card's rail, scaled into the header.
+    /// ⚠️ Wraps to two lines rather than truncating, because at AX1 this rail could not fit
+    /// broadcast + venue + attendance on one line and `lineLimit(1)` ate the crowd figure
+    /// outright — "Attendance:…" with the number gone (caught by the AX1 pass, 2026-07-31).
+    /// A truncated venue is a cosmetic loss; a silently dropped number is the AX1 gate failing.
+    /// `ViewThatFits` keeps the single-line rail at every normal size and only stacks when it
+    /// genuinely doesn't fit, so nothing changes for the 99% case.
     private var compactInfoRow: some View {
-        HStack(spacing: 10) {
-            if let channel = broadcastName {
-                BroadcastChip(name: channel)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                broadcastAndVenue
+                attendanceLine
             }
-            if let venue = event.venueName {
-                Text(venue)
-                    .dsFont(12)
-                    .foregroundStyle(Color.dsFgSecondary)
-                    .lineLimit(1)
+            VStack(spacing: 4) {
+                HStack(spacing: 10) { broadcastAndVenue }
+                attendanceLine
             }
-            if temporalState == .past, let attendance = attendanceText {
+        }
+    }
+
+    @ViewBuilder
+    private var broadcastAndVenue: some View {
+        if let channel = broadcastName {
+            BroadcastChip(name: channel)
+        }
+        if let venue = event.venueName {
+            Text(venue)
+                .dsFont(12)
+                .foregroundStyle(Color.dsFgSecondary)
+                .lineLimit(1)
+        }
+    }
+
+    @ViewBuilder
+    private var attendanceLine: some View {
+        if temporalState == .past, viewModel.summary?.gameInfo != nil {
+            HStack(spacing: 10) {
                 Circle().fill(Color.dsFgQuaternary).frame(width: 3, height: 3)
-                Text("Attendance: \(attendance)")
+                // Label with no number when the count hasn't landed — see attendanceText.
+                Text(attendanceText.map { "Attendance: \($0)" } ?? "Attendance:")
                     .dsFont(12)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
@@ -990,8 +1054,18 @@ struct MatchDetailView: View {
         }
     }
 
+    /// The formatted crowd figure, or nil when there isn't one yet.
+    ///
+    /// ⚠️ **Zero is ESPN's "unknown", not a real crowd** — and we printed it verbatim as
+    /// "Attendance: 0", which is simply false. Two different causes, indistinguishable in the
+    /// payload: a count that lands hours-to-days after full time (some venues report late — GFC
+    /// @ BAY was still 0 two days on, 2026-07-31), and matches where it will never exist at all
+    /// (most national-team fixtures). Since we can't tell them apart, the label stays and only
+    /// the number waits — so a late figure appearing later reads as the count arriving rather
+    /// than the screen changing shape. The proxy re-checks a settled-but-incomplete summary
+    /// every 6h precisely so that number can still show up (`chooseSummaryTTL`).
     private var attendanceText: String? {
-        guard let attendance = viewModel.summary?.gameInfo?.attendance else { return nil }
+        guard let attendance = viewModel.summary?.gameInfo?.attendance, attendance > 0 else { return nil }
         return NumberFormatter.localizedString(from: NSNumber(value: attendance), number: .decimal)
     }
 

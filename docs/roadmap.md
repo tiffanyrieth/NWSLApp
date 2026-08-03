@@ -1,5 +1,27 @@
 # Roadmap / What's Next
 
+> ### 📰 CONTENT-SOURCE AUDIT — per club, are we pulling everything we can? (owner 2026-08-03)
+> **Goal:** Club News (Home) and Social are the ALIVE surfaces — the whole product thesis. Audit and
+> log, **per club**, every source we pull and every one we could: club news/article feed (OG
+> fast-path or RSS), YouTube channel, Bluesky handles (club · players · reporters), Instagram, and
+> anything else the club actually publishes to. Confirm each is (a) correct, (b) live, (c) complete.
+>
+> ⚠️ **THE TRAP THAT PROMPTED THIS — a wrong club URL looks identical to a club that publishes
+> nothing.** Verified 2026-08-03: `houstondashsoccer.com` is a HOLLOW domain (27KB, zero player
+> data); Houston's real site is **`houstondynamofc.com/houstondash/`**. It returns 214KB of
+> server-rendered HTML and was readable by plain `curl` all along. A dead URL had been read as
+> "unscrapeable JS site." Any club we quietly pull nothing from deserves the same check before it is
+> written off.
+>
+> **Why it will hit more than one club (owner):** several NWSL sides are run by their MLS owner and
+> live UNDER the men's team's domain as a sub-path, so the standalone `<club>soccer.com` is legacy or
+> parked. Enumerate which clubs are structured this way and fix their URLs together — the pattern is
+> the finding, not the single club.
+>
+> **Deliverable:** a per-club table (16 rows) of source → URL/handle → last successful pull → gaps,
+> plus fixes for anything stale. Cross-check against `SOCIAL_HANDLES` + the club-news fast-paths in
+> the proxy, and against what each club visibly publishes.
+
 > ### 🧭 SYNC-DIRECTION AUDIT — write down what syncs which way, and why (owner 2026-08-01)
 > **Why:** the "reinstall restores your teams" idea has resurfaced ~7 times in a few months. Root cause
 > found 2026-08-01 — it was asserted as intended behaviour in **8 places**, two of which auto-load into

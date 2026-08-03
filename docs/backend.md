@@ -220,9 +220,16 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   a reasonable read, and wrong. She dressed for Houston on 08-02 wearing 34. The team sheet held the
   answer ~32h before the routine ran, and settles what neither roster feed nor a plausibility
   argument could. Limit, stated not hidden: only answers for players who have DRESSED; anyone else
-  still falls through to the routine (fair — an unused player's number matters least). It also
-  sidesteps club sites whose roster pages are JS-only SPAs and return nothing to any fetch
-  (houstondashsoccer.com, verified 2026-08-03 — 27KB of HTML with zero player data).
+  still falls through to the routine (fair — an unused player's number matters least).
+  ⚠️ **CLUB-SITE URLS: several NWSL clubs live UNDER THEIR MLS SIBLING'S DOMAIN, and the standalone
+  domain can be a hollow shell.** Houston is the specimen (owner, 2026-08-03): the routine and this
+  session both fetched `houstondashsoccer.com/roster` and got 27KB with **zero** player data, which
+  read as "JS-only SPA, unreadable" — wrong on both counts. The real page is
+  **`houstondynamofc.com/houstondash/roster/`**, is fully SERVER-RENDERED, returns 214KB, and states
+  `#34 Khyah Harper` in plain HTML that `curl` reads without help. The failure was a DEAD DOMAIN, not
+  rendering. Before concluding any club site is unscrapeable, check whether the club sits under an
+  MLS parent domain. (This also confirmed the matchday ruling independently: team sheet, club site
+  and SDP all say 34.)
 - **🗂️ One admin portal: `GET /admin`** (`src/admin-portal.ts`) — one URL, one password, three tabs
   (Roster · The Bracket · Know Her Game), same HTTP Basic realm so the browser authenticates once for
   the origin. Ops at `POST /admin/roster` (`state` / `run` / `setOverride` / `renewOverride` /

@@ -4,17 +4,31 @@
 > Reported off a real device after a fresh reinstall. Triaged in-session; **only the bar-alignment one
 > is fixed.** Each is stated with its VERIFIED cause, not a symptom, so none needs re-diagnosing.
 >
-> **1. 🔔 Reinstall restores a team's bell while iOS permission is REVOKED — the banned silent state.**
-> Tapping follow on a previously-followed club (ACFC/WAS, not BAY) turns its bell on with no tap. That
-> part is CORRECT and intended: `TeamAlertSyncCoordinator.swift:203` restores server-side alert rows onto
-> a device with an empty local set (the 2026-07-22 reinstall restore), and the Keychain keeps the Supabase
-> session + `device_id` across an uninstall, so she is still signed in. **The BUG is the pairing:** the
-> uninstall wiped the iOS notification permission, so the bell reads ON while nothing can ever fire —
-> exactly the "failure that looks like success" the no-silent-failures rule bans. The re-prompt at
-> `RootTabView.swift:564` is gated on `notDetermined + wantsNotifs` and runs BEFORE the restore has
-> populated any bell, so it no-ops. Fix = re-check permission AFTER a restore lands (and on the follow
-> that triggers it), then prompt or show the honest denied state. ⚠️ Do NOT "fix" this by signing the
-> user out on uninstall — that session is what restores Fan Zone progress, Superfan and prefs.
+> **1. 🔔 KILL the reinstall restore of team bells — alerts go UPWARD-ONLY, like follows (owner ruling).**
+> Symptom: after a reinstall, tapping follow on a previously-followed club (ACFC/WAS, not BAY) turns its
+> bell on with no tap — and the uninstall had revoked iOS notification permission, so the bell read ON
+> while nothing could fire (the banned "looks like success" state). Mechanism:
+> `TeamAlertSyncCoordinator.swift:203` restores server-side alert rows onto a device with an empty local
+> set (2026-07-22), and the Keychain preserves the Supabase session + `device_id` across an uninstall, so
+> the user is still signed in.
+> ⚠️ **The restore itself is the defect, not the permission mismatch.** Its own comment claims it is
+> "mirroring the follows contract" — that comment is STALE: follows went **upward-only on 2026-07-23**,
+> the day after this was written, and bells were never brought along. So today follows don't restore but
+> bells do, which is precisely the state the owner hit.
+> **OWNER RULING (2026-08-01):** restoring alerts was a v0.1 idea that no longer pays for itself — it
+> saves ~2 taps out of a flow that still requires finding and following each club. Supabase needs an
+> up-to-date copy so the watcher knows who to push to; that is a one-way obligation. **Reinstall
+> onboarding is a CLEAN SLATE: not re-selecting a team is a real signal, and the post-onboarding sync
+> pushes that reality up.** Fan Zone progress still restores down (it was earned); preferences do not.
+> Fix = delete the `if localOn.isEmpty` restore branch + the "bail without marking reconciled" guard above
+> it (dead weight once nothing restores), update CLAUDE.md, invert the reinstall-restore tests. This also
+> DELETES the permission bug rather than special-casing it: nothing auto-enables ⇒ no bell can sit on
+> without permission, and a manual bell tap already prompts correctly (owner-confirmed).
+> 🟡 OPEN SUB-QUESTION: do the alert TYPES (`notification_preferences`, the other half of the 7/22
+> decision) also go clean-slate? Recommendation: yes — one rule, no hidden restored state; the first-bell
+> cascade already hands a returning user a complete bundle. Only loss: a type deliberately turned OFF no
+> longer stays off. ⚠️ Do NOT "fix" any of this by signing the user out on uninstall — that session is
+> what restores Fan Zone progress and Superfan.
 >
 > **2. 📜 National-team list jumps up ~3 rows on the first follow at the bottom (ZAM).**
 > `CompetitionsView.swift:190` is a `LazyVGrid` in a plain `ScrollView`; following changes that card's
@@ -45,12 +59,17 @@
 >   board rows (`PredictXIView.swift:721 nextRungText`). Fix the data question FIRST; the copy is secondary.
 >   Copy (owner): humans say "70th place", not "#70 of 72" — and "2.3 behind" means nothing to a person.
 >
-> **4. 📣 Day-before push title truncates — the cause is the TIMESTAMP, not the team name.**
-> "Angel City play tomorrow" and "Washington play tomorrow" are both 24 chars; the truncated one was
-> stamped `Yesterday, 6:30 PM` vs `4:00 PM`. Title and timestamp share a row, so an AGED notification has
-> less title width. Not fixable by editing that one string — any title truncates once it ages. The lever
-> is a shorter title that survives the widest timestamp (`DayBeforeContent.swift:79 shortName` was already
-> shortened once, 2026-07-24). Consider "Angel City tomorrow".
+> **4. 📣 Day-before title truncation — MEASURED, and the verdict is DON'T FIX (2026-08-01).**
+> Measured at the notification title size (SF 15pt): "Angel City play tomorrow" = **169px**, "Washington
+> play tomorrow" = **180px**. The title that TRUNCATED is 11px NARROWER than the one that fit, so the team
+> name is not the cause. The only adverse variable is the timestamp sharing the title's row:
+> `4:00 PM` = 55px vs `Yesterday, 6:30 PM` = **129px (+74)**. iOS caps the title at ONE line and won't wrap
+> it into the body (line 2 is the `body` field, "6:30 PM · ION" — a different field, not spare title room).
+> **Why it's closed:** no sensible title gives back 74px ("Angel City tomorrow" saves only 30px), and the
+> stamp is SHORT exactly when the notification matters — at delivery and while fresh it reads "now"/"6:30 PM"
+> and the full title fits. Truncation appears only after it ages to "Yesterday" in a scrolled-past list.
+> `DayBeforeContent.swift:79 shortName` was already shortened once (2026-07-24); shortening again would pay
+> a permanent copy cost for a stale-list-only symptom. Reopen only if it truncates at DELIVERY.
 >
 > **5. 📺 HOW TO WATCH is missing for CBSSN — and the whole list needs research (owner, for 2026-08-02).**
 > On an upcoming match's detail screen the how-to-watch affordance doesn't render at all for CBSSN.

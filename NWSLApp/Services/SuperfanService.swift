@@ -129,6 +129,22 @@ struct SuperfanService {
         return rows.first?.peak_score ?? 0
     }
 
+    /// READ-ONLY adopt: the user's saved counts, with NO write.
+    ///
+    /// ⚠️ Why this exists (2026-08-03). `submit` is read-merge-WRITE-and-return, so any guard that
+    /// stops it writing also stops it reading. A device with no local progress — the replacement
+    /// phone — must adopt the server's counts without creating a row it hasn't earned. Those are two
+    /// different needs and they need two different calls.
+    /// Best-effort like the rest of this service: returns `.zero` on any failure, which merges as the
+    /// identity, so a caller can merge unconditionally.
+    func savedCounts(userID: UUID, season: String) async -> SuperfanCounts {
+        do { return try await currentCounts(userID: userID, season: season) }
+        catch {
+            Diagnostics.shared.record(.apiFailure, "superfan savedCounts: \(error.localizedDescription)")
+            return .zero
+        }
+    }
+
     /// The user's own current server counts (all-zero if no row yet) — the reinstall-safe merge floor.
     private func currentCounts(userID: UUID, season: String) async throws -> SuperfanCounts {
         let rows: [SuperfanRow] = try await client.from("superfan_scores")

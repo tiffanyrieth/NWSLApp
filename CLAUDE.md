@@ -266,13 +266,14 @@ MID-onboarding). Pure, tested `FollowSyncCoordinator.resolveFollowOps`: **adds a
 `hasOnboarded`** — a half-filled picker must never look authoritative (that was the "only the oldest
 follow survives" data-loss bug). Post-onboarding the device is authoritative both ways, so
 follow-16-then-unfollow-to-2 leaves the server holding 2. **What sign-in DOES restore is GAME PROGRESS**
-(`fanzone_progress`, keyed `user_id` never `device_id`) — see `docs/fan-zone.md` — **and, on a REINSTALL
-only, the NOTIFICATION state** (2026-07-22): the per-team bells + the alert TYPES come back verbatim (a
-type deliberately turned off stays off), gated on a device that has made no notification choice at all;
-if there's nothing to restore but a bell is on, the default bundle cascades so a bell never sits on with
-nothing firing. Follows still don't restore — the user re-picks clubs, everything notification-related
-restores itself. Mechanism + the ⚠️ simulator trap (`simctl uninstall` does NOT clear the prefs domain —
-`defaults delete` does, else every "fresh install" test is a false negative): `docs/notifications.md` §1a. Two devices diverging
+(`fanzone_progress`, keyed `user_id` never `device_id`) — see `docs/fan-zone.md`. ⚠️ **NOTHING
+notification-related restores — owner ruling 2026-08-01, re-litigated ~7×, treat as SETTLED.** A reinstall
+is a CLEAN SLATE: the user re-picks clubs + re-taps bells and the post-onboarding sync pushes that reality
+UP; NOT re-selecting a team is a real signal, not data loss. It never paid — ~2 taps saved across 16 clubs,
+no scrolling saved — and a reinstall is often someone RESETTING a broken state, where pulling server data
+back down defeats the point. The 2026-07-22 restore (`docs/notifications.md` §1a) is SUPERSEDED; code/docs
+still asserting it are STALE — do NOT reinstate it (removal pending, `docs/roadmap.md`). ⚠️ Sim trap:
+`simctl uninstall` does NOT clear the prefs domain (`defaults delete` does) or a "fresh install" test lies. Two devices diverging
 offline → last writer wins (fine at current scale). **Gotcha (grants):** a new per-user table needs `grant … to
 authenticated` or signed-in queries fail silently with `42501` (RLS ≠ privilege); **AND** any table a
 **Worker reads/writes as `service_role`** — the watcher (`device_tokens`, `*_preferences`,

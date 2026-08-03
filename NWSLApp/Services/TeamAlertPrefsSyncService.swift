@@ -26,16 +26,11 @@ struct TeamAlertPrefsSyncService {
             .execute()
     }
 
-    /// The user's alert-enabled team ids (sign-in reconcile / new-device restore).
-    func fetchAll(userID: UUID) async throws -> Set<String> {
-        let rows: [TeamAlertRow] = try await client
-            .from("team_alert_preferences")
-            .select()
-            .eq("user_id", value: userID.uuidString)
-            .execute()
-            .value
-        return Set(rows.filter(\.alerts_enabled).map(\.team_id))
-    }
+    // ⚠️ There is deliberately NO "read the user's enabled teams" call here. Alert bells sync UP only
+    // (owner ruling 2026-08-03, `docs/data-sync.md`): a reinstall is a clean slate and the device is
+    // the source of truth, so nothing reads this table to decide what the user wants. `fetchAll` was
+    // removed with the restore branch in TeamAlertSyncCoordinator; the read below exists solely to
+    // PRUNE, which is the device asserting itself, not the server informing it.
 
     /// EVERY team id with a row for this user, regardless of on/off. The mirror
     /// reconcile needs this to prune rows the device no longer wants — both stale

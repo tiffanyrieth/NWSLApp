@@ -268,7 +268,7 @@ For each subsystem, walk it explicitly:
   aggregates have run against a non-trivial field — a cheap partial rehearsal of the 1k test, not a
   substitute for it.
 
-- **Alert-type reinstall restore (2026-07-22): ⛔ SUPERSEDED 2026-08-01 — the feature is being REMOVED (reinstall = clean slate). Kept only so the load figure isn't re-derived. Was: ✅ passes 1k + 100k by construction.** One new READ
+- **Alert-type reinstall restore (2026-07-22): ✅ passes 1k + 100k by construction.** (Still shipped — TYPES restore; the per-team BELL restore was removed 2026-08-03 and only ever cost fewer reads.) One new READ
   path: a single-row `select` on `notification_preferences`, gated on a device that has never made a
   notification choice — so it fires **once per install per identity**, not per launch and not per
   foreground (`NotificationSyncCoordinator.needsRestore`). A failed fetch retries on the next

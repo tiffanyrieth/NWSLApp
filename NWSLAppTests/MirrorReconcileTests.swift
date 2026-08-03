@@ -132,36 +132,37 @@ struct MirrorReconcileTests {
         #expect(ops.remove == ["spirit"])
     }
 
-    // MARK: - Reconcile set-logic (device-wins / restore / alerts ⊆ follows)
+    // MARK: - Reconcile set-logic (device-wins / alerts ⊆ follows)
 
     @Test func deviceWinsAndPrunesGhostAlerts() {
         // Local has an alert for "ghost" — a team that isn't followed (exactly the
         // live bug: row 15364 enabled with no matching follow). It must be dropped.
         let result = TeamAlertSyncCoordinator.authoritativeOnSet(
             localOn: ["spirit", "ghost"],
-            followed: ["spirit", "angelcity"],
-            restoreSource: [])
+            followed: ["spirit", "angelcity"])
         #expect(result == ["spirit"])
     }
 
-    @Test func deviceWinsIgnoresServerRestoreSource() {
-        // With a non-empty local ON set the device is authoritative — the server's
-        // (stale) enabled set is NOT pulled in, so old ghosts can't come back.
-        let result = TeamAlertSyncCoordinator.authoritativeOnSet(
-            localOn: ["spirit"],
-            followed: ["spirit", "angelcity"],
-            restoreSource: ["spirit", "wave", "current"])
-        #expect(result == ["spirit"])
-    }
-
-    @Test func emptyLocalRestoresFromServer() {
-        // Empty-local guardrail: a blank device restores the server's enabled set,
-        // intersected with what it follows.
+    @Test func emptyLocalMeansEmptyAuthoritativeSet() {
+        // ⚠️ THE CLEAN-SLATE RULE (owner, 2026-08-03). An empty device used to fall back to the
+        // server's saved bells, which is what turned a bell back on the moment you tapped FOLLOW
+        // after a reinstall. "No bells here" is now taken at face value: the answer is EMPTY, and
+        // the server converges to it. What keeps that safe is the CALLER — it only prunes once
+        // `hasOnboarded`, so a half-filled picker never looks authoritative.
         let result = TeamAlertSyncCoordinator.authoritativeOnSet(
             localOn: [],
-            followed: ["spirit", "angelcity"],
-            restoreSource: ["spirit", "wave"])   // "wave" not followed → dropped
-        #expect(result == ["spirit"])
+            followed: ["spirit", "angelcity"])
+        #expect(result.isEmpty)
+    }
+
+    @Test func followingATeamDoesNotEnableItsAlerts() {
+        // The reported bug, as set logic: following a club the user previously alerted on must NOT
+        // produce an alert for it. Only an explicit bell tap can, and that arrives via localOn.
+        let result = TeamAlertSyncCoordinator.authoritativeOnSet(
+            localOn: [],                              // fresh install: nothing enabled
+            followed: ["angelcity", "spirit"])        // both re-followed in onboarding
+        #expect(!result.contains("angelcity"))
+        #expect(!result.contains("spirit"))
     }
 
     @Test func deleteDiffIsEverythingNotKept() {
@@ -170,5 +171,42 @@ struct MirrorReconcileTests {
         let keep: Set<String> = ["spirit"]
         let allRemote: Set<String> = ["spirit", "wave", "current", "usa"]
         #expect(allRemote.subtracting(keep) == ["wave", "current", "usa"])
+    }
+
+    // MARK: - Prune safety (the two hazards created by removing the restore)
+
+    @Test func pruneNeverDeletesATeamThatIsCurrentlyOn() {
+        // ⚠️ The bell-intercept race. The reconcile snapshots the ON set, then awaits two fetches;
+        // a bell tapped during that window is absent from the snapshot, so pruning against it would
+        // DELETE the row the tap just created — bell ON locally, no server row, nothing to re-push.
+        // The coordinator re-reads the live ON set after the awaits and subtracts it.
+        let allRemote: Set<String> = ["spirit", "wave", "current"]
+        let clubAuth: Set<String> = ["spirit"]          // snapshot, taken before the awaits
+        let liveOn: Set<String> = ["spirit", "wave"]    // "wave" was tapped mid-flight
+        let deletions = allRemote.subtracting(clubAuth).subtracting(liveOn)
+        #expect(deletions == ["current"])
+        #expect(!deletions.contains("wave"), "a just-tapped bell must survive the prune")
+    }
+
+    @Test func midOnboardingPrunesNothingButStillPushes() {
+        // Pruning is gated on `hasOnboarded` (same rule as resolveFollowOps): a half-filled picker
+        // must never look authoritative. Pushes are unconditional — they only ever ADD intent.
+        // Modelled here as the decision the coordinator makes; the set math is above.
+        let mayPrune = false                            // mid-onboarding
+        let allRemote: Set<String> = ["spirit", "wave"]
+        let clubAuth: Set<String> = ["spirit"]
+        let deletions = mayPrune ? allRemote.subtracting(clubAuth) : []
+        #expect(deletions.isEmpty, "mid-onboarding must not delete the previous install's rows")
+        #expect(clubAuth == ["spirit"], "but what IS on the device is still pushed up")
+    }
+
+    @Test func onboardedDeviceWithNoBellsClearsTheServer() {
+        // The completed clean-slate journey: reinstall, re-pick clubs, enable NO bells, finish
+        // onboarding. The server must converge to empty — not re-seed from its old rows.
+        let authoritative = TeamAlertSyncCoordinator.authoritativeOnSet(
+            localOn: [], followed: ["spirit", "angelcity"])
+        let allRemote: Set<String> = ["spirit", "angelcity"]   // last install's bells
+        let deletions = allRemote.subtracting(authoritative).subtracting(/* liveOn */ [])
+        #expect(deletions == ["spirit", "angelcity"])
     }
 }

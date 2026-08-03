@@ -99,10 +99,10 @@ final class NotificationSyncCoordinator {
     /// token (delivered asynchronously by AppDelegate → PushBridge), the nine
     /// toggles, and the per-team bells. Any change runs `sync()`, which is idempotent.
     ///
-    /// The bells are watched for the restore invariant only: TeamAlertSyncCoordinator restores them
-    /// on its OWN async Task, so they can land after our restore pass — observing them lets the
-    /// "a bell is on ⇒ the bundle has been applied" check re-run the moment they arrive, whichever
-    /// coordinator finishes first.
+    /// The bells are watched for the cascade invariant: they are owned by TeamAlertSyncCoordinator and
+    /// (since 2026-08-03) only ever arrive from a deliberate tap, which can happen at any point after
+    /// this pass. Observing them lets the "a bell is on ⇒ the bundle has been applied" check re-run
+    /// the moment one appears.
     private func observe() {
         withObservationTracking {
             _ = auth.userID
@@ -180,7 +180,9 @@ final class NotificationSyncCoordinator {
         // REINSTALL RESTORE, before any prefs push — but ONLY on a device that has nothing to lose.
         // The push is gated exclusively while `needsRestore` (a fresh install: no local choices, no
         // sentinel), because that is the one state where pushing would overwrite the user's saved row
-        // with an all-off snapshot (the bug: bells restored ON, every alert type OFF, nothing fires).
+        // with an all-off snapshot before the saved TYPES have been read back. (Historically this also
+        // paired with restored bells; bells no longer restore, but overwriting the saved types with
+        // all-off before reading them would still lose the user's preferences.)
         //
         // ⚠️ The gate MUST stay this narrow. A first cut gated EVERY push behind "the restore attempt
         // finished for this identity", which silently blocked preference syncing for a whole session
@@ -202,8 +204,8 @@ final class NotificationSyncCoordinator {
                 + "sentinel=\(preferences.hasAppliedAlertDefaults))")
         }
 
-        // The bells may have arrived after the restore pass (separate coordinator, separate Task) —
-        // re-check the invariant on every later pass. No-ops once the sentinel is set.
+        // A bell can be tapped at any time, on a separate coordinator — re-check the invariant on
+        // every pass. No-ops once the sentinel is set.
         cascadeIfTeamBellsOnWithoutDefaults()
 
         let snapshot = preferences.snapshot
@@ -319,21 +321,35 @@ final class NotificationSyncCoordinator {
         }
     }
 
-    /// The standing invariant: **a team bell on ⇒ the alert-type bundle has been applied at least
-    /// once.** Only fires when the bundle has NEVER been applied on this device, so a bell restored
-    /// from the server can't land in the "on but every type off" state — and a user who later turns
-    /// types off keeps their edits (the sentinel is set by then).
+    /// The standing invariant, as a pure predicate: **a team bell on ⇒ the alert-type bundle has been
+    /// applied at least once.** A bell that is on while every server-push type is off is the banned
+    /// "looks enabled, can never fire" state.
+    ///
+    /// ⚠️ Since the bell RESTORE was removed (2026-08-03) this is the ONLY path that repairs it — bells
+    /// now arrive exclusively from a deliberate tap, so this is what makes that first tap deliver a
+    /// complete, working alert set. Extracted (like `decideRestore`) so the rule is unit-testable
+    /// without stores or a network.
+    ///
+    /// - `hasAppliedDefaults`: the bundle has been applied before ⇒ never re-apply, so a user who
+    ///   later turned types off keeps their edits.
+    /// - `anyServerPushEnabled` (not `anyEnabled`): signing in via a "Match updates" tap enables those
+    ///   columns without the sentinel, and blanket-enabling Goals/Lineups on top would be the app
+    ///   choosing for them. The onboarding bell sets only the Tier-1 day-before reminder by design, so
+    ///   it still reads as "no server-push type" and correctly cascades the full bundle at sign-in.
+    nonisolated static func shouldCascadeBundle(
+        hasAppliedDefaults: Bool, teamBellsOn: Int, anyServerPushEnabled: Bool
+    ) -> Bool {
+        !hasAppliedDefaults && teamBellsOn > 0 && !anyServerPushEnabled
+    }
+
     private func cascadeIfTeamBellsOnWithoutDefaults() {
-        guard !preferences.hasAppliedAlertDefaults, (teamAlerts?.enabledCount ?? 0) > 0 else { return }
-        // Never cascade OVER a selection the user already made. Signing in by tapping "Match updates"
-        // enables those columns without the sentinel — blanket-enabling Goals/Lineups/Live Activities
-        // on top of that would be the app choosing for them. Only the genuinely broken state (a bell
-        // on with NO server-push type) gets the bundle. `anyServerPushEnabled` (not `anyEnabled`) so
-        // the onboarding bell — which sets only the Tier-1 day-before reminder, by design — still
-        // cascades the full bundle at sign-in, exactly as documented.
-        guard !preferences.snapshot.anyServerPushEnabled else { return }
+        guard Self.shouldCascadeBundle(
+            hasAppliedDefaults: preferences.hasAppliedAlertDefaults,
+            teamBellsOn: teamAlerts?.enabledCount ?? 0,
+            anyServerPushEnabled: preferences.snapshot.anyServerPushEnabled
+        ) else { return }
         preferences.applyMatchAlertDefaultsIfFirstTime()
-        NotifTrace.shared.log("prefs-restore", .ok, "bells arrived after restore → cascaded bundle")
+        NotifTrace.shared.log("prefs-restore", .ok, "bell on with no server-push type → cascaded bundle")
     }
 
     // MARK: - Involuntary-sign-out desync sentinel

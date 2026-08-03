@@ -51,7 +51,20 @@
 > Reported off a real device after a fresh reinstall. Triaged in-session; **only the bar-alignment one
 > is fixed.** Each is stated with its VERIFIED cause, not a symptom, so none needs re-diagnosing.
 >
-> **1. 🔔 KILL the reinstall restore of team bells — alerts go UPWARD-ONLY, like follows (owner ruling).**
+> **1. ✅ SHIPPED 2026-08-03 — reinstall no longer restores team bells; alerts are UPWARD-ONLY.**
+> Removed the `localOn.isEmpty` restore branch in `TeamAlertSyncCoordinator` (+ the two now-dead
+> `fetchAll` reads). ⚠️ **It was NOT a pure deletion — three hazards the deletion alone would have
+> created, all fixed:** (a) an empty device would have let the prune loops WIPE every server alert row,
+> so both deletes are now gated on `hasOnboarded`; (b) nothing fired when onboarding completed
+> (`completeOnboarding` mutates that flag alone and its hook is FollowSyncCoordinator's), so the
+> coordinator now observes `hasOnboarded` and only marks an identity done when a prune-eligible pass
+> ran; (c) a bell tapped DURING the reconcile could be pruned by the stale snapshot, so the ON set is
+> re-read after the awaits and subtracted. **Alert TYPES deliberately still restore** (owner: detailed
+> preferences may, choices may not) and land inert until a bell is on. Sim-verified: follow → bell OFF,
+> Alert types greyed. 479 tests green. Directions per datum: `docs/data-sync.md`.
+>
+> <details><summary>Original diagnosis (2026-08-01)</summary>
+
 > Symptom: after a reinstall, tapping follow on a previously-followed club (ACFC/WAS, not BAY) turns its
 > bell on with no tap — and the uninstall had revoked iOS notification permission, so the bell read ON
 > while nothing could fire (the banned "looks like success" state). Mechanism:
@@ -71,11 +84,12 @@
 > it (dead weight once nothing restores), update CLAUDE.md, invert the reinstall-restore tests. This also
 > DELETES the permission bug rather than special-casing it: nothing auto-enables ⇒ no bell can sit on
 > without permission, and a manual bell tap already prompts correctly (owner-confirmed).
-> 🟡 OPEN SUB-QUESTION: do the alert TYPES (`notification_preferences`, the other half of the 7/22
-> decision) also go clean-slate? Recommendation: yes — one rule, no hidden restored state; the first-bell
-> cascade already hands a returning user a complete bundle. Only loss: a type deliberately turned OFF no
-> longer stays off. ⚠️ Do NOT "fix" any of this by signing the user out on uninstall — that session is
+> ✅ RESOLVED 2026-08-03 — alert TYPES **keep restoring**. Owner's line: detailed PREFERENCES may restore,
+> the generic "who do I follow" may not. They land inert (the UI disables Alert types until a bell is on),
+> so a restored type applies to nothing until the user deliberately enables a team. ⚠️ Do NOT "fix" any of this by signing the user out on uninstall — that session is
 > what restores Fan Zone progress and Superfan.
+>
+> </details>
 >
 > **2. 📜 National-team list jumps up ~3 rows on the first follow at the bottom (ZAM).**
 > `CompetitionsView.swift:190` is a `LazyVGrid` in a plain `ScrollView`; following changes that card's
@@ -113,17 +127,25 @@
 >   board rows (`PredictXIView.swift:721 nextRungText`). Fix the data question FIRST; the copy is secondary.
 >   Copy (owner): humans say "70th place", not "#70 of 72" — and "2.3 behind" means nothing to a person.
 >
-> **4. 📣 Day-before title truncation — MEASURED, and the verdict is DON'T FIX (2026-08-01).**
-> Measured at the notification title size (SF 15pt): "Angel City play tomorrow" = **169px**, "Washington
-> play tomorrow" = **180px**. The title that TRUNCATED is 11px NARROWER than the one that fit, so the team
-> name is not the cause. The only adverse variable is the timestamp sharing the title's row:
-> `4:00 PM` = 55px vs `Yesterday, 6:30 PM` = **129px (+74)**. iOS caps the title at ONE line and won't wrap
-> it into the body (line 2 is the `body` field, "6:30 PM · ION" — a different field, not spare title room).
-> **Why it's closed:** no sensible title gives back 74px ("Angel City tomorrow" saves only 30px), and the
-> stamp is SHORT exactly when the notification matters — at delivery and while fresh it reads "now"/"6:30 PM"
-> and the full title fits. Truncation appears only after it ages to "Yesterday" in a scrolled-past list.
-> `DayBeforeContent.swift:79 shortName` was already shortened once (2026-07-24); shortening again would pay
-> a permanent copy cost for a stale-list-only symptom. Reopen only if it truncates at DELIVERY.
+> **4. 📣 Notification title truncation — MEASURED, owner DECISION: accept (2026-08-03).**
+> ⚠️ **A decision, not a closed bug.** Mechanism → ruling → the constraint that keeps it safe.
+> **Mechanism:** iOS renders the delivery timestamp on the **title row**, and it widens as the
+> notification ages (`4:00 PM` 55px → `Yesterday, 6:30 PM` **129px**). The title that truncated
+> ("Angel City play tomorrow", 169px) is **11px NARROWER** than one that fit ("Washington play
+> tomorrow", 180px) — the 74px stamp is the whole difference. The confusing part: the fitting row's
+> stamp read `4:00 PM`, identical to the time inside its own BODY, so it looked like no stamp existed.
+> Corroborated by the fixture timeline (ACFC Sat, Spirit Sun ⇒ screenshot Saturday evening, making the
+> ACFC reminder exactly one day old).
+> **Owner ruling:** it renders correctly when read within 24h, which is when these are read. Accept on
+> BOTH tiers — Tier 1 (day-before) and Tier 2 (server pushes) — until actually OBSERVED on Tier 2.
+> Live Activities are structurally immune (a widget; no notification-cell timestamp on the row).
+> 🔒 **THE CONSTRAINT — what makes accepting it safe, so treat it as a rule: title lengths must not
+> grow.** Several Tier-2 titles ALREADY exceed the specimen that truncated: `GOAL: Kansas City Current`
+> 177px · `GOAL: North Carolina Courage` 203px · `RED CARD: North Carolina Courage` 232px (vs 169px).
+> They survive only because a goal push is read immediately, when the stamp is `now`. A longer club
+> name (expansion, rename) or any copy edit could truncate even when **fresh** — a real bug, not an
+> aging artifact. Re-measure if any title grows. Built in one place per tier:
+> `DayBeforeContent.swift:57` (Tier 1); the watcher's copy-v4 builder (Tier 2).
 >
 > **5. 📺 HOW TO WATCH is missing for CBSSN — and the whole list needs research (owner, for 2026-08-02).**
 > On an upcoming match's detail screen the how-to-watch affordance doesn't render at all for CBSSN.

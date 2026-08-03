@@ -90,8 +90,15 @@
 >   `HStack { band · name · Spacer · bar · % }`, so each bar began where the name ended and equal shares
 >   drew unequal bars. Ported the `CommunityResultsView.optionRow` layout (name on its own line, bar
 >   full-width beneath, % at `minWidth`), which the two community games already carry. Names now wrap
->   instead of truncating (AX1) and each row is one VoiceOver fact. ⚠️ **Built + builds clean, NOT yet
->   seen on a device** — the state needs a submitted XI inside the KO−2h window.
+>   instead of truncating (AX1) and each row is one VoiceOver fact.
+>   🔴 **OPEN — DEVICE-VERIFY BEFORE BUILD 32 SHIPS. Do not let this ride out unseen.**
+>   It is **already ON MAIN** (it rode into #225, which was titled "Docs:" — I branched the docs work
+>   off the fix branch by mistake; owner accepted it staying, on condition it isn't lost). Nobody has
+>   seen it render: the state needs a submitted XI inside the KO−2h window, and no fixture was in that
+>   window when it was built. A preview can't substitute — `community` arrives from the network, so a
+>   preview shows the pre-reveal state with no bars, which is the exact half that changed.
+>   **Check on the owner's device at the next match:** every bar starts at the same x, long names wrap
+>   rather than truncate, and the percentages stay right-aligned down the block.
 > - **(c) Landing screen needs real sections.** Today: open / dimmed-locked / submitted-but-undimmed are
 >   visually ambiguous, and a submitted-locked match looks unlike a closed one. Owner wants grouped
 >   subsections (open on top, locked + past below) so the section is knowable without decoding each card.

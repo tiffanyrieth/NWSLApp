@@ -329,36 +329,66 @@ struct PredictLockedView: View {
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
     }
 
+    /// One picked player: NAME ON ITS OWN LINE, bar full-width beneath it.
+    ///
+    /// ⚠️ The name is NOT inline with the bar (2026-08-01). It used to be
+    /// `HStack { band · name · Spacer · bar · % }`, which made every bar START wherever that
+    /// player's name happened to end — so "Claudia Martínez" and "Tara Rudd" produced bars of
+    /// different lengths for the SAME share, and the block couldn't be compared down the column.
+    /// This is the identical fix the two community games already carry; the layout mirrors
+    /// `CommunityResultsView.optionRow` so every "how everyone picked" surface reads the same way.
+    /// It also lets a long name WRAP instead of truncating, which is what AX1 needs.
     private func summaryRow(_ slot: Formation.Slot) -> some View {
         let id = prediction?.slots[slot.index]
         let share = id.flatMap { community?.share(forPlayer: $0) }
         let isContrarian = (share ?? 1) < contrarianThreshold
-        return HStack(spacing: 10) {
-            Text(slot.group.shortLabel)
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundStyle(Color.dsFgQuaternary)
-                .frame(width: 30, alignment: .leading)
-            Text(id.flatMap { names[$0] } ?? "—")
-                .dsFont(13, weight: isContrarian && revealed ? .bold : .medium)
-                .foregroundStyle(isContrarian && revealed ? Color.dsWarning : Color.dsFgPrimary)
-                .lineLimit(1)
-            Spacer(minLength: 8)
+        let name = id.flatMap { names[$0] } ?? "—"
+        return VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(slot.group.shortLabel)
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color.dsFgQuaternary)
+                    .frame(width: 30, alignment: .leading)
+                Text(name)
+                    .dsFont(13, weight: isContrarian && revealed ? .bold : .medium)
+                    .foregroundStyle(isContrarian && revealed ? Color.dsWarning : Color.dsFgPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
             if revealed, let share {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.dsBgTertiary)
-                        Capsule().fill(isContrarian ? Color.dsWarning : accent)
-                            .frame(width: geo.size.width * share)
+                HStack(spacing: 10) {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color.dsBgTertiary)
+                            Capsule().fill(isContrarian ? Color.dsWarning : accent)
+                                .frame(width: max(2, geo.size.width * share))
+                        }
                     }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 10)
+                    // A minimum width (not a fixed one) keeps the right edges aligned down the
+                    // block while still scaling with Dynamic Type.
+                    Text(PredictPitchView.percent(share))
+                        .dsFont(12, weight: .semibold, monospacedDigit: true)
+                        .foregroundStyle(isContrarian ? Color.dsWarning : Color.dsFgTertiary)
+                        .frame(minWidth: 44, alignment: .trailing)
                 }
-                .frame(minWidth: 70, maxWidth: .infinity)
-                .frame(height: 10)
-                Text(PredictPitchView.percent(share))
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(isContrarian ? Color.dsWarning : Color.dsFgTertiary)
-                    .frame(width: 30, alignment: .trailing)
+                // Indent the bar to the NAME, not the band chip, so GK/DEF/MID/FWD stay a clean
+                // scannable column down the left edge (chip 30 + HStack spacing 10).
+                .padding(.leading, 40)
             }
         }
+        // One player = one fact for VoiceOver, rather than three fragments.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText(band: slot.group.shortLabel, name: name, share: share, isContrarian: isContrarian))
+    }
+
+    /// "DEF, Tara Rudd: picked by 100 percent" — plus the contrarian flag when it's showing.
+    /// Pre-reveal there is no share to read, so it stops at the name.
+    private func accessibilityText(band: String, name: String, share: Double?, isContrarian: Bool) -> String {
+        guard revealed, let share else { return "\(band), \(name)" }
+        let pct = Int((share * 100).rounded())
+        return "\(band), \(name): picked by \(pct) percent\(isContrarian ? ", a contrarian pick" : "")"
     }
 
     private func slots(in group: PositionGroup) -> [Formation.Slot] {

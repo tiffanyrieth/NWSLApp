@@ -153,6 +153,16 @@ For each subsystem, walk it explicitly:
       subrequests and KV ops count, so the run budgets ~39. That is why it does **no retries** and
       batches diags into one write; adding either would silently start failing runs. A 17th club
       would cost 2 more (~41) — still fine, but the margin is the thing to watch on expansion.
+- [x] **Matchday jersey source (`resolveJerseysFromMatchday`, shipped 2026-08-03)** — ✅ **passes 1k
+      and 100k unchanged: per-LEAGUE load, not per-user.** Runs inside the SAME nightly cron
+      invocation, so it spends from that run's budget rather than adding one. **Zero subrequests on a
+      night with nothing pending** (the normal case); otherwise 1 scoreboard + summaries newest-first,
+      stopping the moment every open question is answered — both live 2026-08-03 specimens took 2.
+      ⚠️ **The cap is the budget, and it is tight.** The verification run already spends ~39 of the
+      free plan's 50 per-invocation subrequests, so the ceiling is 50 − 39 − 1 = 10; taking all 10
+      would sit exactly ON the limit, where one extra KV op fails the whole run. Capped at **6** for
+      margin. Raising it, or adding a 17th club, means redoing that arithmetic FIRST.
+      No user request touches this path; failure is best-effort and degrades to the weekly routine.
 - [ ] ⚠️ **Team-page athlete-stats burst (CLIENT→ESPN DIRECT, never stress-tested)** — found
       2026-07-30. `TeamDetailViewModel.load` fetches the roster and then fans out **one ESPN Core-API
       call PER ATHLETE (~25–30) in parallel, straight from the device** — no proxy, no edge cache, no
@@ -258,7 +268,7 @@ For each subsystem, walk it explicitly:
   aggregates have run against a non-trivial field — a cheap partial rehearsal of the 1k test, not a
   substitute for it.
 
-- **Alert-type reinstall restore (2026-07-22): ✅ passes 1k + 100k by construction.** One new READ
+- **Alert-type reinstall restore (2026-07-22): ⛔ SUPERSEDED 2026-08-01 — the feature is being REMOVED (reinstall = clean slate). Kept only so the load figure isn't re-derived. Was: ✅ passes 1k + 100k by construction.** One new READ
   path: a single-row `select` on `notification_preferences`, gated on a device that has never made a
   notification choice — so it fires **once per install per identity**, not per launch and not per
   foreground (`NotificationSyncCoordinator.needsRestore`). A failed fetch retries on the next

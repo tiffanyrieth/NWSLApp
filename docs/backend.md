@@ -201,6 +201,35 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   `jerseys` list and rules on position even though the todo didn't ask (~3 players league-wide).
   Proven case: Ally Sentnor, KC→Angel City July 2026 — ESPN blank, league feed her old #21, both
   feeds "Forward"; angelcity.com said **"midfielder #17"**, right on both counts.
+- **🎽 MATCHDAY JERSEYS — the third source, and the best one (2026-08-03).** A team sheet carries the
+  number a player ACTUALLY WORE, so it outranks both squad-list fields: **matchday > ESPN roster
+  field > SDP `bibNumber`.** `/summary` → `rosters[]` lists every matchday squad member, **starter
+  AND substitute**, with her jersey — and we already fetch and cache that payload for Predict, Match
+  Detail and the watcher's lineup push, so the source is free. `runRosterTruth` now resolves open
+  `missingJerseys` from recent team sheets BEFORE the weekly routine ever sees them
+  (`resolveJerseysFromMatchday`, cited with the ESPN summary URL, applied through the same
+  `applyAutoRulings` validation as any other auto pin — so an owner pin still outranks it).
+  ⚠️ **It rules on the JERSEY ONLY, never the position.** A team sheet is authoritative about the
+  shirt and silent about whether she is a forward; collapsing the two is what let a well-sourced
+  position carry an unsourced number on 2026-08-03.
+  **Cost: ZERO fetches on a night with nothing pending**; otherwise 1 scoreboard + summaries
+  newest-first, stopping the moment every question is answered (both live specimens took 2), hard
+  cap 10. Per-league, not per-user — identical at 1k and 100k.
+  **The specimen this was built from:** Khyah Harper, Gotham→Houston 2026-07-28. ESPN jersey `null`;
+  SDP said 34, which was ALSO her old Gotham number — so "the feed is just lagging the transfer" was
+  a reasonable read, and wrong. She dressed for Houston on 08-02 wearing 34. The team sheet held the
+  answer ~32h before the routine ran, and settles what neither roster feed nor a plausibility
+  argument could. Limit, stated not hidden: only answers for players who have DRESSED; anyone else
+  still falls through to the routine (fair — an unused player's number matters least).
+  ⚠️ **CLUB-SITE URLS: several NWSL clubs live UNDER THEIR MLS SIBLING'S DOMAIN, and the standalone
+  domain can be a hollow shell.** Houston is the specimen (owner, 2026-08-03): the routine and this
+  session both fetched `houstondashsoccer.com/roster` and got 27KB with **zero** player data, which
+  read as "JS-only SPA, unreadable" — wrong on both counts. The real page is
+  **`houstondynamofc.com/houstondash/roster/`**, is fully SERVER-RENDERED, returns 214KB, and states
+  `#34 Khyah Harper` in plain HTML that `curl` reads without help. The failure was a DEAD DOMAIN, not
+  rendering. Before concluding any club site is unscrapeable, check whether the club sits under an
+  MLS parent domain. (This also confirmed the matchday ruling independently: team sheet, club site
+  and SDP all say 34.)
 - **🗂️ One admin portal: `GET /admin`** (`src/admin-portal.ts`) — one URL, one password, three tabs
   (Roster · The Bracket · Know Her Game), same HTTP Basic realm so the browser authenticates once for
   the origin. Ops at `POST /admin/roster` (`state` / `run` / `setOverride` / `renewOverride` /

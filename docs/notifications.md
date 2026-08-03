@@ -65,7 +65,31 @@ in `competition_alert_preferences` (separate from the club-id `team_alert_prefer
 Prefs live in Supabase (offline-first, UserDefaults cache). App side: `NotificationPreferencesStore`,
 `TeamAlertStore`, `NotificationScheduler` (Tier 1 local scheduling).
 
-### 1a. Reinstall restore (the alert types) — added 2026-07-22
+### 1a. Reinstall restore — ⛔ SUPERSEDED 2026-08-01, BEING REMOVED
+
+> ⛔ **READ THIS BEFORE THE SECTION BELOW. The reinstall restore is REMOVED by owner ruling
+> (2026-08-01). NOTHING notification-related restores. A reinstall is a CLEAN SLATE: the user
+> re-picks clubs and re-taps bells, and the post-onboarding sync pushes that reality UP — not
+> re-selecting a team is a real signal, not data loss.**
+>
+> **⚠️ WHY THIS BANNER EXISTS.** The section below frames the restore as the FIX for the banned
+> "alerts on, nothing can fire" state. Read cold, that makes REMOVING it look like reintroducing a
+> bug — which is exactly why this idea came back ~7 times across months, each time costing the owner
+> another re-explanation. It is not a bug fix to protect. It is a v0.1 concept ("everything lives on
+> the server and pushes down") that was written before the app had the shape it has now.
+>
+> **Why it never paid:** it saves ~2 taps across a 16-club picker and saves NO scrolling — the user
+> still has to find and tap each club. And a reinstall is frequently someone RESETTING a broken
+> state, where pulling server data back down defeats the entire purpose.
+>
+> **The state it caused (owner device, 2026-08-01):** an uninstall revokes iOS notification
+> permission, but the restore switched bells back ON — so a bell read enabled while nothing could
+> ever fire. Removing the restore deletes that bug rather than special-casing it.
+>
+> Removal + the open sub-question (do alert TYPES go clean-slate too): `docs/roadmap.md`, the
+> 2026-08-01 sweep. **Everything below is HISTORY — do not cite it as intended behaviour.**
+
+#### (historical) The 2026-07-22 restore
 
 A reinstall used to bring the per-team BELLS back (`TeamAlertSyncCoordinator` pulls
 `team_alert_preferences` down when local is empty) while every alert TYPE stayed off — the banned

@@ -1,5 +1,129 @@
 # Roadmap / What's Next
 
+> ### 📰 CONTENT-SOURCE AUDIT — per club, are we pulling everything we can? (owner 2026-08-03)
+> **Goal:** Club News (Home) and Social are the ALIVE surfaces — the whole product thesis. Audit and
+> log, **per club**, every source we pull and every one we could: club news/article feed (OG
+> fast-path or RSS), YouTube channel, Bluesky handles (club · players · reporters), Instagram, and
+> anything else the club actually publishes to. Confirm each is (a) correct, (b) live, (c) complete.
+>
+> ⚠️ **THE TRAP THAT PROMPTED THIS — a wrong club URL looks identical to a club that publishes
+> nothing.** Verified 2026-08-03: `houstondashsoccer.com` is a HOLLOW domain (27KB, zero player
+> data); Houston's real site is **`houstondynamofc.com/houstondash/`**. It returns 214KB of
+> server-rendered HTML and was readable by plain `curl` all along. A dead URL had been read as
+> "unscrapeable JS site." Any club we quietly pull nothing from deserves the same check before it is
+> written off.
+>
+> **Why it will hit more than one club (owner):** several NWSL sides are run by their MLS owner and
+> live UNDER the men's team's domain as a sub-path, so the standalone `<club>soccer.com` is legacy or
+> parked. Enumerate which clubs are structured this way and fix their URLs together — the pattern is
+> the finding, not the single club.
+>
+> **Deliverable:** a per-club table (16 rows) of source → URL/handle → last successful pull → gaps,
+> plus fixes for anything stale. Cross-check against `SOCIAL_HANDLES` + the club-news fast-paths in
+> the proxy, and against what each club visibly publishes.
+
+> ### 🧭 SYNC-DIRECTION AUDIT — write down what syncs which way, and why (owner 2026-08-01)
+> **Why:** the "reinstall restores your teams" idea has resurfaced ~7 times in a few months. Root cause
+> found 2026-08-01 — it was asserted as intended behaviour in **8 places**, two of which auto-load into
+> every session (`CLAUDE.md`, memory `MEMORY.md`), and `docs/notifications.md` §1a framed it as the FIX
+> for a banned silent-failure, so removing it read as reintroducing a bug. All 8 are now corrected or
+> banner-superseded, **but the underlying gap remains: there is no single place that states, per data
+> type, which direction it syncs and why.** Until there is, the next plausible-sounding restore idea has
+> nothing to be checked against.
+>
+> **Deliverable:** one table covering every piece of user data, each classified into the owner's three
+> categories, with the REASON (the reason is what stops it being re-litigated):
+> 1. **UP-ONLY — device is truth.** Supabase needs a current copy to *act* (the watcher must know who
+>    follows what, with which alerts, to push at all). Nothing comes back down. *(follows; team +
+>    competition alert bells; alert types, pending the sub-question in the sweep below)*
+> 2. **BOTH WAYS — server is durable truth.** Things the user EARNED and must never lose on a new phone
+>    or a reinstall. *(Fan Zone progress, Superfan counts, leaderboard scores, display name)*
+> 3. **LOCAL-ONLY — deliberately not stored.** Fine-grained per-round detail that would cost real
+>    database to keep per user, where the server holds only the cheap rollup it needs for leaderboards.
+>    *(per-round picks/answers, streak internals, caches)*
+>
+> **Owner's acceptance bar: a user who gets a NEW PHONE must never start over in the Fan Zone.** The
+> audit must prove that end-to-end, not assume it — check each category-2 item actually round-trips.
+> Also flag any GAPS (data in the wrong category, or synced in a direction nothing justifies).
+> Scope note: category 1 vs 2 is the whole point — 2 is for what was earned, 1 is for what is two taps.
+
+> ### 🐞 OWNER DEVICE SWEEP 2026-08-01 — 5 findings from a reinstall + live use
+> Reported off a real device after a fresh reinstall. Triaged in-session; **only the bar-alignment one
+> is fixed.** Each is stated with its VERIFIED cause, not a symptom, so none needs re-diagnosing.
+>
+> **1. 🔔 KILL the reinstall restore of team bells — alerts go UPWARD-ONLY, like follows (owner ruling).**
+> Symptom: after a reinstall, tapping follow on a previously-followed club (ACFC/WAS, not BAY) turns its
+> bell on with no tap — and the uninstall had revoked iOS notification permission, so the bell read ON
+> while nothing could fire (the banned "looks like success" state). Mechanism:
+> `TeamAlertSyncCoordinator.swift:203` restores server-side alert rows onto a device with an empty local
+> set (2026-07-22), and the Keychain preserves the Supabase session + `device_id` across an uninstall, so
+> the user is still signed in.
+> ⚠️ **The restore itself is the defect, not the permission mismatch.** Its own comment claims it is
+> "mirroring the follows contract" — that comment is STALE: follows went **upward-only on 2026-07-23**,
+> the day after this was written, and bells were never brought along. So today follows don't restore but
+> bells do, which is precisely the state the owner hit.
+> **OWNER RULING (2026-08-01):** restoring alerts was a v0.1 idea that no longer pays for itself — it
+> saves ~2 taps out of a flow that still requires finding and following each club. Supabase needs an
+> up-to-date copy so the watcher knows who to push to; that is a one-way obligation. **Reinstall
+> onboarding is a CLEAN SLATE: not re-selecting a team is a real signal, and the post-onboarding sync
+> pushes that reality up.** Fan Zone progress still restores down (it was earned); preferences do not.
+> Fix = delete the `if localOn.isEmpty` restore branch + the "bail without marking reconciled" guard above
+> it (dead weight once nothing restores), update CLAUDE.md, invert the reinstall-restore tests. This also
+> DELETES the permission bug rather than special-casing it: nothing auto-enables ⇒ no bell can sit on
+> without permission, and a manual bell tap already prompts correctly (owner-confirmed).
+> 🟡 OPEN SUB-QUESTION: do the alert TYPES (`notification_preferences`, the other half of the 7/22
+> decision) also go clean-slate? Recommendation: yes — one rule, no hidden restored state; the first-bell
+> cascade already hands a returning user a complete bundle. Only loss: a type deliberately turned OFF no
+> longer stays off. ⚠️ Do NOT "fix" any of this by signing the user out on uninstall — that session is
+> what restores Fan Zone progress and Superfan.
+>
+> **2. 📜 National-team list jumps up ~3 rows on the first follow at the bottom (ZAM).**
+> `CompetitionsView.swift:190` is a `LazyVGrid` in a plain `ScrollView`; following changes that card's
+> height (bell affordance) while the toast animates in, and at the very bottom iOS re-clamps the scroll
+> offset because content height changed. Only bites at the bottom — that's the only place the offset is
+> forced to move. Needs sim iteration.
+>
+> **3. 🎯 Predict — four separate things:**
+> - **(a) Pitch flashes before the community panel.** The locked view renders its default state before
+>   the community payload resolves. Loading-order fix.
+> - **(b) ✅ FIXED 2026-08-01 — bars started at different x.** Per-player rows were
+>   `HStack { band · name · Spacer · bar · % }`, so each bar began where the name ended and equal shares
+>   drew unequal bars. Ported the `CommunityResultsView.optionRow` layout (name on its own line, bar
+>   full-width beneath, % at `minWidth`), which the two community games already carry. Names now wrap
+>   instead of truncating (AX1) and each row is one VoiceOver fact. ⚠️ **Built + builds clean, NOT yet
+>   seen on a device** — the state needs a submitted XI inside the KO−2h window.
+> - **(c) Landing screen needs real sections.** Today: open / dimmed-locked / submitted-but-undimmed are
+>   visually ambiguous, and a submitted-locked match looks unlike a closed one. Owner wants grouped
+>   subsections (open on top, locked + past below) so the section is knowable without decoding each card.
+>   Design work, not a bug.
+> - **(d) The top team chip is unlabelled and only drives the board.** Tapping "LA" changes the leaderboard
+>   but not the fixtures below, which reads as broken. Owner ideas: label it; or move the season-average
+>   card down beside the board so the chip sits directly above what it controls; or make the average card
+>   a swipeable per-team carousel that remembers the last team. Needs a design pass.
+> - **(e) ⚠️ Season-average card contradicts itself, on a team never predicted.** Shows a 0.0 avg row for
+>   **DEN with no prediction ever made**, AND reads "#70 of 72" while naming the next rung at **#89** —
+>   below her, which is impossible. Two different sources disagree: `standing.rank` (server) vs the fetched
+>   board rows (`PredictXIView.swift:721 nextRungText`). Fix the data question FIRST; the copy is secondary.
+>   Copy (owner): humans say "70th place", not "#70 of 72" — and "2.3 behind" means nothing to a person.
+>
+> **4. 📣 Day-before title truncation — MEASURED, and the verdict is DON'T FIX (2026-08-01).**
+> Measured at the notification title size (SF 15pt): "Angel City play tomorrow" = **169px**, "Washington
+> play tomorrow" = **180px**. The title that TRUNCATED is 11px NARROWER than the one that fit, so the team
+> name is not the cause. The only adverse variable is the timestamp sharing the title's row:
+> `4:00 PM` = 55px vs `Yesterday, 6:30 PM` = **129px (+74)**. iOS caps the title at ONE line and won't wrap
+> it into the body (line 2 is the `body` field, "6:30 PM · ION" — a different field, not spare title room).
+> **Why it's closed:** no sensible title gives back 74px ("Angel City tomorrow" saves only 30px), and the
+> stamp is SHORT exactly when the notification matters — at delivery and while fresh it reads "now"/"6:30 PM"
+> and the full title fits. Truncation appears only after it ages to "Yesterday" in a scrolled-past list.
+> `DayBeforeContent.swift:79 shortName` was already shortened once (2026-07-24); shortening again would pay
+> a permanent copy cost for a stale-list-only symptom. Reopen only if it truncates at DELIVERY.
+>
+> **5. 📺 HOW TO WATCH is missing for CBSSN — and the whole list needs research (owner, for 2026-08-02).**
+> On an upcoming match's detail screen the how-to-watch affordance doesn't render at all for CBSSN.
+> Beyond that one gap: **research what viewers actually struggle with** (Reddit especially — that's where
+> fans ask) and expand the guidance for every broadcaster, not just fix the missing row. Use the browser
+> MCP for the Reddit sweep. NOT started — owner scheduled this for the next session.
+
 > ### ✅ DONE + DEPLOYED 2026-07-30 — WATCHER: "suspended" is not full time
 > **Fixed and deployed** (`isUnfinishedPost` → `Match.unfinishedPost`, consulted at all three sites;
 > 87 watcher tests + `test/suspension.test.ts`). The Live Activity path RETURNS EARLY on a suspension

@@ -1,5 +1,63 @@
 # Roadmap / What's Next
 
+> ### 🐞 OWNER DEVICE SWEEP 2026-08-01 — 5 findings from a reinstall + live use
+> Reported off a real device after a fresh reinstall. Triaged in-session; **only the bar-alignment one
+> is fixed.** Each is stated with its VERIFIED cause, not a symptom, so none needs re-diagnosing.
+>
+> **1. 🔔 Reinstall restores a team's bell while iOS permission is REVOKED — the banned silent state.**
+> Tapping follow on a previously-followed club (ACFC/WAS, not BAY) turns its bell on with no tap. That
+> part is CORRECT and intended: `TeamAlertSyncCoordinator.swift:203` restores server-side alert rows onto
+> a device with an empty local set (the 2026-07-22 reinstall restore), and the Keychain keeps the Supabase
+> session + `device_id` across an uninstall, so she is still signed in. **The BUG is the pairing:** the
+> uninstall wiped the iOS notification permission, so the bell reads ON while nothing can ever fire —
+> exactly the "failure that looks like success" the no-silent-failures rule bans. The re-prompt at
+> `RootTabView.swift:564` is gated on `notDetermined + wantsNotifs` and runs BEFORE the restore has
+> populated any bell, so it no-ops. Fix = re-check permission AFTER a restore lands (and on the follow
+> that triggers it), then prompt or show the honest denied state. ⚠️ Do NOT "fix" this by signing the
+> user out on uninstall — that session is what restores Fan Zone progress, Superfan and prefs.
+>
+> **2. 📜 National-team list jumps up ~3 rows on the first follow at the bottom (ZAM).**
+> `CompetitionsView.swift:190` is a `LazyVGrid` in a plain `ScrollView`; following changes that card's
+> height (bell affordance) while the toast animates in, and at the very bottom iOS re-clamps the scroll
+> offset because content height changed. Only bites at the bottom — that's the only place the offset is
+> forced to move. Needs sim iteration.
+>
+> **3. 🎯 Predict — four separate things:**
+> - **(a) Pitch flashes before the community panel.** The locked view renders its default state before
+>   the community payload resolves. Loading-order fix.
+> - **(b) ✅ FIXED 2026-08-01 — bars started at different x.** Per-player rows were
+>   `HStack { band · name · Spacer · bar · % }`, so each bar began where the name ended and equal shares
+>   drew unequal bars. Ported the `CommunityResultsView.optionRow` layout (name on its own line, bar
+>   full-width beneath, % at `minWidth`), which the two community games already carry. Names now wrap
+>   instead of truncating (AX1) and each row is one VoiceOver fact. ⚠️ **Built + builds clean, NOT yet
+>   seen on a device** — the state needs a submitted XI inside the KO−2h window.
+> - **(c) Landing screen needs real sections.** Today: open / dimmed-locked / submitted-but-undimmed are
+>   visually ambiguous, and a submitted-locked match looks unlike a closed one. Owner wants grouped
+>   subsections (open on top, locked + past below) so the section is knowable without decoding each card.
+>   Design work, not a bug.
+> - **(d) The top team chip is unlabelled and only drives the board.** Tapping "LA" changes the leaderboard
+>   but not the fixtures below, which reads as broken. Owner ideas: label it; or move the season-average
+>   card down beside the board so the chip sits directly above what it controls; or make the average card
+>   a swipeable per-team carousel that remembers the last team. Needs a design pass.
+> - **(e) ⚠️ Season-average card contradicts itself, on a team never predicted.** Shows a 0.0 avg row for
+>   **DEN with no prediction ever made**, AND reads "#70 of 72" while naming the next rung at **#89** —
+>   below her, which is impossible. Two different sources disagree: `standing.rank` (server) vs the fetched
+>   board rows (`PredictXIView.swift:721 nextRungText`). Fix the data question FIRST; the copy is secondary.
+>   Copy (owner): humans say "70th place", not "#70 of 72" — and "2.3 behind" means nothing to a person.
+>
+> **4. 📣 Day-before push title truncates — the cause is the TIMESTAMP, not the team name.**
+> "Angel City play tomorrow" and "Washington play tomorrow" are both 24 chars; the truncated one was
+> stamped `Yesterday, 6:30 PM` vs `4:00 PM`. Title and timestamp share a row, so an AGED notification has
+> less title width. Not fixable by editing that one string — any title truncates once it ages. The lever
+> is a shorter title that survives the widest timestamp (`DayBeforeContent.swift:79 shortName` was already
+> shortened once, 2026-07-24). Consider "Angel City tomorrow".
+>
+> **5. 📺 HOW TO WATCH is missing for CBSSN — and the whole list needs research (owner, for 2026-08-02).**
+> On an upcoming match's detail screen the how-to-watch affordance doesn't render at all for CBSSN.
+> Beyond that one gap: **research what viewers actually struggle with** (Reddit especially — that's where
+> fans ask) and expand the guidance for every broadcaster, not just fix the missing row. Use the browser
+> MCP for the Reddit sweep. NOT started — owner scheduled this for the next session.
+
 > ### ✅ DONE + DEPLOYED 2026-07-30 — WATCHER: "suspended" is not full time
 > **Fixed and deployed** (`isUnfinishedPost` → `Match.unfinishedPost`, consulted at all three sites;
 > 87 watcher tests + `test/suspension.test.ts`). The Live Activity path RETURNS EARLY on a suspension

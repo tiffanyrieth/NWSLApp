@@ -350,7 +350,10 @@ struct RootTabView: View {
                 // Fan Zone progress restore (reinstall / replacement phone): fetch + monotonic-merge
                 // the server summary row into the game stores at sign-in; game views push completions
                 // up through this same coordinator. Sibling of syncCoordinator, same lifecycle.
-                let coordinator = ProgressSyncCoordinator(trivia: trivia, knowHer: knowHer, auth: auth)
+                // `predict`/`bracket` are passed for the Superfan GREATEST-merge it also runs at
+                // sign-in (counts span all four games) — neither feeds `fanzone_progress` itself.
+                let coordinator = ProgressSyncCoordinator(
+                    trivia: trivia, knowHer: knowHer, predict: predict, bracket: bracket, auth: auth)
                 coordinator.start()
                 progressCoordinator = coordinator
             }

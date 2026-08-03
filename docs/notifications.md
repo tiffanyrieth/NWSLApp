@@ -67,10 +67,13 @@ Prefs live in Supabase (offline-first, UserDefaults cache). App side: `Notificat
 
 ### 1a. Reinstall restore — ⛔ SUPERSEDED 2026-08-01, BEING REMOVED
 
-> ⛔ **READ THIS BEFORE THE SECTION BELOW. The reinstall restore is REMOVED by owner ruling
-> (2026-08-01). NOTHING notification-related restores. A reinstall is a CLEAN SLATE: the user
-> re-picks clubs and re-taps bells, and the post-onboarding sync pushes that reality UP — not
-> re-selecting a team is a real signal, not data loss.**
+> ⛔ **READ THIS BEFORE THE SECTION BELOW. Half of what it describes is GONE (shipped 2026-08-03).**
+> The owner's line: **detailed PREFERENCES may restore; the generic "who do I follow" may not.**
+> - **Alert TYPES still restore** — everything below about `decideRestore` is CURRENT. They land
+>   INERT: `NotificationsView` greys + disables the Alert-types section until a bell is on, so a
+>   restored type applies to nothing until the user deliberately enables a team.
+> - **Per-team/NT BELLS no longer restore.** `TeamAlertSyncCoordinator` is UPWARD-ONLY. A reinstall
+>   is a clean slate; NOT re-selecting a team is a real signal, not data loss.
 >
 > **⚠️ WHY THIS BANNER EXISTS.** The section below frames the restore as the FIX for the banned
 > "alerts on, nothing can fire" state. Read cold, that makes REMOVING it look like reintroducing a

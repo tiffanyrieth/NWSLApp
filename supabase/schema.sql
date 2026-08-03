@@ -438,27 +438,11 @@ grant select, insert, update on public.prediction_scores to authenticated;
 -- LEAGUE-WIDE (no team scope, unlike Predict): trivia has no club. The metric is
 -- BEST STREAK (consecutive days played) — it rewards daily consistency, not raw
 -- volume. One row per (user, season); `best_streak` is the user's personal best.
-create table public.trivia_scores (
-  user_id uuid references auth.users(id) on delete cascade,
-  season text not null default '2026',
-  display_name text,
-  best_streak int not null default 0,
-  updated_at timestamptz default now(),
-  primary key (user_id, season)  -- backs the upsert onConflict
-);
-
-alter table public.trivia_scores enable row level security;
-
-create policy "Anyone can read trivia scores"
-  on public.trivia_scores for select using (true);
-create policy "Users insert own trivia score"
-  on public.trivia_scores for insert with check (auth.uid() = user_id);
-create policy "Users update own trivia score"
-  on public.trivia_scores for update using (auth.uid() = user_id);
-
--- Grants (42501 gotcha). Read: anon + authed; write: authenticated-only.
-grant select on public.trivia_scores to anon, authenticated;
-grant select, insert, update on public.trivia_scores to authenticated;
+-- ⛔ RETIRED 2026-08-03 — `trivia_scores` was DROPPED (see migration_drop_trivia_scores.sql).
+-- It backed the league-wide best-streak leaderboard, deleted in the biweekly Trivia rebuild
+-- (app #167). Trivia's durable state now lives in `fanzone_progress` (rollups, monotonic merge)
+-- and `superfan_scores` (counts); per-round picks stay on-device by design (`docs/data-sync.md`).
+-- Do NOT recreate this table: a "streak" here counted DAYS, which the round model no longer means.
 
 
 -- ═════════════════════════════════════════════════════════════════════════════

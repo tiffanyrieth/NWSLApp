@@ -119,3 +119,48 @@ struct NotificationRestoreDecisionTests {
             hasAppliedDefaults: true, local: allOff, server: nil, teamBellsOn: 5) == .noRestore)
     }
 }
+
+/// The bell → bundle invariant (`shouldCascadeBundle`).
+///
+/// ⚠️ Untested until 2026-08-03, and now load-bearing: with the bell RESTORE removed, bells arrive
+/// only from a deliberate tap, so this predicate is the sole thing standing between "user turned a
+/// bell on" and the banned state "bell reads ON but no server-push type is enabled, so nothing can
+/// ever fire."
+@Suite("Alert bundle cascade")
+struct CascadeBundleTests {
+
+    @Test func firstBellTapCascadesTheBundle() {
+        // The canonical path: fresh device, user taps a team bell, no types set yet.
+        #expect(NotificationSyncCoordinator.shouldCascadeBundle(
+            hasAppliedDefaults: false, teamBellsOn: 1, anyServerPushEnabled: false))
+    }
+
+    @Test func noBellsMeansNoCascade() {
+        // Nothing to apply types TO — this is the state a reinstall now lands in, and it must stay
+        // quiet rather than enabling anything on its own.
+        #expect(!NotificationSyncCoordinator.shouldCascadeBundle(
+            hasAppliedDefaults: false, teamBellsOn: 0, anyServerPushEnabled: false))
+    }
+
+    @Test func neverCascadesOverAnExistingSelection() {
+        // Signing in via a "Match updates" tap enables those columns without the sentinel. Blanket-
+        // enabling Goals/Lineups/Live Activities on top would be the app choosing for the user.
+        #expect(!NotificationSyncCoordinator.shouldCascadeBundle(
+            hasAppliedDefaults: false, teamBellsOn: 1, anyServerPushEnabled: true))
+    }
+
+    @Test func neverCascadesTwice() {
+        // Once applied, a user who deliberately turned types back OFF keeps their edits.
+        #expect(!NotificationSyncCoordinator.shouldCascadeBundle(
+            hasAppliedDefaults: true, teamBellsOn: 3, anyServerPushEnabled: false))
+    }
+
+    @Test func onboardingBellStillCascadesAtSignIn() {
+        // The onboarding bell sets ONLY the Tier-1 day-before reminder by design, so no server-push
+        // type is on — which is precisely why the predicate keys on `anyServerPushEnabled` rather
+        // than `anyEnabled`. Reading it the other way would leave onboarding users with a bell and
+        // no match alerts.
+        #expect(NotificationSyncCoordinator.shouldCascadeBundle(
+            hasAppliedDefaults: false, teamBellsOn: 1, anyServerPushEnabled: false))
+    }
+}

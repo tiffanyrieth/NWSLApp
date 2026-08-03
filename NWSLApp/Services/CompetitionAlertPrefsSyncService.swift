@@ -26,16 +26,8 @@ struct CompetitionAlertPrefsSyncService {
             .execute()
     }
 
-    /// The user's alert-enabled follow keys (sign-in reconcile / new-device restore).
-    func fetchAll(userID: UUID) async throws -> Set<String> {
-        let rows: [CompetitionAlertRow] = try await client
-            .from("competition_alert_preferences")
-            .select()
-            .eq("user_id", value: userID.uuidString)
-            .execute()
-            .value
-        return Set(rows.filter(\.alerts_enabled).map(\.follow_key))
-    }
+    // ⚠️ No "read the user's enabled keys" call, for the same reason as the club service: alert bells
+    // sync UP only (owner ruling 2026-08-03). The read below is for PRUNING, not restoring.
 
     /// EVERY follow key with a row for this user, on/off — the reconcile prunes rows the device no
     /// longer wants so the table converges to exactly the device's ON set (mirrors the club service).

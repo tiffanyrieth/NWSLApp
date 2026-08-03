@@ -48,7 +48,7 @@ not re-selecting a team is a real signal.
 | Identity / display name | `profiles` | upsert on change | `AuthStore.hydrateProfile()` at sign-in AND restore | `name_is_custom` guard — a custom name is never clobbered by Apple's |
 | Trivia rollups (lifetime, season, round streak, round gate) | `fanzone_progress` | `ProgressSyncCoordinator` on completions | **same coordinator at sign-in** → `TriviaStore.restoreProgress` | monotonic (max per counter) |
 | KHG rollups (points, editions, week streak, played-week gate) | `fanzone_progress` | same | same → `KnowHerGameStore` restore | monotonic + `restoredBaseline` (prevents double-count when local play and restore overlap) |
-| Superfan counts (per-game correct/attempted) | `superfan_scores` | `SuperfanService` GREATEST merge | server-merged counts adopted + cached (`SuperfanCountsCache`) | per-counter max, both directions |
+| Superfan counts (per-game correct/attempted) | `superfan_scores` | `SuperfanService.submit` GREATEST merge (only when local ≠ zero) | `savedCounts` read-only adopt at sign-in + on the detail screen | per-counter max; the CACHE write also merges with what it holds, so a failed read can never lower it |
 | Season archive | `season_history` | `SuperfanService` at rollover | read for "past seasons" | append-only |
 | Predict season board row | `prediction_scores` | `PredictLeaderboardService` — client max-merge points/matches | boards read server rows (the "You" row is server truth) | max-merge; avg derived from merged pair |
 | Predict banked rounds | `predict_round_scores` | server-side `GREATEST` upsert | round boards read server | ✅ atomic — not read-then-write |
@@ -88,10 +88,16 @@ splits, then pruned by pg_cron.
 1. **✅ FIXED 2026-08-03 — the bell restore-down is gone.** `TeamAlertSyncCoordinator` no longer pulls
    `team_alert_preferences` down onto an empty device. Alert TYPES deliberately still restore (owner:
    preferences may, choices may not) — see the category-2 note below.
-2. **✅ FIXED 2026-08-03 — Superfan now merges at sign-in.** `ProgressSyncCoordinator.mergeSuperfan`
-   runs the GREATEST merge on every sign-in, deliberately OUTSIDE the `fanzone_progress` guard (a
-   Predict/Bracket-only player has no progress row but can have a rich `superfan_scores` row). Gated
-   on `counts != .zero` so a never-played user writes nothing.
+2. **✅ FIXED 2026-08-03 — Superfan adopts at sign-in.** `ProgressSyncCoordinator.mergeSuperfan` runs
+   on every sign-in, deliberately OUTSIDE the `fanzone_progress` guard (a Predict/Bracket-only player
+   has no progress row but can have a rich `superfan_scores` row).
+   ⚠️ **The first cut of this was only HALF a fix and was briefly documented as complete.** It guarded
+   the whole call on `counts != .zero` to avoid writing a junk all-zero row — but `submit` is
+   read-merge-write-**and-return**, so that guard also blocked the READ, and the device it blocked was
+   the one that needed it most: a replacement phone with nothing local. Now the two are separate calls
+   — `savedCounts` ADOPTS unconditionally (read-only), `submit` WRITES only when there is something to
+   contribute. Same split applied in `SuperfanDetailView.syncStanding`, where guarding the read would
+   have shown a returning user an empty breakdown.
 3. **🟡 The Predict dual-source disagreement** (roadmap, 2026-08-01 sweep 3e): `standing.rank` and
    the fetched board rows disagreed on a real device ("#70 of 72" vs a rung at #89, on a team never
    predicted). Both are category-2 server reads, so this is a consistency bug between two server
@@ -99,9 +105,16 @@ splits, then pruned by pg_cron.
 4. **✅ RESOLVED 2026-08-03 — `trivia_scores` retired.** `supabase/migration_drop_trivia_scores.sql`
    archives the rows (streaks there counted DAYS, not rounds — never read them back) then drops the
    table. Owner runs the SQL.
-5. **🟢 GC leaderboards on a fresh device** submit LOCAL totals which start low; Game Center keeps
-   the best submitted score, so the board never regresses — but verify the three boards are
-   configured "best score" in App Store Connect (they are per the checklist) before trusting this.
+5. **✅ FIXED 2026-08-03 — Game Center never receives a zero.** `syncAll` fires on every foreground and
+   whenever GC authenticates, including on a fresh device before the restore lands, when every local
+   total is still 0. `GameCenterManager.isWorthSubmitting` (pure, tested) drops those submits: a 0
+   carries no information on any board configuration, and on a "Most Recent Score" board it would
+   replace a real earned total.
+   ⚠️ Deliberately NOT a "wait for the restore" gate — `NotificationSyncCoordinator` proved that
+   pattern silently blocks a whole session when the network fails. This has no ordering dependency and
+   also covers the two per-play submits that bypass `syncAll`.
+   🟡 Still worth one page view: confirm the three boards are **"Best Score"** (not "Most Recent") in
+   App Store Connect. That is belt-and-braces on top of the code fix.
 
 _Verified against code on 2026-08-03: every path named above was read, not assumed. Update this
 document when any sync path changes — it exists so direction decisions stop being re-litigated._

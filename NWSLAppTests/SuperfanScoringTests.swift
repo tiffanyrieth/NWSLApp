@@ -146,9 +146,77 @@ struct SuperfanScoringTests {
         #expect(SuperfanScoring.total(counts: cardCounts) == SuperfanScoring.total(counts: adopted))
 
         // Never-synced device: loading yields .zero, and merging with zero is the identity —
-        // the card safely shows the local-only score until the first detail sync.
+        // the card safely shows the local-only score until the first sync.
         defaults.removePersistentDomain(forName: suite)
         #expect(SuperfanCountsCache.load(season: 2026, defaults: defaults) == .zero)
         #expect(local.merged(with: .zero) == local)
+    }
+
+    // MARK: - The cache must never go DOWN (2026-08-03)
+
+    @Test func cacheWriteNeverLowersAStoredValue() {
+        // ⚠️ `SuperfanService.submit` returns the CALLER'S OWN counts when the network fails. Saving
+        // that verbatim is how a cached 62 became a 25 on the next offline launch — the Home card
+        // silently losing progress the user really earned. Both writers now merge with what's already
+        // cached, so a failed read can only ever leave the number where it was.
+        let suite = "test.superfan.cache.monotonic"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+
+        let adopted = SuperfanCounts(predictCorrect: 40, predictTotal: 50,
+                                     khgCorrect: 18, khgTotal: 20)
+        SuperfanCountsCache.save(adopted, season: 2026, defaults: defaults)
+        let before = SuperfanScoring.total(counts: SuperfanCountsCache.load(season: 2026, defaults: defaults))
+
+        // The offline launch: submit hands back the thin local counts.
+        let thinLocal = SuperfanCounts(predictCorrect: 4, predictTotal: 5)
+        let guarded = thinLocal.merged(with: SuperfanCountsCache.load(season: 2026, defaults: defaults))
+        SuperfanCountsCache.save(guarded, season: 2026, defaults: defaults)
+
+        let after = SuperfanScoring.total(counts: SuperfanCountsCache.load(season: 2026, defaults: defaults))
+        #expect(after >= before, "a failed sync must never lower the cached Superfan score")
+        #expect(SuperfanCountsCache.load(season: 2026, defaults: defaults) == adopted)
+        defaults.removePersistentDomain(forName: suite)
+    }
+
+    @Test func zeroLocalDeviceStillAdoptsTheServerScore() {
+        // The replacement phone, which is the whole point of the durable tier: nothing local, a full
+        // season on the server. The adopt must survive the anti-churn guard that stops it WRITING —
+        // read and write are separate calls precisely so this case works.
+        let local = SuperfanCounts.zero
+        let server = SuperfanCounts(predictCorrect: 44, predictTotal: 55,
+                                    bracketCorrect: 9, bracketTotal: 16,
+                                    khgCorrect: 17, khgTotal: 20,
+                                    triviaCorrect: 22, triviaTotal: 30)
+        let adopted = local.merged(with: server)
+        #expect(adopted == server)
+        #expect(SuperfanScoring.total(counts: adopted) > 0,
+                "a returning user must not be shown 0 just because this device is new")
+    }
+}
+
+/// Game Center submission gating (`isWorthSubmitting`).
+///
+/// Extracted as a pure rule because `GameCenterManager` is a `@MainActor` GameKit singleton with no
+/// seam — same reason `shouldCascadeBundle` was extracted from the notification coordinator.
+@Suite("Game Center submission gating")
+struct GameCenterSubmitGateTests {
+
+    @Test func zeroIsNeverSubmitted() {
+        // ⚠️ `syncAll` fires on every foreground and whenever GC authenticates — including on a fresh
+        // or replaced device before the server restore lands, when every local total is still 0.
+        // On a board configured "Most Recent Score" that 0 would replace a real earned total.
+        #expect(!GameCenterManager.isWorthSubmitting(0))
+    }
+
+    @Test func realScoresAreSubmitted() {
+        #expect(GameCenterManager.isWorthSubmitting(1))
+        #expect(GameCenterManager.isWorthSubmitting(88))
+    }
+
+    @Test func negativeIsNeverSubmitted() {
+        // Not reachable today (every board is a non-negative total), but a negative is even less
+        // meaningful than a zero and the rule should not depend on that staying true.
+        #expect(!GameCenterManager.isWorthSubmitting(-1))
     }
 }

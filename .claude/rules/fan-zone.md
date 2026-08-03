@@ -100,8 +100,10 @@ The **Superfan summary is the TRAILING card** at the end of the row (`SuperfanCa
 `GameCenterManager.syncAll`) — but as of Fan Zone v2 it is **TAPPABLE → `SuperfanDetailView`**, a cross-game
 season stats hub (season total, competitive tier + percentile, per-game breakdown, "Your best moments"),
 backed by the `superfan_scores` Supabase table + `SuperfanService`/`SuperfanStats` (`SuperfanTier`/
-`SuperfanStanding`; season-scoped, passes the 1k stress gate). Gated to **≥2 games played AND total > 0**
-(`superfanBannerVisible`; it counts games *played*, so it stays even when a game is hidden). Countdowns via the pure
+`SuperfanStanding`; season-scoped, passes the 1k stress gate). **ALWAYS VISIBLE (owner, 2026-08-03)** — the old `superfanBannerVisible` gate (≥2 games played AND
+total > 0) is GONE. The card is how a NEW user learns the Fan Zone keeps score at all; hiding it until
+they had already played meant it could only ever confirm what they knew. At zero it reads an honest
+"Fan · 0". ⚠️ Do not re-gate it on having played. Countdowns via the pure
 `compactCountdown(to:from:)`. Each game keeps its accent: predict `dsGamePredict` (pink), bracket
 `dsGameBracket` (teal), know-her `dsGameSpotlight` (amber), trivia `dsGameTrivia` (indigo). Below the
 row, **Club News** is a PINNED

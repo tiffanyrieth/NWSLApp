@@ -426,17 +426,18 @@ struct HomeView: View {
                         Analytics.shared.log(.fanzoneGameOpened(Self.seenKey(game)))
                     })
                 }
-                // Trailing Superfan card — display-only (computed locally / synced to Game
-                // Center as today), shown once the user has a cross-game score (≥2 games
-                // played, total > 0). Stays even when a game is hidden, since it gates on
-                // games PLAYED, not games currently visible.
-                if superfanBannerVisible {
-                    NavigationLink { SuperfanDetailView() } label: {
-                        SuperfanCard(score: superfanScore)
-                    }
-                    .buttonStyle(.plain)
-                    .frame(width: 152)
+                // Trailing Superfan card — ALWAYS shown (owner, 2026-08-03). It used to appear only
+                // after ≥2 games played with a non-zero total, on the theory that a "0" is
+                // meaningless. The owner's read is the opposite and is about NEW users: the card is
+                // how someone learns the Fan Zone keeps score at all, and hiding it until they have
+                // already played means it can only ever confirm what they know. At zero it renders
+                // an honest "Fan · 0" with an empty tier bar, and the detail screen behind it carries
+                // the "How Superfan works" explainer — which is the actual onboarding.
+                NavigationLink { SuperfanDetailView() } label: {
+                    SuperfanCard(score: superfanScore)
                 }
+                .buttonStyle(.plain)
+                .frame(width: 152)
             }
             .scrollTargetLayout()
         }
@@ -454,15 +455,6 @@ struct HomeView: View {
             season: season, predict: predict, bracket: bracket,
             trivia: trivia, knowHer: knowHer)
         return SuperfanScoring.total(counts: local.merged(with: SuperfanCountsCache.load(season: season)))
-    }
-
-    /// Show the Superfan banner only once the user has genuine scores in ≥2 games AND a
-    /// non-zero total — never a meaningless "0" for a new user (handoff visibility rule).
-    private var superfanBannerVisible: Bool {
-        let season = AppConfig.currentSeasonYear
-        let played = [predict.hasPredicted, bracket.hasPlayed, trivia.totalAnswered > 0,
-                      knowHer.playedInSeason(year: season)].filter { $0 }.count
-        return played >= 2 && superfanScore > 0
     }
 
     @ViewBuilder

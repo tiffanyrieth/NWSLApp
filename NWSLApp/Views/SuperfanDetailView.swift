@@ -72,7 +72,11 @@ struct SuperfanDetailView: View {
         didLoad = true
         // Local counts first so the score renders immediately (even signed out), then merge with server.
         counts = localCounts()
-        GameCenterManager.shared.authenticate()
+        // ⚠️ NO Game Center authenticate() here (removed 2026-08-03, when the Home card became
+        // always-visible). This screen is now one tap from a brand-new user's Home, and authenticating
+        // on load would greet them with Apple's Game Center sign-in sheet before they have played
+        // anything. `openLeaderboards()` still authenticates on TAP — the moment they actually ask for
+        // a leaderboard, which is the point at which that prompt makes sense.
         await syncStanding()
     }
 
@@ -88,14 +92,30 @@ struct SuperfanDetailView: View {
         let local = localCounts()
         guard let userID = auth.userID else { counts = local; return }
         let service = SuperfanService()
-        counts = await service.submit(counts: local, season: String(season),
-                                      userID: userID, displayName: auth.displayName)
+
+        // ⚠️ GUARD THE WRITES, NEVER THE READ. `submit` is read-merge-write-and-return and its return
+        // value IS this screen's data — a returning user's whole season lives in it. Guarding the call
+        // would leave them staring at an empty breakdown. So a device with nothing local ADOPTS
+        // read-only, and only a device with something to contribute writes.
+        if local == .zero {
+            counts = await service.savedCounts(userID: userID, season: String(season))
+        } else {
+            counts = await service.submit(counts: local, season: String(season),
+                                          userID: userID, displayName: auth.displayName)
+        }
         // Mirror the adopted server-merged counts so network-free surfaces (the Home card, the
         // Game Center submit) show the SAME score as this screen — the 25-vs-46 mismatch fix.
-        SuperfanCountsCache.save(counts, season: season)
+        // Merged with what's cached: `submit` hands back the caller's own counts when the network
+        // fails, and saving that verbatim is how a cached 62 silently became a 25.
+        SuperfanCountsCache.save(counts.merged(with: SuperfanCountsCache.load(season: season)),
+                                 season: season)
         let total = SuperfanScoring.total(counts: counts)
         // Keep the current season's record book row current (peak monotonic), then read the arc.
-        await service.submitSeasonHistory(seasonYear: season, score: total, userID: userID)
+        // Skipped at zero: a never-played user would otherwise get a `season_history` row that renders
+        // as "2026 · Fan · Current" — an empty shell for a season they haven't played.
+        if total > 0 {
+            await service.submitSeasonHistory(seasonYear: season, score: total, userID: userID)
+        }
         seasonHistory = await service.seasonHistory(userID: userID)
         // Detect + award any store-derivable achievements, then read the earned set for "Your Best Moments".
         await AchievementDetector.checkCumulative(predict: predict, bracket: bracket, trivia: trivia,

@@ -47,6 +47,27 @@
 > Also flag any GAPS (data in the wrong category, or synced in a direction nothing justifies).
 > Scope note: category 1 vs 2 is the whole point — 2 is for what was earned, 1 is for what is two taps.
 
+> ### ✅ DONE 2026-08-03 — SYNC-DIRECTION AUDIT CLOSED (item 6)
+> The audit itself is `docs/data-sync.md` — every per-user datum, which way it syncs, and WHY, in the
+> owner's three categories (up-only choices · both-ways earned progress · local-only detail). It exists
+> so the next "restore X on reinstall" idea has something to be checked against, after that idea
+> recurred ~7 times for want of one.
+> **Acceptance bar met:** a user who replaces their phone does NOT start over in the Fan Zone — traced
+> end to end, not assumed.
+> All 5 gaps closed: (1) bell restore-down removed · (2) Superfan adopts at sign-in · (3) → the Predict
+> dual-source bug, still open as sweep item 3e below · (4) `trivia_scores` retired · (5) Game Center
+> never receives a zero.
+> ⚠️ **Two lessons worth keeping, both from getting it wrong first:**
+> • **Gap 2 was documented ✅ FIXED while only half fixed.** The guard that stopped a junk all-zero row
+>   also stopped the READ, because `submit` is read-merge-write-and-return — so the replacement phone,
+>   the exact case the fix existed for, still adopted nothing. Separate the read from the write when one
+>   call does both, and re-check a guard against the goal it was added to serve.
+> • **The Superfan card being always-visible is what would have EXPOSED that**, plus a cache that could
+>   be clobbered downward by a failed read. Making something visible is a good way to find out what was
+>   quietly wrong behind it.
+> 🟡 Owner action outstanding: confirm the three Game Center boards are **"Best Score"** (not "Most
+> Recent") in App Store Connect — belt-and-braces on top of the zero-skip.
+
 > ### 🐞 OWNER DEVICE SWEEP 2026-08-01 — 5 findings from a reinstall + live use
 > Reported off a real device after a fresh reinstall. Triaged in-session; **only the bar-alignment one
 > is fixed.** Each is stated with its VERIFIED cause, not a symptom, so none needs re-diagnosing.

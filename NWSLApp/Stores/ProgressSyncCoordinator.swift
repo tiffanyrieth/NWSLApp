@@ -136,19 +136,41 @@ final class ProgressSyncCoordinator {
     /// Best-effort throughout (`submit` never throws; it logs and returns `local` on failure), because
     /// this must never be able to fail the progress restore that follows it.
     private func mergeSuperfan(userID: UUID, year: Int) async {
+        let season = String(year)
         let local = SuperfanCounts.fromStores(
             season: year, predict: predict, bracket: bracket, trivia: trivia, knowHer: knowHer)
-        // A signed-in user who has never played would otherwise get an all-zero row written on every
-        // cold launch — pure churn, and a null-display-name row on the board's backing table.
-        guard local != .zero else { return }
+
+        // ⚠️ READ AND WRITE ARE SEPARATE HERE, and conflating them was a real bug (2026-08-03).
+        // `submit` is read-merge-write-and-return, so the anti-churn guard below — which stops a
+        // never-played user writing an all-zero row on every cold launch — ALSO stopped the read.
+        // The device that needs the read most is the one with nothing local: a replacement phone,
+        // whose whole season lives on the server. So: ADOPT unconditionally, WRITE only when there
+        // is something to write.
+        guard local != .zero else {
+            let saved = await superfan.savedCounts(userID: userID, season: season)
+            if saved != .zero { cache(saved, year: year) }
+            return
+        }
 
         let merged = await superfan.submit(
-            counts: local, season: String(year), userID: userID, displayName: auth.displayName)
-        SuperfanCountsCache.save(merged, season: year)
+            counts: local, season: season, userID: userID, displayName: auth.displayName)
+        cache(merged, year: year)
         // The season record book is monotonic on `peak_score`, so this is idempotent too. Without it
         // a user who never opens the detail screen keeps a stale record all season.
         await superfan.submitSeasonHistory(
             seasonYear: year, score: SuperfanScoring.total(counts: merged), userID: userID)
+    }
+
+    /// Write to the counts cache MONOTONICALLY — never below what it already holds.
+    ///
+    /// ⚠️ `SuperfanService.submit` returns the caller's own `local` counts when the network fails, and
+    /// saving that verbatim is how a cached 62 becomes a 25 on the next offline launch — the Home card
+    /// silently losing progress the user really earned. The cache's contract says it is only ever
+    /// written with merged counts; merging with what's already there enforces that rather than
+    /// trusting every call site to remember.
+    private func cache(_ counts: SuperfanCounts, year: Int) {
+        SuperfanCountsCache.save(
+            counts.merged(with: SuperfanCountsCache.load(season: year)), season: year)
     }
 
     /// Re-arming observation of `auth.userID` — same pattern (and reasoning) as FollowSyncCoordinator.

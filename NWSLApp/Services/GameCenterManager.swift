@@ -132,7 +132,23 @@ final class GameCenterManager {
     /// Submit a score to one leaderboard. Fire-and-forget; a failure is non-fatal (GC is
     /// additive) but NOT silent — it's flagged via telemetry so a wrong ASC id / offline /
     /// unlinked-account failure reaches the owner instead of vanishing.
+    /// Is this score worth sending? Pure, so the rule is testable without GameKit.
+    ///
+    /// ⚠️ A ZERO IS NEVER WORTH SENDING (2026-08-03). Submissions are fire-and-forget with no local
+    /// high-water mark, and `syncAll` runs on every foreground and whenever Game Center authenticates
+    /// — including on a fresh or replaced device, before the server restore has landed. A 0 submitted
+    /// then carries no information on any board configuration, and on a board set to "Most Recent
+    /// Score" it would replace a real total the user earned. Skipping it can never lose anything.
+    ///
+    /// This is deliberately the NARROW form of the fix. The obvious alternative — gate submissions
+    /// until the restore completes — is the pattern `NotificationSyncCoordinator` proved dangerous:
+    /// a too-broad "wait for restore" gate silently blocked syncing for a whole session when the
+    /// network failed. This has no ordering dependency at all, and it also covers the per-play
+    /// submits (BracketViewModel / PredictXIViewModel) that never pass through `syncAll`.
+    nonisolated static func isWorthSubmitting(_ value: Int) -> Bool { value > 0 }
+
     func submit(_ value: Int, to leaderboardID: String) {
+        guard Self.isWorthSubmitting(value) else { return }
         guard isAuthenticated else {
             // Genuine race: a game finished before GC auth resolved. The foreground/auth-change
             // `syncAll` re-pushes current store state once it does, so this self-heals — but flag

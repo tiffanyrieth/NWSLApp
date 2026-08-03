@@ -229,9 +229,9 @@ the user turns on exactly what they want. **Nuance (owner, match-alerts):** an E
 bell tap IS the opt-in, so it CASCADES the full default bundle the first time (day-before + kickoff +
 goals + halftime + full-time + lineups + Live Activities via `applyMatchAlertDefaultsIfFirstTime`) — a complete
 feature makes the best first impression; a bell-on-nothing-fires state is the banned "silent failure
-that looks like success." First-time only (a sentinel respects later manual edits; the sentinel resets
-on account-delete only — since 2026-07-16 a plain sign-out PRESERVES prefs + this sentinel and restores
-the exact prior toggles on re-sign-in, so no re-cascade).
+that looks like success." First-time only (a sentinel respects later manual edits; it resets on
+account-delete ONLY — a plain sign-out preserves prefs + sentinel and restores the prior toggles on
+re-sign-in, so no re-cascade).
 Because the bundle is mostly Tier-2, a signed-out bell tap presents Sign in with Apple FIRST
 (intercept: success → enable+cascade+toast, cancel → bell stays off). **Tier 1** = deliverable without
 an account (local: day-before, Player Spotlight — ⚠️ iOS caps PENDING local notifications at 64/app:
@@ -266,13 +266,15 @@ MID-onboarding). Pure, tested `FollowSyncCoordinator.resolveFollowOps`: **adds a
 `hasOnboarded`** — a half-filled picker must never look authoritative (that was the "only the oldest
 follow survives" data-loss bug). Post-onboarding the device is authoritative both ways, so
 follow-16-then-unfollow-to-2 leaves the server holding 2. **What sign-in DOES restore is GAME PROGRESS**
-(`fanzone_progress`, keyed `user_id` never `device_id`) — see `docs/fan-zone.md`. ⚠️ **NOTHING
-notification-related restores — owner ruling 2026-08-01, re-litigated ~7×, treat as SETTLED.** A reinstall
-is a CLEAN SLATE: the user re-picks clubs + re-taps bells and the post-onboarding sync pushes that reality
-UP; NOT re-selecting a team is a real signal, not data loss. It never paid — ~2 taps saved across 16 clubs,
-no scrolling saved — and a reinstall is often someone RESETTING a broken state, where pulling server data
-back down defeats the point. The 2026-07-22 restore (`docs/notifications.md` §1a) is SUPERSEDED; code/docs
-still asserting it are STALE — do NOT reinstate it (removal pending, `docs/roadmap.md`). ⚠️ Sim trap:
+(`fanzone_progress`, keyed `user_id` never `device_id`) — see `docs/fan-zone.md`. ⚠️ **THE RESTORE LINE
+(owner ruling 2026-08-03, re-litigated ~7× — treat as SETTLED): detailed PREFERENCES may restore, the
+generic "who do I follow" may NOT.** So the nine alert TYPES (`notification_preferences`) still come back
+verbatim, and land INERT (`NotificationsView` greys/disables Alert types until `isSignedIn &&
+enabledCount > 0`, so they apply to nothing until a bell is tapped). Per-team/NT **BELLS do NOT restore**
+(SHIPPED 2026-08-03): a reinstall is a CLEAN SLATE and NOT re-selecting a team is a real signal, not data
+loss — restoring saved ~2 taps of 16, and a reinstall is often someone RESETTING a broken state.
+`TeamAlertSyncCoordinator` is UPWARD-ONLY (prune gated on `hasOnboarded`). Directions per datum:
+**`docs/data-sync.md`.** ⚠️ Sim trap:
 `simctl uninstall` does NOT clear the prefs domain (`defaults delete` does) or a "fresh install" test lies. Two devices diverging
 offline → last writer wins (fine at current scale). **Gotcha (grants):** a new per-user table needs `grant … to
 authenticated` or signed-in queries fail silently with `42501` (RLS ≠ privilege); **AND** any table a

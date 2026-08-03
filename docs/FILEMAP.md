@@ -160,7 +160,7 @@ NWSLApp/
 │   ├── NotificationAuthPromptView.swift — contextual "sign in for live alerts" half-sheet (Tier 2)
 │   ├── ScheduleView.swift             — full-season cards; filter chips (NWSL · My teams · clinch-gated Playoffs); date headers + TODAY chip; opens at the past/upcoming boundary (no flash); re-tap + filter animate back. THE PLAYOFF HOME: round sections (RoundHeader status dot/left bar + PlayoffMatchupRow rows + Win→ card) at the schedule's end incl. the year-round TBD tail; Playoffs chip = clinch-window status cards ("my path to the playoffs", ClinchStatusCard) → PlayoffPathView once seeded; drives PlayoffStore.sync + the DEBUG postseason sim hooks
 │   ├── TeamsView.swift                — all-16 directory: ONE list (followed floated up); follow-competitions row; per-row 🔔 toggles (+ toast → hub) + nav-bar 🔔 → NotificationsView; first-visit coach mark
-│   ├── CompetitionsView.swift         — follow international comps: Champions Cup card+toggle + National Teams scoped search → SUGGESTED (8 curated, USA-first) over the full data-driven A-Z list; honest loading/error/empty; NT get no detail page
+│   ├── CompetitionsView.swift         — follow international comps: Champions Cup card+toggle + National Teams scoped search → SUGGESTED (8 curated, USA-first) over the full data-driven A-Z list; honest loading/error/empty; NT cards tap through to NationalTeamDetailView (browsable since 2026-07-31)
 │   ├── TeamDetailView.swift           — club page: header (⭐ follow) + social row + Squad·Stats tabs
 │   ├── NationalTeamDetailView.swift   — country page (2026-07-31): flag hero + LIVE ESPN-as-is squad (source-feed label; honest empty state; NO storage/verification by design — national-teams.md §0)
 │   ├── MatchDetailView.swift          — state-aware match: full-bleed Card-C header (72pt crests, team-color abbr + score) + bare ‹ chevron over a transparent bar (`nativeBackButton()`); past=Play-by-Play/Lineups/Stats (formation pitch + TAPPABLE bench chips), live=poll (60s) & LIVE pill, future=info + How-to-Watch + comparison + form. Attendance never renders `0` (ESPN's "unknown") — label stays, number waits; header rail `ViewThatFits` so AX1 can't truncate the count
@@ -175,7 +175,7 @@ NWSLApp/
 │   ├── _ColorAuditView.swift          — 🔧 DEBUG-only 16-club color audit (`-colorAudit`); remove once verified
 │   └── _AssetAuditView.swift          — 🔧 DEBUG-only bundled-crest/flag fidelity audit (`-assetAudit`); remove once verified
 ├── Components/
-│   ├── BroadcastInfo.swift / BroadcastLink.swift — "How to Watch" DB + broadcast→watch-URL
+│   ├── BroadcastInfo.swift (+ `BroadcastAccess`, the ONE free/paid table) / BroadcastLink.swift — "How to Watch" DB + broadcast→watch-URL
 │   ├── Chip.swift                     — pill filter chip (Schedule + Social chip bars); optional `compact` (13pt) + `horizontalPadding` override (Social packs 4 on one no-scroll row)
 │   ├── CategoryPill.swift             — the card's "what kind of voice" pill (NEWS·LEAGUE·REPORTER·PLAYER·CLUB by `resolvedSourceType`, via `dsCategory*` tokens); NEWS + REPORTER both ride the Reporters chip (article vs social format), LEAGUE has no chip
 │   ├── BroadcastBrand.swift           — the ONE broadcast-network → brand-color table (ESPN/ABC/CBS/ION/Victory+…); shared source for BroadcastChip + BroadcastInfo (was two disagreeing palettes)

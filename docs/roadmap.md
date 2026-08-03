@@ -112,19 +112,24 @@
 >
 > </details>
 >
-> **2. 📜 National-team list jumps up ~3 rows on the first follow at the bottom (ZAM).**
-> `CompetitionsView.swift:190` is a `LazyVGrid` in a plain `ScrollView`; following changes that card's
-> height (bell affordance) while the toast animates in, and at the very bottom iOS re-clamps the scroll
-> offset because content height changed. Only bites at the bottom — that's the only place the offset is
-> forced to move. Needs sim iteration.
->
-> **3. 🎯 Predict — four separate things:**
-> - **(a) Pitch flashes before the community panel.** The locked view renders its default state before
->   the community payload resolves. Loading-order fix.
-> - **(b) ✅ FIXED 2026-08-01 — bars started at different x.** Per-player rows were
->   `HStack { band · name · Spacer · bar · % }`, so each bar began where the name ended and equal shares
->   drew unequal bars. Ported the `CommunityResultsView.optionRow` layout (name on its own line, bar
->   full-width beneath, % at `minWidth`), which the two community games already carry. Names now wrap
+> **2. 📜 NT list scroll jump — ⚠️ NOT REPRODUCIBLE IN THE SIM (2026-08-03). Needs device evidence.**
+> Tried signed-out and signed-in, first follow and repeat, at the very bottom of a fully-loaded list
+> (URU → VEN → VIE → WAL → ZAM, so "3 rows up" would land on UKR/USA exactly as reported). Measured
+> shift: **0.0pt every time.**
+> ⚠️ **Two structural hypotheses were tested and BOTH are wrong — do not re-propose them:**
+> (a) *"the card grows when followed"* — it doesn't; the bell sits in a fixed 32pt row and the
+> gradient/stroke are background layers; (b) *"the in-cell NavigationLink(destination:) causes it"* —
+> and the fix that implied would have **reversed a documented fix**: `CombinedPitchView.swift:74-80`
+> records that registering `.navigationDestination(for:)` on a PUSHED child mis-scoped the destination
+> and double-pushed MatchDetail (2026-07-18). `CompetitionsView` is also pushed.
+> **Leading explanation: scroll physics, not re-layout.** `idb` swipes are discrete and carry no
+> momentum; a real finger leaves the view decelerating, and at the bottom it is often rubber-banding
+> back from an overscroll — tapping mid-settle would look exactly like a 3-row jump. Owner also notes
+> it may simply be a device-vs-TestFlight difference.
+> **What makes this actionable:** reproduce on device with the list FULLY STOPPED before tapping.
+> Still jumps when dead still ⇒ real, and there's something to design against. Doesn't ⇒ momentum.
+> ✅ Fixed anyway while in there: `NationalTeamCard` had no `.contentShape(Rectangle())`, so only the
+> flag/code/name glyphs were tappable rather than the whole card (regression from `0141876`).
 >   instead of truncating (AX1) and each row is one VoiceOver fact.
 >   🔴 **OPEN — DEVICE-VERIFY BEFORE BUILD 32 SHIPS. Do not let this ride out unseen.**
 >   It is **already ON MAIN** (it rode into #225, which was titled "Docs:" — I branched the docs work
@@ -168,12 +173,32 @@
 > aging artifact. Re-measure if any title grows. Built in one place per tier:
 > `DayBeforeContent.swift:57` (Tier 1); the watcher's copy-v4 builder (Tier 2).
 >
-> **5. 📺 HOW TO WATCH is missing for CBSSN — and the whole list needs research (owner, for 2026-08-02).**
-> On an upcoming match's detail screen the how-to-watch affordance doesn't render at all for CBSSN.
-> Beyond that one gap: **research what viewers actually struggle with** (Reddit especially — that's where
-> fans ask) and expand the guidance for every broadcaster, not just fix the missing row. Use the browser
-> MCP for the Reddit sweep. NOT started — owner scheduled this for the next session.
-
+> **5. ✅ DONE 2026-08-03 — HOW TO WATCH rebuilt on research, not a lookup table.**
+> The card no longer vanishes, the advice is accurate, and the two screens finally agree.
+> **What was actually wrong** (none of it was just "CBSSN missing"):
+> • the resolver was an EXACT-string dictionary, so `CBSSN`, `ABC`, `ESPN2`, `ESPN Deportes` and
+>   `ESPN+` all missed — and the card had no else-branch, so it rendered **nothing**;
+> • **ABC** — free over the air — was badged SUBSCRIPTION on Match Detail and FREE on Home. Two
+>   tables, same match, opposite answers;
+> • a bare `contains("ion")` matched **"Univision"**, and the app folds ~15 women's NT feeds into the
+>   schedule, so a Mexico fixture would render a purple ION chip with a FREE badge;
+> • unknown broadcasters defaulted to `free: false` ⇒ a confident **SUBSCRIPTION** badge for a channel
+>   we had never heard of — a fabricated paywall.
+> **Fixed:** ordered normalizing resolver (specific-before-general, ION token-exact) · tri-state
+> `BroadcastAccess` (free / paid / **unknown → no badge**) shared by both surfaces · an honest unknown
+> card + `Diagnostics` instead of silence · `Device.id` keyed on the label, not `UUID()` · dead
+> `BroadcastLink` deleted after porting its one real case · **18 tests where there were zero.**
+> **⭐ The copy is now research, and two corrections were expensive to learn:**
+> • **Paramount+ carries CBS Sports Network on NO tier**, including Premium (which adds the local CBS
+>   *station* — a different channel). The old copy told CBSSN viewers to "open the Paramount+ app":
+>   pay, and still miss the match. The owner lost an hour to exactly this on a Spirit match.
+> • **A fan paid $120/month for Fubo** before learning ION is free on Tubi / Pluto TV / Plex / antenna.
+>   ION now leads with those, plus `iontelevision.com/find-us` (ZIP → local channel), the Roku path
+>   (Roku Channel → Live TV → ION, *not* an app-store search), and the free-Sling DVR trick.
+> • **NWSL+ posts full replays a few days later** — the real answer for anything you can't get live,
+>   and it was missing entirely.
+> Sources: r/NWSL + cord-cutting guides, 2026-08-03. 2026 split: 240 matches, 160 free / 80 paid;
+> CBSSN is the biggest paid block (25) and the only one with no cheap path.
 > ### ✅ DONE + DEPLOYED 2026-07-30 — WATCHER: "suspended" is not full time
 > **Fixed and deployed** (`isUnfinishedPost` → `Match.unfinishedPost`, consulted at all three sites;
 > 87 watcher tests + `test/suspension.test.ts`). The Live Activity path RETURNS EARLY on a suspension

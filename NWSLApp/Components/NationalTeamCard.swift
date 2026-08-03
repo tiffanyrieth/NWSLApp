@@ -66,6 +66,12 @@ struct NationalTeamCard: View {
                         // aligned across 1- and 2-line names, centered like the club card.
                         .frame(minHeight: 35, alignment: .center)
                 }
+                // ⚠️ Without these the tap target is only the flag/code/name GLYPHS, not the card
+                // column — so the dead space beside a short country name does nothing (regression
+                // from the 2026-07-31 browse commit). The club card has carried both since it
+                // shipped; matching it here.
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             controlRow

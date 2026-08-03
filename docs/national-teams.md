@@ -38,10 +38,11 @@ which doesn't care which competition the event belongs to. **Tapping a player in
 - **Rhoda Chileshe** (not in NWSL) → jersey + position only; the query legitimately returns nothing.
 
 So the real boundary is narrower and sharper than "NT gets less at match time":
-- ❌ **No national-team BROWSE surface.** There is no `NationalTeamView` in the codebase — a country
-  card is not tappable because the destination was never built, *including for the USWNT*. Club cards
-  go to `TeamDetailView`; countries have no equivalent, so **no NT roster page and no squad list**.
-  **This is intentional — do not "fix" it with a `NavigationLink`.**
+- ⚠️ **SUPERSEDED 2026-07-31 — national teams ARE browsable now.** This bullet used to read "there is
+  no `NationalTeamView` … do not 'fix' it with a `NavigationLink`", and it survived the commit that
+  invalidated it (`0141876`). `NationalTeamDetailView` exists, a country card taps through to a live
+  squad, and player pages show a tournament block. Corrected 2026-08-03 — the stale instruction was
+  actively steering readers away from shipped behaviour.
 - ❌ **No NT-specific player stats.** Nothing tracks caps, international goals, or a country's season
   totals. What you see is her NWSL record, surfaced because she happens to be in the lineup.
 - ❌ No Fan Zone games, no roster identity verification, no weather radar (the case that prompted this).

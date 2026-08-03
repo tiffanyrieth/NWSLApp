@@ -1,5 +1,30 @@
 # Roadmap / What's Next
 
+> ### 🧭 SYNC-DIRECTION AUDIT — write down what syncs which way, and why (owner 2026-08-01)
+> **Why:** the "reinstall restores your teams" idea has resurfaced ~7 times in a few months. Root cause
+> found 2026-08-01 — it was asserted as intended behaviour in **8 places**, two of which auto-load into
+> every session (`CLAUDE.md`, memory `MEMORY.md`), and `docs/notifications.md` §1a framed it as the FIX
+> for a banned silent-failure, so removing it read as reintroducing a bug. All 8 are now corrected or
+> banner-superseded, **but the underlying gap remains: there is no single place that states, per data
+> type, which direction it syncs and why.** Until there is, the next plausible-sounding restore idea has
+> nothing to be checked against.
+>
+> **Deliverable:** one table covering every piece of user data, each classified into the owner's three
+> categories, with the REASON (the reason is what stops it being re-litigated):
+> 1. **UP-ONLY — device is truth.** Supabase needs a current copy to *act* (the watcher must know who
+>    follows what, with which alerts, to push at all). Nothing comes back down. *(follows; team +
+>    competition alert bells; alert types, pending the sub-question in the sweep below)*
+> 2. **BOTH WAYS — server is durable truth.** Things the user EARNED and must never lose on a new phone
+>    or a reinstall. *(Fan Zone progress, Superfan counts, leaderboard scores, display name)*
+> 3. **LOCAL-ONLY — deliberately not stored.** Fine-grained per-round detail that would cost real
+>    database to keep per user, where the server holds only the cheap rollup it needs for leaderboards.
+>    *(per-round picks/answers, streak internals, caches)*
+>
+> **Owner's acceptance bar: a user who gets a NEW PHONE must never start over in the Fan Zone.** The
+> audit must prove that end-to-end, not assume it — check each category-2 item actually round-trips.
+> Also flag any GAPS (data in the wrong category, or synced in a direction nothing justifies).
+> Scope note: category 1 vs 2 is the whole point — 2 is for what was earned, 1 is for what is two taps.
+
 > ### 🐞 OWNER DEVICE SWEEP 2026-08-01 — 5 findings from a reinstall + live use
 > Reported off a real device after a fresh reinstall. Triaged in-session; **only the bar-alignment one
 > is fixed.** Each is stated with its VERIFIED cause, not a symptom, so none needs re-diagnosing.

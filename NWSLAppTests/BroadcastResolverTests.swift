@@ -27,7 +27,8 @@ struct BroadcastResolverTests {
         #expect(BroadcastInfo.info(for: "CBS Sports Network") != nil)
         #expect(BroadcastInfo.info(for: "CBSSN")?.name == "CBS Sports Network")
         // And it must be honest that there is no cheap way in.
-        #expect(BroadcastInfo.info(for: "CBSSN")?.access == .paid)
+        #expect(BroadcastInfo.info(for: "CBSSN")?.access.isFree == false)
+        #expect(BroadcastInfo.info(for: "CBSSN")?.access.label == "Live TV subscription")
     }
 
     @Test func everyStringESPNActuallySendsResolves() {
@@ -50,17 +51,16 @@ struct BroadcastResolverTests {
         #expect(BroadcastAccess.of("Univision") == .unknown)
     }
 
-    @Test func golazoIsNotCBSSportsNetwork() {
-        // Different channel, opposite access: Golazo is free ad-supported, CBSSN needs cable.
-        #expect(BroadcastInfo.info(for: "CBS Sports Golazo Network")?.name == "CBS Sports Golazo Network")
-        #expect(BroadcastInfo.info(for: "CBS Sports Golazo Network")?.access == .free)
-        #expect(BroadcastInfo.info(for: "CBSSN")?.access == .paid)
+    @Test func cbsSportsAliasesToCBSSN() {
+        // The handoff treats "CBS Sports" as an alias of CBSSN — both are the cable channel.
+        #expect(BroadcastInfo.info(for: "CBS Sports")?.name == "CBS Sports Network")
+        #expect(BroadcastInfo.info(for: "CBSSN")?.name == "CBS Sports Network")
     }
 
     @Test func espnVariantsDontCollapseIntoPlainESPN() {
         #expect(BroadcastInfo.info(for: "ESPN+")?.name == "ESPN+")
         #expect(BroadcastInfo.info(for: "ESPN Deportes")?.name == "ESPN Deportes")
-        #expect(BroadcastInfo.info(for: "ESPN2")?.name == "ESPN")
+        #expect(BroadcastInfo.info(for: "ESPN2")?.name == "ESPN2")
     }
 
     @Test func nwslPlusDoesNotSwallowEveryStringContainingNWSL() {
@@ -75,15 +75,15 @@ struct BroadcastResolverTests {
         // ⚠️ THE DISAGREEMENT. Match Detail said SUBSCRIPTION for ABC; Home's Coming Up said FREE.
         // Same match, two screens, opposite answers — and ABC is free over the air, so Match Detail
         // was the wrong one. Both surfaces now read this.
-        #expect(BroadcastAccess.of("ABC") == .free)
+        #expect(BroadcastAccess.of("ABC").isFree)
     }
 
     @Test func cbsSportsNetworkIsPaidEvenThoughItContainsCBS() {
         // The other half of the disagreement: Home called any "CBS*" string FREE, which is right for
         // the broadcast network and wrong for the cable sports channel.
-        #expect(BroadcastAccess.of("CBS") == .free)
-        #expect(BroadcastAccess.of("CBSSN") == .paid)
-        #expect(BroadcastAccess.of("CBS Sports Network") == .paid)
+        #expect(BroadcastAccess.of("CBS").isFree)
+        #expect(!BroadcastAccess.of("CBSSN").isFree)
+        #expect(!BroadcastAccess.of("CBS Sports Network").isFree)
     }
 
     @Test func unknownBroadcasterGetsNoBadgeAtAll() {
@@ -93,6 +93,7 @@ struct BroadcastResolverTests {
         #expect(BroadcastAccess.of("Telemundo") == .unknown)
         #expect(BroadcastAccess.of("Telemundo").badge == nil)
         #expect(BroadcastAccess.of("Telemundo").shortBadge == nil)
+        #expect(BroadcastAccess.of("Telemundo").label == nil, "no access label either")
         #expect(BroadcastAccess.of(nil) == .unknown)
     }
 
@@ -128,30 +129,37 @@ struct BroadcastResolverTests {
         #expect(ion.devices.first?.id == ion.devices.first?.device)
     }
 
-    @Test func cbssnCopyDoesNotSendPeopleToParamountPlus() {
-        // The owner spent an hour on this: Paramount+ carries NO tier that includes CBS Sports
-        // Network, so the old "open the Paramount+ app" step meant paying and still missing the
-        // match. The entry must say so rather than imply a path that doesn't exist.
-        let steps = BroadcastInfo.info(for: "CBSSN")!.devices.map(\.steps).joined(separator: " ")
-        #expect(steps.contains("does NOT carry"))
-        #expect(steps.contains("NWSL+"), "must offer the free replay fallback")
+    @Test func class2EntriesListServicesNotDevices() {
+        // The handoff's two classes: a subscription partner's "Find it" rows name SERVICES that carry
+        // it, because the barrier is knowing who has it — not finding an app.
+        let rows = BroadcastInfo.info(for: "CBSSN")!.devices.map(\.device)
+        #expect(rows == ["YouTube TV", "Hulu + Live TV", "Fubo", "DirecTV Stream"])
     }
 
-    @Test func ionCopyCarriesTheFreePathsPeopleMiss() {
-        // A fan paid $120/month for Fubo before learning ION is free. These are the paths named on
-        // r/NWSL that the old copy omitted.
-        let steps = BroadcastInfo.info(for: "ION")!.devices.map(\.steps).joined(separator: " ")
-        for path in ["Tubi", "Pluto TV", "Plex", "iontelevision.com/find-us"] {
-            #expect(steps.contains(path), "ION guidance is missing \(path)")
+    @Test func class1EntriesListDevicesNotServices() {
+        // A free partner's rows name DEVICES, because the barrier is finding the app.
+        let rows = BroadcastInfo.info(for: "ION")!.devices.map(\.device)
+        #expect(rows == ["Roku", "Fire TV", "Samsung TV", "Phone / PC"])
+    }
+
+    @Test func copyCarriesNoPricesNegativityOrEmoji() {
+        // The handoff's "What NOT to do" list, enforced. An earlier pass violated all three.
+        for name in ["ION", "CBSSN", "CBS", "ABC", "ESPN", "ESPN2", "ESPN Deportes", "ESPN+",
+                     "NWSL+", "Victory+", "Paramount+", "Prime Video"] {
+            let info = BroadcastInfo.info(for: name)!
+            let copy = ([info.note] + info.devices.map(\.steps) + info.devices.map(\.device))
+                .joined(separator: " ")
+            #expect(!copy.contains("$"), "\(name) copy contains a price")
+            #expect(!copy.contains("NOT"), "\(name) copy contains NOT-on-X negativity")
+            #expect(!copy.contains("⚠️") && !copy.contains("⭐"), "\(name) copy contains emoji")
         }
     }
 
-    @Test func victoryPlusExplainsWhereItWent() {
-        // ESPN's feed may still carry the string. Dropping the key would fall through to the generic
-        // unknown card and say nothing about the July 2026 termination.
+    @Test func victoryPlusStaysAsADormantEntry() {
+        // Handoff: "Don't remove Victory+." It costs nothing and future-proofs a return.
         let info = BroadcastInfo.info(for: "Victory+")
         #expect(info != nil)
-        #expect(info!.note.contains("NWSL+"))
+        #expect(info!.devices.count == 4)
     }
 }
 

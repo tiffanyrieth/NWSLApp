@@ -161,7 +161,7 @@ struct ComingUpRow: View {
                     .lineLimit(1)
                 // No badge when access is unknown — a guess here reads as fact.
                 if let badge = access.shortBadge {
-                    let free = access == .free
+                    let free = access.isFree
                     Text(badge)
                         .dsFont(9.5, weight: .bold)
                         .foregroundStyle(free ? Color.dsSuccess : Color.dsFgTertiary)

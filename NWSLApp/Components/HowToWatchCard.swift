@@ -76,15 +76,24 @@ struct HowToWatchCard: View {
                         Text(badge)
                             .dsFont(10.5, weight: .bold)
                             .tracking(0.5)
-                            .foregroundStyle(info.access == .free ? Color.dsSuccess : Color.dsFgSecondary)
+                            .foregroundStyle(info.access.isFree ? Color.dsSuccess : Color.dsFgSecondary)
                             .padding(.horizontal, 9)
                             .padding(.vertical, 3)
-                            .background(info.access == .free ? Color.dsSuccess.opacity(0.16) : Color.dsBgTertiary,
+                            .background(info.access.isFree ? Color.dsSuccess.opacity(0.16) : Color.dsBgTertiary,
                                         in: Capsule())
                     }
                 }
 
-                BroadcastChip(name: broadcast ?? info.name, small: false)
+                // Chip + the access label the handoff specifies ("Free over-the-air",
+                // "Live TV subscription", …). No label when access is unknown.
+                HStack(spacing: 10) {
+                    BroadcastChip(name: broadcast ?? info.name, small: false)
+                    if let label = info.access.label {
+                        Text(label)
+                            .dsFont(12.5)
+                            .foregroundStyle(Color.dsFgSecondary)
+                    }
+                }
 
                 Text(info.note)
                     .dsFont(13)

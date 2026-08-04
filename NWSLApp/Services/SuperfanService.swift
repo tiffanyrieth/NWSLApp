@@ -84,6 +84,13 @@ struct SuperfanService {
     /// today's score), `final_score` tracks the latest. Best-effort. Called alongside the score submit so
     /// the record book stays current without a rollover job.
     func submitSeasonHistory(seasonYear: Int, score: Int, userID: UUID) async {
+        // ⚠️ Never write a zero row. A user who has played but scored 0 (e.g. 0/11 predicted) would
+        // otherwise get a `season_history` row that renders as an empty "2026 · Fan · Current" shell
+        // for a season they haven't really contributed to. Guarding HERE covers both callers — the
+        // sign-in merge (`ProgressSyncCoordinator.mergeSuperfan`) and the detail screen — rather than
+        // relying on each to remember. Peak is monotonic below, so skipping a 0 can never lower an
+        // existing row.
+        guard score > 0 else { return }
         do {
             let existingPeak = try await currentPeak(userID: userID, seasonYear: seasonYear)
             let peak = max(score, existingPeak)

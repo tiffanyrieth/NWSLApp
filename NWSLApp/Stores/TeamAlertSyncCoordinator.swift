@@ -205,8 +205,6 @@ final class TeamAlertSyncCoordinator {
             // Pushes are always safe (they only ever ADD intent); deletes wait. Same rule, same
             // reason, as `FollowSyncCoordinator.resolveFollowOps`.
             let mayPrune = following.hasOnboarded
-            // Only a pass that could actually converge counts as done (see `reconciledForUserID`).
-            if mayPrune { reconciledForUserID = userID }
             do {
                 // Device-authoritative, always: converge the server to what is on this phone.
                 // An empty local set is a legitimate answer ("no bells"), not a signal to restore.
@@ -226,14 +224,14 @@ final class TeamAlertSyncCoordinator {
                     catch { Diagnostics.shared.record(.apiFailure, "team-alert reconcile push \(teamID): \(error.localizedDescription)") }
                 }
                 if mayPrune {
-                    // ⚠️ Re-read the ON set AFTER the awaits. A bell tapped while those fetches were in
-                    // flight is absent from the snapshot taken at the top, so pruning against that
-                    // stale set would DELETE the row the tap just created — leaving the bell ON
-                    // locally with no server row, and nothing to re-push it. The bell-intercept
-                    // sign-in makes exactly that interleaving reachable (the deferred activation runs
-                    // alongside this reconcile). Never prune a team that is currently ON.
-                    let liveOn = alerts.teamsWithAlerts()
-                    for teamID in allRemoteClub.subtracting(clubAuth).subtracting(liveOn) {
+                    // ⚠️ Re-read the ON set BEFORE EACH delete, not once. A bell tapped while any of
+                    // these awaits is in flight is absent from a single top-of-loop snapshot, so a
+                    // stale snapshot would still DELETE the row the tap just created — bell ON
+                    // locally, no server row, nothing to re-push it (the bell-intercept sign-in makes
+                    // this interleaving reachable). Checking `teamsWithAlerts()` immediately before
+                    // each delete shrinks the window to a single await; a team turned ON by then is
+                    // skipped, and anything still wrongly deleted self-heals on the next reconcile.
+                    for teamID in allRemoteClub.subtracting(clubAuth) where !alerts.teamsWithAlerts().contains(teamID) {
                         do { try await service.delete(teamID: teamID, userID: userID) }
                         catch { Diagnostics.shared.record(.apiFailure, "team-alert reconcile prune \(teamID): \(error.localizedDescription)") }
                     }
@@ -247,13 +245,20 @@ final class TeamAlertSyncCoordinator {
                     catch { Diagnostics.shared.record(.apiFailure, "nt-alert reconcile push \(key): \(error.localizedDescription)") }
                 }
                 if mayPrune {
-                    // Same re-read, same reason, in the national-team realm.
-                    let liveOnKeys = Set(alerts.teamsWithAlerts().map(Self.ntKey))
-                    for key in allRemoteNT.subtracting(ntAuthKeys).subtracting(liveOnKeys) {
+                    // Same per-delete re-read, same reason, in the national-team realm.
+                    for key in allRemoteNT.subtracting(ntAuthKeys)
+                        where !alerts.teamsWithAlerts().map(Self.ntKey).contains(key) {
                         do { try await competition.delete(followKey: key, userID: userID) }
                         catch { Diagnostics.shared.record(.apiFailure, "nt-alert reconcile prune \(key): \(error.localizedDescription)") }
                     }
                 }
+
+                // ⚠️ CONVERGED — mark the identity done ONLY here, after both prune loops have
+                // actually completed. Setting it before the awaits (as it was) meant a network throw
+                // aborted to the catch below with the flag stuck set, and since this coordinator has
+                // no foreground retry the stale rows from the prior install were never pruned until a
+                // cold launch. Leaving it unset on a throw lets the next observed change retry.
+                if mayPrune { reconciledForUserID = userID }
             } catch {
                 Diagnostics.shared.record(.apiFailure, "team-alert reconcile: \(error.localizedDescription)")
             }

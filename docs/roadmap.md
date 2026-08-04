@@ -1,5 +1,26 @@
 # Roadmap / What's Next
 
+> ### 🚨 ALERTING GAP — a total outage paged NOBODY (owner 2026-08-04, NOT fixed today)
+> **What happened:** ESPN began 403'ing the proxy's UA-less scoreboard fetches → `/scoreboard` 502'd
+> for hours → **2 of 5 app tabs fully down (Home landing page + Schedule)**. The owner got **zero email
+> alerts**. It was caught only by chance (she opened the app while Claude was mid-Predict-build). A
+> sudden spike of 502s taking down the landing page MUST email an alert.
+>
+> **Root cause (verified in code):** the scoreboard/summary failure path — `proxyAndCache`'s
+> `if (!espnResponse.ok) { … return upstreamError() }` — **never calls `emitDiag`**. The error-spike
+> pager (`checkErrorSpike` → Resend email, ≥8 err/15min) counts **only** `sdiag:` records, so 548
+> scoreboard failures produced zero countable events and never fired. The single most critical path in
+> the proxy is the one path not wired into alerting. Meanwhile **healthchecks.io** watches the watcher
+> CRON's heartbeat (it kept completing fine on 502s → "up"), and **UptimeRobot** pings a static endpoint
+> that 200s regardless of ESPN — so none of the three monitors actually asks "does the scoreboard return
+> real data?"
+>
+> **Fix (two parts):** (1) **emit a diagnostic on the ESPN upstream failure** in `proxyAndCache` (a
+> distinct kind NOT on the `image fetch` exclusion list) → the existing pager fires within a minute of a
+> real spike; (2) a **synthetic scoreboard check** (UptimeRobot keyword monitor or a health route) that
+> fetches `/scoreboard` and asserts 200 + non-empty `events` — defense-in-depth so a pager gap can't hide
+> a data outage again. See memory `project_espn_403_no_user_agent`.
+
 > ### 📰 CONTENT-SOURCE AUDIT — per club, are we pulling everything we can? (owner 2026-08-03)
 > **Goal:** Club News (Home) and Social are the ALIVE surfaces — the whole product thesis. Audit and
 > log, **per club**, every source we pull and every one we could: club news/article feed (OG

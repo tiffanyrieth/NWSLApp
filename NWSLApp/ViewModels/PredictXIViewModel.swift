@@ -459,6 +459,20 @@ final class PredictXIViewModel {
         var isBelowFold: Bool = false
     }
 
+    /// A predictor still EARNING a ranked position (fewer than `provisionalThreshold` scored matches).
+    /// Shown in the board's "Earning their ranking" section with progress dots instead of a rank number,
+    /// so a single lucky match can't masquerade as #1. SEASON board only.
+    struct ProvisionalRow: Identifiable {
+        let id = UUID()
+        let name: String
+        let matches: Int
+        let isYou: Bool
+    }
+
+    /// Per-team provisional predictors (season board), closest-to-ranking first. Populated alongside
+    /// `leaderboards` in `loadLeaderboards`.
+    private(set) var provisionalByTeam: [String: [ProvisionalRow]] = [:]
+
     /// Fetch the real per-team standings and build a board for each team the user is
     /// actively predicting (in the slate) or has scored in. Signed-in users first
     /// push their fresh per-team totals to Supabase (best-effort); then everyone
@@ -506,15 +520,19 @@ final class PredictXIViewModel {
         var boards: [(team: String, rows: [LeaderboardRow])] = []
         var rounds: [(team: String, week: Int, weekLabel: String, rows: [LeaderboardRow])] = []
         var teamStandings: [String: TeamStanding] = [:]
+        var provisionals: [String: [ProvisionalRow]] = [:]
         for team in teams {
             let standings = await leaderboardService.standings(teamAbbreviation: team, season: season)
             let myPoints = store.points(forTeam: team)
             let myMatches = store.scoredMatchCount(forTeam: team)
             let myAvg = myMatches > 0 ? Double(myPoints) / Double(myMatches) : 0
-            // Only the signed-in user gets a "You" row — and only they need a rank lookup. The SEASON board
-            // ranks by AVERAGE per match (Batch 3), so the rank query compares avg_points.
+            // A signed-in user is RANKED only once they've completed `provisionalThreshold` matches;
+            // below that they belong in the provisional section, not spliced into the ranked list. Only
+            // a ranked user needs a rank lookup. The SEASON board ranks by AVERAGE per match (Batch 3),
+            // so the rank query compares avg_points.
+            let isMeRanked = auth.userID != nil && myMatches >= PredictLeaderboardService.provisionalThreshold
             var trueRank: Int?
-            if auth.userID != nil {
+            if isMeRanked {
                 trueRank = await leaderboardService.rank(
                     teamAbbreviation: team, season: season, avgPoints: myAvg)
             }
@@ -533,6 +551,19 @@ final class PredictXIViewModel {
             let serverAvg = myMatches == 0 ? rows.first(where: { $0.isYou })?.avg : nil
             teamStandings[team] = TeamStanding(rank: trueRank, total: shownTotal, serverAvg: serverAvg)
             boards.append((team: team, rows: rows))
+
+            // Provisional predictors (< threshold matches) for the "Earning their ranking" section. Drop
+            // the user's own server row (lowercase-match, same guard as the ranked splice) and add their
+            // live local one when they're still provisional — so the dots reflect anything scored since
+            // the last fetch.
+            let myID = auth.userID?.uuidString.lowercased()
+            var provRows = await leaderboardService.provisionalStandings(teamAbbreviation: team, season: season)
+                .filter { $0.userID.lowercased() != myID }
+                .map { ProvisionalRow(name: $0.name, matches: $0.matches, isYou: false) }
+            if auth.userID != nil, myMatches < PredictLeaderboardService.provisionalThreshold {
+                provRows.append(ProvisionalRow(name: auth.displayName ?? "You", matches: myMatches, isYou: true))
+            }
+            provisionals[team] = provRows.sorted { $0.matches > $1.matches }
 
             // The round board: the current week once it has any of MY scores, else my latest scored
             // week (the just-finished round — "did I beat them Sunday"). No round-stamped score yet →
@@ -555,6 +586,7 @@ final class PredictXIViewModel {
         leaderboards = boards
         roundBoards = rounds
         standingByTeam = teamStandings
+        provisionalByTeam = provisionals
     }
 
     /// Which soccer week a team's round board shows: the current week if I have scored points in it,

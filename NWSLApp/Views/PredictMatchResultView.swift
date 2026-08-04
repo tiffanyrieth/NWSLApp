@@ -268,30 +268,42 @@ struct PredictMatchResultView: View {
 
     private var breakdownSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("HOW YOUR \(score.total) POINTS ADD UP")
-            breakdownRow("Correct players", detail: "\(score.correctPlayers) of 11 starters called",
-                         points: score.playersPoints, earned: score.correctPlayers > 0)
-            breakdownRow("Right position", detail: "\(score.correctPositions) of your \(score.correctPlayers) in the right line",
-                         points: score.positionsPoints, earned: score.correctPositions > 0)
-            breakdownRow("Formation", detail: youActual(prediction?.formation, model.detail?.actualFormation),
-                         points: score.formationPoints, earned: score.formationCorrect)
-            breakdownRow("Exact score", detail: youActual(scoreGuess, finalScoreText),
-                         points: score.scorelinePoints, earned: score.exactScoreline)
-            breakdownRow("Result (win / draw / loss)",
-                         detail: score.resultCorrect ? "You called the right result" : "Missed",
-                         points: score.resultPoints, earned: score.resultCorrect)
+            sectionLabel("HOW YOUR POINTS ADD UP")
+            // Each row is gated on the VM's staggered reveal (index order MUST match
+            // PredictResultViewModel.breakdownPoints); the Total counts up as they land.
+            scoreLine(0, breakdownRow("Correct players", detail: "\(score.correctPlayers) of 11 starters called",
+                                      points: score.playersPoints, earned: score.correctPlayers > 0))
+            scoreLine(1, breakdownRow("Right position", detail: "\(score.correctPositions) of your \(score.correctPlayers) in the right line",
+                                      points: score.positionsPoints, earned: score.correctPositions > 0))
+            scoreLine(2, breakdownRow("Formation", detail: youActual(prediction?.formation, model.detail?.actualFormation),
+                                      points: score.formationPoints, earned: score.formationCorrect))
+            scoreLine(3, breakdownRow("Exact score", detail: youActual(scoreGuess, finalScoreText),
+                                      points: score.scorelinePoints, earned: score.exactScoreline))
+            scoreLine(4, breakdownRow("Result (win / draw / loss)",
+                                      detail: score.resultCorrect ? "You called the right result" : "Missed",
+                                      points: score.resultPoints, earned: score.resultCorrect))
             // Only when earned — an unearned Perfect XI row reads as a rebuke every single match.
             if score.perfectXI {
-                breakdownRow("Perfect XI bonus", detail: "All 11!", points: score.perfectPoints, earned: true)
+                scoreLine(5, breakdownRow("Perfect XI bonus", detail: "All 11!", points: score.perfectPoints, earned: true))
             }
             HStack {
                 Text("Total").dsFont(15, weight: .bold)
                 Spacer()
-                Text("\(score.total) of \(PredictionScore.maxPerMatch) possible")
+                Text("\(model.runningScoreTotal) of \(PredictionScore.maxPerMatch) possible")
                     .dsFont(15, weight: .heavy).foregroundStyle(accent)
+                    .contentTransition(.numericText())
             }
             .padding(.horizontal, 10).padding(.vertical, 11)
         }
+    }
+
+    /// Wraps a breakdown row in the staggered reveal: hidden + nudged left until its index has landed.
+    private func scoreLine(_ index: Int, _ content: some View) -> some View {
+        let shown = model.revealedScoreLines > index
+        return content
+            .opacity(shown ? 1 : 0)
+            .offset(x: shown ? 0 : -14)
+            .allowsHitTesting(shown)
     }
 
     private var scoreGuess: String? {
@@ -331,17 +343,27 @@ struct PredictMatchResultView: View {
 
     @ViewBuilder
     private var standoutSection: some View {
-        if model.standouts.hit != nil || model.standouts.upset != nil {
+        let hit = model.standouts.hit
+        let upset = model.standouts.upset
+        // Perfect XI still gets a section (the celebration), even when neither a gutsy hit nor a miss exists.
+        if score.perfectXI || hit != nil || upset != nil {
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel("STANDOUT PICKS")
-                if let hit = model.standouts.hit, let share = hit.communityShare {
+                // ⚠️ POSITIVE LEADS (owner, Change 4). The genius pick — a correct call the crowd
+                // mostly left out — is shown FIRST and celebratory; the miss follows in red.
+                if let hit, let share = hit.communityShare {
                     standoutCard(icon: "star.circle.fill", tint: .dsSuccess,
-                                 title: "Gutsy call · \(hit.name)",
-                                 body: "Only \(PredictPitchView.percent(share)) of \(clubLabel) fans had her starting. You did.")
+                                 title: "Genius pick · \(hit.name)",
+                                 body: "Only \(PredictPitchView.percent(share)) of \(clubLabel) had her starting. You called it.")
                 }
-                if let upset = model.standouts.upset, let share = upset.communityShare {
+                if score.perfectXI {
+                    // A perfect XI has no missed starters, so there's no "miss" to show — celebrate instead.
+                    standoutCard(icon: "trophy.fill", tint: .dsSuccess,
+                                 title: "Perfect XI · all 11 called",
+                                 body: "You named every starter \(clubLabel) put out. Nobody read the lineup better.")
+                } else if let upset, let share = upset.communityShare {
                     standoutCard(icon: "exclamationmark.circle.fill", tint: .dsError,
-                                 title: "Biggest upset · \(upset.name)",
+                                 title: "Biggest miss · \(upset.name)",
                                  body: "She started and \(PredictPitchView.percent(share)) of \(clubLabel) fans had her in. You left her out.")
                 }
             }

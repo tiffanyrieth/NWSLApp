@@ -559,11 +559,22 @@ struct HomeView: View {
         // no "results pending" variant: this appears only once something is actually scored.
         let unseen = predict.unseenScoredFixtureIDs(currentWeek: FanZoneCadence.currentSoccerWeek())
         if !unseen.isEmpty {
-            var model = FanZoneCardModel(game: .predict, title: "Predict the XI",
-                                         contextLine: unseen.count == 1
-                                            ? "Match final"
-                                            : "\(unseen.count) matches final")
-            model.statusLine = "See how your XI did"
+            var model = FanZoneCardModel(game: .predict, title: "Predict the XI", contextLine: "")
+            // State 3 — RESULTS READY. Glow + a "RESULTS IN" pill so a finished result finds the user
+            // on Home; tapping routes into Predict where the reveal plays (signpost, not trigger).
+            model.stateLabel = "RESULTS IN"
+            model.glow = true
+            model.ctaOverride = "See results"
+            if unseen.count == 1, let fixtureID = unseen.first, let score = predict.score(for: fixtureID) {
+                // The one thing the user doesn't know yet: how they did. Score + points lead. The round
+                // rank is network-only and cached on VIEW, so a still-unseen result usually omits it
+                // (never faked) — it surfaces on the recent-result cards once opened.
+                var line = "\(score.correctPlayers)/11 starters\n+\(score.total) pts"
+                if let rank = predict.roundRank(forFixture: fixtureID) { line += " · \(Self.ordinal(rank)) this round" }
+                model.contextLine = line
+            } else {
+                model.contextLine = "\(unseen.count) matches final"
+            }
             return model
         }
 
@@ -612,11 +623,21 @@ struct HomeView: View {
         let points = predict.seasonPoints
         if points > 0 { model.badge = "\(points)" }
 
-        // Submitted for this fixture → the locked-in done line (no status/progress).
+        // Submitted for this fixture → State 2, LOCKED IN: green accent, a lock glyph, and a countdown
+        // to KICKOFF (the wait that matters once you're locked in — not the passed submission deadline).
         let draft = nextPredictFixture.flatMap { predict.prediction(for: $0.id) }
         if draft?.state == .submitted {
-            let drop = nextPredictFixture.flatMap { compactCountdown(to: $0.deadline) }
-            model.doneLine = drop.map { "Picks locked in — results drop in \($0)" } ?? "Picks locked in"
+            model.stateLabel = "LOCKED IN"
+            model.accentOverride = .dsSuccess
+            model.iconOverride = "lock.fill"
+            model.ctaOverride = "Locked in"
+            if let fixture = nextPredictFixture {
+                let home = fixture.isHome ? fixture.teamAbbreviation : fixture.opponentAbbreviation
+                let away = fixture.isHome ? fixture.opponentAbbreviation : fixture.teamAbbreviation
+                var c = "\(home) vs \(away)"
+                if let toKickoff = compactCountdown(to: fixture.kickoff) { c += "\nKicks off in \(toKickoff)" }
+                model.contextLine = c
+            }
             return model
         }
 
@@ -702,6 +723,15 @@ struct HomeView: View {
     }()
     private static func kickoffLabel(_ date: Date) -> String { kickoffLabelFormatter.string(from: date) }
 
+    /// "3rd" — ordinal for the results-ready card's round rank.
+    private static func ordinal(_ n: Int) -> String {
+        let ones = n % 10, tens = (n / 10) % 10
+        let suffix: String
+        if tens == 1 { suffix = "th" }
+        else { switch ones { case 1: suffix = "st"; case 2: suffix = "nd"; case 3: suffix = "rd"; default: suffix = "th" } }
+        return "\(n)\(suffix)"
+    }
+
     /// The next local midnight — when Daily Trivia refreshes (TriviaStore's day-gate
     /// flips at local midnight).
     private static func nextLocalMidnight(from now: Date = Date()) -> Date {
@@ -772,6 +802,14 @@ struct HomeView: View {
                     }
                 }
             }
+        } else if case .error(let message) = matchStore.state {
+            // Honest degradation (NO SILENT FAILURES): the scoreboard failed, so the schedule can't load.
+            // Say so with a tappable retry in THIS module only — never blank the whole hub (the rest of
+            // Home — Club News, Fan Zone — doesn't need the scoreboard). This is the module-scoped path the
+            // full-screen gate used to swallow.
+            section("Coming up") {
+                moduleError(message) { await matchStore.load() }
+            }
         }
     }
 
@@ -825,13 +863,19 @@ struct HomeView: View {
     // MARK: - State plumbing
 
     private var errorMessage: String? {
+        // ⚠️ ONLY a CLUBS failure blanks the whole hub. Clubs are foundational — Club News scoping, Fan
+        // Zone team context, team chips all need them. A scoreboard/MatchStore failure must NOT take the
+        // hub down: Club News and the Fan Zone don't depend on it. Keying this gate on MatchStore too is
+        // what left the ENTIRE Home dark during the 2026-08-04 ESPN/scoreboard outage while Club News
+        // (proxy /team-videos) was loaded and healthy. Match-dependent modules degrade inline instead.
         if case .error(let m) = viewModel.clubsState { return m }
-        if case .error(let m) = matchStore.state { return m }
         return nil
     }
 
     private var isReady: Bool {
-        if case .loaded = viewModel.clubsState, case .loaded = matchStore.state { return true }
+        // Ready once CLUBS load — the hub renders even while MatchStore is still loading or has errored;
+        // its match-dependent modules ("Coming up", the Predict card) handle those states themselves.
+        if case .loaded = viewModel.clubsState { return true }
         return false
     }
 

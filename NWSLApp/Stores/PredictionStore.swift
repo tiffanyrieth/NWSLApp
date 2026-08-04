@@ -68,6 +68,12 @@ final class PredictionStore {
     /// Personal bests, season-scoped so a new March resets them.
     private(set) var seasonBests: PredictSeasonBests
 
+    /// fixtureID → the user's ROUND rank for that match's soccer week, cached when the result screen
+    /// computes it (that rank is otherwise a network read only). Lets the Home carousel + recent-result
+    /// cards show "3rd this round" synchronously, with no fetch. Pruned with the other recent markers,
+    /// so it stays bounded to what the app can still render. Local-only, like the seen set.
+    private(set) var roundRankByFixture: [String: Int]
+
     private let defaults: UserDefaults
 
     private enum Key {
@@ -79,6 +85,7 @@ final class PredictionStore {
         static let seenResults = "predict.v2.seenResults"
         static let uploadedPicks = "predict.v2.uploadedPicks"
         static let seasonBests = "predict.v2.seasonBests"
+        static let roundRanks = "predict.v2.roundRanks"
     }
 
     /// `defaults` is injectable so tests/previews use an isolated store.
@@ -91,6 +98,7 @@ final class PredictionStore {
         self.rankDeltaByTeam = Self.decode([String: Int].self, defaults.data(forKey: Key.rankDeltas)) ?? [:]
         self.seenResultFixtureIDs = Self.decode(Set<String>.self, defaults.data(forKey: Key.seenResults)) ?? []
         self.uploadedPickFixtureIDs = Self.decode(Set<String>.self, defaults.data(forKey: Key.uploadedPicks)) ?? []
+        self.roundRankByFixture = Self.decode([String: Int].self, defaults.data(forKey: Key.roundRanks)) ?? [:]
         let storedBests = Self.decode(PredictSeasonBests.self, defaults.data(forKey: Key.seasonBests))
         self.seasonBests = storedBests?.season == season
             ? (storedBests ?? .empty(season: season))
@@ -265,6 +273,17 @@ final class PredictionStore {
         }
     }
 
+    /// The user's cached round rank for a fixture (nil until the result screen has computed + stored it).
+    func roundRank(forFixture fixtureID: String) -> Int? { roundRankByFixture[fixtureID] }
+
+    /// Cache the round rank the result screen fetched, so the Home card + recent-result cards can show
+    /// "3rd this round" without a network read. Idempotent (no write when unchanged).
+    func recordRoundRank(_ rank: Int, forFixture fixtureID: String) {
+        guard roundRankByFixture[fixtureID] != rank else { return }
+        roundRankByFixture[fixtureID] = rank
+        persist()
+    }
+
     func hasUploadedPicks(fixtureID: String) -> Bool { uploadedPickFixtureIDs.contains(fixtureID) }
 
     func markPicksUploaded(fixtureID: String) {
@@ -296,9 +315,12 @@ final class PredictionStore {
         let keep = live.union(predictions.keys.filter { scores[$0] == nil })
         let seen = seenResultFixtureIDs.intersection(keep)
         let uploaded = uploadedPickFixtureIDs.intersection(keep)
-        guard seen != seenResultFixtureIDs || uploaded != uploadedPickFixtureIDs else { return }
+        let roundRanks = roundRankByFixture.filter { keep.contains($0.key) }
+        guard seen != seenResultFixtureIDs || uploaded != uploadedPickFixtureIDs
+                || roundRanks.count != roundRankByFixture.count else { return }
         seenResultFixtureIDs = seen
         uploadedPickFixtureIDs = uploaded
+        roundRankByFixture = roundRanks
         persist()
     }
 
@@ -339,6 +361,7 @@ final class PredictionStore {
         defaults.set(try? JSONEncoder().encode(seenResultFixtureIDs), forKey: Key.seenResults)
         defaults.set(try? JSONEncoder().encode(uploadedPickFixtureIDs), forKey: Key.uploadedPicks)
         defaults.set(try? JSONEncoder().encode(seasonBests), forKey: Key.seasonBests)
+        defaults.set(try? JSONEncoder().encode(roundRankByFixture), forKey: Key.roundRanks)
     }
 
     /// Wipe all local Predict-the-XI progress on account deletion — resets the
@@ -354,6 +377,7 @@ final class PredictionStore {
         seenResultFixtureIDs = []
         uploadedPickFixtureIDs = []
         seasonBests = .empty(season: seasonBests.season)
+        roundRankByFixture = [:]
         persist()
     }
 
@@ -373,6 +397,7 @@ final class PredictionStore {
         scores[fixtureID] = nil
         seenResultFixtureIDs.remove(fixtureID)
         uploadedPickFixtureIDs.remove(fixtureID)
+        roundRankByFixture[fixtureID] = nil
         seasonPoints = scores.values.reduce(0) { $0 + $1.total }
         persist()
     }
@@ -397,6 +422,7 @@ final class PredictionStore {
         defaults.set(Data(), forKey: Key.seenResults)
         defaults.set(Data(), forKey: Key.uploadedPicks)
         defaults.set(Data(), forKey: Key.seasonBests)
+        defaults.set(Data(), forKey: Key.roundRanks)
     }
     #endif
 }

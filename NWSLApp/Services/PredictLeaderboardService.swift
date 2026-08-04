@@ -24,6 +24,12 @@ import Supabase
 struct PredictLeaderboardService {
     private var client: SupabaseClient { SupabaseManager.client }
 
+    /// SEASON-board ranking gate: a predictor must have completed this many scored matches before they
+    /// occupy a ranked position. Below it they sit in the "Earning their ranking" section (rank "—",
+    /// progress dots) instead of a flattering-but-hollow #1 off a single lucky match. Easy to tune.
+    /// Round boards are exempt — a round is 1–2 matches, so the threshold can't apply there.
+    static let provisionalThreshold = 3
+
     /// One other player's standing for a team (the signed-in user is excluded by
     /// the caller and spliced in from their live local total instead). `matches`/`avg`
     /// populate for the SEASON board (ranked by average per match); the round board
@@ -150,6 +156,8 @@ struct PredictLeaderboardService {
                 .select("user_id, display_name, points, matches, avg_points")
                 .eq("team_abbreviation", value: teamAbbreviation)
                 .eq("season", value: season)
+                // Only RANKED predictors populate the ranked board (provisional users show separately).
+                .gte("matches", value: Self.provisionalThreshold)
                 .order("avg_points", ascending: false)   // Batch 3: rank by AVERAGE, not cumulative
                 .limit(LeaderboardRanking.visibleLimit)
                 .execute()
@@ -160,6 +168,29 @@ struct PredictLeaderboardService {
             // Caller still shows the user's own live total (honest degrade); flag the read
             // failure so a down board isn't silently invisible to the owner.
             await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict standings \(teamAbbreviation): \(error.localizedDescription)") }
+            return []
+        }
+    }
+
+    /// The team's PROVISIONAL predictors — those with 1…(threshold−1) scored matches, still earning
+    /// a ranked position. Ordered by match count desc (closest to ranking first), capped. Empty on any
+    /// failure. The caller filters out the signed-in user and splices their fresher local match count.
+    func provisionalStandings(teamAbbreviation: String, season: String) async -> [Standing] {
+        do {
+            let rows: [ScoreRow] = try await client
+                .from("prediction_scores")
+                .select("user_id, display_name, points, matches, avg_points")
+                .eq("team_abbreviation", value: teamAbbreviation)
+                .eq("season", value: season)
+                .lt("matches", value: Self.provisionalThreshold)
+                .order("matches", ascending: false)
+                .limit(LeaderboardRanking.visibleLimit)
+                .execute()
+                .value
+            return rows.map { Standing(userID: $0.user_id, name: $0.display_name ?? "Fan",
+                                       points: $0.points, matches: $0.matches ?? 0, avg: $0.avg_points ?? 0) }
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict provisional \(teamAbbreviation): \(error.localizedDescription)") }
             return []
         }
     }
@@ -175,6 +206,8 @@ struct PredictLeaderboardService {
                 .select("user_id", head: true, count: .exact)
                 .eq("team_abbreviation", value: teamAbbreviation)
                 .eq("season", value: season)
+                // Rank among RANKED predictors only — a provisional user can't push a ranked rival down.
+                .gte("matches", value: Self.provisionalThreshold)
                 .gt("avg_points", value: avgPoints)
                 .execute()
             return (response.count ?? 0) + 1
@@ -193,6 +226,8 @@ struct PredictLeaderboardService {
                 .select("user_id", head: true, count: .exact)
                 .eq("team_abbreviation", value: teamAbbreviation)
                 .eq("season", value: season)
+                // "#N of M" counts RANKED predictors, so the shown total agrees with the rank number.
+                .gte("matches", value: Self.provisionalThreshold)
                 .execute()
             return response.count ?? 0
         } catch {

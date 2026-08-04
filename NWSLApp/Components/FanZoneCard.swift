@@ -52,6 +52,19 @@ struct FanZoneCardModel {
     /// Fresh content the user hasn't opened yet this cycle → a small `dsUnseen` dot (docs §10).
     var isUnseen: Bool = false
 
+    // MARK: State-aware treatments (Predict's game-feel pass — the card reflects the game phase)
+
+    /// A short tracked-caps pill in the top corner ("RESULTS IN" / "LOCKED IN"). Replaces the unseen dot.
+    var stateLabel: String? = nil
+    /// A pink border glow — the results-ready state, so a finished result finds the user on Home.
+    var glow: Bool = false
+    /// Overrides the game accent for one state (Predict's locked-in state goes green).
+    var accentOverride: Color? = nil
+    /// Overrides the game icon for one state (Predict's locked-in state shows a lock).
+    var iconOverride: String? = nil
+    /// Overrides `compactStatus` for one state ("See results" / "Locked in").
+    var ctaOverride: String? = nil
+
     var accent: Color {
         switch game {
         case .predict: return .dsGamePredict
@@ -60,6 +73,9 @@ struct FanZoneCardModel {
         case .knowHer: return .dsGameSpotlight
         }
     }
+
+    /// The accent actually used for this card, honouring a per-state override.
+    var effectiveAccent: Color { accentOverride ?? accent }
 
     /// iOS-native SF Symbol per game.
     var iconSystemName: String {
@@ -71,12 +87,17 @@ struct FanZoneCardModel {
         }
     }
 
+    /// The icon actually used for this card, honouring a per-state override.
+    var effectiveIcon: String { iconOverride ?? iconSystemName }
+
     /// The single accent status line for the compact carousel card — action-forward and
     /// honest, deliberately WITHOUT the points/picks counts (those richer affordances live
     /// on the game's own screen now). Predict surfaces the deadline countdown ("2d left")
     /// for urgency; Bracket/Trivia surface the action ("Vote now" / "Play now"); a
     /// submitted/played state collapses to "Picks locked in" / "Done today".
     var compactStatus: String {
+        // A per-state CTA wins ("See results" for a ready result, "Locked in" for a submitted one).
+        if let ctaOverride { return ctaOverride }
         switch game {
         case .predict:
             if doneLine != nil { return "Picks locked in" }
@@ -101,7 +122,7 @@ struct FanZoneCarouselCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            GameIcon(systemName: model.iconSystemName, accent: model.accent)
+            GameIcon(systemName: model.effectiveIcon, accent: model.effectiveAccent)
             VStack(alignment: .leading, spacing: 3) {
                 Text(model.title)
                     .dsFont(14, weight: .bold)
@@ -133,13 +154,26 @@ struct FanZoneCarouselCard: View {
         )
         .background(Color.dsBgCard)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        // A results-ready card glows (brighter, thicker border + a soft accent shadow) so a finished
+        // result finds the user on Home; every other state keeps the quiet 1px border.
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(model.accent.opacity(0.2), lineWidth: 1)
+                .strokeBorder(model.effectiveAccent.opacity(model.glow ? 0.7 : 0.2),
+                              lineWidth: model.glow ? 1.5 : 1)
         )
-        // Fresh-content "new" dot (docs §10) — top-trailing, cleared once the game is opened.
+        .shadow(color: model.glow ? model.effectiveAccent.opacity(0.35) : .clear,
+                radius: model.glow ? 8 : 0)
+        // A state pill ("RESULTS IN" / "LOCKED IN") replaces the plain unseen dot when present.
         .overlay(alignment: .topTrailing) {
-            if model.isUnseen {
+            if let label = model.stateLabel {
+                Text(label)
+                    .font(.system(size: 8, weight: .black)).tracking(0.5)
+                    .foregroundStyle(model.effectiveAccent)
+                    .padding(.horizontal, 5).padding(.vertical, 2)
+                    .background(model.effectiveAccent.opacity(0.2), in: Capsule())
+                    .padding(8)
+                    .accessibilityLabel(label)
+            } else if model.isUnseen {
                 Circle()
                     .fill(Color.dsUnseen)
                     .frame(width: 9, height: 9)
@@ -156,12 +190,12 @@ struct FanZoneCarouselCard: View {
         HStack(spacing: 3) {
             Text(model.compactStatus)
                 .dsFont(11, weight: .semibold)
-                .foregroundStyle(model.accent)
+                .foregroundStyle(model.effectiveAccent)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Image(systemName: "chevron.right")
                 .dsFont(9, weight: .bold)
-                .foregroundStyle(model.accent)
+                .foregroundStyle(model.effectiveAccent)
         }
     }
 }

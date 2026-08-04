@@ -57,6 +57,15 @@ struct BroadcastResolverTests {
         #expect(BroadcastInfo.info(for: "CBSSN")?.name == "CBS Sports Network")
     }
 
+    @Test func golazoDoesNotResolveToPaidCBSSN() {
+        // ⚠️ "CBS Sports Golazo Network" contains "cbs sports" but Golazo is a FREE FAST channel, not
+        // the paid cable CBSSN. Resolving it to CBSSN would badge a free channel SUBSCRIPTION — the
+        // fabricated paywall this whole feature prevents. It routes to the honest unknown card.
+        #expect(BroadcastInfo.info(for: "CBS Sports Golazo Network") == nil)
+        #expect(BroadcastAccess.of("CBS Sports Golazo Network") == .unknown)
+        #expect(BroadcastAccess.of("CBS Sports Golazo Network").badge == nil)
+    }
+
     @Test func espnVariantsDontCollapseIntoPlainESPN() {
         #expect(BroadcastInfo.info(for: "ESPN+")?.name == "ESPN+")
         #expect(BroadcastInfo.info(for: "ESPN Deportes")?.name == "ESPN Deportes")

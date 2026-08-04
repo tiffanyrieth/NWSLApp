@@ -68,6 +68,13 @@ struct BroadcastInfo {
         if n == "ion" || n.hasPrefix("ion ") || has("iontelevision") || has("ion television")
             || has("scripps") { return ion }
 
+        // ⚠️ Golazo BEFORE the "cbs sports" check. "CBS Sports Golazo Network" contains "cbs sports",
+        // but Golazo is a FREE FAST channel, not the paid cable CBSSN — resolving it to CBSSN would
+        // paint a free channel with a SUBSCRIPTION badge, the exact fabricated-paywall this feature
+        // exists to prevent. The design handoff carries no Golazo entry, so route it to the honest
+        // unknown card (nil → no badge) rather than a wrong answer. NWSL doesn't currently air on
+        // Golazo, so this is defensive, but the cost of a wrong free/paid claim is high.
+        if has("golazo") { return nil }
         if has("cbssn") || has("cbs sports") { return cbssn }
         if has("paramount") { return paramount }
         if has("cbs") { return cbs }

@@ -6,7 +6,7 @@
 //  a tinted dot + the partner name, in the partner's brand color over a faint
 //  wash. Replaces the old "📺 text" on schedule cards (and, at screen #2, match
 //  detail). The color map is the handoff's canonical broadcast palette, matched
-//  by substring like BroadcastLink so ESPN's free-text channel names resolve.
+//  by substring (like BroadcastInfo.resolve) so ESPN's free-text channel names resolve.
 //
 //  NOTE: kept separate from the existing `BroadcastInfo` color DB (whose hues
 //  predate this palette) so the Schedule redesign stays isolated; the two unify

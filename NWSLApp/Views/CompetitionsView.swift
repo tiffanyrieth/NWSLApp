@@ -9,7 +9,7 @@
 //  (followable entities whose matches weave into "My teams" alongside clubs).
 //
 //  Everything turned on here folds into "My teams" — there is no separate schedule chip,
-//  and national teams (like the Champions Cup) get NO detail page; following just folds
+//  (National teams ARE browsable since 2026-07-31 — a card taps through to NationalTeamDetailView.)
 //  fixtures in. The National Teams section is ONE inline, searchable, DATA-DRIVEN A-Z list
 //  (`NationalTeamDirectoryStore` → proxy `/national-teams`, real ESPN coverage) — there is no
 //  separate "Browse all" screen. The search bar sits UNDER the section header, scoped to the

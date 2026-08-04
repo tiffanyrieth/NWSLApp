@@ -7,8 +7,14 @@
 //  access line, a one-line tip, and a "Find it" CTA that reveals the per-device
 //  steps (the real accessibility feature — e.g. ION's "search Scripps, not ION",
 //  Victory+'s "search Victory Plus spelled out", CBS's Paramount+ lock note). The
-//  device steps come verbatim from BroadcastInfo. Renders nothing for an
-//  unrecognized partner.
+//  device steps come from BroadcastInfo.
+//
+//  ⚠️ IT ALWAYS RENDERS (2026-08-03). It used to return an empty body for an unrecognized partner,
+//  which is why a CBSSN match showed NO how-to-watch card at all — the card silently vanished on
+//  exactly the broadcaster people struggle with most. An unknown partner now gets an honest card
+//  that says we don't have directions yet, with NO free/paid badge (guessing one would fabricate a
+//  paywall) and a Diagnostics record so a new ESPN string reaches an engineer instead of being
+//  normalized away forever.
 //
 
 import SwiftUI
@@ -22,37 +28,71 @@ struct HowToWatchCard: View {
     var body: some View {
         if let info {
             card(info)
+        } else {
+            unknownCard
+        }
+    }
+
+    /// Honest state for a broadcaster we don't have directions for. Never invents steps, never
+    /// guesses free-vs-paid — the two ways this could have failed dishonestly.
+    private var unknownCard: some View {
+        let name = broadcast?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("How to watch")
+                .dsFont(17, weight: .bold)
+                .foregroundStyle(Color.dsFgPrimary)
+            if !name.isEmpty {
+                BroadcastChip(name: name, small: false)
+            }
+            Text(name.isEmpty
+                 ? "Broadcast details for this match haven't been announced yet."
+                 : "We don't have step-by-step directions for \(name) yet. Full replays post to NWSL+ free a few days after each match.")
+                .dsFont(13)
+                .lineSpacing(3)
+                .foregroundStyle(Color.dsFgSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+        .task(id: name) {
+            guard !name.isEmpty else { return }
+            // Fail loud to the engineer, honestly to the user (CLAUDE.md no-silent-failures).
+            Diagnostics.shared.record(.unexpectedEmpty, "how-to-watch unresolved broadcaster: \(name)")
         }
     }
 
     private func card(_ info: BroadcastInfo) -> some View {
-        let access = Self.access(for: info.name)
-        // Canonical broadcast color (handoff palette) — the same chip the schedule
-        // card + match header use.
-        let chipColor = BroadcastChip.color(for: broadcast ?? info.name)
-
-        return VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Text("How to watch")
                         .dsFont(17, weight: .bold)
                         .foregroundStyle(Color.dsFgPrimary)
                     Spacer()
-                    Text(access.free ? "FREE" : "SUBSCRIPTION")
-                        .dsFont(10.5, weight: .bold)
-                        .tracking(0.5)
-                        .foregroundStyle(access.free ? Color.dsSuccess : Color.dsFgSecondary)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 3)
-                        .background(access.free ? Color.dsSuccess.opacity(0.16) : Color.dsBgTertiary,
-                                    in: Capsule())
+                    // No badge at all when access is unknown — never guess a paywall.
+                    if let badge = info.access.badge {
+                        Text(badge)
+                            .dsFont(10.5, weight: .bold)
+                            .tracking(0.5)
+                            .foregroundStyle(info.access.isFree ? Color.dsSuccess : Color.dsFgSecondary)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 3)
+                            .background(info.access.isFree ? Color.dsSuccess.opacity(0.16) : Color.dsBgTertiary,
+                                        in: Capsule())
+                    }
                 }
 
+                // Chip + the access label the handoff specifies ("Free over-the-air",
+                // "Live TV subscription", …). No label when access is unknown.
                 HStack(spacing: 10) {
                     BroadcastChip(name: broadcast ?? info.name, small: false)
-                    Text(access.label)
-                        .dsFont(12.5)
-                        .foregroundStyle(Color.dsFgSecondary)
+                    if let label = info.access.label {
+                        Text(label)
+                            .dsFont(12.5)
+                            .foregroundStyle(Color.dsFgSecondary)
+                    }
                 }
 
                 Text(info.note)
@@ -109,30 +149,15 @@ struct HowToWatchCard: View {
         }
     }
 
-    // FREE/SUBSCRIPTION + a short access line, matching the mock's WATCH table.
-    // (Kept here, not in the verbatim-ported BroadcastInfo DB.)
-    private static func access(for name: String) -> (free: Bool, label: String) {
-        let n = name.lowercased()
-        switch true {
-        case n.contains("ion"):       return (true, "Free over-the-air")
-        case n.contains("victory"):   return (true, "Free app")
-        case n.contains("cbs") && !n.contains("sports"): return (true, "Free over-the-air")
-        case n.contains("cbs"):       return (false, "Cable / Paramount+")
-        case n.contains("paramount"): return (false, "Subscription")
-        case n.contains("espn"), n.contains("abc"): return (false, "Cable / ESPN+")
-        case n.contains("prime"), n.contains("amazon"): return (false, "Prime subscription")
-        case n.contains("nwsl"):      return (false, "Subscription")
-        default:                      return (false, "Check local listings")
-        }
-    }
 }
 
 #Preview {
     ScrollView {
         VStack(spacing: 16) {
             HowToWatchCard(broadcast: "ION")
-            HowToWatchCard(broadcast: "Prime Video")
-            HowToWatchCard(broadcast: "CBS")
+            HowToWatchCard(broadcast: "CBSSN")        // the bug: used to render nothing
+            HowToWatchCard(broadcast: "ABC")          // was badged SUBSCRIPTION; it's free OTA
+            HowToWatchCard(broadcast: "Telemundo")    // unknown → honest card, no badge
         }
         .padding()
     }

@@ -25,7 +25,12 @@ enum BroadcastBrand {
         case n.contains("espn"), n.contains("abc"):     return Color(hex: "#E0203B")  // ESPN/ABC — bright red
         case n.contains("paramount"):                   return Color(hex: "#0064FF")  // Paramount+
         case n.contains("cbs"):                         return Color(hex: "#1FA0E0")  // CBS — broadcast blue
-        case n.contains("ion"):                         return Color(hex: "#6B4EFF")  // ION — purple
+        // ⚠️ ION is TOKEN-EXACT, never a bare `contains("ion")` — that also matches "Univision" /
+        // "TelevisaUnivision", and since the app folds ~15 women's national-team feeds into the
+        // schedule, a Mexico fixture would render a purple ION chip (found 2026-08-03).
+        case n == "ion", n.hasPrefix("ion "), n.contains("iontelevision"),
+             n.contains("ion television"), n.contains("scripps"):
+                                                        return Color(hex: "#6B4EFF")  // ION — purple
         case n.contains("victory"):                     return Color(hex: "#15B7B0")  // Victory+ — teal
         case n.contains("nwsl"):                        return Color(hex: "#FF6B9D")  // NWSL+
         default:                                        return .dsFgSecondary          // unknown → neutral

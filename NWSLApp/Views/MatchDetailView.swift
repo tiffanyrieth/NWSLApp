@@ -774,7 +774,6 @@ struct MatchDetailView: View {
             header
             ScrollView {
                 VStack(spacing: 24) {
-                    futureInfoGrid
                     HowToWatchCard(broadcast: broadcastName)
                         .padding(.horizontal, 20)
                     preMatchLineups
@@ -794,31 +793,14 @@ struct MatchDetailView: View {
         }
     }
 
-    // Venue / Broadcast / Competition tiles. Each renders only when its value is known,
-    // so a sparse fixture degrades gracefully. (Past matches show a kickoff-weather stamp in
-    // the header's compactInfoRow; a FUTURE forecast tile here is deferred to the forecast build.)
-    /// ⚠️ Three-across BELOW accessibility sizes, stacked AT them (2026-07-29). At AX1 a third of
-    /// the width can't hold these labels: "BROADCAST" broke mid-word to "BROADCA/ST" and the values
-    /// truncated ("CPKC Stadium,…", "NWSL Regular S…"). Full-width tiles have room for both. The
-    /// standard range is untouched — it fits three-across and that's the denser, better layout there.
-    @ViewBuilder
-    private var futureInfoGrid: some View {
-        let tiles = Group {
-            if let venue = venueText {
-                MDInfoCard(label: "Venue", value: venue)
-            }
-            if let channel = broadcastName {
-                MDInfoCard(label: "Broadcast", value: channel)
-            }
-            MDInfoCard(label: "Competition",
-                       value: competition.displayLabel ?? "NWSL Regular Season")
-        }
-        if typeSize.isAccessibilitySize {
-            VStack(spacing: 10) { tiles }.padding(.horizontal, 20)
-        } else {
-            HStack(spacing: 10) { tiles }.padding(.horizontal, 20)
-        }
-    }
+    // ⚠️ The Venue / Broadcast / Competition tile row was REMOVED (2026-08-03, owner). Every field it
+    // held was already shown elsewhere: venue + broadcast on the header's `compactInfoRow` (and the
+    // broadcast again, richer, on the How-to-watch card), and the competition on the SCHEDULE card the
+    // user tapped to get here (shown only for non-regular-season). The tiles duplicated all of it,
+    // cramped the venue into a truncating third-width, and added three floating modules to a screen
+    // already fighting a boxy feel. OPEN (pending a Design call): re-add a competition label to the
+    // header for NON-regular-season matches only, so a Champions Cup / playoff match reached from Home
+    // (not the schedule) still shows its competition. Regular-season match details stay clean.
 
     /// Pre-kickoff starting XIs, shown once ESPN posts them (~1h before kickoff — the future detail's
     /// 120s `/summary` poll + the proxy's lineup-window TTL surface them). Reuses the exact live/past
@@ -1307,12 +1289,4 @@ struct MatchDetailView: View {
         return Self.kickoffTimeFormatter.string(from: kickoff)
     }
 
-    private var venueText: String? {
-        switch (event.venueName, event.venueCity) {
-        case let (name?, city?): return "\(name), \(city)"
-        case let (name?, nil):   return name
-        case let (nil, city?):   return city
-        default:                 return nil
-        }
-    }
 }

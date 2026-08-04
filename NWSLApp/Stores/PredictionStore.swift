@@ -65,6 +65,13 @@ final class PredictionStore {
     /// cause at most a redundant no-op call, never a double count.
     private(set) var uploadedPickFixtureIDs: Set<String>
 
+    /// Fixture ids whose "result seen" server mark has been written (Change 8 — the post-match push).
+    /// Local fast-path only: the server upsert is idempotent on `(user_id, event_id)`, so a wrong value
+    /// here causes at most a redundant no-op upsert. Drives RETRY-UNTIL-WRITTEN — the result screen
+    /// re-attempts on each open until the write lands, so a view-while-offline eventually records (and the
+    /// next-day "results are in" push then correctly skips that user).
+    private(set) var uploadedResultSeenFixtureIDs: Set<String>
+
     /// Personal bests, season-scoped so a new March resets them.
     private(set) var seasonBests: PredictSeasonBests
 
@@ -84,6 +91,7 @@ final class PredictionStore {
         static let rankDeltas = "predict.v2.rankDeltas"
         static let seenResults = "predict.v2.seenResults"
         static let uploadedPicks = "predict.v2.uploadedPicks"
+        static let uploadedResultSeen = "predict.v2.uploadedResultSeen"
         static let seasonBests = "predict.v2.seasonBests"
         static let roundRanks = "predict.v2.roundRanks"
     }
@@ -98,6 +106,7 @@ final class PredictionStore {
         self.rankDeltaByTeam = Self.decode([String: Int].self, defaults.data(forKey: Key.rankDeltas)) ?? [:]
         self.seenResultFixtureIDs = Self.decode(Set<String>.self, defaults.data(forKey: Key.seenResults)) ?? []
         self.uploadedPickFixtureIDs = Self.decode(Set<String>.self, defaults.data(forKey: Key.uploadedPicks)) ?? []
+        self.uploadedResultSeenFixtureIDs = Self.decode(Set<String>.self, defaults.data(forKey: Key.uploadedResultSeen)) ?? []
         self.roundRankByFixture = Self.decode([String: Int].self, defaults.data(forKey: Key.roundRanks)) ?? [:]
         let storedBests = Self.decode(PredictSeasonBests.self, defaults.data(forKey: Key.seasonBests))
         self.seasonBests = storedBests?.season == season
@@ -292,6 +301,15 @@ final class PredictionStore {
         persist()
     }
 
+    func hasUploadedResultSeen(fixtureID: String) -> Bool { uploadedResultSeenFixtureIDs.contains(fixtureID) }
+
+    /// Mark the server "result seen" write as landed for this fixture (call only after the upsert succeeds).
+    func markResultSeenUploaded(fixtureID: String) {
+        guard !uploadedResultSeenFixtureIDs.contains(fixtureID) else { return }
+        uploadedResultSeenFixtureIDs.insert(fixtureID)
+        persist()
+    }
+
     /// Raise the season's personal bests. Monotonic (`max`), mirroring the SQL `GREATEST` so a
     /// stale device can never lower one.
     func mergeSeasonBests(_ incoming: PredictSeasonBests) {
@@ -315,11 +333,14 @@ final class PredictionStore {
         let keep = live.union(predictions.keys.filter { scores[$0] == nil })
         let seen = seenResultFixtureIDs.intersection(keep)
         let uploaded = uploadedPickFixtureIDs.intersection(keep)
+        let uploadedSeen = uploadedResultSeenFixtureIDs.intersection(keep)
         let roundRanks = roundRankByFixture.filter { keep.contains($0.key) }
         guard seen != seenResultFixtureIDs || uploaded != uploadedPickFixtureIDs
+                || uploadedSeen != uploadedResultSeenFixtureIDs
                 || roundRanks.count != roundRankByFixture.count else { return }
         seenResultFixtureIDs = seen
         uploadedPickFixtureIDs = uploaded
+        uploadedResultSeenFixtureIDs = uploadedSeen
         roundRankByFixture = roundRanks
         persist()
     }
@@ -360,6 +381,7 @@ final class PredictionStore {
         defaults.set(try? JSONEncoder().encode(rankDeltaByTeam), forKey: Key.rankDeltas)
         defaults.set(try? JSONEncoder().encode(seenResultFixtureIDs), forKey: Key.seenResults)
         defaults.set(try? JSONEncoder().encode(uploadedPickFixtureIDs), forKey: Key.uploadedPicks)
+        defaults.set(try? JSONEncoder().encode(uploadedResultSeenFixtureIDs), forKey: Key.uploadedResultSeen)
         defaults.set(try? JSONEncoder().encode(seasonBests), forKey: Key.seasonBests)
         defaults.set(try? JSONEncoder().encode(roundRankByFixture), forKey: Key.roundRanks)
     }
@@ -376,6 +398,7 @@ final class PredictionStore {
         rankDeltaByTeam = [:]
         seenResultFixtureIDs = []
         uploadedPickFixtureIDs = []
+        uploadedResultSeenFixtureIDs = []
         seasonBests = .empty(season: seasonBests.season)
         roundRankByFixture = [:]
         persist()
@@ -397,6 +420,7 @@ final class PredictionStore {
         scores[fixtureID] = nil
         seenResultFixtureIDs.remove(fixtureID)
         uploadedPickFixtureIDs.remove(fixtureID)
+        uploadedResultSeenFixtureIDs.remove(fixtureID)
         roundRankByFixture[fixtureID] = nil
         seasonPoints = scores.values.reduce(0) { $0 + $1.total }
         persist()
@@ -421,6 +445,7 @@ final class PredictionStore {
         defaults.set(Data(), forKey: Key.rankDeltas)
         defaults.set(Data(), forKey: Key.seenResults)
         defaults.set(Data(), forKey: Key.uploadedPicks)
+        defaults.set(Data(), forKey: Key.uploadedResultSeen)
         defaults.set(Data(), forKey: Key.seasonBests)
         defaults.set(Data(), forKey: Key.roundRanks)
     }

@@ -376,6 +376,15 @@ For each subsystem, walk it explicitly:
   ~23k fixed + the same user load + NT waste. **100k lever:** Workers Paid ($5/mo, 10M req/mo) — the
   documented ~10-15k-user slot — plus the app-side push-not-poll redesign (broadcast the in-app live
   score the way the LA card already works) held as the architectural lever before ~100k.
+- **Post-match Predict-results push (Change 8, 2026-08-04):** ✅ **passes.** A once-daily cron pass, NOT
+  per-minute — for each of the prior day's settled finals it runs ~4 capped Supabase reads
+  (`predict_submission_marks` → anti-join `predict_result_seen` → gate `predict_results` → `device_tokens`)
+  then rides the EXISTING V1 Queues fan-out (chunk ~40/msg → consumer). **1k:** recipients are the unseen
+  predictors of one club's fixture — a subset SMALLER than a goal push's both-fanbase alert set, which is
+  already device-proven; a handful of finals/matchday × one pass. **100k lever:** an index on
+  `predict_submission_marks(event_id)` (built in `migration_predict_result_push.sql`) so the recipient
+  query isn't a table scan, + the same Queues rail (flat, Workers Paid slot). Only net-new write =
+  one small `predict_result_seen` upsert per result-view (bounded by views). No cost cliff.
 - **Per-feature proxy-request LEDGER (seed, 2026-07-16 — extend as features land):** the shared
   100k/day budget each feature draws from. Fixed daily: watcher ~64 (discovery) + per-match windows
   ~300-600/match (+ double-poll during live); bracket `*/5` cron 288; social-refresh + KHG crons <10.

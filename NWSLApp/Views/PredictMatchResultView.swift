@@ -81,7 +81,18 @@ struct PredictMatchResultView: View {
                          reduceMotion: reduceMotion, voiceOver: voiceOver)
         // Mark seen only once the result actually RENDERED — a failed fetch must not burn the
         // one-time reveal.
-        if case .loaded = model.phase { store.markResultSeen(fixtureID: item.fixture.id) }
+        guard case .loaded = model.phase else { return }
+        store.markResultSeen(fixtureID: item.fixture.id)
+        // ALSO record it server-side (Change 8) so the next-day "your result is in" push skips viewers.
+        // Retry-until-written: re-attempt on each open until the upsert lands (view-while-offline heals).
+        if !store.hasUploadedResultSeen(fixtureID: item.fixture.id),
+           let userID = auth.userID, let eventID = item.prediction?.eventID {
+            Task {
+                if await PredictResultSeenService().markSeen(eventID: eventID, userID: userID) {
+                    await MainActor.run { store.markResultSeenUploaded(fixtureID: item.fixture.id) }
+                }
+            }
+        }
     }
 
     // MARK: - Header

@@ -31,7 +31,11 @@ struct XIPickerView: View {
     @State private var committed = false
     private let community = PredictCommunityService()
     @Environment(PredictionStore.self) private var store
+    @Environment(NotificationPreferencesStore.self) private var notifications
     @Environment(\.dismiss) private var dismiss
+    // One-time offer (Change 8): after a submit, surface the "Predict results" push if it's not already on.
+    @AppStorage("hasOfferedPredictResultsAlert") private var hasOfferedPredictResultsAlert = false
+    @State private var showPredictResultsOffer = false
 
     /// Identifiable wrapper so a slot index can drive `.sheet(item:)`.
     private struct SlotRef: Identifiable { let id: Int }
@@ -79,6 +83,18 @@ struct XIPickerView: View {
         .task { await picker.load() }
         .sheet(item: $activeSlot) { ref in
             rosterSheet(for: ref.id)
+        }
+        // Change 8: offered once after a submit (see footerButtons). The user is signed in (entry is
+        // gated), so "Turn on" sets the pref directly + requests permission; either choice dismisses.
+        .alert("Get result alerts?", isPresented: $showPredictResultsOffer) {
+            Button("Turn on") {
+                notifications.predictResults = true
+                Task { await MatchAlertPresenter.requestNotificationPermission() }
+                dismiss()
+            }
+            Button("Not now", role: .cancel) { dismiss() }
+        } message: {
+            Text("We'll let you know the morning after your match when your Predict the XI result is in.")
         }
     }
 
@@ -316,7 +332,14 @@ struct XIPickerView: View {
                 GameCenterManager.shared.report(GameCenterID.Achievement.firstPrediction)
                 // Entry was gated (open-fixture tap), so we're signed in: the prediction is
                 // locked and the per-team leaderboard push happens when it's later scored.
-                dismiss()
+                // Offer the post-match "results are in" push ONCE (Change 8) if it's not already on —
+                // the offer's alert dismisses the picker; otherwise dismiss straight away.
+                if !hasOfferedPredictResultsAlert, !notifications.predictResults {
+                    hasOfferedPredictResultsAlert = true
+                    showPredictResultsOffer = true
+                } else {
+                    dismiss()
+                }
             } label: {
                 Text(picker.isComplete ? "Submit & lock in" : "Pick all 11 to submit (\(picker.assignedCount)/11)")
                     .dsFont(17, weight: .semibold)

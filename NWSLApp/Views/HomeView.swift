@@ -30,6 +30,10 @@ struct HomeView: View {
     // The profile avatar button's destination (a placeholder until the Profile
     // screen ships in its own phase).
     @State private var showProfile = false
+    // Drives the programmatic push of PredictXIView when a post-match Predict push (Change 8) is tapped.
+    // A LOCAL flag, not bound directly to `router.pendingPredictEventID` — the pushed PredictXIView clears
+    // that router value once it routes to the result, and a binding tied to it would then pop the screen.
+    @State private var showPredictFromPush = false
     @Environment(FollowingStore.self) private var following
     @Environment(MatchStore.self) private var matchStore
     @Environment(ClubStore.self) private var clubStore
@@ -49,6 +53,16 @@ struct HomeView: View {
             // Onboarding is gated above this view now (RootTabView shows OnboardingView
             // full-screen until `hasOnboarded`), so Home only ever renders the hub.
             hubContent
+                // Post-match Predict push (Change 8): push the Predict hub, which resolves the pending
+                // event id to the result screen. Pushed (not modal) so it reads like a normal Home→Predict
+                // drill-in with the native back button.
+                .navigationDestination(isPresented: $showPredictFromPush) { PredictXIView() }
+        }
+        // A push tap sets router.pendingPredictEventID; fire the push here. onChange covers a warm app;
+        // the .task check covers a cold launch / the -debugOpenPredictResult arg (value already set).
+        .onChange(of: router.pendingPredictEventID) { _, id in if id != nil { showPredictFromPush = true } }
+        .task {
+            if router.pendingPredictEventID != nil { showPredictFromPush = true }
         }
         .task {
             // Hand the view model the shared stores, load the shared stores once

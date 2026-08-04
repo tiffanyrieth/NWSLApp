@@ -121,6 +121,7 @@ create table public.notification_preferences (
   fan_zone_rounds  boolean not null default false,
   player_spotlight boolean not null default false,
   live_activities_enabled boolean not null default false,  -- V2 Live Activity opt-in (watcher-read)
+  predict_results  boolean not null default false,         -- post-match Predict result push (Change 8, watcher-read)
   updated_at timestamptz default now()
 );
 

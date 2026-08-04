@@ -40,6 +40,11 @@ final class PushBridge {
     /// Cleared by the consumer after it routes.
     var tappedEventID: String?
 
+    /// The ESPN event id carried by a tapped post-match "your Predict result is in" push (Change 8).
+    /// A SEPARATE key from `tappedEventID` on purpose: a Predict push must route to the Predict RESULT
+    /// screen, not open MatchDetail like a live-match tap. Observed by RootTabView. Cleared after routing.
+    var tappedPredictEventID: String?
+
     /// Bumped when a live-match push ARRIVES while the app is foregrounded (banner shown, not
     /// tapped) — AppDelegate's `willPresent` forwards any payload carrying an `eventID`. Observed
     /// by RootTabView, which fires an immediate `matches.refresh()`: event-driven in-app freshness
@@ -50,6 +55,8 @@ final class PushBridge {
     func didRegister(token: String) { deviceToken = token }
 
     func didTapNotification(eventID: String) { tappedEventID = eventID }
+
+    func didTapPredictResult(eventID: String) { tappedPredictEventID = eventID }
 
     func didReceiveLiveForegroundPush() { foregroundPushNonce += 1 }
 }

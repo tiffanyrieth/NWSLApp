@@ -26,6 +26,7 @@ struct PredictXIView: View {
     @Environment(ClubStore.self) private var clubs
     @Environment(FollowingStore.self) private var following
     @Environment(AuthStore.self) private var auth
+    @Environment(AppRouter.self) private var router
 
     /// The fixture whose picker is open (nil = no sheet).
     @State private var activeFixture: PredictionFixture?
@@ -162,7 +163,20 @@ struct PredictXIView: View {
         // Keep the local seen/upload markers bounded — the recent-results window is the only thing
         // that can render them, so anything older has no reader (the local twin of the pg_cron sweep).
         store.pruneStaleMarkers(currentWeek: FanZoneCadence.currentSoccerWeek())
+        consumePendingPredictResult()   // a post-match push tap targets a specific result — honor it first
         autoRouteIfNeeded()
+    }
+
+    /// A tapped post-match "your result is in" push (Change 8) routed here via `router.pendingPredictEventID`.
+    /// Resolve that ESPN event id to its scored result and open it directly — even if already seen (the
+    /// user chose to look). One item per event for a given user (they predict one team per fixture).
+    private func consumePendingPredictResult() {
+        guard let eventID = router.pendingPredictEventID else { return }
+        router.pendingPredictEventID = nil
+        if let item = viewModel.resultItems(store: store).first(where: { $0.fixture.eventID == eventID }) {
+            route = .result(item.fixture.id)
+            didAutoRoute = true   // don't let autoRouteIfNeeded override the deep-linked target
+        }
     }
 
     // MARK: - Loaded

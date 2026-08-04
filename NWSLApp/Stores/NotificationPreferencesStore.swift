@@ -29,6 +29,7 @@ struct NotificationPreferencesSnapshot: Equatable {
     var fanZoneRounds: Bool
     var playerSpotlight: Bool
     var liveActivitiesEnabled: Bool
+    var predictResults: Bool
 
     /// Any toggle on ⇒ the user has opted into notifications, so we may reconcile/re-request
     /// permission for them (used by the launch/foreground registration reconcile). Keeps the
@@ -36,6 +37,7 @@ struct NotificationPreferencesSnapshot: Equatable {
     var anyEnabled: Bool {
         dayBefore || lineupPosted || kickoff || goals || halftime || fullTime
             || substitutions || fanZoneRounds || playerSpotlight || liveActivitiesEnabled
+            || predictResults
     }
 
     /// Any Tier-2 (server-push) type on — the "opted into live alerts" predicate. These are the
@@ -46,6 +48,7 @@ struct NotificationPreferencesSnapshot: Equatable {
     /// deferred intents are deliberately excluded — they work signed-out.
     var anyServerPushEnabled: Bool {
         kickoff || goals || halftime || fullTime || lineupPosted || liveActivitiesEnabled
+            || predictResults
     }
 }
 
@@ -88,6 +91,13 @@ final class NotificationPreferencesStore {
     /// reset only on account delete (`resetServerPushTypes`).
     var liveActivitiesEnabled: Bool { didSet { persist(liveActivitiesEnabled, "liveActivitiesEnabled"); onPreferenceChanged?() } }
 
+    // MARK: Predict results (Change 8)
+    /// The post-match "your Predict result is in" push — a Tier-2 OPT-IN (default OFF, sign-in-gated),
+    /// STANDALONE (deliberately NOT folded into the match-updates bundle: "match ended" and "how YOUR
+    /// prediction did" are different events). Watcher-read: the next-day pass gates on this AND that the
+    /// user predicted the match AND hasn't viewed the result. Offered after the first submitted prediction.
+    var predictResults: Bool { didSet { persist(predictResults, "predictResults"); onPreferenceChanged?() } }
+
     /// All toggles as a value snapshot. Reading it touches every flag, so it
     /// also doubles as the single property NotificationSyncCoordinator observes via
     /// withObservationTracking to mirror any change up to Supabase.
@@ -102,7 +112,8 @@ final class NotificationPreferencesStore {
             substitutions: substitutions,
             fanZoneRounds: fanZoneRounds,
             playerSpotlight: playerSpotlight,
-            liveActivitiesEnabled: liveActivitiesEnabled
+            liveActivitiesEnabled: liveActivitiesEnabled,
+            predictResults: predictResults
         )
     }
 
@@ -142,6 +153,7 @@ final class NotificationPreferencesStore {
         lineupPosted = load("lineupPosted", default: false)   // Tier 2 (server, Stage D)
         substitutions = load("substitutions", default: false) // Tier 2 (server, Stage D)
         liveActivitiesEnabled = load("liveActivitiesEnabled", default: false) // Tier 2 (V2 Live Activity)
+        predictResults = load("predictResults", default: false) // Tier 2 (post-match Predict push, Change 8)
     }
 
     private func persist(_ value: Bool, _ key: String) {
@@ -161,6 +173,7 @@ final class NotificationPreferencesStore {
         fullTime = false
         lineupPosted = false
         liveActivitiesEnabled = false
+        predictResults = false
         // Also clear the first-bell sentinel: sign-out wiped the Tier-2 intent, so a returning
         // signed-in user's next bell tap must re-cascade the bundle — otherwise they'd land back in
         // the silent-failure paradox (bell on, nothing fires). A sign-out reset is NOT a manual
@@ -208,6 +221,7 @@ final class NotificationPreferencesStore {
         fanZoneRounds = snapshot.fanZoneRounds
         playerSpotlight = snapshot.playerSpotlight
         liveActivitiesEnabled = snapshot.liveActivitiesEnabled
+        predictResults = snapshot.predictResults
         defaults.set(true, forKey: Self.appliedDefaultsKey)
     }
 
@@ -234,7 +248,8 @@ final class NotificationPreferencesStore {
         // `wantsNotifs=true` on a "fresh" install was the tell).
         defaults.set(false, forKey: appliedDefaultsKey)     // re-arm the first-bell cascade
         for key in ["dayBefore", "playerSpotlight", "fanZoneRounds", "kickoff", "goals",
-                    "halftime", "fullTime", "lineupPosted", "substitutions", "liveActivitiesEnabled"] {
+                    "halftime", "fullTime", "lineupPosted", "substitutions", "liveActivitiesEnabled",
+                    "predictResults"] {
             defaults.set(false, forKey: prefix + key)
         }
     }

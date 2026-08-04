@@ -1,5 +1,25 @@
 # Roadmap / What's Next
 
+> ### 🔔 PREDICT — post-match "your result is in" push (Change 8, COMMITTED follow-up, own PR)
+> The other half of the results-ready carousel card (shipped in the game-feel pass): a push that pulls the
+> user back after a match. The card catches people already in the app; this catches the rest. **Design is
+> LOCKED (owner + Claude.ai, 2026-08-04 — do NOT re-litigate):**
+> - **Generic copy, NO score in the banner** — e.g. "Predict the XI: Your WAS vs SD result is in — see how
+>   your XI did." The push is the HOOK; the in-app scoring reveal is the payoff. (Also dodges a hard
+>   blocker: per-user scores don't exist server-side at full-time — Predict grades on-device, lineups are
+>   never stored, scores reach Supabase only after the app opens.)
+> - **Separate "Predict results" Fan Zone toggle**, NOT folded into match-updates ("match ended" and "how
+>   YOUR prediction did" are different events). Opt-in, Tier-2/sign-in-gated, offered after the user's
+>   first submitted prediction.
+> - **Next-day BATCHED, not at full-time** (avoids the FT goal/red/HT/FT alert flood), and **only to users
+>   who haven't VIEWED their result** — needs a server-visible "seen" mark written when the result screen
+>   marks a result seen (a `(user_id, event_id)` mark; offline-tolerant). Fire once per (user, event).
+> **Build:** watcher (`~/Projects/nwslapp-match-watcher`) daily pass → query `predict_record_picks` for
+> prior-day final fixtures WHERE no seen mark, join `device_tokens` with the pref on → CF Queues fan-out →
+> deep-link to the result screen. Needs a `service_role` grant + a pref column. Stress: lighter than the
+> proven goal fan-out (1k pass; 100k via a `predict_record_picks.event_id` index + Queues). **Own design
+> pass first** (read watcher repo + notif schema); **real-device verify** (sim can't receive push).
+
 > ### 🚨 ALERTING GAP — a total outage paged NOBODY (owner 2026-08-04, NOT fixed today)
 > **What happened:** ESPN began 403'ing the proxy's UA-less scoreboard fetches → `/scoreboard` 502'd
 > for hours → **2 of 5 app tabs fully down (Home landing page + Schedule)**. The owner got **zero email

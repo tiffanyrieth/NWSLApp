@@ -64,6 +64,13 @@ final class AppRouter {
             pendingMatchEventID = args[i + 1]
             selectedTab = .schedule
         }
+        // DEBUG launch arg `-debugOpenPredictResult <espnEventID>` deep-links straight to a Predict
+        // result at launch (the same pendingPredictEventID path a post-match push tap uses), for in-sim
+        // verification of Change 8's routing without a real push. Testing affordance, like `-debugOpenMatch`.
+        if let i = args.firstIndex(of: "-debugOpenPredictResult"), i + 1 < args.count {
+            pendingPredictEventID = args[i + 1]
+            selectedTab = .home
+        }
         #endif
     }
 
@@ -79,5 +86,17 @@ final class AppRouter {
     func openMatch(eventID: String) {
         pendingMatchEventID = eventID
         selectedTab = .schedule
+    }
+
+    /// The ESPN event id a tapped post-match "your Predict result is in" push (Change 8) wants to open.
+    /// Set via `openPredictResult(eventID:)`; HomeView pushes `PredictXIView` when it's non-nil, and
+    /// `PredictXIView` resolves it to the fixture's result screen (and clears it). Predict lives under
+    /// the Home tab, so routing jumps there.
+    var pendingPredictEventID: String?
+
+    /// Route a post-match Predict push tap to its result: jump to Home and record the event id.
+    func openPredictResult(eventID: String) {
+        pendingPredictEventID = eventID
+        selectedTab = .home
     }
 }

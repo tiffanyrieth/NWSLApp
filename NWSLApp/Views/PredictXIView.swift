@@ -37,6 +37,9 @@ struct PredictXIView: View {
     /// The club the season card + board are showing (Competitive Redesign) — the team-filter chips switch
     /// it; defaults to the first board once loaded.
     @State private var selectedTeam: String?
+    /// Set once in `reload` when the user has just crossed the ranking threshold for a team and hasn't
+    /// seen the congrats yet — drives the one-time "You're now ranked!" hub line for this visit (Update #1).
+    @State private var showQualifiedForTeam: String?
     @State private var showHowTo = false
     /// The pushed screen, if any. Keyed by fixtureID rather than the item itself so the value stays
     /// cheap + Hashable and always resolves against the CURRENT store state.
@@ -91,6 +94,8 @@ struct PredictXIView: View {
         .fanZoneGate(isRequested: $gateRequested, gameName: "Predict the XI", accent: accent) {
             activeFixture = pendingFixture
         }
+        // Switching the board's team can surface a not-yet-seen "you're now ranked!" for that club.
+        .onChange(of: selectedTeam) { _, team in detectQualifiedTransition(team: team) }
     }
 
     @ViewBuilder
@@ -163,8 +168,21 @@ struct PredictXIView: View {
         // Keep the local seen/upload markers bounded — the recent-results window is the only thing
         // that can render them, so anything older has no reader (the local twin of the pg_cron sweep).
         store.pruneStaleMarkers(currentWeek: FanZoneCadence.currentSoccerWeek())
+        detectQualifiedTransition(team: selectedTeam)   // one-time "you're now ranked!" line (Update #1)
         consumePendingPredictResult()   // a post-match push tap targets a specific result — honor it first
         autoRouteIfNeeded()
+    }
+
+    /// If the user has just crossed the ranking threshold for `team` and hasn't seen the congrats yet,
+    /// latch it to show once this visit (and mark it seen so next visit reverts to streak lines). Called
+    /// after a load and on a team-tab switch. Reads the LOCAL match count + the server rank/total.
+    private func detectQualifiedTransition(team: String?) {
+        guard let team,
+              store.scoredMatchCount(forTeam: team) >= PredictLeaderboardService.provisionalThreshold,
+              !store.hasSeenQualified(team: team),
+              viewModel.standingByTeam[team]?.rank != nil else { return }
+        showQualifiedForTeam = team
+        store.markQualifiedSeen(team: team)
     }
 
     /// A tapped post-match "your result is in" push (Change 8) routed here via `router.pendingPredictEventID`.
@@ -186,12 +204,12 @@ struct PredictXIView: View {
         let selected = selectedTeam ?? teams.first
         return ScrollView {
             VStack(spacing: 18) {
-                if selected != nil {
-                    // Returning player: a light "you're on a run" line under the username (only when
-                    // there's something genuinely true to say). The season-average card is gone — the
-                    // user's standing now lives in the leaderboard below, where the team tabs, chase
-                    // line and movement moved into the header.
-                    if let streak = streakResult { streakLine(streak) }
+                if let selected {
+                    // Returning player: the single personal line under the username — progress-to-rank
+                    // while provisional, a one-time "you're ranked!" on qualifying, else a streak line
+                    // (Update #1). Only ever the user's own status; other users' provisional state is
+                    // never shown. The season-average card is gone — standing lives in the board below.
+                    if let line = hubStatusLine(team: selected) { statusLineView(line) }
                 } else {
                     // First-timer (no board yet): the explainer header.
                     headerCard
@@ -685,10 +703,32 @@ struct PredictXIView: View {
             bestClimb: climb)
     }
 
-    private func streakLine(_ result: PredictStreakLine.Result) -> some View {
+    /// The single contextual line under the username, for the SELECTED team. Priority (Update #1):
+    ///  1. PROVISIONAL (< threshold scored matches) → personal progress to ranking ("2 more matches to
+    ///     earn your season rank"). Replaces the streak — there's no streak history yet. Only the user
+    ///     ever sees this; it reads off the LOCAL match count, no other-user data.
+    ///  2. JUST QUALIFIED this visit (crossed the threshold; detected + latched once in `reload`) →
+    ///     "You're now ranked! #R of T <club> predictors".
+    ///  3. Otherwise → the streak line (personal best / hot streak / climbing), or nothing.
+    private func hubStatusLine(team: String) -> (icon: String, text: String)? {
+        let threshold = PredictLeaderboardService.provisionalThreshold
+        let matches = store.scoredMatchCount(forTeam: team)
+        if matches < threshold {
+            let remaining = threshold - matches
+            return ("target", "\(remaining) more match\(remaining == 1 ? "" : "es") to earn your season rank")
+        }
+        if showQualifiedForTeam == team,
+           let rank = viewModel.standingByTeam[team]?.rank, let total = viewModel.standingByTeam[team]?.total {
+            return ("trophy.fill", "You're now ranked! #\(rank) of \(total) \(viewModel.teamLabel(team)) predictors")
+        }
+        if let streak = streakResult { return (streak.icon, streak.text) }
+        return nil
+    }
+
+    private func statusLineView(_ line: (icon: String, text: String)) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: result.icon).dsFont(13).foregroundStyle(accent)
-            Text(result.text).dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+            Image(systemName: line.icon).dsFont(13).foregroundStyle(accent)
+            Text(line.text).dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -878,17 +918,17 @@ struct PredictXIView: View {
                 .background(row.isYou ? accent.opacity(0.12) : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
-            // Honest sparse state: the ranked board is real, just you so far. (An all-provisional board
-            // has an empty ranked list; the "Earning their ranking" section below carries that state.)
-            if rows.count == 1, rows.first?.isYou == true {
+            // Honest empty/sparse state. The board shows only RANKED predictors (3+ matches, Update #1) —
+            // provisional players are OFF the board now (their own progress is a personal hub line), so
+            // early in the season the ranked list can be empty or just the user.
+            if rows.isEmpty {
+                Text("No ranked predictors yet — 3 predictions earns a spot on the board.")
+                    .dsFont(12).foregroundStyle(.secondary)
+                    .padding(.horizontal, 10).padding(.top, 2)
+            } else if rows.count == 1, rows.first?.isYou == true {
                 Text("You're first in line — standings grow as more fans play.")
                     .dsFont(12).foregroundStyle(.secondary)
                     .padding(.horizontal, 10).padding(.top, 2)
-            }
-            // "Earning their ranking" — provisional predictors (< threshold matches), SEASON board only
-            // (a round is 1–2 matches, so the threshold can't apply there). Encouraging, not "unranked".
-            if clock == .season {
-                provisionalSection(team: team)
             }
         }
         .padding(16)
@@ -912,53 +952,6 @@ struct PredictXIView: View {
             .clipShape(Capsule())
         }
         .buttonStyle(.plain)
-    }
-
-    /// "Earning their ranking" — predictors still under the `provisionalThreshold` scored matches, shown
-    /// with progress dots instead of a rank so a single lucky match can't sit at #1. Encouraging tone
-    /// (owner call). Hidden when nobody is provisional.
-    @ViewBuilder
-    private func provisionalSection(team: String) -> some View {
-        let provisional = viewModel.provisionalByTeam[team] ?? []
-        if !provisional.isEmpty {
-            Divider().overlay(Color.secondary.opacity(0.4))
-                .padding(.horizontal, 6).padding(.vertical, 2)
-            Text("EARNING THEIR RANKING")
-                .dsFont(11, weight: .bold).tracking(1.0).foregroundStyle(Color.dsFgTertiary)
-                .padding(.horizontal, 10).padding(.top, 2)
-            ForEach(provisional) { row in provisionalRow(row) }
-        }
-    }
-
-    private func provisionalRow(_ row: PredictXIViewModel.ProvisionalRow) -> some View {
-        let threshold = PredictLeaderboardService.provisionalThreshold
-        let done = min(row.matches, threshold)
-        return HStack(spacing: 12) {
-            // No rank yet — a dash holds the rank column so the row aligns with the ranked list above.
-            Text("—")
-                .font(.subheadline.weight(.bold).monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 28, alignment: .trailing)
-            Text(row.name)
-                .dsFont(15, weight: row.isYou ? .bold : .regular)
-                .foregroundStyle(row.isYou ? accent : .primary)
-                .lineLimit(1).minimumScaleFactor(0.8)
-            Spacer()
-            HStack(spacing: 4) {
-                ForEach(0..<threshold, id: \.self) { i in
-                    Circle()
-                        .fill(i < done ? accent : Color.dsBgTertiary)
-                        .frame(width: 6, height: 6)
-                }
-            }
-            Text("\(done)/\(threshold) to rank")
-                .dsFont(12, monospacedDigit: true).foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 8).padding(.horizontal, 10)
-        .background(row.isYou ? accent.opacity(0.12) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        // Rivals dim (still building); keep the user's own row fully legible.
-        .opacity(row.isYou ? 1 : 0.6)
     }
 
     /// "3rd" — ordinal for the recent-result card's round rank.

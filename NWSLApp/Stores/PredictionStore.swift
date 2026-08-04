@@ -81,6 +81,11 @@ final class PredictionStore {
     /// so it stays bounded to what the app can still render. Local-only, like the seen set.
     private(set) var roundRankByFixture: [String: Int]
 
+    /// Teams for which the user has already seen the one-time "You're now ranked!" hub line (Update #1) —
+    /// shown the visit they cross the provisional threshold, then it reverts to streak lines. Per team
+    /// (a user can qualify on WAS before LA); persisted so "once" survives relaunch. Bounded (≤16 clubs).
+    private(set) var qualifiedRankSeenTeams: Set<String>
+
     private let defaults: UserDefaults
 
     private enum Key {
@@ -94,6 +99,7 @@ final class PredictionStore {
         static let uploadedResultSeen = "predict.v2.uploadedResultSeen"
         static let seasonBests = "predict.v2.seasonBests"
         static let roundRanks = "predict.v2.roundRanks"
+        static let qualifiedRankSeen = "predict.v2.qualifiedRankSeen"
     }
 
     /// `defaults` is injectable so tests/previews use an isolated store.
@@ -108,6 +114,7 @@ final class PredictionStore {
         self.uploadedPickFixtureIDs = Self.decode(Set<String>.self, defaults.data(forKey: Key.uploadedPicks)) ?? []
         self.uploadedResultSeenFixtureIDs = Self.decode(Set<String>.self, defaults.data(forKey: Key.uploadedResultSeen)) ?? []
         self.roundRankByFixture = Self.decode([String: Int].self, defaults.data(forKey: Key.roundRanks)) ?? [:]
+        self.qualifiedRankSeenTeams = Self.decode(Set<String>.self, defaults.data(forKey: Key.qualifiedRankSeen)) ?? []
         let storedBests = Self.decode(PredictSeasonBests.self, defaults.data(forKey: Key.seasonBests))
         self.seasonBests = storedBests?.season == season
             ? (storedBests ?? .empty(season: season))
@@ -301,6 +308,16 @@ final class PredictionStore {
         persist()
     }
 
+    /// Has the user already seen the one-time "You're now ranked!" line for this team (Update #1)?
+    func hasSeenQualified(team: String) -> Bool { qualifiedRankSeenTeams.contains(team) }
+
+    /// Mark the "now ranked" congrats shown for this team so it appears only the once.
+    func markQualifiedSeen(team: String) {
+        guard !qualifiedRankSeenTeams.contains(team) else { return }
+        qualifiedRankSeenTeams.insert(team)
+        persist()
+    }
+
     func hasUploadedResultSeen(fixtureID: String) -> Bool { uploadedResultSeenFixtureIDs.contains(fixtureID) }
 
     /// Mark the server "result seen" write as landed for this fixture (call only after the upsert succeeds).
@@ -384,6 +401,7 @@ final class PredictionStore {
         defaults.set(try? JSONEncoder().encode(uploadedResultSeenFixtureIDs), forKey: Key.uploadedResultSeen)
         defaults.set(try? JSONEncoder().encode(seasonBests), forKey: Key.seasonBests)
         defaults.set(try? JSONEncoder().encode(roundRankByFixture), forKey: Key.roundRanks)
+        defaults.set(try? JSONEncoder().encode(qualifiedRankSeenTeams), forKey: Key.qualifiedRankSeen)
     }
 
     /// Wipe all local Predict-the-XI progress on account deletion — resets the
@@ -401,6 +419,7 @@ final class PredictionStore {
         uploadedResultSeenFixtureIDs = []
         seasonBests = .empty(season: seasonBests.season)
         roundRankByFixture = [:]
+        qualifiedRankSeenTeams = []
         persist()
     }
 
@@ -448,6 +467,7 @@ final class PredictionStore {
         defaults.set(Data(), forKey: Key.uploadedResultSeen)
         defaults.set(Data(), forKey: Key.seasonBests)
         defaults.set(Data(), forKey: Key.roundRanks)
+        defaults.set(Data(), forKey: Key.qualifiedRankSeen)
     }
     #endif
 }

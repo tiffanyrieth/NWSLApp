@@ -172,28 +172,6 @@ struct PredictLeaderboardService {
         }
     }
 
-    /// The team's PROVISIONAL predictors — those with 1…(threshold−1) scored matches, still earning
-    /// a ranked position. Ordered by match count desc (closest to ranking first), capped. Empty on any
-    /// failure. The caller filters out the signed-in user and splices their fresher local match count.
-    func provisionalStandings(teamAbbreviation: String, season: String) async -> [Standing] {
-        do {
-            let rows: [ScoreRow] = try await client
-                .from("prediction_scores")
-                .select("user_id, display_name, points, matches, avg_points")
-                .eq("team_abbreviation", value: teamAbbreviation)
-                .eq("season", value: season)
-                .lt("matches", value: Self.provisionalThreshold)
-                .order("matches", ascending: false)
-                .limit(LeaderboardRanking.visibleLimit)
-                .execute()
-                .value
-            return rows.map { Standing(userID: $0.user_id, name: $0.display_name ?? "Fan",
-                                       points: $0.points, matches: $0.matches ?? 0, avg: $0.avg_points ?? 0) }
-        } catch {
-            await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict provisional \(teamAbbreviation): \(error.localizedDescription)") }
-            return []
-        }
-    }
 
     /// The signed-in user's TRUE 1-based SEASON rank on a team's board, by AVERAGE per match, computed with
     /// a COUNT (rows averaging strictly higher, +1) — no rows transferred. `nil` on failure, so the caller

@@ -33,18 +33,38 @@ struct SuperfanDetailView: View {
     @State private var achievements: [EarnedAchievement] = []
     @State private var didLoad = false
     @State private var showHowItWorks = false
+    /// Bumped on each open so the Spotlight shows a different item every visit (its whole "never the same
+    /// twice" hook). Persisted so it survives across launches.
+    @AppStorage("superfan.spotlight.rotation") private var spotlightRotation = 0
 
     private var season: Int { AppConfig.currentSeasonYear }
 
     // Derived from the merged counts.
     private var total: Int { SuperfanScoring.total(counts: counts) }
-    private var tier: SuperfanTier { SuperfanTier.forScore(total) }
     private var breakdown: SuperfanBreakdown { SuperfanScoring.breakdown(counts: counts) }
+
+    /// The DISPLAYED score/tier apply the tier-floor lock: never below a tier you've earned this season
+    /// (`season_history.peak_score`). `max(total, …)` guards a peak row that hasn't been written yet.
+    private var seasonPeak: Int { max(total, seasonHistory.first { $0.seasonYear == season }?.peakScore ?? 0) }
+    private var displayTotal: Int { SuperfanScoring.displayScore(counts: counts, seasonPeak: seasonPeak) }
+    private var tier: SuperfanTier { SuperfanTier.forScore(displayTotal) }
+
+    /// The rotating "what we noticed" item, built entirely from cheap local signals (see SuperfanSpotlight).
+    private var spotlightItem: SuperfanSpotlight.Item? {
+        SuperfanSpotlight.pick(.init(
+            total: displayTotal,
+            breakdown: breakdown,
+            playersLearned: knowHer.distinctPlayersScored(atLeast: 1),
+            bestPredictStarters: predict.seasonBests.hasMatchBaseline ? predict.seasonBests.bestMatchStarters : nil,
+            recentAchievement: achievements.max(by: { $0.earnedAt < $1.earnedAt })?.achievement.title,
+            gamesPlayed: counts.gamesPlayed), rotation: spotlightRotation)
+    }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
                 hero
+                spotlightSection
                 breakdownSection
                 howSuperfanWorks
                 bestMomentsSection
@@ -55,7 +75,7 @@ struct SuperfanDetailView: View {
         }
         .background(Color.dsBgGrouped)
         .nativeBackButton(title: "Superfan")
-        .task { await load() }
+        .task { spotlightRotation &+= 1; await load() }
         .refreshable { await syncStanding() }
         .alert("Game Center unavailable", isPresented: Binding(
             get: { GameCenterManager.shared.leaderboardsUnavailable },
@@ -126,33 +146,84 @@ struct SuperfanDetailView: View {
     // MARK: - Hero (tier badge + score + progress to next tier)
 
     private var hero: some View {
-        let progress = TierProgress(score: total)
-        return VStack(spacing: 12) {
+        VStack(spacing: 14) {
             TierBadge(tier: tier, size: 80)
             Text("SUPERFAN · \(String(season)) SEASON")
                 .dsFont(11, weight: .bold).tracking(1.5).foregroundStyle(.secondary)
-            Text("\(total)")
-                .dsFont(48, weight: .heavy, design: .rounded).foregroundStyle(.primary)
-
-            VStack(spacing: 6) {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.dsBgTertiary)
-                        Capsule().fill(tier.color)
-                            .frame(width: max(0, geo.size.width * progress.fraction))
-                    }
-                }
-                .frame(height: 10)
-                HStack {
-                    Text(tier.label).dsFont(12).foregroundStyle(.tertiary)
-                    Spacer()
-                    if let next = tier.next { Text(next.label).dsFont(12).foregroundStyle(.tertiary) }
-                }
-                Text(progress.caption).dsFont(13, weight: .semibold).foregroundStyle(tier.color)
+            // Score + tier NAME together, so the number is never read without knowing which tier it is.
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(displayTotal)").dsFont(48, weight: .heavy, design: .rounded).foregroundStyle(.primary)
+                Text(tier.label).dsFont(20, weight: .bold).foregroundStyle(tier.color)
             }
-            .padding(.horizontal, 8)
+            // The full 4-rung LADDER (Fan → Rising → All-Star → MVP), the current rung lit + emphasized —
+            // so where you stand reads at a glance and All-Star can never look like the floor (owner-caught).
+            tierLadder(current: tier)
+            Text(TierProgress(score: displayTotal).caption)
+                .dsFont(13, weight: .semibold).foregroundStyle(tier.color)
         }
         .frame(maxWidth: .infinity).padding(.top, 8)
+    }
+
+    private func tierLadder(current: SuperfanTier) -> some View {
+        let rungs: [SuperfanTier] = [.fan, .rising, .allStar, .mvp]
+        let currentIdx = rungs.firstIndex(of: current) ?? 0
+        return HStack(spacing: 8) {
+            ForEach(Array(rungs.enumerated()), id: \.offset) { idx, t in
+                let reached = idx <= currentIdx
+                let isCurrent = idx == currentIdx
+                VStack(spacing: 5) {
+                    Capsule()
+                        .fill(reached ? t.color : Color.dsBgTertiary)
+                        .frame(height: isCurrent ? 8 : 5)
+                    Text(t.label)
+                        .dsFont(isCurrent ? 12 : 11, weight: isCurrent ? .bold : .regular)
+                        .foregroundStyle(isCurrent ? t.color : (reached ? Color.dsFgSecondary : Color.dsFgTertiary))
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.horizontal, 4).padding(.top, 2)
+    }
+
+    // MARK: - Spotlight (the rotating "what we noticed" hook)
+
+    @ViewBuilder
+    private var spotlightSection: some View {
+        if let item = spotlightItem {
+            let tint = spotlightTint(item.tone)
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: item.icon)
+                    .dsFont(20).foregroundStyle(tint)
+                    .frame(width: 38, height: 38)
+                    .background(tint.opacity(0.15), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.headline).dsFont(16, weight: .bold).foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let d = item.detail {
+                        Text(d).dsFont(13).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                // ⚠️ Bound the wrapping text column so its `.fixedSize` ideal width can't widen the row and
+                // let the scroll pan sideways (the KHG-results drag bug, 2026-08-04). Frame + Spacer both.
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.dsBgCard)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+    }
+
+    private func spotlightTint(_ tone: SuperfanSpotlight.Item.Tone) -> Color {
+        switch tone {
+        case .celebratory: return .dsSuccess
+        case .nudge:       return .dsAccent
+        case .playful:     return .dsWarning
+        case .info:        return .dsFgSecondary
+        }
     }
 
     // MARK: - Breakdown (per-game accuracy × 25)

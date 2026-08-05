@@ -52,8 +52,13 @@ struct FeedView: View {
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) { feedHeader }
             .sheet(isPresented: $showSources) {
-                FeedSourcesView(sources: viewModel.sources())
-                    .environment(feedPreferences)
+                FeedSourcesView(
+                    sources: viewModel.sources(feedPreferences),
+                    followedTeamAbbrs: viewModel.followedClubs(following).map(\.abbreviation),
+                    teamNames: Dictionary(clubStore.clubs.map { ($0.abbreviation, $0.displayName) },
+                                          uniquingKeysWith: { first, _ in first })
+                )
+                .environment(feedPreferences)
             }
         }
         .task {
@@ -68,7 +73,7 @@ struct FeedView: View {
             viewModel.clubStore = clubStore
             viewModel.store = feedStore
             await clubStore.loadIfNeeded()   // dedupe-aware: scope the feed only after clubs are loaded
-            await viewModel.loadItemsIfNeeded(following: following)
+            await viewModel.loadItemsIfNeeded(following: following, preferences: feedPreferences)
         }
         .onAppear { showGearTooltipIfNeeded() }
     }
@@ -212,7 +217,7 @@ struct FeedView: View {
                 }
                 .padding(16)
             }
-            .refreshable { await viewModel.load(following: following) }
+            .refreshable { await viewModel.load(following: following, preferences: feedPreferences) }
         } else if viewModel.hasCompletedItemsLoad && !viewModel.isLoadingItems {
             emptyState                          // a load actually completed: genuinely no posts for this filter
         } else {
@@ -252,8 +257,6 @@ struct FeedView: View {
         switch viewModel.selectedFilter {
         case .all:
             return "No posts yet. As your teams make news, it'll show up here."
-        case .clubs:
-            return "No club posts right now. Check back soon."
         case .reporters:
             return "No reporter posts right now. Check back soon."
         case .players:
@@ -274,7 +277,7 @@ struct FeedView: View {
 
     private func errorView(_ message: String) -> some View {
         RetryStateView(message: message) {
-            await viewModel.load(following: following)
+            await viewModel.load(following: following, preferences: feedPreferences)
         }
     }
 }

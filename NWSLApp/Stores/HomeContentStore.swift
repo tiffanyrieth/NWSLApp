@@ -60,6 +60,9 @@ final class HomeContentStore {
     private var warmTask: Task<Void, Never>?
 
     private let contentService: ContentService
+    /// Phase 2b — the dynamic device-IP club-news fallback (fills official-news gaps the proxy
+    /// can't reach because a club blocks its datacenter IP). Additive + self-healing.
+    private let clubNewsFallback = ClubNewsFallbackService()
 
     init(contentService: ContentService = ContentService()) {
         self.contentService = contentService
@@ -145,6 +148,14 @@ final class HomeContentStore {
             teamContentItems = cards
             contentError = nil
             anySuccess = true
+            // Phase 2b: dynamically fill any followed club whose OFFICIAL news the proxy couldn't
+            // serve (a datacenter-IP block) via a device-IP fetch. Additive + best-effort — the
+            // initial cards are already shown above, and for the common case (no gap) this returns
+            // instantly without any network. Self-heals when the proxy can serve the club again.
+            let supplementary = await clubNewsFallback.supplementaryCards(existing: cards, followed: scope)
+            if !supplementary.isEmpty {
+                teamContentItems = (cards + supplementary).sorted { $0.timestamp > $1.timestamp }
+            }
         } catch {
             Diagnostics.shared.record(.apiFailure, "home content (\(scope.count) team(s)): \(error.localizedDescription)")
             teamContentItems = []

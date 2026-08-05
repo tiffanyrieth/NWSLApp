@@ -41,6 +41,10 @@ final class FeedStore {
     /// scope" (the next explicit retry refetches instead of no-op'ing).
     private var loadedScope: Set<String>? = nil
 
+    /// The personalization (added reporters + followed cross-team players) `allItems` reflect,
+    /// so a change refetches like a scope change. nil until the first successful load.
+    private var loadedPersonalization: String? = nil
+
     private let contentService: ContentService
 
     init(contentService: ContentService = ContentService()) {
@@ -53,20 +57,33 @@ final class FeedStore {
     /// (e.g. the prewarm ran before the sign-in restore), in which case the scope no longer
     /// matches and this refetches. A prior error waits for the explicit "tap to retry" (`load`),
     /// not an auto-retry on every reappearance.
-    func loadIfNeeded(following: FollowingStore, clubStore: ClubStore) async {
+    func loadIfNeeded(following: FollowingStore, clubStore: ClubStore, preferences: FeedPreferencesStore) async {
         let scope = await resolveScope(following: following, clubStore: clubStore)
+        let handles = preferences.addedReporterHandles
+        let players = preferences.followedPlayerIDs
+        let personalization = Self.personalizationKey(handles: handles, players: players)
         guard itemsError == nil else { return }
-        guard loadedScope != scope, !isLoadingItems else { return }
-        await fetch(scope: scope)
+        // Refetch when EITHER the followed-team scope OR the personalization (added reporters /
+        // followed cross-team players) changed since the last successful load.
+        guard (loadedScope != scope || loadedPersonalization != personalization), !isLoadingItems else { return }
+        await fetch(scope: scope, handles: handles, players: players, personalization: personalization)
     }
 
     /// Force a (re)load — pull-to-refresh + retry. Clears a prior error so the view shows the
     /// loading state, not the stale error.
-    func load(following: FollowingStore, clubStore: ClubStore) async {
+    func load(following: FollowingStore, clubStore: ClubStore, preferences: FeedPreferencesStore) async {
         guard !isLoadingItems else { return }
         itemsError = nil
         let scope = await resolveScope(following: following, clubStore: clubStore)
-        await fetch(scope: scope)
+        let handles = preferences.addedReporterHandles
+        let players = preferences.followedPlayerIDs
+        await fetch(scope: scope, handles: handles, players: players,
+                    personalization: Self.personalizationKey(handles: handles, players: players))
+    }
+
+    /// A canonical key for the current personalization, so a change is detected like a scope change.
+    private static func personalizationKey(handles: [String], players: [String]) -> String {
+        "h:\(handles.sorted().joined(separator: ","))|p:\(players.sorted().joined(separator: ","))"
     }
 
     /// The followed-club abbreviations to scope the live `/feed` query to (the proxy returns
@@ -82,15 +99,16 @@ final class FeedStore {
         )
     }
 
-    private func fetch(scope: Set<String>) async {
+    private func fetch(scope: Set<String>, handles: [String], players: [String], personalization: String) async {
         isLoadingItems = true
         defer { isLoadingItems = false; hasCompletedItemsLoad = true }
         do {
-            allItems = try await contentService.feedCards(followedAbbreviations: scope)
+            allItems = try await contentService.feedCards(followedAbbreviations: scope, handles: handles, players: players)
                 .sorted { $0.timestamp > $1.timestamp }
             itemsError = nil
             // Latch only on success, so an errored load doesn't read as "loaded for this scope".
             loadedScope = scope
+            loadedPersonalization = personalization
         } catch {
             Diagnostics.shared.record(.apiFailure, "feed load (\(scope.count) team(s)): \(error.localizedDescription)")
             allItems = []

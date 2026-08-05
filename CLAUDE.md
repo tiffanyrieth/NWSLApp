@@ -98,211 +98,51 @@ seams **compiler-enforced** (risk-driven: isolate fragile/high-blast-radius code
 `MatchClockKit` (live-clock engine + the consolidated display guard). ActivityKit code needs `#if
 os(iOS)` (unavailable off-iOS breaks host indexing). Add more only when a seam earns it.
 
-## Data sources (essentials — full detail in `docs/backend.md`)
+## Data sources & backend (MAP — detail lives in `docs/`, auto-loaded per subsystem)
 
-ESPN's unofficial NWSL endpoints (base in `Config/AppConfig.swift`) — **decode defensively**: scores
-are `String` not `Int`, scoreboard needs `&limit=500` for a full season **but the full-season `dates=`
-query serves live state 25–47 min STALE mid-game** (ESPN-side cache — the app's whole-game "stuck clock",
-2026-07-11; windowed/default queries stay fresh, `_cb` forces ESPN to recompute → the proxy busts the ESPN
-upstream on every `/scoreboard` MISS, and the app's live poll rides the windowed query), standings sit on a different
-base, endpoints break/rate-limit without notice, and **`status.clock` FREEZES at 45:00/90:00 through
-stoppage time** — any live clock must anchor MONOTONICALLY (re-anchor only when the clock advances or
-the period changes; naive `now − clock` re-anchoring pins the display at +1'/snaps the widget to 45:00).
-ESPN also keeps `state=="in"` THROUGH halftime (clock frozen, description "Halftime"/"HT") **and advances
-`period` to 2 at the START of the break** (period change alone ≠ the restart — reconcile anchors only
-while `clockRunning`), and flips a match "live" ~5–10 min LATE with the clock reset — so surfaces show a
-STATIC "HT" when `Event.isHalftime`, and a first sighting at the 45:00/90:00 cap is UNKNOWABLE (defer to
-ESPN's string; anchors persist across relaunch). ⚠️ **`state=="post"` does NOT mean FINISHED** (live-
-proven 2026-07-29: a wind hold at 27' reported `post` + `completed:false` + `STATUS_SUSPENDED` — the app
-showed FT 0–0, Predict graded against the fake final, and the watcher killed the Live Activity, stopped
-polling the fixture, and missed the real full time). Anything meaning "the result is settled" must use
-`Event.isFinalResult`/`isUnfinishedPost` (app), `isUnfinishedPost` (watcher), or `chooseSummaryTTL`
-(proxy — a 1yr cache on a suspended match FROZE it for days; a cache can't self-heal) — FAIL-OPEN: only
-`completed:false` or an explicit non-final status name blocks; a sparse payload scores as before. Predict
-grades also stamp the scoreline they were computed against and self-heal if it later changes. The **watcher** fetches only a yesterday→tomorrow scoreboard window (not the full
-season) so a per-minute cron tick isn't parsing ~240 events (CPU), and (2026-07-16) polls on a
-**FIXTURE WINDOW** (`src/fixtures.ts`): a ~6h discovery sweep indexes kickoffs in KV; the tick fetches
-ONLY feeds with a fixture in [KO−75m…KO+4h] (zero fixtures near ⇒ ZERO fetches — the old 16-feeds-every-
-minute burned ~23k proxy invocations/day at zero users, ~23% of the Workers-free 100k/day request cap;
-NOTE a proxy cache HIT still counts as a Worker request). App-side twin: the NT scoreboard fan-out is
-**CONFEDERATION-SCOPED** (`ConfederationMap.swift` — ZAM polls ~7 feeds not 15; unmapped code fails OPEN
-to all + diag; system doc `docs/national-teams.md`). Most traffic routes through the **`nwslapp-proxy`
-Cloudflare Worker** (sibling repo `~/Projects/nwslapp-proxy`); DEBUG `-useESPNDirect` bypasses it.
-**Roster** = a VERIFIED pipeline via `/roster` (2026-07-31, proxy #63–#68; mechanism `docs/backend.md`
-roster §§, reasoning `docs/roster-source-research.md` §10). Layers: last-known-good KV (ESPN serves
-implausible squads — Portland sat at 1 player for days → `proxyCachedAsOf` + "Roster as of …") ·
-**continuity guard** (a plausibly-sized payload sharing <50% of the trusted squad is neither cached NOR
-served; contamination ≈0%) · **nightly 08:00 UTC ESPN×NWSL verification** (16-club identity/shape/overlap/
-per-player) whose per-club verdict holds a failing club on last-known-good · **90-day owner overrides**
-(position+jersey ONLY, never add/remove a player), settled weekly by a Claude routine against the club's
-OWN roster page. ⚠️ **Neither feed auto-wins:** ESPN erases real players (Fuller, Heaps, Spaanstra); the
-NWSL feed lags transfers 1–3wks + duplicates numbers on 12/16 clubs. Ops: `GET /admin` (one portal —
-Roster · Bracket · KHG). Teams/standings still hit ESPN direct.
-**Predict community picks** route through the proxy's `/predict/community` (2026-07-28) — how many of a
-club's predictors picked each player, for Predict's results screen. ⚠️ THIS ROUTE IS A DEADLINE GATE and
-fails CLOSED: readable percentages while people are still picking would let users copy the consensus and
-flatten the distribution, so it serves only a submission COUNT before kickoff − 2h and the full split
-after. Postgres can't enforce that (it has no idea when kickoff is) and the device clock is the user's —
-the worker knows, from its own cached `/summary`. The WRITE side goes straight to Supabase instead
-(`predict_record_picks`, counts only, never lineups; idempotent on a `(user_id, event_id)` mark, so a
-retry/double-tap/reinstall can't double-count). Full reasoning: `docs/fan-zone.md` §3.
-**Kickoff weather** routes through the proxy's `/weather?event={id}` too — a PAST match's kickoff-hour
-temperature + sky condition from **Open-Meteo** (free, no key; ESPN carries NO NWSL weather). Keyed by a
-static **ESPN-venue-id**→lat/lon table (id-keyed so a rename can't silently break it), the exact kickoff
-HOUR (not the daily high), **cached write-once in KV** (immutable once
-final; lazy backfill, no cron); night-aware via `is_day`. PAST-ONLY;
-envelope versioned for a later forecast mode. Shows as a quiet stamp under the MatchDetail header.
-**Tier-2 server push** (live match alerts) is a SECOND sibling Worker, **`nwslapp-match-watcher`**
-(`~/Projects/nwslapp-match-watcher`): a `* * * * *` cron that diffs the proxy scoreboard (reached via a
-**service binding** — same-account Worker→Worker over `*.workers.dev` 404s with CF **error 1042**, so a
-public fetch silently fails) for
-kickoff/goal/halftime/full-time + **lineup-posted** (polls `/summary` in a 75-min pre-kickoff window) +
-**RED CARD** (reds ONLY; keys on the explicit `redCard` boolean, NEVER text; rides the
-**`goals`** pref column; per-side fire-once ledger, pre-existing KV rows baseline) +
-**VAR goal-correction** (a debounced score *decrease* — re-poll a
-cache-busted scoreboard before firing, so an ESPN glitch never sends a false "Goal Disallowed"), looks
-up `device_tokens` of users with that alert on, and sends APNs (ES256 `.p8` JWT). **Delivery (SHIPPED
-2026-07-09, `docs/push-fanout-scaling.md`): V1 buzz + Live Activity push-to-start fan out via Cloudflare
-Queues** (cron enqueues chunked tokens → a consumer drains each batch with its own fresh subrequest
-budget → no launch-scale cap; `apns-collapse-id` dedupes); **V2 in-match Live Activity updates ride APNs
-Broadcast Channels** (channel-per-match, one POST/event, iOS 18+; iOS 17 = V1-only). **V1 push shape (copy v4, device-tested; full spec + examples in `docs/notifications.md`):** title =
-subject-first with a COLON (`GOAL: Seattle Reign FC`, never an em-dash); subtitle = scan-ordered detail
-(goal = SCORER then scoreboard; red card = minute-first player, NO scoreline; HT/FT = scoreline ONLY).
-Caps only on GOAL/NO GOAL. NO body. A square crest TILE attaches **ONLY to a GOAL (scorer's club) or RED
-CARD (carded club)** — kickoff/lineup/HT/FT + VAR corrections are **NEUTRAL** (no image, no
-`mutable-content`): one crest misreads for the OTHER team's fans (owner rule 2026-07-10, after an away-team
-"Lineups in" showed the HOME crest). The tile comes from the THIRD sibling Worker
-`nwslapp-card`** (`/thumb/{ABBR}`, team-color wash, crest
-overscanned past the source PNGs' 41px baked-in border; same repo as the watcher, own
-`wrangler.card.jsonc`). The card/thumb renderer lives in that separate fetch-only worker because
-satori+resvg (~3.4MB) in the CRON's module graph blew the cold-start CPU budget (Exceeded CPU kills on
-idle ticks; lazy `import()` is impossible — Workers forbids runtime WASM instantiation). The watcher
-302s `/card/*` → nwslapp-card permanently (APNs can deliver stored pushes hours late). Deployed;
-`POST /test-push` (`x-trigger-secret`) sends a synthetic push for
-on-device E2E (`APNS_HOST` is production — ⚠️ a USB/Xcode DEBUG build registers a SANDBOX token → prod
-gateway 400 `BadDeviceToken`; the test endpoints take an optional `sandbox:true` → `testApnsConfig`
-routes THAT call to the sandbox host WITHOUT flipping the global host, which would make the cron prune
-real prod tokens. `/replay-tick` + `scripts/replay-realtime.mjs` push a synthetic ESPN scoreboard
-through the REAL pipeline for on-device V1/V2 tests). A **V2 Live Activity** layer (lock-screen + Dynamic
-Island live score) rides the SAME watcher + `.p8`, ADDITIVE to V1 — but the roles split: **V1 is the
-interrupt (buzzes kickoff/goal/HT/FT per the user's toggles); V2 is a QUIET glance.** V2 content-state
-carries **per-side scorers** (`homeScorers`/`awayScorers`, capped 4 +N) + `homeRedCards`/`awayRedCards`
-(all additive-optional — old app builds ignore unknown keys) → the card stacks each team's scorers under
-its crest + a red-card rect. ⚠️ The V2 widget clock is Apple's **mm:ss** during regular play (deliberate —
-`showsHours:false` so it reads `68:12` not `1:08`; the football-minute `45'+2'` clock is **IN-APP ONLY**,
-`MatchClock`, Match Detail / Schedule cards). **EXCEPTION (build 26): in ADDED TIME the widget shows the
-football stoppage `90'+2'`** — the watcher broadcasts a `stoppageDisplay` string each minute (cheap via
-Broadcast Channels; the "never push per-minute" rule yields for stoppage only). Don't mistake the widget's
-mm:ss for a regression. The watcher **30s-double-polls** live windows (goal/HT/FT latency ~30s) and
-resyncs the widget clock the instant the anchor jumps ≥30s (each half's late live-flip). ⚠️ Gotcha (device-proven 2026-07-04,
-contradicts Apple's docs): the push-to-start **`alert` is REQUIRED to render** — omit it and APNs 200s but
-iOS NEVER presents the card. ⚠️ **START-PAYLOAD LAW (device-proven 2026-07-11) — read `docs/live-activity-v2.md` §0 BEFORE touching
-any V2 payload.** Two INDEPENDENT things, never conflate them (doing so cost weeks): **RENDER** needs BOTH
-an `alert` object AND the payload wrapped in `{ aps: {…} }` on the wire (`buildStartAps` returns the
-CONTENTS — the sender must wrap; the 7/9 Queues redesign stored it UNWRAPPED, so APNs said `1 sent` and iOS
-silently dropped every start). **BUZZ** is purely the `sound`: `"default"` = one arrival buzz (SHIPPED),
-`""` = renders but silent. The old "`sound:\"\"` is flaky" claim was WRONG — that was the missing envelope.
-🔒 **CHANGE-RULE:** never change the start payload's envelope/alert/sound on Apple-docs or theory — only a
-REAL-DEVICE test (real game OR the fake-match harness `POST /debug/fake-match`) counts; `1 sent` ≠ rendered.
-Also: iOS shows a one-time per-app "Allow Live Activities?" prompt with the
-app's FIRST presented Activity (a reinstall resets it). Push-to-
-start fires **≤20 min pre-kickoff** (a device can take minutes to register its per-Activity token) + a
-catch-up push for late tokens. `POST /test-activity` + `scripts/replay.mjs` drive it; app `LiveActivityManager`
-mirrors push-to-start/per-Activity tokens under a UIKit background-task assertion (background-launch upload);
-detail in `docs/backend.md`. The app side: `registerForRemoteNotifications` → AppDelegate →
-`PushBridge` → `DeviceTokenService` upserts `device_tokens` (per-team toggles in `team_alert_preferences`).
-**Register on EVERY open (canonical Apple pattern — NOT gated on a toggle):** `registerForRemoteNotifications`
-fires on cold launch + every foreground (`scenePhase .active`); a signed-in user whose iOS permission was
-reset (reinstall) but who has any alert on is auto-re-prompted then registered (denied → honest surface, never
-a silent "alerts on but no token"). The OLD gate — register only if already `.authorized`, permission requested
-only by a bell toggle — left opt-in/reinstalled users with an EMPTY `device_tokens` (no token ⇒ no pushes at
-all). Upsert is guarded (writes only on token change); `didFailToRegister` → Diagnostics (never a bare print).
-**Token lifecycle = PER-DEVICE, replace-not-accumulate:** every APNs token table (`device_tokens`,
-`live_activity_start_tokens`) keys on **`(user_id, device_id)`**, `device_id` = a Keychain-stable per-device
-UUID (`DeviceIdentity.swift`, survives reinstall). So each device keeps ONE current token (a rotation
-replaces it in place; the same user on two devices = two rows), instead of piling up a dead token per
-reinstall/rotation. The watcher ALSO self-prunes — a send returning `410 Unregistered`/`400 BadDeviceToken`
-deletes that token (`pruneDeadTokens`). This accumulation of zombie tokens (the old `(user_id, token)`
-keying) was the V2 Live-Activity "delivered-but-never-renders" bug; per-device + prune fixed it (build 23).
-**Notifications = OPT-IN (owner rule — no dark patterns):** nothing auto-enables at onboarding/launch;
-the user turns on exactly what they want. **Nuance (owner, match-alerts):** an EXPLICIT match-alert
-bell tap IS the opt-in, so it CASCADES the full default bundle the first time (day-before + kickoff +
-goals + halftime + full-time + lineups + Live Activities via `applyMatchAlertDefaultsIfFirstTime`) — a complete
-feature makes the best first impression; a bell-on-nothing-fires state is the banned "silent failure
-that looks like success." First-time only (a sentinel respects later manual edits; it resets on
-account-delete ONLY — a plain sign-out preserves prefs + sentinel and restores the prior toggles on
-re-sign-in, so no re-cascade).
-Because the bundle is mostly Tier-2, a signed-out bell tap presents Sign in with Apple FIRST
-(intercept: success → enable+cascade+toast, cancel → bell stays off). **Tier 1** = deliverable without
-an account (local: day-before, Player Spotlight — ⚠️ iOS caps PENDING local notifications at 64/app:
-day-before is WINDOWED to the next 2 fixtures per alerting team, never the whole season); **Tier 2** = watcher-triggered ⇒ needs an account ⇒
-sign-in-gated (`tier2Binding` / the bell intercept) + **display-gated on auth** (sign-out fix 2026-07-16: Tier-2
-intent SURVIVES sign-out, reads off while signed out, restores exactly on re-sign-in; account-delete
-alone tears down; a LAPSED session auto-presents sign-in + `tier2SignedOutDesync`, a DELIBERATE
-sign-out never nags — `SignOutSentinels`; DEBUG `-simulateLostSession`). **Lineup-posted (Stage D, done):** the watcher polls
-`/summary` (cache-busted via the proxy binding) in a 75-min pre-kickoff window and pushes "Lineups in" the tick
-BOTH XIs are posted (≥11 starters/side; dedup = **retry-until-SENT** via two KV markers — `lineup-pub`
-latches publication, `lineup:` marks fired only once ≥1 recipient reached, so a 0-recipient tick
-retries — 2026-07-18); the app shows the pre-match XI in `MatchDetailView`'s
-future layout. UI groups kickoff+HT+FT under one "Match updates" toggle (grouping only — each still gates its
-own column server-side). NEVER auto-enable a notification WITHOUT an explicit user
-action. National-team alerts: bell keyed by FIFA code → `competition_alert_preferences` (separate from
-the club-id `team_alert_preferences`); the watcher polls the women's-international competition feeds
-(friendlies + confederation championships + WC/Olympic qualifying — the SAME slug set kept in sync across
-app `NationalTeamFeed.all`, proxy `WOMENS_NT_FEEDS`+allowlist, and watcher `NT_LEAGUES`) + fans out by code.
-⚠️ Display + alerts must stay aligned (the ESPN `all/teams/{id}/schedule` endpoint is HISTORY-only, so the
-schedule's UPCOMING fixtures come only from these per-competition scoreboards — a new competition = add the
-slug to all three lists AND tag its `scope` in `ConfederationMap.swift`; untagged defaults to global/polled-
-for-everyone, fail-open). ⚠️ **NT = a deliberately LIGHTER tier, but BROWSABLE since 2026-07-31:** country
-cards → `NationalTeamDetailView` (live squad, tap-through; player pages show the TOURNAMENT block + the
-NWSL one when both exist). All NT data is **LIVE-FETCHED, ESPN-AS-IS — no storage/verification/crons**,
-the deliberate inverse of the roster stack above (no second source exists to verify against). ⚠️ NT team
-ids are per-WOMEN'S-program: USWNT = **2765**, not 660. Trust model + system doc: `docs/national-teams.md` §0.
-Per-user state in **Supabase**, offline-first (UserDefaults cache). **Follows sync = UPWARD-ONLY
-(2026-07-23):** the DEVICE is the source of truth; Supabase is backend bookkeeping the user never hears
-about. There is **no restore-down** — signing in never rewrites follows, completes onboarding, or changes
-what's on screen (the old restore hijacked the picker when the alert-bell intercept let a user sign in
-MID-onboarding). Pure, tested `FollowSyncCoordinator.resolveFollowOps`: **adds always; deletes only once
-`hasOnboarded`** — a half-filled picker must never look authoritative (that was the "only the oldest
-follow survives" data-loss bug). Post-onboarding the device is authoritative both ways, so
-follow-16-then-unfollow-to-2 leaves the server holding 2. **What sign-in DOES restore is GAME PROGRESS**
-(`fanzone_progress`, keyed `user_id` never `device_id`) — see `docs/fan-zone.md`. ⚠️ **THE RESTORE LINE
-(owner ruling 2026-08-03, re-litigated ~7× — treat as SETTLED): detailed PREFERENCES may restore, the
-generic "who do I follow" may NOT.** So the nine alert TYPES (`notification_preferences`) still come back
-verbatim, and land INERT (`NotificationsView` greys/disables Alert types until `isSignedIn &&
-enabledCount > 0`, so they apply to nothing until a bell is tapped). Per-team/NT **BELLS do NOT restore**
-(SHIPPED 2026-08-03): a reinstall is a CLEAN SLATE and NOT re-selecting a team is a real signal, not data
-loss — restoring saved ~2 taps of 16, and a reinstall is often someone RESETTING a broken state.
-`TeamAlertSyncCoordinator` is UPWARD-ONLY (prune gated on `hasOnboarded`). Directions per datum:
-**`docs/data-sync.md`.** ⚠️ Sim trap:
-`simctl uninstall` does NOT clear the prefs domain (`defaults delete` does) or a "fresh install" test lies. Two devices diverging
-offline → last writer wins (fine at current scale). **Gotcha (grants):** a new per-user table needs `grant … to
-authenticated` or signed-in queries fail silently with `42501` (RLS ≠ privilege); **AND** any table a
-**Worker reads/writes as `service_role`** — the watcher (`device_tokens`, `*_preferences`,
-`team_alert_preferences`, `live_activity_*`) OR the proxy (`profiles`, for the SIWA `apple_refresh_token`)
-— needs an explicit `grant … to service_role` too: default privileges don't cover it, and bypassing RLS
-is NOT table privilege (this latent gap 42501'd the first real service_role read). The grant must match
-the **operation**: the watcher's `pruneDeadTokens` DELETEs `device_tokens`, so a `select`-only grant
-strands dead tokens — grant `select, delete`. And any secret the proxy signs into a JWT **raw** (SIWA
-`APPLE_TEAM_ID`/`SIWA_KEY_ID`) must be whitespace-clean — a trailing newline signs a JWT Apple rejects
-as `invalid_client`; set via **stdin, never copy-paste** (`printf '%s' … | wrangler secret put`).
-**Know Her Game = fully-automated BIWEEKLY** (a Claude cloud Routine on the owner's subscription → the
-Rodman-faithful prompt → 16-player pool → `POST /knowher/ingest`). Full pipeline: `docs/know-her-game.md`
-§5d. ⚠️ **The traps, all paid for:** the routine's MODEL lives in the trigger record's
-`job_config.ccr.session_context.model` and the claude.ai UI does NOT write it — setting it there looks like
-it worked and every scheduled run silently reverts (cost weeks of wrong-model output); change it via the
-RemoteTrigger/HTTP API only. Publishing goes ONLY through `/knowher/ingest` or the admin paste — they alone
-run `markFeatured`; `scripts/load_knowher.mjs` writes KV direct and SKIPS the ledger (that repeated Rodman
-in 2026-W27→W31), so it now refuses without `--allow-ledger-bypass`. Cadence alternates with NWSL Trivia off
-a COMMITTED `SEASON_ANCHOR` constant (the routine UI has no env-var field). Content lints gate the dry-run;
-the 2 stat questions per player are generated in CODE, not by the model (it kept producing options a few
-units apart — a math test, not a quiz). Cloud routines egress-allowlist by default → `*.workers.dev` 403s
-`host_not_allowed`, so the routine environment MUST be full-network. Prompt wording is **owner-owned — never
-edit without an explicit decision.** Don't fan out per-player sub-agents (16× the session cost).
-**Feeds carry more than we parse — check there FIRST** before proposing any new data source/fetch: the
-already-fetched ESPN responses have repeatedly held whole features unparsed (2026-07-18, 3-for-3: `/summary`
-`commentary`→full play-by-play, `leaders`→top performers, `videos`→highlights; athlete `/statistics` ~100
-stats). Current parsed-vs-unparsed inventory: `docs/backend.md` (proxy § pass-through caching).
+**Online-only** (live data or an honest "Couldn't load — tap to retry"; NO demo/seed in the running app).
+Most traffic routes through three sibling Cloudflare Workers in `~/Projects/`: **`nwslapp-proxy`** (ESPN
+passthrough + cache, roster pipeline, `/weather`, `/predict/community`, bracket engine, crests/headshots) ·
+**`nwslapp-match-watcher`** (`* * * * *` cron → live push, reaches the proxy via a **service binding**) ·
+**`nwslapp-card`** (push-image renderer). DEBUG `-useESPNDirect` bypasses the proxy. Per-user state lives in
+**Supabase** (Postgres, RLS + Sign in with Apple), offline-first via a UserDefaults cache.
+
+**⚠️ Don't reason about this from scratch — every subsystem's source-of-truth doc AUTO-LOADS via
+`.claude/rules/` the moment you touch its files.** That's the whole point of the docs (they're the living map
+of what the app actually uses, and they stop wrong-direction rabbit holes). When you touch one, read it.
+
+| Touch these files… | Rule auto-loads | Source-of-truth doc(s) |
+|---|---|---|
+| ESPN / proxy / roster / weather / scoreboard / standings | `backend-data-sources.md` | `docs/backend.md` (+ `roster-source-research.md`) |
+| Live Activity / notifications / watcher / widget / match-clock | `live-activity-notifications.md` | `docs/{live-activity-v2, notifications, push-fanout-scaling}.md` |
+| National teams | `national-teams.md` | `docs/national-teams.md` |
+| Per-user sync (follows / alerts / progress) | `data-sync.md` | `docs/data-sync.md` |
+| Fan Zone games / The Bracket | `fan-zone.md` / `bracket-battle.md` | `docs/{fan-zone, know-her-game}.md` |
+
+**The handful of traps you must know BEFORE you'd know which file to open** (everything else lives in the
+docs above — go read them):
+
+- **ESPN's endpoints are UNOFFICIAL — decode DEFENSIVELY.** Scores are `String` not `Int`; `/scoreboard`
+  needs `&limit=500` for a full season; endpoints break/rate-limit without notice.
+- **⚠️ `state=="post"` does NOT mean FINISHED** (a suspended / wind-hold match reports `post` +
+  `completed:false`). Anything meaning "the result is settled" MUST use **`Event.isFinalResult` /
+  `isUnfinishedPost`** (app), the watcher's `isUnfinishedPost`, or the proxy's `chooseSummaryTTL` — **all
+  FAIL-OPEN** (only `completed:false`/an explicit non-final status blocks; a sparse payload scores as
+  before). Live-proven cost: a fake FT graded Predict wrong and killed the Live Activity.
+- **The live clock + V2 Live Activity are FRAGILE and DEVICE-PROVEN — NEVER edit them from first
+  principles.** `status.clock` freezes at 45:00/90:00; ESPN keeps `state=="in"` through halftime. Read
+  `docs/live-activity-v2.md` **§0 (the START-PAYLOAD LAW)** before touching/testing any of it — `1 sent` ≠
+  rendered, and this subsystem took weeks to get right.
+- **Notifications = two tiers, OPT-IN, no dark patterns.** Tier 1 = local (no account: day-before, spotlight);
+  Tier 2 = watcher-triggered (needs Sign in with Apple, sign-in-gated + display-gated). NEVER auto-enable a
+  notification without an explicit user action. (The opt-in ruling + the restore line are SETTLED —
+  `docs/decisions.md`.)
+- **Supabase grants:** a new per-user table needs `grant … to authenticated` (RLS ≠ privilege → silent
+  `42501`); any table a Worker reads/writes as `service_role` also needs `grant … to service_role` **matching
+  the operation** (a `select`-only grant strands a coordinator that also DELETEs).
+- **Feeds carry MORE than we parse — check `docs/backend.md`'s parsed-vs-unparsed inventory FIRST** before
+  proposing any new data source or fetch (e.g. `/summary` already holds `commentary`/`leaders`/`videos`; IG
+  and social content is scraped via **Bright Data**, proxy-side).
 
 ## Workflow & engineering practices (requirements — flag the trade-off before bypassing)
 
@@ -355,6 +195,19 @@ stats). Current parsed-vs-unparsed inventory: `docs/backend.md` (proxy § pass-t
   to the item, which the owner can overrule in the same message instead of rediscovering it in the sim
   three sessions later. Track record: a detailed Fan Zone design handoff had 4 of 5 items silently
   dropped across three sessions; Trivia's round backbone was dropped a 4th time on 2026-07-23.
+- **⚠️ KNOWLEDGE-BASE WRITE PATH — relocate, never delete; prove before you cut.** `docs/`, memory, and this
+  file are a hard-won knowledge base — facts here took weeks + real devices to learn and are NOT
+  reconstructable from training, so a future session that "cleans up" can silently destroy them (the size
+  trace shows CLAUDE.md only ever GREW — nothing was lost until a condense pass threatened it). Rules when you
+  edit any of them: **(1)** removing a load-bearing fact (anything ⚠️/🔒/device-proven, or any gotcha/ruling)
+  requires **proving it's obsolete** — cite why it's no longer true — OR, if you're only condensing, **move it
+  into its owning `docs/*.md` FIRST**, then leave a pointer. Never delete a fact to "save space"; relocate it
+  (precedent: the "restore three facts that CLAUDE.md compressed" commit). **(2)** Never reverse a SETTLED
+  ruling or a PROVISIONALLY-DONE call in **`docs/decisions.md`** by quietly editing prose — argue against the
+  entry in the open and get the owner's explicit OK. **(3)** KB-diff close-out: when a session touched
+  docs/memory/CLAUDE.md, `git diff` it and list every REMOVAL with a status (relocated-to-X / obsolete-
+  because-Y / owner-approved), the same roll call deliverables get. The SessionStart size check is a prompt to
+  **relocate detail to a doc, NEVER to trim facts away.**
 - **BACKBONE IS NEVER DEFERRED FOR A MISSING FRONT END.** Build the structure AS IF the generator /
   content pipeline / data source already works — the app should be waiting on the pipeline, never the
   reverse. "The questions aren't generated biweekly yet" is NOT a reason to skip the round model, the
@@ -446,6 +299,9 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
 ## Deeper context (read on demand — NOT loaded every turn)
 
 - **`docs/FILEMAP.md`** — every file + one-liner. Read to locate code. **Update it after every feature.**
+- **`docs/decisions.md`** — ⚠️ the SETTLED-rulings + owner-iterating ledger (restore line, opt-in, KHG
+  no-repeats, banned lens, privacy stance; Superfan v1 provisional). Never reverse an entry by editing prose —
+  argue against it in the open first. Read before "improving" any settled behavior.
 - **`docs/backend.md`** — ESPN quirks, the proxy (routes / headshots / crests / bracket engine),
   Supabase schema + migrations.
 - **`docs/live-activity-v2.md`** — ⚠️ THE V2 MANUAL. Read BEFORE touching/testing/troubleshooting
@@ -474,8 +330,10 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
   proven 2026-07-09**: **V1 buzz + LA push-to-start → Cloudflare Queues** ($0); **V2 in-match updates →
   APNs Broadcast Channels** (channel-per-match, iOS 18+; iOS 17 = V1-only graceful degradation); Firebase
   declined; Workers Paid $5/mo = the ~10–15k-user expansion slot. Read before push-scale/launch work.
-- **`.claude/rules/{bracket-battle,fan-zone,live-activity-notifications}.md`** — path-scoped rules that
-  **auto-load**: the first two on Bracket / Predict / Fan-Zone / Trivia / Home-games files (fan-zone carries
-  the build/change LOGIC GATE — six invariants before any game or scoring change); the last on any
-  Live-Activity / MatchClock / push-token / NSE / widget file, forcing the notification+LA source-of-truth
-  docs into context (that subsystem must never be edited from first principles). No need to open manually.
+- **`.claude/rules/*.md`** — path-scoped rules that **auto-load** when you touch matching files, forcing the
+  right source-of-truth doc into context so a subsystem is never edited from first principles. No need to open
+  manually: `bracket-battle` + `fan-zone` (Bracket / Predict / Fan-Zone / Trivia / Home-games — fan-zone
+  carries the build LOGIC GATE + the KHG-pipeline pointer) · `live-activity-notifications` (Live-Activity /
+  MatchClock / push-token / NSE / widget → the V2+notifications docs) · `backend-data-sources` (ESPN / proxy /
+  roster / weather / scoreboard / standings → `backend.md`) · `national-teams` (NT files → `national-teams.md`)
+  · `data-sync` (sync coordinators/services → `data-sync.md`).

@@ -17,7 +17,10 @@ paths:
 > **This file = the BUILD RULES** (what you must/mustn't do). **`docs/fan-zone.md` = the SYSTEM DOC**
 > (how it all works: the two families, the cadence engine + its stagger, state ownership local-vs-server,
 > progress restore, retention, scoring). Read that when you need the machinery rather than the
-> constraints. Bracket ops: `.claude/rules/bracket-battle.md`.
+> constraints. Bracket ops: `.claude/rules/bracket-battle.md`. **Know Her Game content pipeline** (the
+> biweekly Claude cloud routine, the ⚠️ model trap in `job_config.ccr…model`, the `--allow-ledger-bypass`
+> guard, `SEASON_ANCHOR` cadence): **`docs/know-her-game.md` §5 — read it before touching KHG generation/
+> ingest**, and never edit the owner-owned prompt wording without an explicit decision.
 
 The Fan Zone leads Home (**top module**, above Club News) — the four games (Predict the XI, The Bracket,
 Know Her Game, NWSL Trivia) plus a cross-game Superfan summary. (The Bracket's own engine/ops

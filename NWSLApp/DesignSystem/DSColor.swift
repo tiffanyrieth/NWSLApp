@@ -76,6 +76,11 @@ extension Color {
     static let dsCategoryPlayer   = Color(hex: "#FF9F0A")  // orange
     static let dsCategoryClub     = Color(hex: "#BF5AF2")  // purple
 
+    // MARK: Bluesky brand
+    /// Bluesky's brand blue — used only for the "ADDED" badge on a user-added reporter
+    /// source (Phase 3). A brand color kept as its own token, not a raw hex at the call site.
+    static let dsBluesky          = Color(hex: "#1185FE")
+
     // MARK: Dividers
     /// Hairline separator used inside cards/rows (`rgba(84,84,88,0.35)`).
     static let dsSeparator = Color(red: 84/255, green: 84/255, blue: 88/255, opacity: 0.35)

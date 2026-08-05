@@ -422,7 +422,7 @@ struct RootTabView: View {
             // load self-guards, so the tab's own first-appearance load is then a no-op.
             Task(priority: .background) {
                 await clubs.loadIfNeeded()
-                await feedStore.loadIfNeeded(following: following, clubStore: clubs)
+                await feedStore.loadIfNeeded(following: following, clubStore: clubs, preferences: feedPreferences)
             }
             // Prewarm Home content too, so the first Home paint on an already-onboarded launch
             // is instant (same rationale as the Feed prewarm). Guarded on `hasOnboarded`: a fresh

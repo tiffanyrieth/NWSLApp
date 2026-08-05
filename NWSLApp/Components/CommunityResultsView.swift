@@ -195,6 +195,11 @@ struct CommunityResultsView: View {
                         .dsFont(14)
                         .foregroundStyle(Color.dsFgPrimary)
                         .fixedSize(horizontal: false, vertical: true)
+                    // ⚠️ REQUIRED. Without it the `.fixedSize` text reports its full UNWRAPPED width as the
+                    // HStack's ideal width, so the results ScrollView reads its content as wider than the
+                    // screen and pans horizontally (it still renders wrapped, so the bug is invisible in a
+                    // screenshot). The Spacer bounds the row — the same guard `optionRow` uses.
+                    Spacer(minLength: 0)
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)

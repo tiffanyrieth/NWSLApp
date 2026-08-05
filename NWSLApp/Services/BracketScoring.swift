@@ -64,4 +64,33 @@ enum BracketScoring {
             return sum + entry.value / round.points
         }
     }
+
+    // MARK: - Result-card verdict copy
+
+    /// The user's outcome on a resolved matchup, for the one-line result verdict.
+    enum VerdictOutcome { case correct, missed, satOut }
+
+    /// The one-line verdict under a result card: a margin word (Runaway / Comfortable / Solid /
+    /// Nail-biter) describing how decisively the community advanced the winner, plus the winner's action.
+    /// ⚠️ The leading margin ADJECTIVE is praise-adjacent, so it appears only on a CORRECT call (earned)
+    /// or a SAT-OUT matchup (neutral) — NEVER on a MISS, where "Solid — … took it" in red read as praise
+    /// for a pick you got wrong (owner-caught 2026-08-04). A miss shows the winner's ACTION alone; the
+    /// action verb still carries the margin, and the exact split lives only in the "See how the league
+    /// voted" donut (no inline percentages — this stays a scannable quick-read that never repeats the donut).
+    static func verdictText(winnerPercent: Int, winnerName: String, roundPoints: Int,
+                            outcome: VerdictOutcome) -> String {
+        let adjective: String
+        let action: String
+        switch winnerPercent {
+        case 90...:    adjective = "Runaway";     action = "\(winnerName) dominated"
+        case 70..<90:  adjective = "Comfortable"; action = "\(winnerName) cruised through"
+        case 55..<70:  adjective = "Solid";       action = "\(winnerName) took it"
+        default:       adjective = "Nail-biter";  action = "\(winnerName) barely survived"
+        }
+        switch outcome {
+        case .correct: return "\(adjective) — \(action)  ·  +\(roundPoints) pts"
+        case .missed:  return action
+        case .satOut:  return "\(adjective) — \(action)"
+        }
+    }
 }

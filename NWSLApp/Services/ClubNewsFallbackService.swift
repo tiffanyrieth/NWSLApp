@@ -32,10 +32,10 @@ struct ClubNewsFallbackService {
         let hasOfficial: Set<String> = Set(officialCards.compactMap { $0.teamAbbreviation })
         let gaps: Set<String> = followed.subtracting(hasOfficial)
         guard !gaps.isEmpty, let sources = await loadSources() else { return [] }
-        // Only clubs with a device-fetchable RSS source (the clean case the proxy normalize
-        // supports today). An index-blocked club (POR) needs per-article scraping its own site
-        // also blocks, so it isn't attempted — it stays on press fallback.
-        let targets = sources.filter { gaps.contains($0.abbr) && $0.kind == "rss" }
+        // Device-fetchable sources: an RSS feed (CHI) or a news INDEX whose SSR HTML carries the
+        // article link + title + date (POR/Webflow). Both parse fully proxy-side from what the
+        // device fetches — no per-article scraping. (`fallback`/`api` clubs never need this.)
+        let targets = sources.filter { gaps.contains($0.abbr) && ($0.kind == "rss" || $0.kind == "index") }
         guard !targets.isEmpty else { return [] }
 
         var out: [ContentCard] = []

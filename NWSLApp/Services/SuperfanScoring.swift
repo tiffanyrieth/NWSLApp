@@ -134,6 +134,18 @@ enum SuperfanScoring {
     /// Rising / All-Star / MVP lower bounds. `Fan` is anything below the first. Must stay ascending.
     static let tierThresholds: [Int] = [25, 50, 75]
 
+    /// ⚠️ TOP-WEIGHTED ACCURACY CURVE — the exponent on each channel's accuracy ratio before ×20
+    /// (`points = ratio^gamma × 20`). `gamma > 1` makes the TOP of the scale genuinely HARD to reach
+    /// (only near-elite accuracy earns the last few points), which is the owner's core law: don't hand
+    /// out points, keep the ceiling meaningful all season ([[feedback_superfan_points_philosophy]]).
+    /// Calibrated to each game's LUCK vs SKILL: KHG/Trivia are pure knowledge → steeper (the top demands
+    /// excellence); Predict (≈75% luck) and Bracket (≈70% vibes) are gentler (≈linear) so a good-given-
+    /// luck week is fairly credited AND the games' natural low accuracy ceiling already keeps them hard.
+    /// FIRST-PASS values — lean stingy, tune live on real distributions.
+    static let accuracyGamma: [SuperfanGame: Double] = [
+        .predict: 1.05, .bracket: 1.05, .khg: 1.30, .trivia: 1.30
+    ]
+
     // MARK: - Derivation
 
     /// Raw accuracy 0…1 for a game (0 when nothing attempted).
@@ -142,10 +154,13 @@ enum SuperfanScoring {
         return total > 0 ? Double(correct) / Double(total) : 0
     }
 
-    /// The 0…20 accuracy points for a channel (clamped so it can't exceed the weight — covers a transient
-    /// bracket edge where a just-tallied round could briefly make correct picks exceed the denominator).
+    /// The 0…20 accuracy points for a channel: `ratio^gamma × 20` (the top-weighted curve — see
+    /// `accuracyGamma`). Clamped so it can't exceed the weight (covers a transient bracket edge where a
+    /// just-tallied round could briefly make correct picks exceed the denominator). Note `1.0^gamma == 1`,
+    /// so a perfect ratio still earns the full 20 — the curve only makes the MIDDLE cost more.
     static func accuracyPoints(for game: SuperfanGame, counts: SuperfanCounts) -> Double {
-        min(1.0, max(0.0, accuracy(for: game, counts: counts))) * accuracyWeight
+        let ratio = min(1.0, max(0.0, accuracy(for: game, counts: counts)))
+        return pow(ratio, accuracyGamma[game] ?? 1.0) * accuracyWeight
     }
 
     /// The 0…5 engagement points for a channel (the forgiving momentum, clamped).

@@ -28,21 +28,35 @@ struct SuperfanScoringTests {
         #expect(SuperfanScoring.total(counts: c) == 0)
     }
 
-    @Test func contributionIsAccuracyTimes20PlusMomentum() {
+    @Test func contributionAppliesTheTopWeightedCurvePlusMomentum() {
         var c = SuperfanCounts()
-        c.bracketCorrect = 16; c.bracketTotal = 25          // 64% accuracy
-        #expect(abs(SuperfanScoring.contribution(for: .bracket, counts: c) - 12.8) < 0.0001)  // .64 × 20, no engagement
+        c.bracketCorrect = 16; c.bracketTotal = 25          // 64% accuracy (gentle curve — a luck game)
+        let expected = pow(0.64, SuperfanScoring.accuracyGamma[.bracket]!) * 20
+        #expect(abs(SuperfanScoring.contribution(for: .bracket, counts: c) - expected) < 0.0001)
         c.bracketMomentum = 3
-        #expect(abs(SuperfanScoring.contribution(for: .bracket, counts: c) - 15.8) < 0.0001)  // + 3 engagement
+        #expect(abs(SuperfanScoring.contribution(for: .bracket, counts: c) - (expected + 3)) < 0.0001)
+        #expect(expected < 0.64 * 20)   // the curve is stingier than flat ×20 in the middle (the point)
+    }
+
+    @Test func topWeightedCurveKeepsPerfectFullButMakesTheMiddleCostMore() {
+        // 1.0^gamma == 1 → perfect accuracy still earns the full 20 (the curve only taxes the middle).
+        var perfect = SuperfanCounts(); perfect.khgCorrect = 10; perfect.khgTotal = 10
+        #expect(abs(SuperfanScoring.accuracyPoints(for: .khg, counts: perfect) - 20) < 0.0001)
+        // Skill game (steeper gamma) is stingier at the same 80% than a luck game (gentler gamma).
+        var k = SuperfanCounts(); k.khgCorrect = 8; k.khgTotal = 10
+        var p = SuperfanCounts(); p.predictCorrect = 8; p.predictTotal = 10
+        #expect(SuperfanScoring.accuracyPoints(for: .khg, counts: k)
+              < SuperfanScoring.accuracyPoints(for: .predict, counts: p))
     }
 
     // MARK: - Engagement momentum (0–5, forgiving)
 
     @Test func engagementAddsUpToFivePointsAndCapsThere() {
         var c = SuperfanCounts()
-        c.khgCorrect = 5; c.khgTotal = 10; c.khgMomentum = 5      // 50% → 10 accuracy + 5 engagement
+        c.khgCorrect = 5; c.khgTotal = 10; c.khgMomentum = 5
         #expect(SuperfanScoring.engagementPoints(for: .khg, counts: c) == 5)
-        #expect(abs(SuperfanScoring.contribution(for: .khg, counts: c) - 15.0) < 0.0001)
+        let acc = SuperfanScoring.accuracyPoints(for: .khg, counts: c)
+        #expect(abs(SuperfanScoring.contribution(for: .khg, counts: c) - (acc + 5)) < 0.0001)
         c.khgMomentum = 99                                       // clamps to the max
         #expect(SuperfanScoring.engagementPoints(for: .khg, counts: c) == 5)
     }
@@ -56,7 +70,8 @@ struct SuperfanScoringTests {
     @Test func momentumIsPerChannelAndDoesNotLeak() {
         var c = SuperfanCounts()
         c.predictCorrect = 5; c.predictTotal = 10; c.triviaMomentum = 5   // trivia momentum must not touch predict
-        #expect(SuperfanScoring.contribution(for: .predict, counts: c) == 10.0)   // .5 × 20, no engagement
+        let expected = SuperfanScoring.accuracyPoints(for: .predict, counts: c)  // accuracy only, no leaked engagement
+        #expect(abs(SuperfanScoring.contribution(for: .predict, counts: c) - expected) < 0.0001)
     }
 
     // MARK: - Total
@@ -103,9 +118,9 @@ struct SuperfanScoringTests {
         c.triviaCorrect = 5; c.triviaTotal = 10; c.triviaMomentum = 3   // 50% + 3
         let ch = SuperfanScoring.breakdown(counts: c).channel(for: .trivia)
         #expect(abs(ch.accuracyRatio - 0.5) < 0.0001)
-        #expect(abs(ch.accuracyPoints - 10.0) < 0.0001)
+        #expect(abs(ch.accuracyPoints - pow(0.5, SuperfanScoring.accuracyGamma[.trivia]!) * 20) < 0.0001)
         #expect(ch.engagementPoints == 3)
-        #expect(abs(ch.contribution - 13.0) < 0.0001)
+        #expect(abs(ch.contribution - (ch.accuracyPoints + 3)) < 0.0001)
     }
 
     // MARK: - Reinstall-safe merge

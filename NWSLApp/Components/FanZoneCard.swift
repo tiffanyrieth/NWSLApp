@@ -207,8 +207,11 @@ struct FanZoneCarouselCard: View {
 /// 0–100 accuracy total (Fan Zone Competitive Redesign); the tier + progress bar derive from it. A 1.5px
 /// tier-color border + tier-tinted wash set it apart from the game cards. Tap → SuperfanDetailView.
 struct SuperfanCard: View {
-    /// The 0–100 Superfan score (accuracy × 25 across the four games).
+    /// The 0–100 Superfan score (20 accuracy + 5 engagement across the four channels).
     let score: Int
+    /// A rotating "reason to tap" line (from SuperfanSpotlight) — "3 players learned", "12 to All-Star".
+    /// nil ⇒ just the score + progress bar. Rotates with the shared spotlight rotation.
+    var teaser: String? = nil
 
     private var tier: SuperfanTier { SuperfanTier.forScore(score) }
     private var progress: TierProgress { TierProgress(score: score) }
@@ -222,6 +225,12 @@ struct SuperfanCard: View {
                     .dsFont(22, weight: .heavy, monospacedDigit: true)
                     .foregroundStyle(Color.dsFgPrimary)
                 Text(tier.label).dsFont(11, weight: .semibold).foregroundStyle(tier.color)
+            }
+            if let teaser {
+                Text(teaser)
+                    .dsFont(10.5, weight: .semibold).foregroundStyle(tier.color)
+                    .lineLimit(2).minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 6)
             // Mini progress bar toward the next tier (full at MVP).
@@ -249,7 +258,7 @@ struct SuperfanCard: View {
                 .strokeBorder(tier.color.opacity(0.40), lineWidth: 1.5)
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Superfan score \(score), \(tier.label) tier")
+        .accessibilityLabel("Superfan score \(score), \(tier.label) tier" + (teaser.map { ". \($0)" } ?? ""))
     }
 }
 

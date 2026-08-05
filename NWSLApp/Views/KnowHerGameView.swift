@@ -338,7 +338,18 @@ struct KnowHerGameView: View {
         store.recordCompletion(editionKey: viewModel.editionKey, weekKey: weekKey,
                                correct: viewModel.score, outOf: viewModel.questionCount,
                                picks: viewModel.picks)
+        // Add her to the Superfan "players learned" collection (the anchor of the rebuilt Superfan) —
+        // locally now + a durable server upsert so the collection survives a reinstall. A replay only
+        // improves the stamp's best score, never removes it.
+        let learnedPlayer = LearnedPlayer(
+            athleteId: player.espnAthleteId, name: player.playerName, teamAbbr: player.teamAbbreviation,
+            bestCorrect: viewModel.score, outOf: viewModel.questionCount, learnedAt: Date().timeIntervalSince1970)
+        PlayersLearnedStore.record(learnedPlayer, season: AppConfig.currentSeasonYear)
+        if let uid = auth.userID {
+            Task { await PlayersLearnedService().record(learnedPlayer, season: AppConfig.currentSeasonYear, userID: uid) }
+        }
         FanZoneActivity.recordPlay()   // Iron Fan: played a Fan Zone game this week
+        SuperfanMomentumStore.recordPlay(.khg, season: AppConfig.currentSeasonYear)   // Superfan engagement
         // Signed in (gated at Start) → persist the per-question answers to the community aggregate,
         // and push the progress summary (the reinstall-restore row — partial columns, KHG's only).
         if let userID = auth.userID {

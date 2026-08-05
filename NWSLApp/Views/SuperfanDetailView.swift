@@ -32,19 +32,42 @@ struct SuperfanDetailView: View {
     @State private var seasonHistory: [SeasonHistoryEntry] = []
     @State private var achievements: [EarnedAchievement] = []
     @State private var didLoad = false
+    /// The Players Learned collection — local first, then merged with the server (reinstall/second-device).
+    @State private var learned: [LearnedPlayer] = []
     @State private var showHowItWorks = false
+    /// Bumped on each open so the Spotlight shows a different item every visit (its whole "never the same
+    /// twice" hook). Persisted so it survives across launches.
+    @AppStorage("superfan.spotlight.rotation") private var spotlightRotation = 0
 
     private var season: Int { AppConfig.currentSeasonYear }
 
     // Derived from the merged counts.
     private var total: Int { SuperfanScoring.total(counts: counts) }
-    private var tier: SuperfanTier { SuperfanTier.forScore(total) }
     private var breakdown: SuperfanBreakdown { SuperfanScoring.breakdown(counts: counts) }
+
+    /// The DISPLAYED score/tier apply the tier-floor lock: never below a tier you've earned this season
+    /// (`season_history.peak_score`). `max(total, …)` guards a peak row that hasn't been written yet.
+    private var seasonPeak: Int { max(total, seasonHistory.first { $0.seasonYear == season }?.peakScore ?? 0) }
+    private var displayTotal: Int { SuperfanScoring.displayScore(counts: counts, seasonPeak: seasonPeak) }
+    private var tier: SuperfanTier { SuperfanTier.forScore(displayTotal) }
+
+    /// The rotating "what we noticed" item, built entirely from cheap local signals (see SuperfanSpotlight).
+    private var spotlightItem: SuperfanSpotlight.Item? {
+        SuperfanSpotlight.pick(.init(
+            total: displayTotal,
+            breakdown: breakdown,
+            playersLearned: PlayersLearnedStore.count(season: season),
+            bestPredictStarters: predict.seasonBests.hasMatchBaseline ? predict.seasonBests.bestMatchStarters : nil,
+            recentAchievement: achievements.max(by: { $0.earnedAt < $1.earnedAt })?.achievement.title,
+            gamesPlayed: counts.gamesPlayed), rotation: spotlightRotation)
+    }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
                 hero
+                spotlightSection
+                playersLearnedSection
                 breakdownSection
                 howSuperfanWorks
                 bestMomentsSection
@@ -55,7 +78,7 @@ struct SuperfanDetailView: View {
         }
         .background(Color.dsBgGrouped)
         .nativeBackButton(title: "Superfan")
-        .task { await load() }
+        .task { spotlightRotation &+= 1; await load() }
         .refreshable { await syncStanding() }
         .alert("Game Center unavailable", isPresented: Binding(
             get: { GameCenterManager.shared.leaderboardsUnavailable },
@@ -70,14 +93,19 @@ struct SuperfanDetailView: View {
     private func load() async {
         guard !didLoad else { return }
         didLoad = true
-        // Local counts first so the score renders immediately (even signed out), then merge with server.
+        // Local counts + collection first so the screen renders immediately (even signed out), then merge.
         counts = localCounts()
+        learned = PlayersLearnedStore.load(season: season)
         // ⚠️ NO Game Center authenticate() here (removed 2026-08-03, when the Home card became
         // always-visible). This screen is now one tap from a brand-new user's Home, and authenticating
         // on load would greet them with Apple's Game Center sign-in sheet before they have played
         // anything. `openLeaderboards()` still authenticates on TAP — the moment they actually ask for
         // a leaderboard, which is the point at which that prompt makes sense.
         await syncStanding()
+        // Restore the collection from the server (reinstall / second device) + refresh the grid.
+        if let userID = auth.userID {
+            learned = await PlayersLearnedService().restoreIntoLocal(season: season, userID: userID)
+        }
     }
 
     /// The device's current per-game counts.
@@ -126,36 +154,131 @@ struct SuperfanDetailView: View {
     // MARK: - Hero (tier badge + score + progress to next tier)
 
     private var hero: some View {
-        let progress = TierProgress(score: total)
-        return VStack(spacing: 12) {
+        VStack(spacing: 14) {
             TierBadge(tier: tier, size: 80)
             Text("SUPERFAN · \(String(season)) SEASON")
                 .dsFont(11, weight: .bold).tracking(1.5).foregroundStyle(.secondary)
-            Text("\(total)")
-                .dsFont(48, weight: .heavy, design: .rounded).foregroundStyle(.primary)
-
-            VStack(spacing: 6) {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.dsBgTertiary)
-                        Capsule().fill(tier.color)
-                            .frame(width: max(0, geo.size.width * progress.fraction))
-                    }
-                }
-                .frame(height: 10)
-                HStack {
-                    Text(tier.label).dsFont(12).foregroundStyle(.tertiary)
-                    Spacer()
-                    if let next = tier.next { Text(next.label).dsFont(12).foregroundStyle(.tertiary) }
-                }
-                Text(progress.caption).dsFont(13, weight: .semibold).foregroundStyle(tier.color)
+            // Score + tier NAME together, so the number is never read without knowing which tier it is.
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(displayTotal)").dsFont(48, weight: .heavy, design: .rounded).foregroundStyle(.primary)
+                Text(tier.label).dsFont(20, weight: .bold).foregroundStyle(tier.color)
             }
-            .padding(.horizontal, 8)
+            // The full 4-rung LADDER (Fan → Rising → All-Star → MVP), the current rung lit + emphasized —
+            // so where you stand reads at a glance and All-Star can never look like the floor (owner-caught).
+            tierLadder(current: tier)
+            Text(TierProgress(score: displayTotal).caption)
+                .dsFont(13, weight: .semibold).foregroundStyle(tier.color)
         }
         .frame(maxWidth: .infinity).padding(.top, 8)
     }
 
-    // MARK: - Breakdown (per-game accuracy × 25)
+    private func tierLadder(current: SuperfanTier) -> some View {
+        let rungs: [SuperfanTier] = [.fan, .rising, .allStar, .mvp]
+        let currentIdx = rungs.firstIndex(of: current) ?? 0
+        return HStack(spacing: 8) {
+            ForEach(Array(rungs.enumerated()), id: \.offset) { idx, t in
+                let reached = idx <= currentIdx
+                let isCurrent = idx == currentIdx
+                VStack(spacing: 5) {
+                    Capsule()
+                        .fill(reached ? t.color : Color.dsBgTertiary)
+                        .frame(height: isCurrent ? 8 : 5)
+                    Text(t.label)
+                        .dsFont(isCurrent ? 12 : 11, weight: isCurrent ? .bold : .regular)
+                        .foregroundStyle(isCurrent ? t.color : (reached ? Color.dsFgSecondary : Color.dsFgTertiary))
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.horizontal, 4).padding(.top, 2)
+    }
+
+    // MARK: - Spotlight (the rotating "what we noticed" hook)
+
+    @ViewBuilder
+    private var spotlightSection: some View {
+        if let item = spotlightItem {
+            let tint = spotlightTint(item.tone)
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: item.icon)
+                    .dsFont(20).foregroundStyle(tint)
+                    .frame(width: 38, height: 38)
+                    .background(tint.opacity(0.15), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.headline).dsFont(16, weight: .bold).foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let d = item.detail {
+                        Text(d).dsFont(13).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                // ⚠️ Bound the wrapping text column so its `.fixedSize` ideal width can't widen the row and
+                // let the scroll pan sideways (the KHG-results drag bug, 2026-08-04). Frame + Spacer both.
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.dsBgCard)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+    }
+
+    private func spotlightTint(_ tone: SuperfanSpotlight.Item.Tone) -> Color {
+        switch tone {
+        case .celebratory: return .dsSuccess
+        case .nudge:       return .dsAccent
+        case .playful:     return .dsWarning
+        case .info:        return .dsFgSecondary
+        }
+    }
+
+    // MARK: - Players Learned (the collection anchor)
+
+    @ViewBuilder
+    private var playersLearnedSection: some View {
+        if !learned.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 6) {
+                    Image(systemName: "person.crop.circle.badge.checkmark")
+                        .dsFont(13).foregroundStyle(Color.dsGameSpotlight)
+                    Text("PLAYERS LEARNED").dsFont(11, weight: .bold).tracking(1).foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(learned.count)").dsFont(14, weight: .heavy, monospacedDigit: true)
+                        .foregroundStyle(Color.dsGameSpotlight)
+                }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 62), spacing: 12)], alignment: .leading, spacing: 14) {
+                    ForEach(learned) { playerStamp($0) }
+                }
+            }
+            .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.dsBgCard).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+    }
+
+    private func playerStamp(_ p: LearnedPlayer) -> some View {
+        let ring = Color.teamColor(for: p.teamAbbr, liftOnDark: true, fallback: .dsGameSpotlight)
+        return VStack(spacing: 5) {
+            PlayerHeadshot(athleteID: p.athleteId, size: 52) {
+                ZStack {
+                    Circle().fill(ring.opacity(0.25))
+                    Text(initials(p.name)).dsFont(15, weight: .bold).foregroundStyle(ring)
+                }
+            }
+            .overlay(Circle().stroke(ring, lineWidth: 2))
+            Text(lastName(p.name)).dsFont(11).foregroundStyle(.secondary)
+                .lineLimit(1).minimumScaleFactor(0.6)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func lastName(_ full: String) -> String { full.split(separator: " ").last.map(String.init) ?? full }
+    private func initials(_ full: String) -> String {
+        full.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined()
+    }
+
+    // MARK: - Breakdown (per-channel: accuracy + engagement)
 
     private var breakdownSection: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -179,7 +302,8 @@ struct SuperfanDetailView: View {
     private func breakdownRow(_ game: SuperfanGame) -> some View {
         let m = meta(game)
         let contribution = breakdown.contribution(for: game)
-        let accuracy = breakdown.accuracy(for: game)
+        let accuracy = breakdown.channel(for: game).accuracyRatio
+        let engagement = breakdown.channel(for: game).engagementPoints
         let played = counts.pair(for: game).total > 0
         return VStack(spacing: 8) {
             HStack(spacing: 10) {
@@ -190,7 +314,9 @@ struct SuperfanDetailView: View {
                 Spacer()
                 // No unlock gate (owner ruling): every game shows its contribution from play #1; before the
                 // first play there's simply nothing to show yet.
-                Text(played ? "\(Int((accuracy * 100).rounded()))% accuracy" : "Not played yet")
+                Text(played
+                     ? "\(Int((accuracy * 100).rounded()))% accuracy" + (engagement > 0 ? " · +\(engagement) engaged" : "")
+                     : "Not played yet")
                     .dsFont(12).foregroundStyle(.secondary)
             }
             HStack(spacing: 8) {
@@ -236,9 +362,11 @@ struct SuperfanDetailView: View {
             if showHowItWorks {
                 VStack(alignment: .leading, spacing: 12) {
                     explainerParagraph("What it measures",
-                        "Superfan is one score for how well-rounded you are across all four Fan Zone games.")
+                        "One score for how well-rounded AND how engaged you are across all four Fan Zone games.")
                     explainerParagraph("How the score works",
-                        "Each game contributes up to 25 points based on your accuracy — four games, so 100 is the max. Playing only one game caps you at 25, so climbing takes breadth: the more games you play well, the higher you go.")
+                        "Each game is a channel worth up to 25 — 20 for accuracy (how well you called it) plus 5 for showing up (a forgiving bonus that builds as you keep playing and never punishes a single miss). Four channels, so 100 is the max. One game alone caps you at 25 — the top of the scale is earned across all four, and it's meant to be hard.")
+                    explainerParagraph("You never lose ground",
+                        "Once you reach a tier — Rising, All-Star, MVP — your score won't drop below it for the rest of the season. A rough round can't knock you back down.")
                     tierLegend
                     explainerParagraph("Season & history",
                         "Tiers reset each season, but the highest tier you reach is saved for good in Season History below.")

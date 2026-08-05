@@ -305,6 +305,7 @@ struct XIPickerView: View {
                 store.saveLastLineup(forTeam: fixture.teamAbbreviation,
                                      formation: prediction.formation, slots: prediction.slots)
                 FanZoneActivity.recordPlay()              // Iron Fan: played a Fan Zone game this week
+                SuperfanMomentumStore.recordPlay(.predict, season: AppConfig.currentSeasonYear)   // Superfan engagement
                 // Count this XI into the club's community aggregate (counts only — the lineup itself
                 // never leaves the device). Fire-and-forget AFTER the local write: the game is
                 // already committed on-device, and the server RPC is idempotent per (user, match),

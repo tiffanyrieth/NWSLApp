@@ -2,17 +2,26 @@
 //  SuperfanScoring.swift
 //  NWSLApp
 //
-//  The Superfan 0–100 economy (Fan Zone Competitive Redesign, PR1). PURE math, deliberately free of
-//  SwiftUI/GameKit so every rule is unit-testable in isolation (SuperfanScoringTests) — the same stance
-//  as GameCenterScores. Replaces the old additive `superfanTotal` (trivia correct + predict points +
-//  bracket points + know-her points, mismatched units) with a normalized score: each of the four games
-//  contributes `accuracy × 25`, summed to 0–100.
+//  The Superfan 0–100 economy — REBUILT 2026-08-04 (owner: "blow it up"). PURE math, deliberately free of
+//  SwiftUI/GameKit so every rule is unit-testable in isolation (SuperfanScoringTests).
 //
-//  Source of truth = per-game CORRECT/ATTEMPTED counts (SuperfanCounts). Accuracy and contribution are
-//  DERIVED, never stored as truth — because accuracy legitimately falls (a bad game lowers it) while the
-//  counts only grow. That growth is what makes the score reinstall-safe: `SuperfanCounts.merged(with:)`
-//  takes the GREATEST of each count, so a wiped device can't lower the server total, yet an accuracy that
-//  should drop still drops. (Old `max(total)` clamped the wrong thing.)
+//  Four game "channels", each 0–25, summed to 0–100. Within a channel:
+//        contribution = accuracy × 20  +  engagement (0–5)
+//  • ACCURACY (0–20): the raw per-game correct/attempted ratio × 20. Derived from the monotonic count
+//    ledger (SuperfanCounts) — accuracy legitimately FALLS when you have a bad game, while the counts
+//    only grow, which is what keeps the score reinstall-safe (`merged(with:)` = GREATEST of each count).
+//  • ENGAGEMENT (0–5): a FORGIVING participation "momentum" (owner ruling — reward showing up, never a
+//    reset-on-miss penalty). +1 each cycle you play, −1 for a cycle you miss, floored at 0, capped at 5.
+//    The cadence-aware decay is computed by the store bridge (`SuperfanCounts+Stores`); this file just
+//    reads the resulting momentum. Merged via `max` so a reinstall keeps your best (forgiving).
+//
+//  TIER-FLOOR LOCK: the DISPLAYED score never drops below a tier you've earned this season
+//  (`displayScore = max(currentTotal, tierFloor(seasonPeak))`). The season peak is the existing
+//  `season_history.peak_score`; no new storage.
+//
+//  ⚠️ EVERY economy constant lives here and is TUNABLE — storage holds only raw inputs, the score is
+//  always derived, so the whole curve re-tunes with a code change and ZERO migration (owner: build +
+//  tune live). Do not scatter these numbers into the views or the DB.
 //
 
 import Foundation
@@ -23,11 +32,11 @@ enum SuperfanGame: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     /// Each game contributes at most this to the 0–100 total (four games × 25 = 100).
-    static let maxContribution: Double = 25
+    static let maxContribution: Double = SuperfanScoring.accuracyWeight + Double(SuperfanScoring.engagementMax)
 }
 
-/// The durable per-game count ledger — one value set per (user, season), mirrored 1:1 to
-/// `superfan_scores` columns. These are the SOURCE OF TRUTH; accuracy/contribution/total derive from them.
+/// The durable per-game ledger — one value set per (user, season), mirrored 1:1 to `superfan_scores`
+/// columns. SOURCE OF TRUTH; accuracy/contribution/total derive from it.
 struct SuperfanCounts: Equatable, Codable {
     var predictCorrect = 0
     var predictTotal   = 0   // 11 × scored matches
@@ -37,11 +46,17 @@ struct SuperfanCounts: Equatable, Codable {
     var khgTotal       = 0
     var triviaCorrect  = 0
     var triviaTotal    = 0
-    var triviaStreak   = 0   // consecutive Trivia rounds — drives the +1/round (cap +10) bonus
+
+    /// FORGIVING engagement momentum per channel (0…5). Computed cadence-aware by the store bridge
+    /// (+1 played cycle, −1 missed cycle, clamped). Stored + `max`-merged so a reinstall keeps your best.
+    var predictMomentum = 0
+    var bracketMomentum = 0
+    var khgMomentum     = 0
+    var triviaMomentum  = 0
 
     static let zero = SuperfanCounts()
 
-    /// Correct/attempted for one game (streak handled separately).
+    /// Correct/attempted for one game (momentum handled separately).
     func pair(for game: SuperfanGame) -> (correct: Int, total: Int) {
         switch game {
         case .predict: return (predictCorrect, predictTotal)
@@ -51,9 +66,19 @@ struct SuperfanCounts: Equatable, Codable {
         }
     }
 
-    /// Reinstall-safe merge: the GREATEST of every count (they only ever grow), and the higher streak.
-    /// This is what `SuperfanService.submit` reconciles local vs server with — a fresh install can't
-    /// lower the server, but a genuinely-changed accuracy still recomputes from the merged counts.
+    /// This channel's forgiving engagement momentum (0…5).
+    func momentum(for game: SuperfanGame) -> Int {
+        switch game {
+        case .predict: return predictMomentum
+        case .bracket: return bracketMomentum
+        case .khg:     return khgMomentum
+        case .trivia:  return triviaMomentum
+        }
+    }
+
+    /// Reinstall-safe merge: the GREATEST of every count + the higher momentum. A fresh install can't
+    /// lower the server, but a genuinely-changed accuracy still recomputes from the merged counts, and a
+    /// reinstall keeps your best momentum (forgiving).
     func merged(with other: SuperfanCounts) -> SuperfanCounts {
         SuperfanCounts(
             predictCorrect: max(predictCorrect, other.predictCorrect),
@@ -64,7 +89,10 @@ struct SuperfanCounts: Equatable, Codable {
             khgTotal:       max(khgTotal, other.khgTotal),
             triviaCorrect:  max(triviaCorrect, other.triviaCorrect),
             triviaTotal:    max(triviaTotal, other.triviaTotal),
-            triviaStreak:   max(triviaStreak, other.triviaStreak)
+            predictMomentum: max(predictMomentum, other.predictMomentum),
+            bracketMomentum: max(bracketMomentum, other.bracketMomentum),
+            khgMomentum:     max(khgMomentum, other.khgMomentum),
+            triviaMomentum:  max(triviaMomentum, other.triviaMomentum)
         )
     }
 
@@ -75,60 +103,105 @@ struct SuperfanCounts: Equatable, Codable {
     }
 }
 
-/// A computed snapshot for the detail screen + carousel card: each game's 0–25 contribution and the
-/// 0–100 total. `accuracy(for:)` is defined as contribution/25 so the displayed % and the bar always
-/// agree — for Predict/Bracket/KHG that's the raw accuracy; for Trivia it's the streak-bonused effective
-/// accuracy, so the "34%" the row shows and the "8.5 / 25" bar can never disagree.
+/// A computed snapshot for the detail screen + carousel card: each channel's accuracy/engagement/total
+/// split, and the 0–100 total. The detail view now shows accuracy AND engagement separately, so they're
+/// broken out here rather than folded together.
 struct SuperfanBreakdown: Equatable {
-    let contributions: [SuperfanGame: Double]   // 0…25 each
-    let total: Int                              // 0…100
-
-    func contribution(for game: SuperfanGame) -> Double { contributions[game] ?? 0 }
-
-    /// Displayed accuracy 0…1 (== contribution / 25), so the % label and the progress bar stay locked.
-    func accuracy(for game: SuperfanGame) -> Double {
-        contribution(for: game) / SuperfanGame.maxContribution
+    struct Channel: Equatable {
+        let accuracyPoints: Double    // 0…20
+        let engagementPoints: Int     // 0…5
+        var contribution: Double { min(SuperfanGame.maxContribution, accuracyPoints + Double(engagementPoints)) }
+        /// Displayed accuracy 0…1 (the ratio, for the "%" label).
+        let accuracyRatio: Double
     }
+    let channels: [SuperfanGame: Channel]
+    let total: Int                   // 0…100 (raw, before the tier-floor lock)
+
+    func channel(for game: SuperfanGame) -> Channel {
+        channels[game] ?? Channel(accuracyPoints: 0, engagementPoints: 0, accuracyRatio: 0)
+    }
+    func contribution(for game: SuperfanGame) -> Double { channel(for: game).contribution }
 }
 
 enum SuperfanScoring {
-    /// Raw accuracy 0…1 for a game (0 when nothing attempted). No streak bonus.
+
+    // MARK: - Tunable economy constants (ALL of them — see the file header)
+
+    /// Max ACCURACY points per channel.
+    static let accuracyWeight: Double = 20
+    /// Max ENGAGEMENT (momentum) points per channel.
+    static let engagementMax: Int = 5
+    /// Rising / All-Star / MVP lower bounds. `Fan` is anything below the first. Must stay ascending.
+    static let tierThresholds: [Int] = [25, 50, 75]
+
+    /// ⚠️ TOP-WEIGHTED ACCURACY CURVE — the exponent on each channel's accuracy ratio before ×20
+    /// (`points = ratio^gamma × 20`). `gamma > 1` makes the TOP of the scale genuinely HARD to reach
+    /// (only near-elite accuracy earns the last few points), which is the owner's core law: don't hand
+    /// out points, keep the ceiling meaningful all season ([[feedback_superfan_points_philosophy]]).
+    /// Calibrated to each game's LUCK vs SKILL: KHG/Trivia are pure knowledge → steeper (the top demands
+    /// excellence); Predict (≈75% luck) and Bracket (≈70% vibes) are gentler (≈linear) so a good-given-
+    /// luck week is fairly credited AND the games' natural low accuracy ceiling already keeps them hard.
+    /// FIRST-PASS values — lean stingy, tune live on real distributions.
+    static let accuracyGamma: [SuperfanGame: Double] = [
+        .predict: 1.05, .bracket: 1.05, .khg: 1.30, .trivia: 1.30
+    ]
+
+    // MARK: - Derivation
+
+    /// Raw accuracy 0…1 for a game (0 when nothing attempted).
     static func accuracy(for game: SuperfanGame, counts: SuperfanCounts) -> Double {
         let (correct, total) = counts.pair(for: game)
         return total > 0 ? Double(correct) / Double(total) : 0
     }
 
-    /// A game's 0–25 contribution. Predict/Bracket/KHG = accuracy × 25. Trivia = (accuracy + streak
-    /// bonus) × 25, where the bonus is +1 percentage-point per consecutive round, capped at +10, and the
-    /// effective accuracy is capped at 1.0 so contribution never exceeds 25.
-    static func contribution(for game: SuperfanGame, counts: SuperfanCounts) -> Double {
-        let base = accuracy(for: game, counts: counts)
-        let withBonus: Double
-        if game == .trivia {
-            let bonus = Double(min(max(counts.triviaStreak, 0), 10)) / 100.0  // up to +0.10
-            withBonus = base + bonus
-        } else {
-            withBonus = base
-        }
-        // Clamp effective accuracy to [0, 1] for EVERY game so a contribution can never exceed 25 — covers
-        // the trivia streak bonus AND a transient bracket edge where a just-tallied current round could
-        // briefly make correct picks exceed the structure denominator.
-        let effective = min(1.0, max(0.0, withBonus))
-        return effective * SuperfanGame.maxContribution
+    /// The 0…20 accuracy points for a channel: `ratio^gamma × 20` (the top-weighted curve — see
+    /// `accuracyGamma`). Clamped so it can't exceed the weight (covers a transient bracket edge where a
+    /// just-tallied round could briefly make correct picks exceed the denominator). Note `1.0^gamma == 1`,
+    /// so a perfect ratio still earns the full 20 — the curve only makes the MIDDLE cost more.
+    static func accuracyPoints(for game: SuperfanGame, counts: SuperfanCounts) -> Double {
+        let ratio = min(1.0, max(0.0, accuracy(for: game, counts: counts)))
+        return pow(ratio, accuracyGamma[game] ?? 1.0) * accuracyWeight
     }
 
-    /// The 0–100 Superfan total = Σ of the four contributions, rounded, clamped.
+    /// The 0…5 engagement points for a channel (the forgiving momentum, clamped).
+    static func engagementPoints(for game: SuperfanGame, counts: SuperfanCounts) -> Int {
+        min(engagementMax, max(0, counts.momentum(for: game)))
+    }
+
+    /// A channel's 0…25 contribution = accuracy points + engagement points.
+    static func contribution(for game: SuperfanGame, counts: SuperfanCounts) -> Double {
+        let raw = accuracyPoints(for: game, counts: counts) + Double(engagementPoints(for: game, counts: counts))
+        return min(SuperfanGame.maxContribution, max(0, raw))
+    }
+
+    /// The 0–100 RAW Superfan total = Σ of the four contributions, rounded, clamped. (The DISPLAYED score
+    /// is `displayScore`, which applies the tier-floor lock.)
     static func total(counts: SuperfanCounts) -> Int {
         let sum = SuperfanGame.allCases.reduce(0.0) { $0 + contribution(for: $1, counts: counts) }
         return min(100, max(0, Int(sum.rounded())))
     }
 
+    /// The highest tier floor a `peakScore` has earned this season (0 if still Fan). Used for the lock.
+    static func tierFloor(peakScore: Int) -> Int {
+        tierThresholds.filter { $0 <= peakScore }.max() ?? 0
+    }
+
+    /// The DISPLAYED score: the raw total, but never below a tier you've reached this season. `seasonPeak`
+    /// is the monotonic `season_history.peak_score`. Since the peak is ≥ every total, this only ever holds
+    /// the number up at a tier boundary you crossed and later regressed past — never invents progress.
+    static func displayScore(counts: SuperfanCounts, seasonPeak: Int) -> Int {
+        max(total(counts: counts), tierFloor(peakScore: seasonPeak))
+    }
+
     /// The full breakdown for the UI in one pass.
     static func breakdown(counts: SuperfanCounts) -> SuperfanBreakdown {
-        var contributions: [SuperfanGame: Double] = [:]
+        var channels: [SuperfanGame: SuperfanBreakdown.Channel] = [:]
         for game in SuperfanGame.allCases {
-            contributions[game] = contribution(for: game, counts: counts)
+            channels[game] = SuperfanBreakdown.Channel(
+                accuracyPoints: accuracyPoints(for: game, counts: counts),
+                engagementPoints: engagementPoints(for: game, counts: counts),
+                accuracyRatio: min(1.0, max(0.0, accuracy(for: game, counts: counts))))
         }
-        return SuperfanBreakdown(contributions: contributions, total: total(counts: counts))
+        return SuperfanBreakdown(channels: channels, total: total(counts: counts))
     }
 }

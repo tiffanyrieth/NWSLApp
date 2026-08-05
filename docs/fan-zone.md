@@ -279,18 +279,29 @@ back through the leaderboard reads.
 
 ## 6. Superfan Zone (the 0–100 accuracy economy)
 
-> **Redesigned 2026-07-24.** The old model (an additive sum of mismatched units — Trivia correct + Predict
-> points + Bracket points + KHG points — with PERCENTILE tiers) is GONE. Superfan is now a normalized
-> **0–100 accuracy score with ABSOLUTE tiers.** `SuperfanScoring.swift` / `SuperfanStats.swift`.
+> **REBUILT 2026-08-05 (owner: "blow it up").** The prior model (a static per-game `accuracy × 25` stat
+> sheet) is GONE — it PUNISHED playing (accuracy is a ratio, so a bad game dragged you down) and read as a
+> boring spreadsheet nobody opened. Now: a forgiving economy that stays meaningful ALL season, and a detail
+> screen led by ALIVE content. `SuperfanScoring` / `SuperfanSpotlight` / `PlayersLearned` / `SuperfanMomentum`.
+> ⚠️ EVERY economy constant is a TUNABLE code constant (the score is derived from raw inputs) — the whole
+> curve re-tunes with NO migration (owner: build + tune live).
 
-**The score.** Each of the four games contributes **`accuracy × 25`**, summed to 0–100:
-- Predict = Σ correct XI players / Σ (11 × scored matches).
-- Bracket = correct picks / **edition-structure matchups over tallied rounds** (missed rounds = zeros —
-  this is the engine's `cumulativeMatchups` denominator that fixed the "100% accuracy with 4 points" bug).
-- KHG = Σ correct / Σ attempted quiz questions.
-- Trivia = accuracy + a streak bonus (+1 percentage-point per consecutive round, cap +10), clamped to 1.0.
+**The score.** Each of the four games is a channel worth **0–25 = 20 accuracy + 5 engagement**, summed 0–100:
+- **Accuracy (0–20):** `ratio^gamma × 20` — a TOP-WEIGHTED curve (`SuperfanScoring.accuracyGamma`, per-game
+  by luck vs skill: KHG/Trivia steep 1.30, Predict ~75%-luck / Bracket ~70%-vibes gentle 1.05) so the top is
+  EARNED, not handed out ([[feedback_superfan_points_philosophy]] — low floor, high HARD ceiling; perfect
+  accuracy still earns the full 20, the curve only taxes the middle). Ratio = correct/attempted per game
+  (Predict Σ correct XI / Σ 11×matches; Bracket correct / structure matchups; KHG/Trivia Σ correct / Σ attempted).
+- **Engagement (0–5): forgiving DECAYING momentum** (`SuperfanMomentum`): +1 each cycle you play, −1 per
+  MISSED cycle, floored/capped, NEVER a reset, and it DECAYS if you stop — so it's never a permanent free 5
+  (the anti-handout property), yet a single miss costs one point and recovers on return (busy fans safe).
+  Per-game cadence in weeks (Predict/Bracket 1, KHG/Trivia 2); recorded at each game's play/submit hook;
+  device-local store, the `superfan_scores` momentum column max-merged as a reinstall floor.
+- **Tier-floor lock:** the DISPLAYED score never drops below a tier you've earned this season
+  (`displayScore = max(total, tierFloor(season_history.peak_score))`) — a rough round can't knock you down.
 
-Playing only one game caps you at 25 — **breadth is the point**; higher tiers require multiple games.
+Playing only one game caps you at 25 — **breadth is the point**; the top takes accuracy AND consistency
+across all four (pure 100% accuracy with zero engagement caps at 80).
 
 **Source of truth = per-game correct/attempted COUNTS** (`SuperfanCounts`, mirrored to `superfan_scores`
 columns), NOT the derived score. Accuracy/contribution/total are DERIVED, because accuracy legitimately
@@ -325,12 +336,22 @@ so the season rolls at NWSL season start, not Jan 1 — offseason Trivia/Bracket
 current (just-ended) season until March, when the peak locks into `season_history` and a fresh 0–100 opens.
 (A Jan 1 reset would strand users at ≤25–50 through the Feb dead zone when KHG/Predict aren't active.)
 
-**Detail screen** (`SuperfanDetailView`, opened from the trailing carousel card): tier badge + 0–100 score
-+ progress bar + per-game accuracy breakdown ("18.0 / 25" bars) + a collapsible **"How Superfan works"**
-explainer (what it measures, the 4×25 economy, the tier bands, why breadth matters, season reset, achievements)
-+ **"Your Best Moments"** (§6a) + **Season History** (the record book — each past season's peak tier,
-monotonic; `season_history`, kept forever). The percentile "Top N% of N fans" line was REMOVED (the absolute
-tier + score speak for themselves). All reads are on-demand (screen open), bounded, HEAD-count where possible.
+**Detail screen** (`SuperfanDetailView`) — REBUILT 2026-08-05 to LEAD WITH ALIVE CONTENT, stats demoted:
+1. **Tier hero** — score + tier NAME + a 4-rung LADDER (Fan→Rising→All-Star→MVP) with the current rung lit,
+   so where you stand reads at a glance (fixes the old "58 but All-Star looks like the floor" confusion);
+   floor-locked score.
+2. **Spotlight** (`SuperfanSpotlight`, pure) — ONE rotating "what we noticed" item per visit from a pool of
+   CHEAP real signals (next-tier nudge, untapped/weakest channel, players-learned count, personal best,
+   achievement, playful zero-state floor). The rotation — a per-open counter SHARED with the Home card
+   teaser — is the reason-to-open hook, not deep-history mining. ZERO fabrication (real item or honest floor).
+3. **Players Learned** (`PlayersLearned`) — the on-brand COLLECTION anchor: a grid of headshot stamps for
+   every KHG player learned this season (recorded on KHG finish, deduped keeping best score), grows as you
+   play. Local for now; a server mirror can layer on without changing the read path.
+4. **By the numbers** — the per-game accuracy + engagement breakdown, DEMOTED below the hook.
+5. **"How Superfan works"** (published-contract copy — gate #7, kept in sync with the 20+5/floor model),
+   **Best Moments** (§6a), **Season History** (`season_history`, peak tier kept forever).
+The **Home `SuperfanCard`** shows the rotating teaser (from the same spotlight) instead of a static number.
+All reads on-demand + bounded. (The percentile "Top N% of N fans" line stays removed — plumbed but unused.)
 
 ## 6a. Achievements ("Your Best Moments")
 

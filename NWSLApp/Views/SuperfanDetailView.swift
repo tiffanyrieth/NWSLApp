@@ -298,6 +298,7 @@ struct SuperfanDetailView: View {
         let m = meta(game)
         let contribution = breakdown.contribution(for: game)
         let accuracy = breakdown.channel(for: game).accuracyRatio
+        let engagement = breakdown.channel(for: game).engagementPoints
         let played = counts.pair(for: game).total > 0
         return VStack(spacing: 8) {
             HStack(spacing: 10) {
@@ -308,7 +309,9 @@ struct SuperfanDetailView: View {
                 Spacer()
                 // No unlock gate (owner ruling): every game shows its contribution from play #1; before the
                 // first play there's simply nothing to show yet.
-                Text(played ? "\(Int((accuracy * 100).rounded()))% accuracy" : "Not played yet")
+                Text(played
+                     ? "\(Int((accuracy * 100).rounded()))% accuracy" + (engagement > 0 ? " · +\(engagement) engaged" : "")
+                     : "Not played yet")
                     .dsFont(12).foregroundStyle(.secondary)
             }
             HStack(spacing: 8) {
@@ -354,9 +357,11 @@ struct SuperfanDetailView: View {
             if showHowItWorks {
                 VStack(alignment: .leading, spacing: 12) {
                     explainerParagraph("What it measures",
-                        "Superfan is one score for how well-rounded you are across all four Fan Zone games.")
+                        "One score for how well-rounded AND how engaged you are across all four Fan Zone games.")
                     explainerParagraph("How the score works",
-                        "Each game contributes up to 25 points based on your accuracy — four games, so 100 is the max. Playing only one game caps you at 25, so climbing takes breadth: the more games you play well, the higher you go.")
+                        "Each game is a channel worth up to 25 — 20 for accuracy (how well you called it) plus 5 for showing up (a forgiving bonus that builds as you keep playing and never punishes a single miss). Four channels, so 100 is the max. One game alone caps you at 25 — the top of the scale is earned across all four, and it's meant to be hard.")
+                    explainerParagraph("You never lose ground",
+                        "Once you reach a tier — Rising, All-Star, MVP — your score won't drop below it for the rest of the season. A rough round can't knock you back down.")
                     tierLegend
                     explainerParagraph("Season & history",
                         "Tiers reset each season, but the highest tier you reach is saved for good in Season History below.")

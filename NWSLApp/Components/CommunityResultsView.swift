@@ -180,11 +180,25 @@ struct CommunityResultsView: View {
                               isYourPick: i == q.yourPick, showPercent: showPercent)
                 }
             }
-            // The "learn about her" payoff, folded in here so it isn't a duplicate list at the bottom.
+            // The "learn about her" payoff — this is the REWARD of a KHG quiz, so it reads as the
+            // takeaway, not fine print (owner, 2026-08-04): an accent lightbulb cue + full-size white
+            // text on a subtle accent tile, in place (no card reorder). It used to be 12pt gray dead-last,
+            // the least-visible thing on a game built around learning. Trivia passes `revealFact == nil`,
+            // so this is KHG-only; the tile wears the caller's `accent`.
             if let fact = q.revealFact, !fact.isEmpty {
-                Text(fact)
-                    .dsFont(12).foregroundStyle(.secondary)
+                // ⚠️ ONE concatenated Text, NOT an HStack (regression fix 2026-08-04). The lightbulb
+                // used to be a separate `Image` in an `HStack` beside a `.fixedSize` Text — the HStack
+                // then reported the text's full UNWRAPPED width as its ideal, which propagated past the
+                // card's frame and let the results ScrollView pan horizontally (owner-caught; invisible
+                // in a screenshot because it still rendered wrapped). Inlining the symbol keeps this a
+                // single wrapping Text — the same shape as the plain fact line that shipped fine.
+                (Text(Image(systemName: "lightbulb.fill")).foregroundStyle(accent)
+                    + Text("  \(fact)").foregroundStyle(Color.dsFgPrimary))
+                    .dsFont(14)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .padding(.top, 2)
             }
         }

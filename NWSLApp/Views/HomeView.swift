@@ -34,6 +34,8 @@ struct HomeView: View {
     // A LOCAL flag, not bound directly to `router.pendingPredictEventID` — the pushed PredictXIView clears
     // that router value once it routes to the result, and a binding tied to it would then pop the screen.
     @State private var showPredictFromPush = false
+    /// Shared with SuperfanDetailView — the detail bumps it on open, so the card's rotating teaser refreshes.
+    @AppStorage("superfan.spotlight.rotation") private var superfanCardRotation = 0
     @Environment(FollowingStore.self) private var following
     @Environment(MatchStore.self) private var matchStore
     @Environment(ClubStore.self) private var clubStore
@@ -448,7 +450,7 @@ struct HomeView: View {
                 // an honest "Fan · 0" with an empty tier bar, and the detail screen behind it carries
                 // the "How Superfan works" explainer — which is the actual onboarding.
                 NavigationLink { SuperfanDetailView() } label: {
-                    SuperfanCard(score: superfanScore)
+                    SuperfanCard(score: superfanScore, teaser: superfanTeaser)
                 }
                 .buttonStyle(.plain)
                 .frame(width: 152)
@@ -460,15 +462,31 @@ struct HomeView: View {
 
     /// The 0–100 Superfan accuracy score (Fan Zone Competitive Redesign), computed locally from the four
     /// stores — matches what the detail screen shows. Card + gate read this so the number is consistent.
-    private var superfanScore: Int {
-        // Local counts MERGED with the cached server-merged row (SuperfanCountsCache) — after a
-        // reinstall the history lives only server-side, and local-only math showed 25 here while
-        // the detail screen (which server-merges) showed 46. Same monotonic merge, no network.
+    private var superfanScore: Int { SuperfanScoring.total(counts: superfanCounts) }
+
+    /// Local counts MERGED with the cached server-merged row (SuperfanCountsCache) — after a reinstall the
+    /// history lives only server-side, and local-only math showed 25 here while the detail screen (which
+    /// server-merges) showed 46. Same monotonic merge, no network.
+    private var superfanCounts: SuperfanCounts {
         let season = AppConfig.currentSeasonYear
         let local = SuperfanCounts.fromStores(
             season: season, predict: predict, bracket: bracket,
             trivia: trivia, knowHer: knowHer)
-        return SuperfanScoring.total(counts: local.merged(with: SuperfanCountsCache.load(season: season)))
+        return local.merged(with: SuperfanCountsCache.load(season: season))
+    }
+
+    /// The rotating "reason to tap" line for the Superfan card — the same spotlight the detail screen shows,
+    /// keyed off the SHARED rotation, so opening Superfan freshens the card too. nil ⇒ card shows the number.
+    private var superfanTeaser: String? {
+        let season = AppConfig.currentSeasonYear
+        let counts = superfanCounts
+        return SuperfanSpotlight.pick(.init(
+            total: SuperfanScoring.total(counts: counts),
+            breakdown: SuperfanScoring.breakdown(counts: counts),
+            playersLearned: PlayersLearnedStore.count(season: season),
+            bestPredictStarters: predict.seasonBests.hasMatchBaseline ? predict.seasonBests.bestMatchStarters : nil,
+            recentAchievement: nil,
+            gamesPlayed: counts.gamesPlayed), rotation: superfanCardRotation)?.headline
     }
 
     @ViewBuilder

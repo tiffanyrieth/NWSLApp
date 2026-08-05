@@ -32,6 +32,8 @@ struct SuperfanDetailView: View {
     @State private var seasonHistory: [SeasonHistoryEntry] = []
     @State private var achievements: [EarnedAchievement] = []
     @State private var didLoad = false
+    /// The Players Learned collection — local first, then merged with the server (reinstall/second-device).
+    @State private var learned: [LearnedPlayer] = []
     @State private var showHowItWorks = false
     /// Bumped on each open so the Spotlight shows a different item every visit (its whole "never the same
     /// twice" hook). Persisted so it survives across launches.
@@ -91,14 +93,19 @@ struct SuperfanDetailView: View {
     private func load() async {
         guard !didLoad else { return }
         didLoad = true
-        // Local counts first so the score renders immediately (even signed out), then merge with server.
+        // Local counts + collection first so the screen renders immediately (even signed out), then merge.
         counts = localCounts()
+        learned = PlayersLearnedStore.load(season: season)
         // ⚠️ NO Game Center authenticate() here (removed 2026-08-03, when the Home card became
         // always-visible). This screen is now one tap from a brand-new user's Home, and authenticating
         // on load would greet them with Apple's Game Center sign-in sheet before they have played
         // anything. `openLeaderboards()` still authenticates on TAP — the moment they actually ask for
         // a leaderboard, which is the point at which that prompt makes sense.
         await syncStanding()
+        // Restore the collection from the server (reinstall / second device) + refresh the grid.
+        if let userID = auth.userID {
+            learned = await PlayersLearnedService().restoreIntoLocal(season: season, userID: userID)
+        }
     }
 
     /// The device's current per-game counts.
@@ -228,8 +235,6 @@ struct SuperfanDetailView: View {
     }
 
     // MARK: - Players Learned (the collection anchor)
-
-    private var learned: [LearnedPlayer] { PlayersLearnedStore.load(season: season) }
 
     @ViewBuilder
     private var playersLearnedSection: some View {

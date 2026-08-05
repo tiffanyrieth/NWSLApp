@@ -72,7 +72,17 @@ struct ESPNService {
             throw ESPNServiceError.badURL
         }
 
-        return try await fetch(Scoreboard.self, from: url)
+        // Proxy-outage resilience: on a proxy failure, retry the same query straight against
+        // ESPN. NWSL only (league == nil) — a non-NWSL `?league=slug` is a proxy-only mapping
+        // the app can't reproduce as an ESPN path.
+        let espnDirect: URL? = {
+            guard league == nil,
+                  var c = URLComponents(url: base.appendingPathComponent("scoreboard"),
+                                        resolvingAgainstBaseURL: false) else { return nil }
+            if !items.isEmpty { c.queryItems = items }
+            return c.url
+        }()
+        return try await fetch(Scoreboard.self, from: url, espnDirectFallback: espnDirect)
     }
 
     // Fetches the league's club directory from the `teams` endpoint and returns
@@ -148,7 +158,13 @@ struct ESPNService {
         guard let url = AppConfig.rosterURL(clubID: clubID) else {
             throw ESPNServiceError.badURL
         }
-        return try await fetch(RosterResponse.self, from: url).squad
+        // Proxy-outage resilience: on a proxy failure, hit ESPN's roster directly. This loses
+        // the proxy's last-known-good cache (so a genuinely implausible ESPN squad shows as-is),
+        // but an available roster beats a blank team page during a proxy outage.
+        let espnDirect = base.appendingPathComponent("teams")
+            .appendingPathComponent(clubID)
+            .appendingPathComponent("roster")
+        return try await fetch(RosterResponse.self, from: url, espnDirectFallback: espnDirect).squad
     }
 
     // Fetches one match's rich detail from `summary?event={id}` — lineups (with
@@ -172,7 +188,15 @@ struct ESPNService {
             throw ESPNServiceError.badURL
         }
 
-        return try await fetch(MatchSummary.self, from: url)
+        // Proxy-outage resilience: retry ESPN direct on a proxy failure (event id only — the
+        // `w=near` bucket is a proxy-cache hint ESPN doesn't need).
+        let espnDirect: URL? = {
+            guard var c = URLComponents(url: base.appendingPathComponent("summary"),
+                                        resolvingAgainstBaseURL: false) else { return nil }
+            c.queryItems = [URLQueryItem(name: "event", value: eventID)]
+            return c.url
+        }()
+        return try await fetch(MatchSummary.self, from: url, espnDirectFallback: espnDirect)
     }
 
     // Fetches a past match's historical kickoff weather from the proxy's `/weather?event={id}`
@@ -423,10 +447,46 @@ struct ESPNService {
         return raw.playerSeasonStats(athleteID: athlete.id, isGoalkeeper: athlete.isGoalkeeper)
     }
 
-    // Shared GET-and-decode: one place for the status check and typed-error
-    // wrapping, generic over whatever Decodable an endpoint returns.
-    private func fetch<T: Decodable>(_ type: T.Type, from url: URL) async throws -> T {
-        let (data, response) = try await session.data(from: url)
+    // ESPN 403s UA-less / browser UAs but accepts honest HTTP-client UAs (the 2026-08-04
+    // outage). The PROXY sends this UA; when we fall back to hitting ESPN directly we send it
+    // too so ESPN can't reject us. (The app's default URLSession UA has worked for the always-
+    // direct teams/standings calls, but we match the proxy to remove all doubt.)
+    private static let espnDirectUA = "okhttp/4.9.0"
+
+    // MARK: - Shared GET-and-decode (with proxy → ESPN-direct resilience)
+
+    /// GET-and-decode with an optional proxy-outage fallback. `url` is the primary (proxy) URL.
+    /// If it fails with a TRANSPORT error or a 5xx — a proxy-side problem, not a real 4xx/decode
+    /// — and an `espnDirect` URL is supplied, we retry straight against ESPN (okhttp UA) so the
+    /// CORE surfaces (scores/schedule/roster) survive a proxy outage the way the enriched Social/
+    /// roster-verified paths can't. LOUD, never silent: emits a Diagnostics breadcrumb on
+    /// fallback. A 4xx or decode error is not an outage → no retry (ESPN would answer the same).
+    private func fetch<T: Decodable>(_ type: T.Type, from url: URL,
+                                     espnDirectFallback espnDirect: URL? = nil) async throws -> T {
+        do {
+            return try await fetchOnce(type, from: url)
+        } catch {
+            guard let espnDirect, Self.isProxyOutage(error) else { throw error }
+            await Diagnostics.shared.record(
+                .apiFailure,
+                "proxy unreachable (\(error.localizedDescription)) — recovered via ESPN-direct fallback: \(espnDirect.lastPathComponent)")
+            return try await fetchOnce(type, from: espnDirect, userAgent: Self.espnDirectUA)
+        }
+    }
+
+    /// One GET-and-decode. `userAgent`, when set, is sent as the request UA (the ESPN-direct
+    /// fallback path); otherwise the session's default UA is used (the normal proxy path).
+    private func fetchOnce<T: Decodable>(_ type: T.Type, from url: URL,
+                                         userAgent: String? = nil) async throws -> T {
+        let data: Data
+        let response: URLResponse
+        if let userAgent {
+            var request = URLRequest(url: url)
+            request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+            (data, response) = try await session.data(for: request)
+        } else {
+            (data, response) = try await session.data(from: url)
+        }
 
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw ESPNServiceError.badStatus(http.statusCode)
@@ -437,5 +497,14 @@ struct ESPNService {
         } catch {
             throw ESPNServiceError.decoding(error)
         }
+    }
+
+    /// A proxy OUTAGE (retry ESPN direct) vs. a real error (don't): a transport failure
+    /// (offline, DNS, timeout, connection lost) or a proxy 5xx is an outage; a 4xx or a decode
+    /// error is not — ESPN would fail the same way, so retrying just doubles the latency.
+    private static func isProxyOutage(_ error: Error) -> Bool {
+        if error is URLError { return true }
+        if case ESPNServiceError.badStatus(let code) = error { return code >= 500 }
+        return false
     }
 }

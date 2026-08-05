@@ -29,22 +29,24 @@ import Foundation
 
 @Observable
 final class FeedViewModel {
-    /// The Social tab's source-class filter (the chip bar): All · Reporters · Players ·
-    /// Clubs, keyed off each card's `resolvedSourceType`. Reporters covers BOTH `reporter`
+    /// The Social tab's source-class filter (the chip bar): All · Reporters · Players,
+    /// keyed off each card's `resolvedSourceType`. Reporters covers BOTH `reporter`
     /// (Bluesky beat writers) AND `news` (curated-outlet RSS articles) — the same
     /// journalist voice in two formats (social post vs article), told apart by the card's
     /// REPORTER / NEWS pill. `league` (NWSL media/outlet Bluesky accounts) has NO chip — it
-    /// surfaces only under All. Declaration order IS the chip order (`chips` = `allCases`);
-    /// a persisted `defaultFeedFilter` of the retired "news" value falls back to All.
+    /// surfaces only under All. The old CLUBS chip was retired 2026-08 (club Bluesky is
+    /// sparse, low-value gameday noise, and the official club voice lives on Home Club News);
+    /// club cards are dropped from Social entirely (see `isRelevant`). Declaration order IS
+    /// the chip order (`chips` = `allCases`); a persisted `defaultFeedFilter` of a retired
+    /// value ("news"/"clubs") falls back to All.
     enum ContentFilter: String, CaseIterable, Hashable {
-        case all, reporters, players, clubs
+        case all, reporters, players
 
         var label: String {
             switch self {
             case .all:       return "All"
             case .reporters: return "Reporters"
             case .players:   return "Players"
-            case .clubs:     return "Clubs"
             }
         }
     }
@@ -55,6 +57,8 @@ final class FeedViewModel {
     struct Source: Identifiable, Hashable {
         let name: String
         let detail: String
+        /// A reporter the USER added (Phase 3) — gets the "ADDED" badge in the Sources list.
+        var isAdded: Bool = false
         var id: String { name }
     }
 
@@ -88,18 +92,18 @@ final class FeedViewModel {
     private(set) var clubRotation: Int = Int.random(in: 0..<1_000)
 
     /// (Re)load the shared directory, then the Feed cards. Used by pull-to-refresh + retry.
-    func load(following: FollowingStore) async {
+    func load(following: FollowingStore, preferences: FeedPreferencesStore) async {
         guard let clubStore else { return }
         clubRotation += 1   // a different followed club leads this time (see `clubRotation`)
         await clubStore.load()
-        await store?.load(following: following, clubStore: clubStore)
+        await store?.load(following: following, clubStore: clubStore, preferences: preferences)
     }
 
     /// Load the Feed cards if not already loaded (the prewarm usually beat us to it). The view
     /// loads the shared ClubStore first, so the store's scoping resolves.
-    func loadItemsIfNeeded(following: FollowingStore) async {
+    func loadItemsIfNeeded(following: FollowingStore, preferences: FeedPreferencesStore) async {
         guard let clubStore else { return }
-        await store?.loadIfNeeded(following: following, clubStore: clubStore)
+        await store?.loadIfNeeded(following: following, clubStore: clubStore, preferences: preferences)
     }
 
     private var clubs: [Club] { clubStore?.clubs ?? [] }
@@ -111,7 +115,7 @@ final class FeedViewModel {
 
     // MARK: - Chips
 
-    /// The four content-type chips, fixed (no per-team chips — see the file note).
+    /// The three content-type chips, fixed (no per-team chips — see the file note).
     var chips: [ContentFilter] { ContentFilter.allCases }
 
     // MARK: - Filtered cards
@@ -131,6 +135,7 @@ final class FeedViewModel {
             .filter { Self.isFresh($0, now: now) }
             .filter { passesFilter($0) }
             .filter { passesPreferences($0, preferences) }
+            .filter { passesPlayerFollow($0, followed, preferences) }
 
         // Sort BEFORE rotating so the cycle runs over a stable set (the directory's order is itself
         // alphabetical, but sorting makes the rotation independent of how the directory happens to
@@ -176,6 +181,10 @@ final class FeedViewModel {
     /// followed team. (Home-only cards never appear in the Feed.)
     private func isRelevant(_ card: ContentCard, _ followed: Set<String>) -> Bool {
         guard card.placement != .home else { return false }
+        // Club Bluesky is retired from Social (the CLUBS chip is gone, 2026-08) — drop any
+        // club cards so they never appear under All either, even before the proxy stops
+        // fanning them out. The official club voice lives on Home Club News.
+        if card.resolvedSourceType == .club { return false }
         if card.isLeague { return true }
         if let abbr = card.teamAbbreviation { return followed.contains(abbr) }
         return false
@@ -190,7 +199,6 @@ final class FeedViewModel {
         case .all:       return true
         case .reporters: return card.resolvedSourceType == .reporter || card.resolvedSourceType == .news
         case .players:   return card.resolvedSourceType == .player
-        case .clubs:     return card.resolvedSourceType == .club
         }
     }
 
@@ -205,8 +213,23 @@ final class FeedViewModel {
         }
     }
 
-    /// The distinct sources powering the Feed, alphabetical — for the mute list.
-    func sources() -> [Source] {
+    /// Honor the user's player follows (Phase 3): an own-team player turned OFF is dropped; a
+    /// cross-team player appears only if explicitly followed (the proxy already serves only the
+    /// followed cross-team players, so this chiefly enforces the own-team opt-outs). Non-player
+    /// cards always pass. A player's id is the card's `@<ig>` handle.
+    private func passesPlayerFollow(_ card: ContentCard, _ followed: Set<String>, _ prefs: FeedPreferencesStore) -> Bool {
+        guard card.resolvedSourceType == .player else { return true }
+        guard let id = card.handle.map({ $0.hasPrefix("@") ? String($0.dropFirst()) : $0 })?.lowercased(),
+              !id.isEmpty else { return true }
+        let isOwnTeam = card.teamAbbreviation.map { followed.contains($0) } ?? false
+        return prefs.isPlayerFollowed(id, isOwnTeam: isOwnTeam)
+    }
+
+    /// The distinct sources powering the Feed, alphabetical — for the mute list. User-added
+    /// reporters are flagged (`isAdded`) and unioned in even when they have no current posts,
+    /// so they always appear in Sources (Phase 3).
+    func sources(_ preferences: FeedPreferencesStore) -> [Source] {
+        let addedHandles = Set(preferences.addedReporters.map { "@" + $0.handle })
         var seen = Set<String>()
         var result: [Source] = []
         for item in allItems {
@@ -214,7 +237,15 @@ final class FeedViewModel {
             guard !key.isEmpty, !seen.contains(key) else { continue }
             seen.insert(key)
             let detail = item.handle ?? item.sourceName ?? item.platform.rawValue.capitalized
-            result.append(Source(name: key, detail: detail))
+            let isAdded = item.handle.map { addedHandles.contains($0) } ?? false
+            result.append(Source(name: key, detail: detail, isAdded: isAdded))
+        }
+        // Union any added reporters that have no current posts, so they still show in Sources.
+        for r in preferences.addedReporters {
+            let handleAt = "@" + r.handle
+            if !result.contains(where: { $0.detail == handleAt || $0.name == r.displayName }) {
+                result.append(Source(name: r.displayName, detail: handleAt, isAdded: true))
+            }
         }
         return result.sorted { $0.name < $1.name }
     }

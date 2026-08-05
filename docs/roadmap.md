@@ -1,5 +1,38 @@
 # Roadmap / What's Next
 
+> ### 🔄 SOCIAL FEED SELF-TUNING — the maintenance routine (owner-DEFERRED 2026-08-05, do NOT drop)
+> The 2026-08-05 Social-tab audit shipped everything EXCEPT this: P1 (club-news fixes + 6 reporters + Clubs-chip
+> removal), Phase 2a (ESPN-direct proxy-outage fallback), and **Phase 3 "make it yours"** — the user CAN now add
+> Bluesky reporters + follow players beyond their teams (proxy routes `/feed/players`, `/feed/validate-reporter`,
+> `/feed?handles=&players=`; app Content Preferences UI). **This item is the AUTOMATION on top of that shipped
+> infrastructure** — owner deferred it (her call) because it deserves its own routine-design pass, NOT because
+> it's optional. Two independent components:
+>
+> **1. Curated-feed discovery (which reporters should we ADD to the defaults?).** Keeping up with beat reporters
+> for all 16 clubs by hand is a nightmare + risks missed reporters. The signal: the **anonymous discovery
+> analytics** — a per-team → added-handle counter (`Analytics.swift` → proxy `/analytics` → `analytics_counters`,
+> NO ids/IP). ⚠️ **The threshold is computed over ADDERS, not the whole fanbase.** Example (ACFC fans): of those
+> who added ANY handle, count who they added — Fan A→"Tiffany", Fan B→"Tiffany", Fan C→"Kayla", Fan D→"Tiffany"
+> ⇒ the common theme is ACFC fans keep adding "Tiffany", a handle we DON'T carry ⇒ surface it as a default
+> candidate. It must be `adds-of-X / total-adders`, never `/ total-fans` (most fans add nothing). Threshold TBD.
+> Could be a routine OR a manual review of the analytics. **Build needs:** the analytics counter (proxy
+> `/analytics` allowlist entry + an app event fired on add) — this counter is NOT yet built; it was scoped with
+> Phase 3 but belongs here with its only consumer.
+>
+> **2. The player-add routine (which national-team players to feature?).** Auto-compute candidates from
+> `current-NT-rosters ∩ current-NWSL-rosters − current 34` (the app already fetches both roster sets), with
+> `bdHandleEmpty` + off-NWSL-roster → DROP (retired/departed solve themselves). ⚠️ **The hard part is
+> BALANCE:** while the list is capped at ~34 (Bright Data free tier), the routine must weigh popularity AGAINST
+> **club representation** — don't let the popular-players pick leave some clubs with ZERO featured players.
+> That's why it deserves dedicated design time. (If the 34 cap is later lifted — e.g. via the Phase-5 IG
+> `business_discovery` API — club-representation becomes far less of a worry and popularity can dominate.)
+>
+> **Guardrail (both components):** one-tap OWNER APPROVAL, never no-gate — same routine-class that bit KHG
+> (wrong-model / ledger-bypass), and a bad IG handle bills Bright Data quota every refresh. The routine does
+> 100% of the research and hands over "add these, drop these — approve?". Cloud-activation is owner-gated like
+> the KHG routine. Full plan context: the approved Social-tab plan (Phase 4).
+
+
 > ### ✅ SHIPPED 2026-08-04 — PREDICT post-match "your result is in" push (Change 8)
 > Merged: app PR #233, watcher PR #34 (deployed). Generic copy (no score), separate opt-in "Predict
 > results" toggle, next-day batched, only to users who haven't viewed their result (server-visible

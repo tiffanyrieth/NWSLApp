@@ -186,25 +186,20 @@ struct CommunityResultsView: View {
             // the least-visible thing on a game built around learning. Trivia passes `revealFact == nil`,
             // so this is KHG-only; the tile wears the caller's `accent`.
             if let fact = q.revealFact, !fact.isEmpty {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "lightbulb.fill")
-                        .dsFont(13)
-                        .foregroundStyle(accent)
-                        .accessibilityHidden(true)
-                    Text(fact)
-                        .dsFont(14)
-                        .foregroundStyle(Color.dsFgPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    // ⚠️ REQUIRED. Without it the `.fixedSize` text reports its full UNWRAPPED width as the
-                    // HStack's ideal width, so the results ScrollView reads its content as wider than the
-                    // screen and pans horizontally (it still renders wrapped, so the bug is invisible in a
-                    // screenshot). The Spacer bounds the row — the same guard `optionRow` uses.
-                    Spacer(minLength: 0)
-                }
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .padding(.top, 2)
+                // ⚠️ ONE concatenated Text, NOT an HStack (regression fix 2026-08-04). The lightbulb
+                // used to be a separate `Image` in an `HStack` beside a `.fixedSize` Text — the HStack
+                // then reported the text's full UNWRAPPED width as its ideal, which propagated past the
+                // card's frame and let the results ScrollView pan horizontally (owner-caught; invisible
+                // in a screenshot because it still rendered wrapped). Inlining the symbol keeps this a
+                // single wrapping Text — the same shape as the plain fact line that shipped fine.
+                (Text(Image(systemName: "lightbulb.fill")).foregroundStyle(accent)
+                    + Text("  \(fact)").foregroundStyle(Color.dsFgPrimary))
+                    .dsFont(14)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .padding(.top, 2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

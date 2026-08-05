@@ -426,6 +426,11 @@ secret put`, distinct from the APNs key): `SIWA_PRIVATE_KEY` / `SIWA_KEY_ID` / `
 reads/writes `profiles` as service_role for the first time, so `migration_apple_refresh_token.sql` adds
 both the column **and** `grant … to service_role` (the 42501 gotcha). Deploy-gated by
 `scripts/health_check_apple_auth.mjs`. No backfill: existing users get a token on their next sign-in.
+⚠️ **Whitespace trap (paid for):** any secret the proxy signs into a JWT **raw** (`APPLE_TEAM_ID` /
+`SIWA_KEY_ID`) must be whitespace-clean — a trailing newline signs a JWT Apple rejects as `invalid_client`.
+Set these via **stdin, never copy-paste**: `printf '%s' '<value>' | wrangler secret put SIWA_KEY_ID`. (This
+also bit the SIWA `.p8`/APNs key path; a copy-pasted secret with a stray `\n` is the classic cause of an
+otherwise-correct JWT being refused.)
 
 **Forced-update gate (`GET /config`).** Returns `{ minVersion, minBuild }` from two hardcoded constants
 (`MIN_APP_VERSION` / `MIN_APP_BUILD` in `src/index.ts` — no KV/DB). The app checks it at launch

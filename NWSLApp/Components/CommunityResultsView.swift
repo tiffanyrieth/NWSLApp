@@ -180,12 +180,26 @@ struct CommunityResultsView: View {
                               isYourPick: i == q.yourPick, showPercent: showPercent)
                 }
             }
-            // The "learn about her" payoff, folded in here so it isn't a duplicate list at the bottom.
+            // The "learn about her" payoff — this is the REWARD of a KHG quiz, so it reads as the
+            // takeaway, not fine print (owner, 2026-08-04): an accent lightbulb cue + full-size white
+            // text on a subtle accent tile, in place (no card reorder). It used to be 12pt gray dead-last,
+            // the least-visible thing on a game built around learning. Trivia passes `revealFact == nil`,
+            // so this is KHG-only; the tile wears the caller's `accent`.
             if let fact = q.revealFact, !fact.isEmpty {
-                Text(fact)
-                    .dsFont(12).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 2)
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "lightbulb.fill")
+                        .dsFont(13)
+                        .foregroundStyle(accent)
+                        .accessibilityHidden(true)
+                    Text(fact)
+                        .dsFont(14)
+                        .foregroundStyle(Color.dsFgPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .padding(.top, 2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

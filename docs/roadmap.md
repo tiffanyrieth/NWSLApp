@@ -1,24 +1,10 @@
 # Roadmap / What's Next
 
-> ### 🔔 PREDICT — post-match "your result is in" push (Change 8, COMMITTED follow-up, own PR)
-> The other half of the results-ready carousel card (shipped in the game-feel pass): a push that pulls the
-> user back after a match. The card catches people already in the app; this catches the rest. **Design is
-> LOCKED (owner + Claude.ai, 2026-08-04 — do NOT re-litigate):**
-> - **Generic copy, NO score in the banner** — e.g. "Predict the XI: Your WAS vs SD result is in — see how
->   your XI did." The push is the HOOK; the in-app scoring reveal is the payoff. (Also dodges a hard
->   blocker: per-user scores don't exist server-side at full-time — Predict grades on-device, lineups are
->   never stored, scores reach Supabase only after the app opens.)
-> - **Separate "Predict results" Fan Zone toggle**, NOT folded into match-updates ("match ended" and "how
->   YOUR prediction did" are different events). Opt-in, Tier-2/sign-in-gated, offered after the user's
->   first submitted prediction.
-> - **Next-day BATCHED, not at full-time** (avoids the FT goal/red/HT/FT alert flood), and **only to users
->   who haven't VIEWED their result** — needs a server-visible "seen" mark written when the result screen
->   marks a result seen (a `(user_id, event_id)` mark; offline-tolerant). Fire once per (user, event).
-> **Build:** watcher (`~/Projects/nwslapp-match-watcher`) daily pass → query `predict_record_picks` for
-> prior-day final fixtures WHERE no seen mark, join `device_tokens` with the pref on → CF Queues fan-out →
-> deep-link to the result screen. Needs a `service_role` grant + a pref column. Stress: lighter than the
-> proven goal fan-out (1k pass; 100k via a `predict_record_picks.event_id` index + Queues). **Own design
-> pass first** (read watcher repo + notif schema); **real-device verify** (sim can't receive push).
+> ### ✅ SHIPPED 2026-08-04 — PREDICT post-match "your result is in" push (Change 8)
+> Merged: app PR #233, watcher PR #34 (deployed). Generic copy (no score), separate opt-in "Predict
+> results" toggle, next-day batched, only to users who haven't viewed their result (server-visible
+> `predict_result_seen` mark). ⏳ Real-device push verify is the only thing left (sim can't receive push) —
+> confirm the banner renders + the tap opens the result screen at the next finished fixture.
 
 > ### 🚨 ALERTING GAP — a total outage paged NOBODY (owner 2026-08-04, NOT fixed today)
 > **What happened:** ESPN began 403'ing the proxy's UA-less scoreboard fetches → `/scoreboard` 502'd
@@ -180,19 +166,25 @@
 >   preview shows the pre-reveal state with no bars, which is the exact half that changed.
 >   **Check on the owner's device at the next match:** every bar starts at the same x, long names wrap
 >   rather than truncate, and the percentages stay right-aligned down the block.
-> - **(c) Landing screen needs real sections.** Today: open / dimmed-locked / submitted-but-undimmed are
->   visually ambiguous, and a submitted-locked match looks unlike a closed one. Owner wants grouped
->   subsections (open on top, locked + past below) so the section is knowable without decoding each card.
->   Design work, not a bug.
-> - **(d) The top team chip is unlabelled and only drives the board.** Tapping "LA" changes the leaderboard
->   but not the fixtures below, which reads as broken. Owner ideas: label it; or move the season-average
->   card down beside the board so the chip sits directly above what it controls; or make the average card
->   a swipeable per-team carousel that remembers the last team. Needs a design pass.
-> - **(e) ⚠️ Season-average card contradicts itself, on a team never predicted.** Shows a 0.0 avg row for
->   **DEN with no prediction ever made**, AND reads "#70 of 72" while naming the next rung at **#89** —
->   below her, which is impossible. Two different sources disagree: `standing.rank` (server) vs the fetched
->   board rows (`PredictXIView.swift:721 nextRungText`). Fix the data question FIRST; the copy is secondary.
->   Copy (owner): humans say "70th place", not "#70 of 72" — and "2.3 behind" means nothing to a person.
+> - **(c) ✅ DONE 2026-08-04 (PR #233).** Landing now has real lifecycle sections: **Open for predictions
+>   → 🔒 Locked in (dimmed) → Results**; a never-submitted fixture is dropped. The open/dimmed-locked
+>   ambiguity is gone.
+> - **(d) ✅ ADDRESSED (game-feel pass).** The team chips were moved INTO the leaderboard header, so they
+>   sit directly above the board they control (one of the owner's own proposed fixes) — the "reads as
+>   broken" cause is resolved. Not a text *label*; a device glance can confirm it now reads right.
+> - **(e) ✅ GONE 2026-08-04.** The season-average card (game-feel), the chase line / `nextRungText`, and
+>   the provisional/rank machinery are all deleted — the two disagreeing sources no longer render anything
+>   (verified: no `#N of M`, "behind", or `nextRung` copy remains in the view). The self-contradiction
+>   can't occur.
+> - **⏳ STILL PENDING from #3 — the fan-picks DATA BARS device-verify.** Rode onto main in #225, never seen
+>   rendered (needs a submitted XI in the KO−2h window). 🔴 Verify on device before build 32: bars start at
+>   the same x, long names wrap, percentages right-aligned.
+> - **🟡 OPEN DESIGN Q (owner 2026-08-04) — the "vs the board" community section on the LOCKED screen.**
+>   At 1 submission (only you) every bar is 100% + the contrarian panel is empty, so it reads as broken —
+>   but that's the zero-population edge, not the feature. Options: (a) KEEP + fix the thin case (below a
+>   small floor, swap the 100%-everything bars for an honest "you're the first fan to predict this" line,
+>   keep the pitch; Claude's rec — it's an alive/social payoff at real scale), or (b) DROP the reveal and
+>   leave the wait sealed until results. Owner deciding.
 >
 > **4. 📣 Notification title truncation — MEASURED, owner DECISION: accept (2026-08-03).**
 > ⚠️ **A decision, not a closed bug.** Mechanism → ruling → the constraint that keeps it safe.
@@ -394,7 +386,11 @@
 > risk breaking layouts that were tuned around the current sizes. Worth its own session with the
 > AX1-cap revisit in the accessibility workstream.
 
-> ### 🎬 PREDICT STAGE 1 — results at LINEUP DROP (deferred by owner decision 2026-07-28)
+> ### 🚫 PREDICT STAGE 1 — results at LINEUP DROP — DROPPED (owner 2026-08-04)
+> **Dropped from the list (owner, 2026-08-04).** Not this session's community-picks "vs the board"
+> screen — that already ships; Stage 1 was *early scoring* (grade your XI against the REAL posted lineup
+> ~90 min pre-kickoff, before full time). Kept here as reference only, in case early scoring is ever
+> revived. The trap below still applies if so.
 > The redesigned results screen ships against FULL TIME only. The handoff also specified a two-stage
 > timeline: 75 of the 88 points (players, positions, formation, perfect XI) resolve when the real
 > lineup drops ~90 minutes before kickoff, and only the last 13 (exact score, result) wait for full
@@ -464,14 +460,20 @@
 > number **neither device produced**. Fix: merge each pair ATOMICALLY — take the side with more progress
 > (the greater denominator) whole, never a numerator from one and a denominator from the other.
 >
+> **🅿️ PARKED for now (owner 2026-08-04) — revisit AFTER Fan Zone if it recurs.** The atomic-pair merge
+> fix above is deferred; owner will adjust if the issue comes back.
+>
 > **⚠️ STILL OPEN + UNREPRODUCED — the Superfan doubling itself.** Ruled out so far: `max()` cannot sum;
 > Trivia's restore deliberately skips the season accuracy pair (`TriviaStore.swift:233-239`, guarding the
 > earlier "0/10 shows 100%" bug); KHG's baseline is excluded from the accuracy numerator; the Home card
-> and Game Center both max-merge. The owner's current row is internally CONSISTENT
-> (6/11 + 15/126 + 8/10 + 10/10 → 62 ✓), so nothing is doubled right now. **The mechanism is not yet
-> found — do not "fix" it by guessing.** Owner will reproduce deliberately (delete account → play on
-> phone → sign into sim → refresh phone). The decisive evidence is the `superfan_scores` row captured
-> IMMEDIATELY BEFORE and AFTER the sim signs in — that pins which field moves:
+> and Game Center both max-merge. **NEW EVIDENCE (owner 2026-08-04):** her cell shows Superfan **59**, the
+> sim shows **46**, and BOTH are signed in as `tiffany.rieth@proton.me` (same Apple ID ⇒ same `user_id`).
+> Same user_id means the two SHOULD converge to one score, so 59-vs-46 is the two devices **DIVERGING**
+> (each displaying its own local total, not reconciling to the server max) — a different shape than
+> doubling. **The mechanism is not yet found — do not "fix" it by guessing.** Owner's planned repro:
+> delete the account on her cell, recreate it, then use sim + phone and watch whether the score suddenly
+> doubles. The decisive evidence is the `superfan_scores` row captured IMMEDIATELY BEFORE and AFTER the
+> sim signs in — that pins which field moves:
 > `select * from superfan_scores where user_id = '<id>' and season = '2026';`
 >
 > **Also worth deciding:** whether display names should be unique per season.

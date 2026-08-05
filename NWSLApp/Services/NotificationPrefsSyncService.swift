@@ -62,6 +62,7 @@ private struct NotificationPreferencesReadRow: Decodable {
     let fan_zone_rounds: Bool
     let player_spotlight: Bool
     let live_activities_enabled: Bool
+    let predict_results: Bool
 
     var snapshot: NotificationPreferencesSnapshot {
         NotificationPreferencesSnapshot(
@@ -74,7 +75,8 @@ private struct NotificationPreferencesReadRow: Decodable {
             substitutions: substitutions,
             fanZoneRounds: fan_zone_rounds,
             playerSpotlight: player_spotlight,
-            liveActivitiesEnabled: live_activities_enabled
+            liveActivitiesEnabled: live_activities_enabled,
+            predictResults: predict_results
         )
     }
 }
@@ -92,6 +94,7 @@ private struct NotificationPreferencesRow: Encodable {
     let fan_zone_rounds: Bool
     let player_spotlight: Bool
     let live_activities_enabled: Bool
+    let predict_results: Bool
 
     init(_ snapshot: NotificationPreferencesSnapshot, userID: UUID) {
         user_id = userID
@@ -105,5 +108,6 @@ private struct NotificationPreferencesRow: Encodable {
         fan_zone_rounds = snapshot.fanZoneRounds
         player_spotlight = snapshot.playerSpotlight
         live_activities_enabled = snapshot.liveActivitiesEnabled
+        predict_results = snapshot.predictResults
     }
 }

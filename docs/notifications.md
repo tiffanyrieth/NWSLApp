@@ -157,6 +157,17 @@ Full-time detection, the Live Activity teardown, and the fixture index's `ended`
   CPU budget), via a **service binding to the proxy** (`PROXY.fetch("https://proxy/scoreboard…")`). A public
   `*.workers.dev` fetch between same-account Workers **404s with CF error 1042** — the binding is mandatory.
 - **Live-window gate:** only matches with kickoff within `−5 min … +4h` are processed (bounds the KV reads).
+- **A SECOND cron `0 14 * * *`** (~10am EDT) runs the once-daily **post-match Predict-results pass**
+  (Change 8, `runPredictResultsPass`) — entirely separate from the live tick (the `scheduled` handler
+  branches on `event.cron`). It reads the same yesterday→tomorrow window, keeps SETTLED finals
+  (`state "post" && !unfinishedPost`), and for each pushes a GENERIC "your result is in" alert (no score
+  — the hook; the in-app reveal is the payoff) to the match's predictors who (a) opted into the
+  standalone `predict_results` pref AND (b) haven't opened their result. Recipients:
+  `predictResultRecipients` = `predict_submission_marks` MINUS `predict_result_seen` (the seen mark the
+  app writes on result-open) gated by `predict_results`, resolved to `device_tokens` — NO team-alert
+  gate (predicting IS the opt-in). KV one-shot `predict-result:{eventId}` (retry-until-sent). The payload
+  carries **`predictEventID`** (NOT `eventID` — a bare `eventID` routes to Match Detail; the app's tap
+  handler branches to the Predict result screen on the separate key).
 
 ## 4. Detection
 

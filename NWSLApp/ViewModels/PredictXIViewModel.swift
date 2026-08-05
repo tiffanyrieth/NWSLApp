@@ -459,6 +459,11 @@ final class PredictXIViewModel {
         var isBelowFold: Bool = false
     }
 
+    // NOTE (Update #1): provisional predictors are NO LONGER surfaced on the board, and OTHER users'
+    // provisional status is never fetched or shown (privacy). A signed-in user under the threshold simply
+    // doesn't appear on the ranked board; their own progress-to-rank is a personal hub milestone line
+    // (PredictXIView), driven entirely by the LOCAL `store.scoredMatchCount(forTeam:)`.
+
     /// Fetch the real per-team standings and build a board for each team the user is
     /// actively predicting (in the slate) or has scored in. Signed-in users first
     /// push their fresh per-team totals to Supabase (best-effort); then everyone
@@ -511,10 +516,12 @@ final class PredictXIViewModel {
             let myPoints = store.points(forTeam: team)
             let myMatches = store.scoredMatchCount(forTeam: team)
             let myAvg = myMatches > 0 ? Double(myPoints) / Double(myMatches) : 0
-            // Only the signed-in user gets a "You" row — and only they need a rank lookup. The SEASON board
-            // ranks by AVERAGE per match (Batch 3), so the rank query compares avg_points.
+            // Recency-to-remain (2026-08-04): a signed-in user ranks from their FIRST scored match — no
+            // entry gate. (They just scored, so they're inside the recency window and appear immediately.)
+            // Only a ranked user needs a rank lookup; the SEASON board ranks by AVERAGE per match.
+            let isMeRanked = auth.userID != nil && myMatches >= 1
             var trueRank: Int?
-            if auth.userID != nil {
+            if isMeRanked {
                 trueRank = await leaderboardService.rank(
                     teamAbbreviation: team, season: season, avgPoints: myAvg)
             }

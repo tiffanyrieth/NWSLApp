@@ -442,6 +442,13 @@ struct RootTabView: View {
                 PushBridge.shared.tappedEventID = nil
             }
         }
+        // A tapped post-match Predict push routes to its result screen (Change 8) — Home, not Schedule.
+        .onChange(of: PushBridge.shared.tappedPredictEventID) { _, eventID in
+            if let eventID {
+                router.openPredictResult(eventID: eventID)
+                PushBridge.shared.tappedPredictEventID = nil
+            }
+        }
         // Once Game Center auth resolves, push the current totals (Superfan combined
         // + cross-game achievements live here, where all three stores are in reach).
         .onChange(of: GameCenterManager.shared.isAuthenticated) { _, signedIn in

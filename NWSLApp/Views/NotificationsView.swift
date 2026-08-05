@@ -252,6 +252,10 @@ struct NotificationsView: View {
             SettingsRowDivider()
             SettingsToggleRow(title: "Know Her Game", subtitle: "When a new weekly player quiz is ready",
                               isOn: tier1Binding(\.playerSpotlight))
+            SettingsRowDivider()
+            // Tier-2 (watcher-triggered next-day push) — standalone, sign-in-gated via tier2Binding.
+            SettingsToggleRow(title: "Predict results", subtitle: "When your Predict the XI result is in",
+                              isOn: tier2Binding(\.predictResults))
         }
     }
 

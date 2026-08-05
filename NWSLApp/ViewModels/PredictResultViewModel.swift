@@ -70,6 +70,15 @@ final class PredictResultViewModel {
     private(set) var contentShown = false
     private(set) var isRevealing = false
 
+    /// The scoring breakdown's staggered reveal (game-feel pass): how many breakdown rows have landed,
+    /// and the running total that counts up as each one arrives. The view gates each row on the index and
+    /// shows `runningScoreTotal` on the Total line. Reduce Motion / VoiceOver jump straight to the end.
+    private(set) var revealedScoreLines = 0
+    private(set) var runningScoreTotal = 0
+    /// The breakdown rows' point values, in the SAME order the results view renders them, so the stagger
+    /// and running total stay in lockstep with the rows. Set at load.
+    private var scoreLinePoints: [Int] = []
+
     /// GK → attack: builds toward the front line, where the contested picks are.
     private static let bandOrder: [PositionGroup] = [.gk, .def, .mid, .fwd]
 
@@ -106,6 +115,10 @@ final class PredictResultViewModel {
         detail = fetched
         actualFormation = actual.formation.flatMap(Formation.init(raw:))
 
+        // Cache the round rank so the Home carousel + recent-result cards can show "3rd this round"
+        // synchronously (it's a network read here). Local, pruned with the other recent-window markers.
+        if let rank = fetched.roundRank { store.recordRoundRank(rank, forFixture: item.fixture.id) }
+
         // Community is OPTIONAL: sealed or unreachable hides the panels, never fails the screen.
         let season = String(AppConfig.currentSeasonYear)
         if let week = item.score?.soccerWeek {
@@ -136,6 +149,10 @@ final class PredictResultViewModel {
         bandPanels = buildBandPanels(fetched: fetched)
 
         evaluateSuperlativeAndMergeBests(prediction: prediction, store: store, season: season)
+
+        // The breakdown rows' points, ordered exactly as the results view renders them — feeds the
+        // staggered scoring reveal + running total.
+        scoreLinePoints = Self.breakdownPoints(for: item.score ?? .zero)
 
         phase = .loaded
         prepareReveal(reduceMotion: reduceMotion, voiceOver: voiceOver)
@@ -237,6 +254,8 @@ final class PredictResultViewModel {
         revealedBands = []
         contentShown = false
         isRevealing = true
+        revealedScoreLines = 0
+        runningScoreTotal = 0
         revealTask = Task { [weak self] in
             guard let self else { return }
             for (index, band) in Self.bandOrder.enumerated() {
@@ -254,7 +273,33 @@ final class PredictResultViewModel {
                 self.contentShown = true
                 self.isRevealing = false
             }
+            // The scoring breakdown then lands line by line, the total counting up as each arrives —
+            // the continuation of the pitch reveal (game-feel pass).
+            await self.staggerScoreLines()
         }
+    }
+
+    /// Reveal the breakdown rows one at a time after the content settles, adding each line's points to
+    /// the running total as it lands. Cancellation-safe (checks between beats).
+    private func staggerScoreLines() async {
+        await sleep(.milliseconds(800))   // let the summary + rank settle before the ledger fills in
+        for index in scoreLinePoints.indices {
+            if Task.isCancelled { return }
+            withAnimation(.easeOut(duration: 0.32)) {
+                revealedScoreLines = index + 1
+                runningScoreTotal += scoreLinePoints[index]
+            }
+            await sleep(.milliseconds(400))
+        }
+    }
+
+    /// The breakdown rows' point values in render order (Correct players, Right position, Formation,
+    /// Exact score, Result, then the Perfect XI bonus only when earned).
+    static func breakdownPoints(for score: PredictionScore) -> [Int] {
+        var points = [score.playersPoints, score.positionsPoints, score.formationPoints,
+                      score.scorelinePoints, score.resultPoints]
+        if score.perfectXI { points.append(score.perfectPoints) }
+        return points
     }
 
     /// Cancel on disappear — a leaked task would go on mutating a torn-down view model.
@@ -267,6 +312,9 @@ final class PredictResultViewModel {
         revealedBands = Set(PositionGroup.allCases)
         contentShown = true
         isRevealing = false
+        // No stagger under Reduce Motion / VoiceOver — land on the final state.
+        revealedScoreLines = scoreLinePoints.count
+        runningScoreTotal = scoreLinePoints.reduce(0, +)
     }
 
     // MARK: - Derived reads for the view

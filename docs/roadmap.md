@@ -1,5 +1,46 @@
 # Roadmap / What's Next
 
+> ### 🔔 PREDICT — post-match "your result is in" push (Change 8, COMMITTED follow-up, own PR)
+> The other half of the results-ready carousel card (shipped in the game-feel pass): a push that pulls the
+> user back after a match. The card catches people already in the app; this catches the rest. **Design is
+> LOCKED (owner + Claude.ai, 2026-08-04 — do NOT re-litigate):**
+> - **Generic copy, NO score in the banner** — e.g. "Predict the XI: Your WAS vs SD result is in — see how
+>   your XI did." The push is the HOOK; the in-app scoring reveal is the payoff. (Also dodges a hard
+>   blocker: per-user scores don't exist server-side at full-time — Predict grades on-device, lineups are
+>   never stored, scores reach Supabase only after the app opens.)
+> - **Separate "Predict results" Fan Zone toggle**, NOT folded into match-updates ("match ended" and "how
+>   YOUR prediction did" are different events). Opt-in, Tier-2/sign-in-gated, offered after the user's
+>   first submitted prediction.
+> - **Next-day BATCHED, not at full-time** (avoids the FT goal/red/HT/FT alert flood), and **only to users
+>   who haven't VIEWED their result** — needs a server-visible "seen" mark written when the result screen
+>   marks a result seen (a `(user_id, event_id)` mark; offline-tolerant). Fire once per (user, event).
+> **Build:** watcher (`~/Projects/nwslapp-match-watcher`) daily pass → query `predict_record_picks` for
+> prior-day final fixtures WHERE no seen mark, join `device_tokens` with the pref on → CF Queues fan-out →
+> deep-link to the result screen. Needs a `service_role` grant + a pref column. Stress: lighter than the
+> proven goal fan-out (1k pass; 100k via a `predict_record_picks.event_id` index + Queues). **Own design
+> pass first** (read watcher repo + notif schema); **real-device verify** (sim can't receive push).
+
+> ### 🚨 ALERTING GAP — a total outage paged NOBODY (owner 2026-08-04, NOT fixed today)
+> **What happened:** ESPN began 403'ing the proxy's UA-less scoreboard fetches → `/scoreboard` 502'd
+> for hours → **2 of 5 app tabs fully down (Home landing page + Schedule)**. The owner got **zero email
+> alerts**. It was caught only by chance (she opened the app while Claude was mid-Predict-build). A
+> sudden spike of 502s taking down the landing page MUST email an alert.
+>
+> **Root cause (verified in code):** the scoreboard/summary failure path — `proxyAndCache`'s
+> `if (!espnResponse.ok) { … return upstreamError() }` — **never calls `emitDiag`**. The error-spike
+> pager (`checkErrorSpike` → Resend email, ≥8 err/15min) counts **only** `sdiag:` records, so 548
+> scoreboard failures produced zero countable events and never fired. The single most critical path in
+> the proxy is the one path not wired into alerting. Meanwhile **healthchecks.io** watches the watcher
+> CRON's heartbeat (it kept completing fine on 502s → "up"), and **UptimeRobot** pings a static endpoint
+> that 200s regardless of ESPN — so none of the three monitors actually asks "does the scoreboard return
+> real data?"
+>
+> **Fix (two parts):** (1) **emit a diagnostic on the ESPN upstream failure** in `proxyAndCache` (a
+> distinct kind NOT on the `image fetch` exclusion list) → the existing pager fires within a minute of a
+> real spike; (2) a **synthetic scoreboard check** (UptimeRobot keyword monitor or a health route) that
+> fetches `/scoreboard` and asserts 200 + non-empty `events` — defense-in-depth so a pager gap can't hide
+> a data outage again. See memory `project_espn_403_no_user_agent`.
+
 > ### 📰 CONTENT-SOURCE AUDIT — per club, are we pulling everything we can? (owner 2026-08-03)
 > **Goal:** Club News (Home) and Social are the ALIVE surfaces — the whole product thesis. Audit and
 > log, **per club**, every source we pull and every one we could: club news/article feed (OG

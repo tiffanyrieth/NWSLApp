@@ -30,6 +30,10 @@ struct HomeView: View {
     // The profile avatar button's destination (a placeholder until the Profile
     // screen ships in its own phase).
     @State private var showProfile = false
+    // Drives the programmatic push of PredictXIView when a post-match Predict push (Change 8) is tapped.
+    // A LOCAL flag, not bound directly to `router.pendingPredictEventID` — the pushed PredictXIView clears
+    // that router value once it routes to the result, and a binding tied to it would then pop the screen.
+    @State private var showPredictFromPush = false
     @Environment(FollowingStore.self) private var following
     @Environment(MatchStore.self) private var matchStore
     @Environment(ClubStore.self) private var clubStore
@@ -49,6 +53,16 @@ struct HomeView: View {
             // Onboarding is gated above this view now (RootTabView shows OnboardingView
             // full-screen until `hasOnboarded`), so Home only ever renders the hub.
             hubContent
+                // Post-match Predict push (Change 8): push the Predict hub, which resolves the pending
+                // event id to the result screen. Pushed (not modal) so it reads like a normal Home→Predict
+                // drill-in with the native back button.
+                .navigationDestination(isPresented: $showPredictFromPush) { PredictXIView() }
+        }
+        // A push tap sets router.pendingPredictEventID; fire the push here. onChange covers a warm app;
+        // the .task check covers a cold launch / the -debugOpenPredictResult arg (value already set).
+        .onChange(of: router.pendingPredictEventID) { _, id in if id != nil { showPredictFromPush = true } }
+        .task {
+            if router.pendingPredictEventID != nil { showPredictFromPush = true }
         }
         .task {
             // Hand the view model the shared stores, load the shared stores once
@@ -559,11 +573,20 @@ struct HomeView: View {
         // no "results pending" variant: this appears only once something is actually scored.
         let unseen = predict.unseenScoredFixtureIDs(currentWeek: FanZoneCadence.currentSoccerWeek())
         if !unseen.isEmpty {
-            var model = FanZoneCardModel(game: .predict, title: "Predict the XI",
-                                         contextLine: unseen.count == 1
-                                            ? "Match final"
-                                            : "\(unseen.count) matches final")
-            model.statusLine = "See how your XI did"
+            var model = FanZoneCardModel(game: .predict, title: "Predict the XI", contextLine: "")
+            // State 3 — RESULTS READY. Glow + a "RESULTS IN" pill so a finished result finds the user
+            // on Home; tapping routes into Predict where the reveal plays (signpost, not trigger).
+            model.stateLabel = "RESULTS IN"
+            model.glow = true
+            model.ctaOverride = "See results"
+            if unseen.count == 1, let fixtureID = unseen.first, let score = predict.score(for: fixtureID) {
+                // The one thing the user doesn't know yet: how they did. Score + points, full stop.
+                // (The round-rank line was dropped 2026-08-04: it's network-only, cached on VIEW, so an
+                // unseen result never had it anyway — it lived only on the in-Predict result cards.)
+                model.contextLine = "\(score.correctPlayers)/11 starters\n+\(score.total) pts"
+            } else {
+                model.contextLine = "\(unseen.count) matches final"
+            }
             return model
         }
 
@@ -612,11 +635,21 @@ struct HomeView: View {
         let points = predict.seasonPoints
         if points > 0 { model.badge = "\(points)" }
 
-        // Submitted for this fixture → the locked-in done line (no status/progress).
+        // Submitted for this fixture → State 2, LOCKED IN: green accent, a lock glyph, and a countdown
+        // to KICKOFF (the wait that matters once you're locked in — not the passed submission deadline).
         let draft = nextPredictFixture.flatMap { predict.prediction(for: $0.id) }
         if draft?.state == .submitted {
-            let drop = nextPredictFixture.flatMap { compactCountdown(to: $0.deadline) }
-            model.doneLine = drop.map { "Picks locked in — results drop in \($0)" } ?? "Picks locked in"
+            model.stateLabel = "LOCKED IN"
+            model.accentOverride = .dsSuccess
+            model.iconOverride = "lock.fill"
+            model.ctaOverride = "Locked in"
+            if let fixture = nextPredictFixture {
+                let home = fixture.isHome ? fixture.teamAbbreviation : fixture.opponentAbbreviation
+                let away = fixture.isHome ? fixture.opponentAbbreviation : fixture.teamAbbreviation
+                var c = "\(home) vs \(away)"
+                if let toKickoff = compactCountdown(to: fixture.kickoff) { c += "\nKicks off in \(toKickoff)" }
+                model.contextLine = c
+            }
             return model
         }
 
@@ -772,6 +805,14 @@ struct HomeView: View {
                     }
                 }
             }
+        } else if case .error(let message) = matchStore.state {
+            // Honest degradation (NO SILENT FAILURES): the scoreboard failed, so the schedule can't load.
+            // Say so with a tappable retry in THIS module only — never blank the whole hub (the rest of
+            // Home — Club News, Fan Zone — doesn't need the scoreboard). This is the module-scoped path the
+            // full-screen gate used to swallow.
+            section("Coming up") {
+                moduleError(message) { await matchStore.load() }
+            }
         }
     }
 
@@ -825,13 +866,19 @@ struct HomeView: View {
     // MARK: - State plumbing
 
     private var errorMessage: String? {
+        // ⚠️ ONLY a CLUBS failure blanks the whole hub. Clubs are foundational — Club News scoping, Fan
+        // Zone team context, team chips all need them. A scoreboard/MatchStore failure must NOT take the
+        // hub down: Club News and the Fan Zone don't depend on it. Keying this gate on MatchStore too is
+        // what left the ENTIRE Home dark during the 2026-08-04 ESPN/scoreboard outage while Club News
+        // (proxy /team-videos) was loaded and healthy. Match-dependent modules degrade inline instead.
         if case .error(let m) = viewModel.clubsState { return m }
-        if case .error(let m) = matchStore.state { return m }
         return nil
     }
 
     private var isReady: Bool {
-        if case .loaded = viewModel.clubsState, case .loaded = matchStore.state { return true }
+        // Ready once CLUBS load — the hub renders even while MatchStore is still loading or has errored;
+        // its match-dependent modules ("Coming up", the Predict card) handle those states themselves.
+        if case .loaded = viewModel.clubsState { return true }
         return false
     }
 

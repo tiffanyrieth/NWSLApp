@@ -38,6 +38,7 @@ struct XIPickerView: View {
 
     init(fixture: PredictionFixture,
          existing: XIPrediction?,
+         savedLineup: (formation: String, slots: [Int: String])? = nil,
          accent: Color,
          homeAbbr: String,
          awayAbbr: String,
@@ -48,7 +49,8 @@ struct XIPickerView: View {
         self.homeAbbr = homeAbbr
         self.awayAbbr = awayAbbr
         self.clubLookup = club
-        _picker = State(wrappedValue: XIPickerViewModel(fixture: fixture, existing: existing, loadRoster: loadRoster))
+        _picker = State(wrappedValue: XIPickerViewModel(fixture: fixture, existing: existing,
+                                                        savedLineup: savedLineup, loadRoster: loadRoster))
     }
 
     var body: some View {
@@ -298,6 +300,10 @@ struct XIPickerView: View {
                     return
                 }
                 committed = true                          // one-shot trigger for the commit haptic
+                // Remember this XI as the team's "usual lineup" so the next fixture's picker pre-fills it
+                // (task 17). Formation + slots only; validated against the live roster when re-loaded.
+                store.saveLastLineup(forTeam: fixture.teamAbbreviation,
+                                     formation: prediction.formation, slots: prediction.slots)
                 FanZoneActivity.recordPlay()              // Iron Fan: played a Fan Zone game this week
                 // Count this XI into the club's community aggregate (counts only — the lineup itself
                 // never leaves the device). Fire-and-forget AFTER the local write: the game is
@@ -315,7 +321,9 @@ struct XIPickerView: View {
                 // on every submit is harmless. No-ops when not signed in.
                 GameCenterManager.shared.report(GameCenterID.Achievement.firstPrediction)
                 // Entry was gated (open-fixture tap), so we're signed in: the prediction is
-                // locked and the per-team leaderboard push happens when it's later scored.
+                // locked and the per-team leaderboard push happens when it's later scored. No
+                // post-submit popup any more (owner, 2026-08-04) — the "Predict results" opt-in lives
+                // only in Notifications + the How-to-play line, never as an interrupting alert here.
                 dismiss()
             } label: {
                 Text(picker.isComplete ? "Submit & lock in" : "Pick all 11 to submit (\(picker.assignedCount)/11)")

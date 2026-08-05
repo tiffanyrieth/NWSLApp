@@ -32,7 +32,7 @@ struct TeamAlertMigrationTests {
             dayBefore: dayBefore, lineupPosted: false, kickoff: kickoff,
             goals: goals, halftime: halftime, fullTime: fullTime,
             substitutions: false, fanZoneRounds: false, playerSpotlight: false,
-            liveActivitiesEnabled: false
+            liveActivitiesEnabled: false, predictResults: false
         )
     }
 

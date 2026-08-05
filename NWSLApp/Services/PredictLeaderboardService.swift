@@ -24,6 +24,18 @@ import Supabase
 struct PredictLeaderboardService {
     private var client: SupabaseClient { SupabaseManager.client }
 
+    /// SEASON-board RECENCY window (owner ruling 2026-08-04 — replaced the old 3-match ranking gate).
+    /// You rank from your FIRST prediction (no entry barrier); you only fall off the season board after
+    /// going quiet for this long. ~3 months, break-tolerant (a World Cup / international window won't drop
+    /// a casual player). Keeps the board low-stakes + fun-for-all while stopping a lucky one-off from
+    /// sitting at the top for a whole season. Round boards are exempt (a round is one week).
+    static let recencyWindow: TimeInterval = 90 * 24 * 3600
+
+    /// ISO-8601 cutoff for "active this window" — `last_scored_at >= this` stays on the season board.
+    private static func recencyCutoffISO() -> String {
+        ISO8601DateFormatter().string(from: Date().addingTimeInterval(-recencyWindow))
+    }
+
     /// One other player's standing for a team (the signed-in user is excluded by
     /// the caller and spliced in from their live local total instead). `matches`/`avg`
     /// populate for the SEASON board (ranked by average per match); the round board
@@ -150,6 +162,9 @@ struct PredictLeaderboardService {
                 .select("user_id, display_name, points, matches, avg_points")
                 .eq("team_abbreviation", value: teamAbbreviation)
                 .eq("season", value: season)
+                // Recency-to-remain: only predictors active within the window stay on the season board
+                // (rank from game 1, fall off after ~3 months quiet). See `recencyWindow`.
+                .gte("last_scored_at", value: Self.recencyCutoffISO())
                 .order("avg_points", ascending: false)   // Batch 3: rank by AVERAGE, not cumulative
                 .limit(LeaderboardRanking.visibleLimit)
                 .execute()
@@ -164,6 +179,7 @@ struct PredictLeaderboardService {
         }
     }
 
+
     /// The signed-in user's TRUE 1-based SEASON rank on a team's board, by AVERAGE per match, computed with
     /// a COUNT (rows averaging strictly higher, +1) — no rows transferred. `nil` on failure, so the caller
     /// falls back to an inline splice rather than a wrong number. Ties break in the user's favour
@@ -175,6 +191,8 @@ struct PredictLeaderboardService {
                 .select("user_id", head: true, count: .exact)
                 .eq("team_abbreviation", value: teamAbbreviation)
                 .eq("season", value: season)
+                // Rank among ACTIVE predictors only — an inactive (fallen-off) rival can't push you down.
+                .gte("last_scored_at", value: Self.recencyCutoffISO())
                 .gt("avg_points", value: avgPoints)
                 .execute()
             return (response.count ?? 0) + 1
@@ -193,6 +211,8 @@ struct PredictLeaderboardService {
                 .select("user_id", head: true, count: .exact)
                 .eq("team_abbreviation", value: teamAbbreviation)
                 .eq("season", value: season)
+                // "#N of M" counts ACTIVE predictors, so the shown total agrees with the rank number.
+                .gte("last_scored_at", value: Self.recencyCutoffISO())
                 .execute()
             return response.count ?? 0
         } catch {

@@ -210,6 +210,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         let info = response.notification.request.content.userInfo
         if let eventID = info["eventID"] as? String {
             await PushBridge.shared.didTapNotification(eventID: eventID)
+        } else if let predictEventID = info["predictEventID"] as? String {
+            // Post-match Predict push (Change 8) — a SEPARATE key so it routes to the Predict result
+            // screen, not MatchDetail. (These carry no bare `eventID`, so `willPresent` won't nudge a
+            // scoreboard refresh either — correct: the result is settled, not live.)
+            await PushBridge.shared.didTapPredictResult(eventID: predictEventID)
         }
     }
 }

@@ -31,16 +31,24 @@ final class XIPickerViewModel {
     private(set) var rosterState: RosterState = .idle
 
     private let existing: XIPrediction?
+    /// The team's last SUBMITTED XI (formation + slot→athleteID), used to pre-fill a FRESH fixture's
+    /// picker so a regular tweaks 1–2 players instead of building 11 from scratch (task 17). Ignored
+    /// when there's already an `existing` draft/submission for this fixture. The predicted SCORELINE is
+    /// deliberately NOT carried — that's a per-match call, not a "usual lineup".
+    private let savedLineup: (formation: String, slots: [Int: String])?
     private let loadRosterClosure: () async -> [Athlete]
 
     init(fixture: PredictionFixture,
          existing: XIPrediction?,
+         savedLineup: (formation: String, slots: [Int: String])? = nil,
          loadRoster: @escaping () async -> [Athlete]) {
         self.fixture = fixture
         self.existing = existing
+        self.savedLineup = savedLineup
         self.loadRosterClosure = loadRoster
         self.readOnly = existing?.state == .submitted
-        self.formation = Formation(raw: existing?.formation ?? Formation.default.raw) ?? .default
+        // Formation: an existing draft wins, else the team's last submitted formation, else the default.
+        self.formation = Formation(raw: existing?.formation ?? savedLineup?.formation ?? Formation.default.raw) ?? .default
         self.slots = [:]
         self.homeScore = existing?.homeScoreGuess ?? 0
         self.awayScore = existing?.awayScoreGuess ?? 0
@@ -60,9 +68,13 @@ final class XIPickerViewModel {
     }
 
     private func hydrateSlots(roster: [Athlete]) {
-        guard let existing else { return }
+        // An existing draft/submission for THIS fixture wins; otherwise seed from the team's last
+        // submitted XI (task 17). Either way the ids are resolved against the CURRENT roster, so a
+        // player who's since transferred out simply isn't in `byID` and that slot lands empty for the
+        // user to fill — never a stale/ghost name.
+        guard let source = existing?.slots ?? savedLineup?.slots else { return }
         let byID = Dictionary(roster.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        slots = existing.slots.reduce(into: [:]) { result, pair in
+        slots = source.reduce(into: [:]) { result, pair in
             if let athlete = byID[pair.value] { result[pair.key] = athlete }
         }
     }

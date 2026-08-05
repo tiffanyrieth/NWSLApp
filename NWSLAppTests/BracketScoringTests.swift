@@ -120,4 +120,43 @@ struct BracketScoringTests {
         // 128: q1+q2 (32·1·2) + 32·1 + 16·1 + 8·2 + 4·2 + 2·3 + 1·3 = 145.
         #expect(BracketScoring.maxPoints(rounds: BracketRound.rounds(forEntrants: 128)) == 145)
     }
+
+    // MARK: - Result-card verdict copy
+
+    /// THE BUG (owner-caught 2026-08-04): a MISS rendered "Solid — Trinity Rodman took it" in red, so the
+    /// praise word "Solid" applied to a pick you got wrong. A miss must show the winner's ACTION alone.
+    @Test func missDropsThePraiseAdjective() {
+        let text = BracketScoring.verdictText(winnerPercent: 66, winnerName: "Trinity Rodman",
+                                              roundPoints: 2, outcome: .missed)
+        #expect(text == "Trinity Rodman took it")
+        #expect(!text.contains("Solid"))
+        #expect(!text.contains("—"))            // no leading "Adjective —"
+        #expect(!text.contains("pts"))          // and no points on a miss
+    }
+
+    @Test func correctKeepsTheAdjectiveAndPoints() {
+        let text = BracketScoring.verdictText(winnerPercent: 66, winnerName: "Casey Murphy",
+                                              roundPoints: 1, outcome: .correct)
+        #expect(text == "Solid — Casey Murphy took it  ·  +1 pts")
+    }
+
+    @Test func satOutKeepsTheAdjectiveWithoutPoints() {
+        let text = BracketScoring.verdictText(winnerPercent: 66, winnerName: "Sam Coffey",
+                                              roundPoints: 1, outcome: .satOut)
+        #expect(text == "Solid — Sam Coffey took it")
+    }
+
+    /// The four margin buckets map to the right adjective + action verb; a miss carries the margin
+    /// through the VERB alone (dominated / cruised through / took it / barely survived).
+    @Test func marginBucketsMapToTheRightWords() {
+        #expect(BracketScoring.verdictText(winnerPercent: 92, winnerName: "A", roundPoints: 1, outcome: .satOut) == "Runaway — A dominated")
+        #expect(BracketScoring.verdictText(winnerPercent: 78, winnerName: "A", roundPoints: 1, outcome: .satOut) == "Comfortable — A cruised through")
+        #expect(BracketScoring.verdictText(winnerPercent: 60, winnerName: "A", roundPoints: 1, outcome: .satOut) == "Solid — A took it")
+        #expect(BracketScoring.verdictText(winnerPercent: 52, winnerName: "A", roundPoints: 1, outcome: .satOut) == "Nail-biter — A barely survived")
+        // A miss at every margin is action-only (no adjective, no em-dash lead).
+        for pct in [92, 78, 60, 52] {
+            let miss = BracketScoring.verdictText(winnerPercent: pct, winnerName: "A", roundPoints: 1, outcome: .missed)
+            #expect(!miss.contains("—"))
+        }
+    }
 }

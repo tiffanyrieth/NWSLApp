@@ -50,15 +50,13 @@ extension SuperfanCounts {
         c.triviaCorrect = trivia.seasonCorrect
         c.triviaTotal = trivia.seasonAnswered
 
-        // Engagement momentum (0–5), FORGIVING — rewards showing up, never punishes a miss (owner ruling).
-        // ⚠️ v1 = min(5, plays); it grows and never resets. The cadence-aware decay (−1 per MISSED cycle,
-        // recovers on return) + server-durable per-channel play tracking is the next chunk — these local
-        // signals under-count where a store prunes history, which the server merge will correct once the
-        // durable counters land. KHG's play count is season-durable already; the others use local recent state.
-        c.predictMomentum = min(SuperfanScoring.engagementMax, predict.scores.count)
-        c.bracketMomentum = min(SuperfanScoring.engagementMax, bracket.roundScores.count)
-        c.khgMomentum     = min(SuperfanScoring.engagementMax, knowHer.seasonEditionsPlayed(year: season))
-        c.triviaMomentum  = min(SuperfanScoring.engagementMax, trivia.roundScores.count)
+        // Engagement momentum (0–5), FORGIVING with decay — the real model: +1 each cycle you play, −1 per
+        // MISSED cycle, floored/capped, never a reset (SuperfanMomentumStore, fed by the games' play hooks).
+        // Read here with the decay applied to now; the server row max-merges it as a reinstall floor.
+        c.predictMomentum = SuperfanMomentumStore.effective(.predict, season: season)
+        c.bracketMomentum = SuperfanMomentumStore.effective(.bracket, season: season)
+        c.khgMomentum     = SuperfanMomentumStore.effective(.khg, season: season)
+        c.triviaMomentum  = SuperfanMomentumStore.effective(.trivia, season: season)
 
         // FAIL LOUD on an impossible pair (correct > answered): every game writes its pair together,
         // so this only arises from a sync/restore defect — the exact shape of the 2026-07-25 trivia

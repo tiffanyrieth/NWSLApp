@@ -194,6 +194,7 @@ final class BracketViewModel {
                                      picks: store.picks(for: round), userID: userID)
             store.submit(round: round)   // local lock — ONLY after the server ack
             FanZoneActivity.recordPlay() // Iron Fan: played a Fan Zone game this week
+            SuperfanMomentumStore.recordPlay(.bracket, season: AppConfig.currentSeasonYear)   // Superfan engagement
             submitState = .idle
         } catch {
             Diagnostics.shared.record(.apiFailure, "bracket submit: \(error.localizedDescription)")

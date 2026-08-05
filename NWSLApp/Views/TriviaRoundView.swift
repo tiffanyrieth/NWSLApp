@@ -356,6 +356,7 @@ struct TriviaRoundView: View {
                                correct: viewModel.score, outOf: viewModel.questionCount,
                                picks: viewModel.picks)
         FanZoneActivity.recordPlay()   // Iron Fan: played a Fan Zone game this week
+        SuperfanMomentumStore.recordPlay(.trivia, season: AppConfig.currentSeasonYear)   // Superfan engagement
         viewModel.finish()
         // Game Center (additive): achievements only. NWSL Trivia has no competitive leaderboard — the
         // community-results panel replaces it; the Superfan total gets the season-correct count via syncAll.

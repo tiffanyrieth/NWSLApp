@@ -29,22 +29,24 @@ import Foundation
 
 @Observable
 final class FeedViewModel {
-    /// The Social tab's source-class filter (the chip bar): All · Reporters · Players ·
-    /// Clubs, keyed off each card's `resolvedSourceType`. Reporters covers BOTH `reporter`
+    /// The Social tab's source-class filter (the chip bar): All · Reporters · Players,
+    /// keyed off each card's `resolvedSourceType`. Reporters covers BOTH `reporter`
     /// (Bluesky beat writers) AND `news` (curated-outlet RSS articles) — the same
     /// journalist voice in two formats (social post vs article), told apart by the card's
     /// REPORTER / NEWS pill. `league` (NWSL media/outlet Bluesky accounts) has NO chip — it
-    /// surfaces only under All. Declaration order IS the chip order (`chips` = `allCases`);
-    /// a persisted `defaultFeedFilter` of the retired "news" value falls back to All.
+    /// surfaces only under All. The old CLUBS chip was retired 2026-08 (club Bluesky is
+    /// sparse, low-value gameday noise, and the official club voice lives on Home Club News);
+    /// club cards are dropped from Social entirely (see `isRelevant`). Declaration order IS
+    /// the chip order (`chips` = `allCases`); a persisted `defaultFeedFilter` of a retired
+    /// value ("news"/"clubs") falls back to All.
     enum ContentFilter: String, CaseIterable, Hashable {
-        case all, reporters, players, clubs
+        case all, reporters, players
 
         var label: String {
             switch self {
             case .all:       return "All"
             case .reporters: return "Reporters"
             case .players:   return "Players"
-            case .clubs:     return "Clubs"
             }
         }
     }
@@ -111,7 +113,7 @@ final class FeedViewModel {
 
     // MARK: - Chips
 
-    /// The four content-type chips, fixed (no per-team chips — see the file note).
+    /// The three content-type chips, fixed (no per-team chips — see the file note).
     var chips: [ContentFilter] { ContentFilter.allCases }
 
     // MARK: - Filtered cards
@@ -176,6 +178,10 @@ final class FeedViewModel {
     /// followed team. (Home-only cards never appear in the Feed.)
     private func isRelevant(_ card: ContentCard, _ followed: Set<String>) -> Bool {
         guard card.placement != .home else { return false }
+        // Club Bluesky is retired from Social (the CLUBS chip is gone, 2026-08) — drop any
+        // club cards so they never appear under All either, even before the proxy stops
+        // fanning them out. The official club voice lives on Home Club News.
+        if card.resolvedSourceType == .club { return false }
         if card.isLeague { return true }
         if let abbr = card.teamAbbreviation { return followed.contains(abbr) }
         return false
@@ -190,7 +196,6 @@ final class FeedViewModel {
         case .all:       return true
         case .reporters: return card.resolvedSourceType == .reporter || card.resolvedSourceType == .news
         case .players:   return card.resolvedSourceType == .player
-        case .clubs:     return card.resolvedSourceType == .club
         }
     }
 

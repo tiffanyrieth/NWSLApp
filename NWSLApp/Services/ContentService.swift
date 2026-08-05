@@ -41,8 +41,23 @@ struct ContentService {
     /// league + followed-team Bluesky/news, normalized to `ContentCard`). Throws on
     /// any failure (no seed fallback). The returned set is filtered (by chip, follows,
     /// preferences) and 7-day-staleness-windowed by `FeedViewModel`.
-    func feedCards(followedAbbreviations: Set<String>) async throws -> [ContentCard] {
-        try await fetchFeed(Array(followedAbbreviations))
+    func feedCards(followedAbbreviations: Set<String>,
+                   handles: [String] = [],
+                   players: [String] = []) async throws -> [ContentCard] {
+        try await fetchFeed(Array(followedAbbreviations), handles: handles, players: players)
+    }
+
+    /// The featured-player DIRECTORY (proxy `/feed/players`) — backs the "Follow players"
+    /// browse screen. Throws on any failure (the caller surfaces an honest error).
+    func playerDirectory() async throws -> [FeedPlayer] {
+        guard let url = AppConfig.playersDirectoryURL() else { throw ContentServiceError.badURL }
+        return try await fetch([FeedPlayer].self, from: url)
+    }
+
+    /// Validate a Bluesky handle before the user adds it (proxy `/feed/validate-reporter`).
+    func validateReporter(handle: String) async throws -> ReporterValidation {
+        guard let url = AppConfig.validateReporterURL(handle: handle) else { throw ContentServiceError.badURL }
+        return try await fetch(ReporterValidation.self, from: url)
     }
 
     // (The Player Spotlight module was retired for Know Her Game — the `/spotlight` fetch was
@@ -57,8 +72,8 @@ struct ContentService {
         return try await fetch([ContentCard].self, from: url)
     }
 
-    private func fetchFeed(_ teams: [String]) async throws -> [ContentCard] {
-        guard let url = AppConfig.feedURL(teams: teams) else {
+    private func fetchFeed(_ teams: [String], handles: [String], players: [String]) async throws -> [ContentCard] {
+        guard let url = AppConfig.feedURL(teams: teams, handles: handles, players: players) else {
             throw ContentServiceError.badURL
         }
         return try await fetch([ContentCard].self, from: url)

@@ -127,17 +127,17 @@ enum AppConfig {
         contentRouteURL("team-videos", teams: teams)
     }
 
-    /// The proxy route powering the Feed tab: `GET /feed?teams=WAS,POR,…`. The
-    /// Worker fans out the curated Bluesky handles — reporters + league outlets
-    /// always, plus each requested club's own account — and normalizes posts to
-    /// `ContentCard` JSON (reporter/league → `blueskyReporter`; a club's own posts
-    /// → `blueskyTeam{Media,Text}` with placement `.both`, so they ALSO surface on
-    /// Home). `teams` is the followed-club abbreviations, which scope the team
-    /// posts (reporters/league come back regardless). Returns nil on a malformed
-    /// query (the caller then throws → honest error). Reddit + news RSS extend this
-    /// same route later. Mirrors `teamVideosURL`.
-    static func feedURL(teams: [String]) -> URL? {
-        contentRouteURL("feed", teams: teams)
+    /// The proxy route powering the Feed tab: `GET /feed?teams=WAS,POR,…`. The Worker fans out
+    /// the curated Bluesky reporters + league outlets (always) + the followed teams' player IG,
+    /// normalized to `ContentCard` JSON. `teams` scopes the team-tagged posts (reporters/league
+    /// come back regardless). **Phase 3 personalization:** `handles` = the user's own-added
+    /// Bluesky reporters (fanned out NWSL-gated, not team-scoped); `players` = the IG ids of
+    /// players the user follows beyond their teams. Returns nil on a malformed query.
+    static func feedURL(teams: [String], handles: [String] = [], players: [String] = []) -> URL? {
+        var extra: [URLQueryItem] = []
+        if !handles.isEmpty { extra.append(URLQueryItem(name: "handles", value: handles.joined(separator: ","))) }
+        if !players.isEmpty { extra.append(URLQueryItem(name: "players", value: players.joined(separator: ","))) }
+        return contentRouteURL("feed", teams: teams, extra: extra)
     }
 
     /// The proxy route powering Fan Zone Daily Trivia: `GET /trivia`. Unlike the
@@ -323,14 +323,32 @@ enum AppConfig {
     /// `/trivia`, `/headshots`): appends the path to the proxy host and the comma-joined team
     /// list, omitting the query entirely when no teams are given (as `/trivia`/`/headshots`
     /// always are). Returns nil on a malformed URL.
-    private static func contentRouteURL(_ path: String, teams: [String]) -> URL? {
+    private static func contentRouteURL(_ path: String, teams: [String], extra: [URLQueryItem] = []) -> URL? {
         let endpoint = scoreboardProxyBase.appendingPathComponent(path)
         guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
             return nil
         }
+        var items: [URLQueryItem] = []
         if !teams.isEmpty {
-            components.queryItems = [URLQueryItem(name: "teams", value: teams.joined(separator: ","))]
+            items.append(URLQueryItem(name: "teams", value: teams.joined(separator: ",")))
         }
+        items.append(contentsOf: extra)
+        if !items.isEmpty { components.queryItems = items }
+        return components.url
+    }
+
+    /// Proxy `GET /feed/players` — the featured-player DIRECTORY (`[{id,name,team}]`, id = IG
+    /// handle) powering the "Follow players" browse screen (Phase 3). Proxy-only route.
+    static func playersDirectoryURL() -> URL? {
+        scoreboardProxyBase.appendingPathComponent("feed").appendingPathComponent("players")
+    }
+
+    /// Proxy `GET /feed/validate-reporter?handle=…` — validate a Bluesky handle before the user
+    /// adds it (Phase 3 "Add a reporter"). Returns nil on a malformed URL.
+    static func validateReporterURL(handle: String) -> URL? {
+        let endpoint = scoreboardProxyBase.appendingPathComponent("feed").appendingPathComponent("validate-reporter")
+        guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return nil }
+        components.queryItems = [URLQueryItem(name: "handle", value: handle)]
         return components.url
     }
 }

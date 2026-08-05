@@ -54,7 +54,7 @@ struct SuperfanDetailView: View {
         SuperfanSpotlight.pick(.init(
             total: displayTotal,
             breakdown: breakdown,
-            playersLearned: knowHer.distinctPlayersScored(atLeast: 1),
+            playersLearned: PlayersLearnedStore.count(season: season),
             bestPredictStarters: predict.seasonBests.hasMatchBaseline ? predict.seasonBests.bestMatchStarters : nil,
             recentAchievement: achievements.max(by: { $0.earnedAt < $1.earnedAt })?.achievement.title,
             gamesPlayed: counts.gamesPlayed), rotation: spotlightRotation)
@@ -65,6 +65,7 @@ struct SuperfanDetailView: View {
             VStack(spacing: 24) {
                 hero
                 spotlightSection
+                playersLearnedSection
                 breakdownSection
                 howSuperfanWorks
                 bestMomentsSection
@@ -226,7 +227,53 @@ struct SuperfanDetailView: View {
         }
     }
 
-    // MARK: - Breakdown (per-game accuracy × 25)
+    // MARK: - Players Learned (the collection anchor)
+
+    private var learned: [LearnedPlayer] { PlayersLearnedStore.load(season: season) }
+
+    @ViewBuilder
+    private var playersLearnedSection: some View {
+        if !learned.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 6) {
+                    Image(systemName: "person.crop.circle.badge.checkmark")
+                        .dsFont(13).foregroundStyle(Color.dsGameSpotlight)
+                    Text("PLAYERS LEARNED").dsFont(11, weight: .bold).tracking(1).foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(learned.count)").dsFont(14, weight: .heavy, monospacedDigit: true)
+                        .foregroundStyle(Color.dsGameSpotlight)
+                }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 62), spacing: 12)], alignment: .leading, spacing: 14) {
+                    ForEach(learned) { playerStamp($0) }
+                }
+            }
+            .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.dsBgCard).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+    }
+
+    private func playerStamp(_ p: LearnedPlayer) -> some View {
+        let ring = Color.teamColor(for: p.teamAbbr, liftOnDark: true, fallback: .dsGameSpotlight)
+        return VStack(spacing: 5) {
+            PlayerHeadshot(athleteID: p.athleteId, size: 52) {
+                ZStack {
+                    Circle().fill(ring.opacity(0.25))
+                    Text(initials(p.name)).dsFont(15, weight: .bold).foregroundStyle(ring)
+                }
+            }
+            .overlay(Circle().stroke(ring, lineWidth: 2))
+            Text(lastName(p.name)).dsFont(11).foregroundStyle(.secondary)
+                .lineLimit(1).minimumScaleFactor(0.6)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func lastName(_ full: String) -> String { full.split(separator: " ").last.map(String.init) ?? full }
+    private func initials(_ full: String) -> String {
+        full.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined()
+    }
+
+    // MARK: - Breakdown (per-channel: accuracy + engagement)
 
     private var breakdownSection: some View {
         VStack(alignment: .leading, spacing: 10) {

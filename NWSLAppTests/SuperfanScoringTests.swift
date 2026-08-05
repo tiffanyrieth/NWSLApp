@@ -2,8 +2,9 @@
 //  SuperfanScoringTests.swift
 //  NWSLAppTests
 //
-//  The Superfan 0–100 accuracy economy (SuperfanScoring / SuperfanCounts) — every game contributes
-//  accuracy × 25, Trivia adds a capped streak bonus, and the counts merge reinstall-safe. Pure, no I/O.
+//  The Superfan 0–100 economy (SuperfanScoring / SuperfanCounts), REBUILT 2026-08-04 — each channel is
+//  accuracy × 20 + forgiving engagement momentum (0–5); a tier-floor lock holds the displayed score at a
+//  tier you've earned; the counts merge reinstall-safe. Pure, no I/O.
 //
 
 import Foundation
@@ -27,81 +28,95 @@ struct SuperfanScoringTests {
         #expect(SuperfanScoring.total(counts: c) == 0)
     }
 
-    @Test func contributionIsAccuracyTimes25() {
+    @Test func contributionIsAccuracyTimes20PlusMomentum() {
         var c = SuperfanCounts()
-        c.bracketCorrect = 16; c.bracketTotal = 25          // 64% edition-wide accuracy
-        #expect(abs(SuperfanScoring.contribution(for: .bracket, counts: c) - 16.0) < 0.0001)  // .64 × 25
+        c.bracketCorrect = 16; c.bracketTotal = 25          // 64% accuracy
+        #expect(abs(SuperfanScoring.contribution(for: .bracket, counts: c) - 12.8) < 0.0001)  // .64 × 20, no engagement
+        c.bracketMomentum = 3
+        #expect(abs(SuperfanScoring.contribution(for: .bracket, counts: c) - 15.8) < 0.0001)  // + 3 engagement
     }
 
-    // MARK: - Trivia streak bonus
+    // MARK: - Engagement momentum (0–5, forgiving)
 
-    @Test func triviaStreakBonusAddsUpToTenPoints() {
+    @Test func engagementAddsUpToFivePointsAndCapsThere() {
         var c = SuperfanCounts()
-        c.triviaCorrect = 5; c.triviaTotal = 10; c.triviaStreak = 8   // 50% base + 8pp = 58% effective
-        // effective accuracy 0.58 → contribution 14.5
-        #expect(abs(SuperfanScoring.contribution(for: .trivia, counts: c) - 14.5) < 0.0001)
+        c.khgCorrect = 5; c.khgTotal = 10; c.khgMomentum = 5      // 50% → 10 accuracy + 5 engagement
+        #expect(SuperfanScoring.engagementPoints(for: .khg, counts: c) == 5)
+        #expect(abs(SuperfanScoring.contribution(for: .khg, counts: c) - 15.0) < 0.0001)
+        c.khgMomentum = 99                                       // clamps to the max
+        #expect(SuperfanScoring.engagementPoints(for: .khg, counts: c) == 5)
     }
 
-    @Test func triviaStreakBonusCapsAtTenAndContributionAt25() {
+    @Test func contributionNeverExceeds25AtPerfectAccuracyPlusFullMomentum() {
         var c = SuperfanCounts()
-        c.triviaCorrect = 10; c.triviaTotal = 10; c.triviaStreak = 30  // 100% + big streak
-        // effective capped at 1.0 → contribution capped at 25 (never > max)
+        c.triviaCorrect = 10; c.triviaTotal = 10; c.triviaMomentum = 5   // 20 + 5
         #expect(SuperfanScoring.contribution(for: .trivia, counts: c) == 25.0)
-        // 95% base + 10 cap = 105% → clamps to 100% → 25
-        var c2 = SuperfanCounts()
-        c2.triviaCorrect = 19; c2.triviaTotal = 20; c2.triviaStreak = 50
-        #expect(SuperfanScoring.contribution(for: .trivia, counts: c2) == 25.0)
     }
 
-    @Test func nonTriviaGamesGetNoStreakBonus() {
+    @Test func momentumIsPerChannelAndDoesNotLeak() {
         var c = SuperfanCounts()
-        c.predictCorrect = 5; c.predictTotal = 10; c.triviaStreak = 10   // streak must not leak into predict
-        #expect(SuperfanScoring.contribution(for: .predict, counts: c) == 12.5)   // .5 × 25, no bonus
+        c.predictCorrect = 5; c.predictTotal = 10; c.triviaMomentum = 5   // trivia momentum must not touch predict
+        #expect(SuperfanScoring.contribution(for: .predict, counts: c) == 10.0)   // .5 × 20, no engagement
     }
 
     // MARK: - Total
 
-    @Test func totalSumsFourGamesAndClampsTo100() {
+    @Test func totalSumsFourChannelsAndClampsTo100() {
         var c = SuperfanCounts()
-        c.predictCorrect = 11; c.predictTotal = 11   // 25
-        c.bracketCorrect = 10; c.bracketTotal = 10   // 25
-        c.khgCorrect = 10; c.khgTotal = 10           // 25
-        c.triviaCorrect = 10; c.triviaTotal = 10     // 25 (no streak needed)
+        c.predictCorrect = 11; c.predictTotal = 11; c.predictMomentum = 5   // 25
+        c.bracketCorrect = 10; c.bracketTotal = 10; c.bracketMomentum = 5   // 25
+        c.khgCorrect = 10; c.khgTotal = 10; c.khgMomentum = 5               // 25
+        c.triviaCorrect = 10; c.triviaTotal = 10; c.triviaMomentum = 5      // 25
         #expect(SuperfanScoring.total(counts: c) == 100)
         #expect(SuperfanTier.forScore(SuperfanScoring.total(counts: c)) == .mvp)
     }
 
-    @Test func totalMatchesTheDesignExample() {
-        // The handoff's Superfan screen: Predict 72%, Bracket 64%, KHG 78%, Trivia 34% → 18+16+19.5+8.5 = 62.
+    @Test func pureAccuracyAloneCapsAtEightyWithoutEngagement() {
+        // 100% in all four but zero momentum = 80/100 — you must SHOW UP (engagement) for the top 20.
         var c = SuperfanCounts()
-        c.predictCorrect = 72; c.predictTotal = 100
-        c.bracketCorrect = 64; c.bracketTotal = 100
-        c.khgCorrect = 78; c.khgTotal = 100
-        c.triviaCorrect = 34; c.triviaTotal = 100    // no streak, so 34% flat
-        #expect(SuperfanScoring.total(counts: c) == 62)
-        #expect(SuperfanTier.forScore(62) == .allStar)
+        c.predictCorrect = 11; c.predictTotal = 11
+        c.bracketCorrect = 10; c.bracketTotal = 10
+        c.khgCorrect = 10; c.khgTotal = 10
+        c.triviaCorrect = 10; c.triviaTotal = 10
+        #expect(SuperfanScoring.total(counts: c) == 80)
     }
 
-    // MARK: - Breakdown consistency (the % label == the bar)
+    // MARK: - Tier-floor lock
 
-    @Test func breakdownAccuracyEqualsContributionOver25() {
+    @Test func displayScoreHoldsAtAnEarnedTierFloor() {
         var c = SuperfanCounts()
-        c.triviaCorrect = 5; c.triviaTotal = 10; c.triviaStreak = 8   // effective 58%
-        let b = SuperfanScoring.breakdown(counts: c)
-        // The displayed accuracy folds in the streak bonus so the % and the "14.5 / 25" bar never disagree.
-        #expect(abs(b.accuracy(for: .trivia) - 0.58) < 0.0001)
-        #expect(abs(b.contribution(for: .trivia) - 14.5) < 0.0001)
+        c.predictCorrect = 8; c.predictTotal = 20    // 40% → 8 pts total, well under 50
+        #expect(SuperfanScoring.total(counts: c) < 50)
+        // A season peak of 55 earned the All-Star floor (50) → the displayed score can't drop below it.
+        #expect(SuperfanScoring.displayScore(counts: c, seasonPeak: 55) == 50)
+        #expect(SuperfanScoring.tierFloor(peakScore: 30) == 25)   // only reached Rising
+        #expect(SuperfanScoring.tierFloor(peakScore: 10) == 0)    // never above Fan
+        // When the raw total is above the floor, the floor is a no-op.
+        var hi = SuperfanCounts(); hi.predictCorrect = 20; hi.predictTotal = 20; hi.predictMomentum = 5  // 25
+        #expect(SuperfanScoring.displayScore(counts: hi, seasonPeak: 25) == SuperfanScoring.total(counts: hi))
+    }
+
+    // MARK: - Breakdown consistency (accuracy + engagement split out)
+
+    @Test func breakdownSplitsAccuracyAndEngagement() {
+        var c = SuperfanCounts()
+        c.triviaCorrect = 5; c.triviaTotal = 10; c.triviaMomentum = 3   // 50% + 3
+        let ch = SuperfanScoring.breakdown(counts: c).channel(for: .trivia)
+        #expect(abs(ch.accuracyRatio - 0.5) < 0.0001)
+        #expect(abs(ch.accuracyPoints - 10.0) < 0.0001)
+        #expect(ch.engagementPoints == 3)
+        #expect(abs(ch.contribution - 13.0) < 0.0001)
     }
 
     // MARK: - Reinstall-safe merge
 
-    @Test func mergeTakesGreatestOfEachCount() {
-        let local = SuperfanCounts(predictCorrect: 5, predictTotal: 11, triviaStreak: 2)
-        let server = SuperfanCounts(predictCorrect: 8, predictTotal: 22, triviaStreak: 6)
+    @Test func mergeTakesGreatestOfEachCountAndMomentum() {
+        let local = SuperfanCounts(predictCorrect: 5, predictTotal: 11, predictMomentum: 2)
+        let server = SuperfanCounts(predictCorrect: 8, predictTotal: 22, predictMomentum: 4)
         let merged = local.merged(with: server)
         #expect(merged.predictCorrect == 8)
         #expect(merged.predictTotal == 22)
-        #expect(merged.triviaStreak == 6)
+        #expect(merged.predictMomentum == 4)
     }
 
     @Test func mergeNeverLowersServerAfterReinstall() {

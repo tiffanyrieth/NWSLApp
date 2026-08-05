@@ -46,10 +46,19 @@ extension SuperfanCounts {
         c.khgCorrect = knowHer.seasonCorrectAnswers(year: season)
         c.khgTotal = knowHer.seasonAnswered(year: season)
 
-        // Trivia — season correct / attempted, plus the current round streak (drives the +1/round bonus).
+        // Trivia — season correct / attempted.
         c.triviaCorrect = trivia.seasonCorrect
         c.triviaTotal = trivia.seasonAnswered
-        c.triviaStreak = trivia.streak
+
+        // Engagement momentum (0–5), FORGIVING — rewards showing up, never punishes a miss (owner ruling).
+        // ⚠️ v1 = min(5, plays); it grows and never resets. The cadence-aware decay (−1 per MISSED cycle,
+        // recovers on return) + server-durable per-channel play tracking is the next chunk — these local
+        // signals under-count where a store prunes history, which the server merge will correct once the
+        // durable counters land. KHG's play count is season-durable already; the others use local recent state.
+        c.predictMomentum = min(SuperfanScoring.engagementMax, predict.scores.count)
+        c.bracketMomentum = min(SuperfanScoring.engagementMax, bracket.roundScores.count)
+        c.khgMomentum     = min(SuperfanScoring.engagementMax, knowHer.seasonEditionsPlayed(year: season))
+        c.triviaMomentum  = min(SuperfanScoring.engagementMax, trivia.roundScores.count)
 
         // FAIL LOUD on an impossible pair (correct > answered): every game writes its pair together,
         // so this only arises from a sync/restore defect — the exact shape of the 2026-07-25 trivia

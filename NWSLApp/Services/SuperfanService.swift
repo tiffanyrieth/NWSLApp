@@ -43,7 +43,8 @@ struct SuperfanService {
                 bracket_correct: merged.bracketCorrect, bracket_total: merged.bracketTotal,
                 khg_correct: merged.khgCorrect, khg_total: merged.khgTotal,
                 trivia_correct: merged.triviaCorrect, trivia_total: merged.triviaTotal,
-                trivia_streak: merged.triviaStreak)
+                predict_momentum: merged.predictMomentum, bracket_momentum: merged.bracketMomentum,
+                khg_momentum: merged.khgMomentum, trivia_momentum: merged.triviaMomentum)
             try await client.from("superfan_scores")
                 .upsert(row, onConflict: "user_id,season")
                 .execute()
@@ -155,7 +156,7 @@ struct SuperfanService {
     /// The user's own current server counts (all-zero if no row yet) — the reinstall-safe merge floor.
     private func currentCounts(userID: UUID, season: String) async throws -> SuperfanCounts {
         let rows: [SuperfanRow] = try await client.from("superfan_scores")
-            .select("predict_correct,predict_total,bracket_correct,bracket_total,khg_correct,khg_total,trivia_correct,trivia_total,trivia_streak")
+            .select("predict_correct,predict_total,bracket_correct,bracket_total,khg_correct,khg_total,trivia_correct,trivia_total,predict_momentum,bracket_momentum,khg_momentum,trivia_momentum")
             .eq("user_id", value: userID)
             .eq("season", value: season)
             .limit(1)
@@ -167,7 +168,8 @@ struct SuperfanService {
             bracketCorrect: r.bracket_correct, bracketTotal: r.bracket_total,
             khgCorrect: r.khg_correct, khgTotal: r.khg_total,
             triviaCorrect: r.trivia_correct, triviaTotal: r.trivia_total,
-            triviaStreak: r.trivia_streak)
+            predictMomentum: r.predict_momentum, bracketMomentum: r.bracket_momentum,
+            khgMomentum: r.khg_momentum, triviaMomentum: r.trivia_momentum)
     }
 }
 
@@ -187,7 +189,10 @@ private struct SuperfanUpsert: Encodable {
     let khg_total: Int
     let trivia_correct: Int
     let trivia_total: Int
-    let trivia_streak: Int
+    let predict_momentum: Int
+    let bracket_momentum: Int
+    let khg_momentum: Int
+    let trivia_momentum: Int
 }
 
 private struct SuperfanRow: Decodable {
@@ -199,7 +204,10 @@ private struct SuperfanRow: Decodable {
     let khg_total: Int
     let trivia_correct: Int
     let trivia_total: Int
-    let trivia_streak: Int
+    let predict_momentum: Int
+    let bracket_momentum: Int
+    let khg_momentum: Int
+    let trivia_momentum: Int
 }
 
 /// One season's Superfan record (the detail screen's Season History). Peak tier/score persist across the

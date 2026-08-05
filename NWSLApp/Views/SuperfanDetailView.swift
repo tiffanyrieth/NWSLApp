@@ -179,7 +179,7 @@ struct SuperfanDetailView: View {
     private func breakdownRow(_ game: SuperfanGame) -> some View {
         let m = meta(game)
         let contribution = breakdown.contribution(for: game)
-        let accuracy = breakdown.accuracy(for: game)
+        let accuracy = breakdown.channel(for: game).accuracyRatio
         let played = counts.pair(for: game).total > 0
         return VStack(spacing: 8) {
             HStack(spacing: 10) {

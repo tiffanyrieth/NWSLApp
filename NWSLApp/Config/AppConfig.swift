@@ -351,4 +351,19 @@ enum AppConfig {
         components.queryItems = [URLQueryItem(name: "handle", value: handle)]
         return components.url
     }
+
+    /// Proxy `GET /club-news/sources` — each club's news source {abbr,kind,url}, for the DYNAMIC
+    /// device-IP club-news fallback (Phase 2b).
+    static func clubNewsSourcesURL() -> URL? {
+        scoreboardProxyBase.appendingPathComponent("club-news").appendingPathComponent("sources")
+    }
+
+    /// Proxy `POST /club-news/normalize?abbr=…` — hand device-fetched club-feed bytes to the proxy
+    /// to parse into cards (Phase 2b). Returns nil on a malformed URL.
+    static func clubNewsNormalizeURL(abbr: String) -> URL? {
+        let endpoint = scoreboardProxyBase.appendingPathComponent("club-news").appendingPathComponent("normalize")
+        guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return nil }
+        components.queryItems = [URLQueryItem(name: "abbr", value: abbr)]
+        return components.url
+    }
 }

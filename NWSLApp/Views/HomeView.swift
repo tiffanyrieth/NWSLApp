@@ -580,12 +580,10 @@ struct HomeView: View {
             model.glow = true
             model.ctaOverride = "See results"
             if unseen.count == 1, let fixtureID = unseen.first, let score = predict.score(for: fixtureID) {
-                // The one thing the user doesn't know yet: how they did. Score + points lead. The round
-                // rank is network-only and cached on VIEW, so a still-unseen result usually omits it
-                // (never faked) — it surfaces on the recent-result cards once opened.
-                var line = "\(score.correctPlayers)/11 starters\n+\(score.total) pts"
-                if let rank = predict.roundRank(forFixture: fixtureID) { line += " · \(Self.ordinal(rank)) this round" }
-                model.contextLine = line
+                // The one thing the user doesn't know yet: how they did. Score + points, full stop.
+                // (The round-rank line was dropped 2026-08-04: it's network-only, cached on VIEW, so an
+                // unseen result never had it anyway — it lived only on the in-Predict result cards.)
+                model.contextLine = "\(score.correctPlayers)/11 starters\n+\(score.total) pts"
             } else {
                 model.contextLine = "\(unseen.count) matches final"
             }
@@ -736,15 +734,6 @@ struct HomeView: View {
         let f = DateFormatter(); f.locale = .current; f.timeZone = .current; f.dateFormat = "EEE h:mm a"; return f
     }()
     private static func kickoffLabel(_ date: Date) -> String { kickoffLabelFormatter.string(from: date) }
-
-    /// "3rd" — ordinal for the results-ready card's round rank.
-    private static func ordinal(_ n: Int) -> String {
-        let ones = n % 10, tens = (n / 10) % 10
-        let suffix: String
-        if tens == 1 { suffix = "th" }
-        else { switch ones { case 1: suffix = "st"; case 2: suffix = "nd"; case 3: suffix = "rd"; default: suffix = "th" } }
-        return "\(n)\(suffix)"
-    }
 
     /// The next local midnight — when Daily Trivia refreshes (TriviaStore's day-gate
     /// flips at local midnight).

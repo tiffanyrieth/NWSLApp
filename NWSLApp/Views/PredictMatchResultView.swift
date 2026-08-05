@@ -305,6 +305,10 @@ struct PredictMatchResultView: View {
                     .contentTransition(.numericText())
             }
             .padding(.horizontal, 10).padding(.vertical, 11)
+            // Don't render the Total until the first line has landed — otherwise it flashes
+            // "0 of 88 possible" for a beat before the count-up begins (the running total is 0 at rest).
+            .opacity(model.revealedScoreLines > 0 ? 1 : 0)
+            .animation(.easeOut(duration: 0.2), value: model.revealedScoreLines > 0)
         }
     }
 

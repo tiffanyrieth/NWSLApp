@@ -516,11 +516,10 @@ final class PredictXIViewModel {
             let myPoints = store.points(forTeam: team)
             let myMatches = store.scoredMatchCount(forTeam: team)
             let myAvg = myMatches > 0 ? Double(myPoints) / Double(myMatches) : 0
-            // A signed-in user is RANKED only once they've completed `provisionalThreshold` matches;
-            // below that they belong in the provisional section, not spliced into the ranked list. Only
-            // a ranked user needs a rank lookup. The SEASON board ranks by AVERAGE per match (Batch 3),
-            // so the rank query compares avg_points.
-            let isMeRanked = auth.userID != nil && myMatches >= PredictLeaderboardService.provisionalThreshold
+            // Recency-to-remain (2026-08-04): a signed-in user ranks from their FIRST scored match — no
+            // entry gate. (They just scored, so they're inside the recency window and appear immediately.)
+            // Only a ranked user needs a rank lookup; the SEASON board ranks by AVERAGE per match.
+            let isMeRanked = auth.userID != nil && myMatches >= 1
             var trueRank: Int?
             if isMeRanked {
                 trueRank = await leaderboardService.rank(

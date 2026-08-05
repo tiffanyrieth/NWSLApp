@@ -37,9 +37,6 @@ struct PredictXIView: View {
     /// The club the season card + board are showing (Competitive Redesign) — the team-filter chips switch
     /// it; defaults to the first board once loaded.
     @State private var selectedTeam: String?
-    /// Set once in `reload` when the user has just crossed the ranking threshold for a team and hasn't
-    /// seen the congrats yet — drives the one-time "You're now ranked!" hub line for this visit (Update #1).
-    @State private var showQualifiedForTeam: String?
     @State private var showHowTo = false
     /// The pushed screen, if any. Keyed by fixtureID rather than the item itself so the value stays
     /// cheap + Hashable and always resolves against the CURRENT store state.
@@ -79,6 +76,9 @@ struct PredictXIView: View {
             XIPickerView(
                 fixture: fixture,
                 existing: store.prediction(for: fixture.id),
+                // Pre-fill a fresh fixture from this team's last submitted XI (task 17). The VM ignores
+                // it when an `existing` draft/submission is present, and gates every id on the live roster.
+                savedLineup: store.lastLineup(forTeam: fixture.teamAbbreviation).map { ($0.formation, $0.slots) },
                 accent: accent,
                 homeAbbr: fixture.isHome ? fixture.teamAbbreviation : fixture.opponentAbbreviation,
                 awayAbbr: fixture.isHome ? fixture.opponentAbbreviation : fixture.teamAbbreviation,
@@ -94,8 +94,6 @@ struct PredictXIView: View {
         .fanZoneGate(isRequested: $gateRequested, gameName: "Predict the XI", accent: accent) {
             activeFixture = pendingFixture
         }
-        // Switching the board's team can surface a not-yet-seen "you're now ranked!" for that club.
-        .onChange(of: selectedTeam) { _, team in detectQualifiedTransition(team: team) }
     }
 
     @ViewBuilder
@@ -168,21 +166,8 @@ struct PredictXIView: View {
         // Keep the local seen/upload markers bounded — the recent-results window is the only thing
         // that can render them, so anything older has no reader (the local twin of the pg_cron sweep).
         store.pruneStaleMarkers(currentWeek: FanZoneCadence.currentSoccerWeek())
-        detectQualifiedTransition(team: selectedTeam)   // one-time "you're now ranked!" line (Update #1)
         consumePendingPredictResult()   // a post-match push tap targets a specific result — honor it first
         autoRouteIfNeeded()
-    }
-
-    /// If the user has just crossed the ranking threshold for `team` and hasn't seen the congrats yet,
-    /// latch it to show once this visit (and mark it seen so next visit reverts to streak lines). Called
-    /// after a load and on a team-tab switch. Reads the LOCAL match count + the server rank/total.
-    private func detectQualifiedTransition(team: String?) {
-        guard let team,
-              store.scoredMatchCount(forTeam: team) >= PredictLeaderboardService.provisionalThreshold,
-              !store.hasSeenQualified(team: team),
-              viewModel.standingByTeam[team]?.rank != nil else { return }
-        showQualifiedForTeam = team
-        store.markQualifiedSeen(team: team)
     }
 
     /// A tapped post-match "your result is in" push (Change 8) routed here via `router.pendingPredictEventID`.
@@ -205,10 +190,11 @@ struct PredictXIView: View {
         return ScrollView {
             VStack(spacing: 18) {
                 if let selected {
-                    // Returning player: the single personal line under the username — progress-to-rank
-                    // while provisional, a one-time "you're ranked!" on qualifying, else a streak line
-                    // (Update #1). Only ever the user's own status; other users' provisional state is
-                    // never shown. The season-average card is gone — standing lives in the board below.
+                    // Returning player: a single optional personal line under the username — a genuine
+                    // streak / personal best / climb, or nothing (the common case). No ranking GATE any
+                    // more (recency-to-remain, 2026-08-04): you're on the board from your first prediction,
+                    // so there's no "N more to rank" milestone to show. The season-average card is gone —
+                    // standing lives in the board below.
                     if let line = hubStatusLine(team: selected) { statusLineView(line) }
                 } else {
                     // First-timer (no board yet): the explainer header.
@@ -216,25 +202,33 @@ struct PredictXIView: View {
                     rankedCallout
                 }
 
-                let open = viewModel.openItems(store: store)
-                let inFlight = viewModel.inFlightItems(store: store)
+                // Three buckets by lifecycle (owner categorization, 2026-08-04): OPEN FOR PREDICTIONS
+                // (still editable) leads because it's the only actionable one, then LOCKED IN (submitted,
+                // pre-kickoff or underway), then RESULTS. A `.closed` fixture — one you never submitted
+                // before the deadline — is DROPPED entirely (it used to sit here as "Submissions closed",
+                // which read as a nag for a match you'd chosen to skip).
+                let allOpen = viewModel.openItems(store: store)
+                let openForPredictions = allOpen.filter { $0.phase == .open }
+                let lockedWaiting = allOpen.filter { $0.phase == .submitted }   // submitted, pre-kickoff
+                let lockedInFlight = viewModel.inFlightItems(store: store)      // submitted, underway
+                let lockedIn = lockedInFlight + lockedWaiting                   // live first, then waiting
                 let results = viewModel.resultItems(store: store)
 
-                if open.isEmpty && inFlight.isEmpty && results.isEmpty {
+                if openForPredictions.isEmpty && lockedIn.isEmpty && results.isEmpty {
                     emptyState
                 }
 
-                // Matches you've locked in that are underway. Sits ABOVE "Open for predictions"
-                // because a match in progress is the most live thing on the screen — and because
-                // before this section existed it vanished entirely at kickoff (see `inFlightItems`).
-                if !inFlight.isEmpty {
-                    sectionLabel(inFlight.count == 1 ? "Underway" : "Underway now")
-                    ForEach(inFlight) { openItemCard($0) }
+                if !openForPredictions.isEmpty {
+                    sectionLabel("Open for predictions")
+                    ForEach(openForPredictions) { openItemCard($0) }
                 }
 
-                if !open.isEmpty {
-                    sectionLabel("Open for predictions")
-                    ForEach(open) { openItemCard($0) }
+                // Locked in — a lock icon on the header + a slight dim on the WAITING cards signal "nothing
+                // to do here". An underway card stays full opacity: it's live, the most dynamic thing on
+                // screen, and before its section existed it vanished entirely at kickoff (see `inFlightItems`).
+                if !lockedIn.isEmpty {
+                    sectionLabel("Locked in", systemImage: "lock.fill")
+                    ForEach(lockedIn) { openItemCard($0, dimmed: !$0.isUnderway) }
                 }
 
                 if !results.isEmpty {
@@ -324,8 +318,11 @@ struct PredictXIView: View {
         )
     }
 
-    private func sectionLabel(_ text: String) -> some View {
-        HStack {
+    private func sectionLabel(_ text: String, systemImage: String? = nil) -> some View {
+        HStack(spacing: 6) {
+            if let systemImage {
+                Image(systemName: systemImage).dsFont(12, weight: .bold).foregroundStyle(.secondary)
+            }
             Text(text).dsFont(15, weight: .bold).foregroundStyle(.secondary)
             Spacer()
         }
@@ -378,7 +375,7 @@ struct PredictXIView: View {
 
     // MARK: - Open fixture card
 
-    private func openItemCard(_ item: PredictXIViewModel.PredictionItem) -> some View {
+    private func openItemCard(_ item: PredictXIViewModel.PredictionItem, dimmed: Bool = false) -> some View {
         let fixture = item.fixture
         let colors = fixtureColors(fixture)
         return Button {
@@ -405,6 +402,8 @@ struct PredictXIView: View {
             // Two-team club-color wash over the navy card — the schedule/match-detail treatment.
             .background { TeamWashBackground(base: .dsMdCard, home: colors.home, away: colors.away) }
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            // A waiting locked-in card reads as "done, nothing to do" — a slight dim without deadening it.
+            .opacity(dimmed ? 0.8 : 1)
         }
         .buttonStyle(.plain)
         .disabled(item.phase == .closed)
@@ -703,24 +702,12 @@ struct PredictXIView: View {
             bestClimb: climb)
     }
 
-    /// The single contextual line under the username, for the SELECTED team. Priority (Update #1):
-    ///  1. PROVISIONAL (< threshold scored matches) → personal progress to ranking ("2 more matches to
-    ///     earn your season rank"). Replaces the streak — there's no streak history yet. Only the user
-    ///     ever sees this; it reads off the LOCAL match count, no other-user data.
-    ///  2. JUST QUALIFIED this visit (crossed the threshold; detected + latched once in `reload`) →
-    ///     "You're now ranked! #R of T <club> predictors".
-    ///  3. Otherwise → the streak line (personal best / hot streak / climbing), or nothing.
+    /// The single contextual line under the username, for the SELECTED team: a genuine streak /
+    /// personal best / climb, or nil (the common case). No ranking gate any more — recency-to-remain
+    /// ranks you from your first prediction, so there's no "progress to rank" or "you're now ranked!"
+    /// milestone to surface (both were the removed Update #1 3-match machinery). The `team` argument is
+    /// kept for call-site symmetry with the board selection, though the streak resolver spans all boards.
     private func hubStatusLine(team: String) -> (icon: String, text: String)? {
-        let threshold = PredictLeaderboardService.provisionalThreshold
-        let matches = store.scoredMatchCount(forTeam: team)
-        if matches < threshold {
-            let remaining = threshold - matches
-            return ("target", "\(remaining) more match\(remaining == 1 ? "" : "es") to earn your season rank")
-        }
-        if showQualifiedForTeam == team,
-           let rank = viewModel.standingByTeam[team]?.rank, let total = viewModel.standingByTeam[team]?.total {
-            return ("trophy.fill", "You're now ranked! #\(rank) of \(total) \(viewModel.teamLabel(team)) predictors")
-        }
         if let streak = streakResult { return (streak.icon, streak.text) }
         return nil
     }
@@ -811,6 +798,9 @@ struct PredictXIView: View {
                         .dsFont(13).foregroundStyle(Color.dsFgSecondary).fixedSize(horizontal: false, vertical: true)
                     Text("Your season accuracy — correct player picks out of every XI slot you've predicted — feeds up to 25 of your 100 Superfan points.")
                         .dsFont(13).foregroundStyle(Color.dsFgSecondary).fixedSize(horizontal: false, vertical: true)
+                    // Points a returning player at the opt-in that replaced the old post-submit popup (task 16).
+                    Text("Want a heads-up when your results land? Turn on \u{201C}Predict results\u{201D} in Notifications and we'll let you know the morning after each match.")
+                        .dsFont(13).foregroundStyle(Color.dsFgSecondary).fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(EdgeInsets(top: 0, leading: 14, bottom: 14, trailing: 14))
@@ -871,17 +861,10 @@ struct PredictXIView: View {
                     Spacer()
                 }
             }
-            // The chase line — the gap to the rank above you, as a gameplay action, in the active clock's
-            // metric (round = correct starters; season = average gap). Then your own movement since the
-            // last scored match (both relocated from the deleted season card).
-            if let chase = PredictChaseLine.text(
-                clock: clock == .round ? .round : .season,
-                rows: rows.map { PredictChaseLine.Row(rank: $0.rank, name: $0.name, isYou: $0.isYou,
-                                                      avg: $0.avg, points: $0.points) }) {
-                Text(chase).dsFont(12, weight: .semibold).foregroundStyle(accent)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if let movement = predictMovementText(store.rankMovement(forTeam: team)) {
+            // Your own rank movement since your last scored match — SEASON clock only (the round board
+            // is a single week, where a "since last match" delta has no meaning). The chase-to-next line
+            // was removed 2026-08-04: it leaned competitive/gamer, against the low-entry-fun vibe.
+            if clock == .season, let movement = predictMovementText(store.rankMovement(forTeam: team)) {
                 Text(movement.text).dsFont(12, weight: .bold).foregroundStyle(movement.color)
             }
             ForEach(landingRows) { row in
@@ -918,11 +901,11 @@ struct PredictXIView: View {
                 .background(row.isYou ? accent.opacity(0.12) : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
-            // Honest empty/sparse state. The board shows only RANKED predictors (3+ matches, Update #1) —
-            // provisional players are OFF the board now (their own progress is a personal hub line), so
-            // early in the season the ranked list can be empty or just the user.
+            // Honest empty/sparse state. Everyone ranks from their first prediction now (recency-to-remain,
+            // 2026-08-04), so an empty board means nobody has predicted this club's XI in the recency
+            // window yet — not that a threshold is unmet.
             if rows.isEmpty {
-                Text("No ranked predictors yet — 3 predictions earns a spot on the board.")
+                Text("No predictors yet — predict this club's XI to start the board.")
                     .dsFont(12).foregroundStyle(.secondary)
                     .padding(.horizontal, 10).padding(.top, 2)
             } else if rows.count == 1, rows.first?.isYou == true {

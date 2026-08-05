@@ -31,17 +31,14 @@ struct XIPickerView: View {
     @State private var committed = false
     private let community = PredictCommunityService()
     @Environment(PredictionStore.self) private var store
-    @Environment(NotificationPreferencesStore.self) private var notifications
     @Environment(\.dismiss) private var dismiss
-    // One-time offer (Change 8): after a submit, surface the "Predict results" push if it's not already on.
-    @AppStorage("hasOfferedPredictResultsAlert") private var hasOfferedPredictResultsAlert = false
-    @State private var showPredictResultsOffer = false
 
     /// Identifiable wrapper so a slot index can drive `.sheet(item:)`.
     private struct SlotRef: Identifiable { let id: Int }
 
     init(fixture: PredictionFixture,
          existing: XIPrediction?,
+         savedLineup: (formation: String, slots: [Int: String])? = nil,
          accent: Color,
          homeAbbr: String,
          awayAbbr: String,
@@ -52,7 +49,8 @@ struct XIPickerView: View {
         self.homeAbbr = homeAbbr
         self.awayAbbr = awayAbbr
         self.clubLookup = club
-        _picker = State(wrappedValue: XIPickerViewModel(fixture: fixture, existing: existing, loadRoster: loadRoster))
+        _picker = State(wrappedValue: XIPickerViewModel(fixture: fixture, existing: existing,
+                                                        savedLineup: savedLineup, loadRoster: loadRoster))
     }
 
     var body: some View {
@@ -83,18 +81,6 @@ struct XIPickerView: View {
         .task { await picker.load() }
         .sheet(item: $activeSlot) { ref in
             rosterSheet(for: ref.id)
-        }
-        // Change 8: offered once after a submit (see footerButtons). The user is signed in (entry is
-        // gated), so "Turn on" sets the pref directly + requests permission; either choice dismisses.
-        .alert("Get result alerts?", isPresented: $showPredictResultsOffer) {
-            Button("Turn on") {
-                notifications.predictResults = true
-                Task { await MatchAlertPresenter.requestNotificationPermission() }
-                dismiss()
-            }
-            Button("Not now", role: .cancel) { dismiss() }
-        } message: {
-            Text("We'll let you know the morning after your match when your Predict the XI result is in.")
         }
     }
 
@@ -314,6 +300,10 @@ struct XIPickerView: View {
                     return
                 }
                 committed = true                          // one-shot trigger for the commit haptic
+                // Remember this XI as the team's "usual lineup" so the next fixture's picker pre-fills it
+                // (task 17). Formation + slots only; validated against the live roster when re-loaded.
+                store.saveLastLineup(forTeam: fixture.teamAbbreviation,
+                                     formation: prediction.formation, slots: prediction.slots)
                 FanZoneActivity.recordPlay()              // Iron Fan: played a Fan Zone game this week
                 // Count this XI into the club's community aggregate (counts only — the lineup itself
                 // never leaves the device). Fire-and-forget AFTER the local write: the game is
@@ -331,15 +321,10 @@ struct XIPickerView: View {
                 // on every submit is harmless. No-ops when not signed in.
                 GameCenterManager.shared.report(GameCenterID.Achievement.firstPrediction)
                 // Entry was gated (open-fixture tap), so we're signed in: the prediction is
-                // locked and the per-team leaderboard push happens when it's later scored.
-                // Offer the post-match "results are in" push ONCE (Change 8) if it's not already on —
-                // the offer's alert dismisses the picker; otherwise dismiss straight away.
-                if !hasOfferedPredictResultsAlert, !notifications.predictResults {
-                    hasOfferedPredictResultsAlert = true
-                    showPredictResultsOffer = true
-                } else {
-                    dismiss()
-                }
+                // locked and the per-team leaderboard push happens when it's later scored. No
+                // post-submit popup any more (owner, 2026-08-04) — the "Predict results" opt-in lives
+                // only in Notifications + the How-to-play line, never as an interrupting alert here.
+                dismiss()
             } label: {
                 Text(picker.isComplete ? "Submit & lock in" : "Pick all 11 to submit (\(picker.assignedCount)/11)")
                     .dsFont(17, weight: .semibold)

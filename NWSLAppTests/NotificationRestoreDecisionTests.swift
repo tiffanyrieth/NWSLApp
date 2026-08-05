@@ -27,13 +27,13 @@ struct NotificationRestoreDecisionTests {
         dayBefore: Bool = false, lineupPosted: Bool = false, kickoff: Bool = false,
         goals: Bool = false, halftime: Bool = false, fullTime: Bool = false,
         substitutions: Bool = false, fanZoneRounds: Bool = false, playerSpotlight: Bool = false,
-        liveActivitiesEnabled: Bool = false
+        liveActivitiesEnabled: Bool = false, predictResults: Bool = false
     ) -> NotificationPreferencesSnapshot {
         NotificationPreferencesSnapshot(
             dayBefore: dayBefore, lineupPosted: lineupPosted, kickoff: kickoff, goals: goals,
             halftime: halftime, fullTime: fullTime, substitutions: substitutions,
             fanZoneRounds: fanZoneRounds, playerSpotlight: playerSpotlight,
-            liveActivitiesEnabled: liveActivitiesEnabled)
+            liveActivitiesEnabled: liveActivitiesEnabled, predictResults: predictResults)
     }
 
     private var allOff: NotificationPreferencesSnapshot { snapshot() }

@@ -77,7 +77,7 @@ struct NotificationPreferencesTests {
         store.applyRestored(NotificationPreferencesSnapshot(
             dayBefore: true, lineupPosted: true, kickoff: true, goals: false, halftime: true,
             fullTime: true, substitutions: false, fanZoneRounds: true, playerSpotlight: false,
-            liveActivitiesEnabled: true))
+            liveActivitiesEnabled: true, predictResults: false))
 
         #expect(store.dayBefore)
         #expect(store.lineupPosted)
@@ -100,7 +100,7 @@ struct NotificationPreferencesTests {
         store.applyRestored(NotificationPreferencesSnapshot(
             dayBefore: true, lineupPosted: false, kickoff: true, goals: false, halftime: false,
             fullTime: false, substitutions: false, fanZoneRounds: false, playerSpotlight: false,
-            liveActivitiesEnabled: false))
+            liveActivitiesEnabled: false, predictResults: false))
         #expect(store.hasAppliedAlertDefaults)
 
         store.applyMatchAlertDefaultsIfFirstTime()
@@ -116,7 +116,7 @@ struct NotificationPreferencesTests {
             NotificationPreferencesSnapshot(
                 dayBefore: false, lineupPosted: false, kickoff: true, goals: true, halftime: false,
                 fullTime: false, substitutions: false, fanZoneRounds: false, playerSpotlight: false,
-                liveActivitiesEnabled: false))
+                liveActivitiesEnabled: false, predictResults: false))
 
         let reloaded = NotificationPreferencesStore(defaults: defaults)
         #expect(reloaded.kickoff)

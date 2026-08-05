@@ -1042,26 +1042,18 @@ struct BracketBattleView: View {
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(isYour ? accent : Color.clear, lineWidth: 1.5))
     }
 
-    /// Fix 5 — the one-line verdict under a result card. Leads with the MARGIN of the community vote
-    /// (Runaway / Comfortable / Solid / Nail-biter), then your outcome: "+N pts" if your pick advanced, or
-    /// the vote split ("62% vs your pick's 38%") if it went home. Sat-out matchups show the margin alone.
+    /// The one-line verdict under a result card. The copy (margin word + winner action, praise word only
+    /// when earned) is the pure `BracketScoring.verdictText` — see its doc for why a MISS drops the
+    /// adjective. This maps the card's state to the outcome + colour.
     private func resultVerdict(_ m: BracketMatchup, yourPick: String?) -> some View {
         let splitA = m.splitAPercent ?? 50
         let winnerPct = m.winnerPercent ?? max(splitA, 100 - splitA)
         let winnerName = m.entrant(m.communityWinnerID ?? "")?.playerName ?? "the winner"
-        let phrase: String
-        switch winnerPct {
-        case 90...:    phrase = "Runaway — \(winnerName) dominated"
-        case 70..<90:  phrase = "Comfortable — \(winnerName) cruised through"
-        case 55..<70:  phrase = "Solid — \(winnerName) took it"
-        default:       phrase = "Nail-biter — \(winnerName) barely survived"
-        }
         let correct = yourPick != nil && yourPick == m.communityWinnerID
-        // Margin phrase is the WHOLE quick-read (Batch-2 Fix 1): no inline percentages — the exact vote
-        // split lives only inside the expandable "See how the league voted" donut. Green when you called it
-        // (+ the points), red when your pick went home, neutral when you sat out.
+        let outcome: BracketScoring.VerdictOutcome = correct ? .correct : (yourPick == nil ? .satOut : .missed)
         let color: Color = correct ? .dsSuccess : (yourPick == nil ? .dsFgSecondary : .dsError)
-        let text = correct ? "\(phrase)  ·  +\(m.round.points) pts" : phrase
+        let text = BracketScoring.verdictText(winnerPercent: winnerPct, winnerName: winnerName,
+                                              roundPoints: m.round.points, outcome: outcome)
         return Text(text)
             .dsFont(11, weight: .semibold)
             .foregroundStyle(color)

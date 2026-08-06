@@ -342,16 +342,18 @@ current (just-ended) season until March, when the peak locks into `season_histor
    floor-locked score.
 2. **Spotlight** (`SuperfanSpotlight`, pure) — ONE rotating "what we noticed" item per visit from a pool of
    CHEAP real signals (next-tier nudge, untapped/weakest channel, players-learned count, personal best,
-   achievement, playful zero-state floor). The rotation — a per-open counter SHARED with the Home card
-   teaser — is the reason-to-open hook, not deep-history mining. ZERO fabrication (real item or honest floor).
+   achievement, playful zero-state floor). It is the SuperfanDetailView reason-to-open hook, not deep-history
+   mining. ZERO fabrication (real item or honest floor).
 3. **Players Learned** (`PlayersLearned`) — the on-brand COLLECTION anchor: a grid of headshot stamps for
    every KHG player learned this season (recorded on KHG finish, deduped keeping best score), grows as you
    play. Local for now; a server mirror can layer on without changing the read path.
 4. **By the numbers** — the per-game accuracy + engagement breakdown, DEMOTED below the hook.
 5. **"How Superfan works"** (published-contract copy — gate #7, kept in sync with the 20+5/floor model),
    **Best Moments** (§6a), **Season History** (`season_history`, peak tier kept forever).
-The **Home `SuperfanCard`** shows the rotating teaser (from the same spotlight) instead of a static number.
-All reads on-demand + bounded. (The percentile "Top N% of N fans" line stays removed — plumbed but unused.)
+The **Home `SuperfanCard`** shows the COMPACT form (badge · Superfan · score · progress bar) — the rotating
+teaser was REVERTED 2026-08-05 (#243): on a `minHeight:128` card its 2-line height grew the whole carousel
+and pushed Club News down, losing the next-card peek (owner). The spotlight still feeds SuperfanDetailView;
+the card's `teaser` param stays dormant (nil) for an easy re-add. All reads on-demand + bounded. (The percentile "Top N% of N fans" line stays removed — plumbed but unused.)
 
 ## 6a. Achievements ("Your Best Moments")
 

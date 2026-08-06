@@ -139,7 +139,7 @@ struct ProfileView: View {
             .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
             Text("Match alerts, alert types, and activity — all in one place.")
-                .dsFont(11)
+                .dsFont(12)
                 .foregroundStyle(Color.dsFgSecondary)
                 .padding(.horizontal, 4)
         }
@@ -161,7 +161,7 @@ struct ProfileView: View {
                     .dsFont(15)
                     .foregroundStyle(Color.dsFgPrimary)
                 Text("Shown on leaderboards")
-                    .dsFont(11)
+                    .dsFont(12)
                     .foregroundStyle(Color.dsFgSecondary)
             }
             Spacer(minLength: 8)
@@ -371,7 +371,7 @@ struct ProfileView: View {
                 .dsFont(17, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             Text(label)
-                .dsFont(11)
+                .dsFont(12)
                 .foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity)
@@ -477,7 +477,7 @@ struct ProfileView: View {
             .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
             Text("Signing out keeps your follows on this device. Your Fan Zone points and rank stay with your account.")
-                .dsFont(11)
+                .dsFont(12)
                 .foregroundStyle(Color.dsFgSecondary)
                 .padding(.horizontal, 4)
         }
@@ -532,7 +532,7 @@ struct ProfileView: View {
             .frame(width: 29, height: 29)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Notification Diagnostics").dsFont(15).foregroundStyle(Color.dsFgPrimary)
-                Text("Token registration state").dsFont(11).foregroundStyle(Color.dsFgTertiary)
+                Text("Token registration state").dsFont(12).foregroundStyle(Color.dsFgTertiary)
             }
             Spacer(minLength: 8)
             Image(systemName: "chevron.right").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
@@ -545,7 +545,7 @@ struct ProfileView: View {
 
     private var versionLabel: some View {
         Text("NWSLApp \(appVersion)")
-            .dsFont(11)
+            .dsFont(12)
             .foregroundStyle(Color.dsFgTertiary)
             .frame(maxWidth: .infinity)
     }

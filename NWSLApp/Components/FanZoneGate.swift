@@ -113,7 +113,7 @@ struct DisplayNameEntry: View {
 
     private func statusLabel(_ text: String, color: Color, icon: String?) -> some View {
         HStack(spacing: 5) {
-            if let icon { Image(systemName: icon).dsFont(11) }
+            if let icon { Image(systemName: icon).dsFont(12) }
             Text(text).dsFont(12)
         }
         .foregroundStyle(color)
@@ -383,7 +383,7 @@ struct FanZoneGateSheet: View {
                 dismiss()
             }
             Text("A username is required to play Fan Zone games")
-                .dsFont(11)
+                .dsFont(12)
                 .foregroundStyle(Color.dsFgTertiary)
         }
     }

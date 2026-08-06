@@ -101,7 +101,7 @@ struct CombinedPitchView: View {
         (Text(label(home)).foregroundColor(home.accent.fill)
          + Text("  ·  ").foregroundColor(.dsFgQuaternary)
          + Text(label(away)).foregroundColor(away.accent.fill))
-            .dsFont(11, weight: .semibold)
+            .dsFont(12, weight: .semibold)
             .tracking(0.5)
             .frame(maxWidth: .infinity)
     }

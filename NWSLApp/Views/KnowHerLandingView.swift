@@ -125,7 +125,7 @@ struct KnowHerLandingView: View {
                 howPlayersAreChosen()
 
                 Text("A new round every two weeks.")
-                    .dsFont(11).foregroundStyle(.tertiary)
+                    .dsFont(12).foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
             }
@@ -192,7 +192,7 @@ struct KnowHerLandingView: View {
                 } else {
                     HStack(spacing: 3) {
                         Text("Play").dsFont(15, weight: .semibold)
-                        Image(systemName: "chevron.right").dsFont(11, weight: .bold)
+                        Image(systemName: "chevron.right").dsFont(12, weight: .bold)
                     }
                     .foregroundStyle(accent)
                 }
@@ -229,7 +229,7 @@ struct KnowHerLandingView: View {
         VStack(alignment: .trailing, spacing: 3) {
             Text("\(score)/\(total)").dsFont(15, weight: .bold).foregroundStyle(accent)
             HStack(spacing: 2) {
-                Text("Results").dsFont(11, weight: .semibold)
+                Text("Results").dsFont(12, weight: .semibold)
                 Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
             }
             .foregroundStyle(.secondary)
@@ -268,7 +268,7 @@ struct KnowHerLandingView: View {
             sectionEyebrow("Last round", round: store.previousRound)
             ForEach(store.previousPlayers) { player in lastRoundRow(player) }
             Text("Community results stay for one round after each edition closes.")
-                .dsFont(11).foregroundStyle(.tertiary)
+                .dsFont(12).foregroundStyle(.tertiary)
         }
     }
 
@@ -293,7 +293,7 @@ struct KnowHerLandingView: View {
                             .dsFont(12, weight: .bold).foregroundStyle(accent.opacity(0.75))
                     }
                     HStack(spacing: 2) {
-                        Text("Results").dsFont(11, weight: .semibold)
+                        Text("Results").dsFont(12, weight: .semibold)
                         Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
                     }
                     .foregroundStyle(.tertiary)
@@ -340,11 +340,11 @@ struct KnowHerLandingView: View {
     private func rulesCard(header: String, rules: [String]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(header)
-                .dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(accent)
+                .dsFont(12, weight: .bold).tracking(0.8).foregroundStyle(accent)
             ForEach(Array(rules.enumerated()), id: \.offset) { index, rule in
                 HStack(alignment: .top, spacing: 10) {
                     Text("\(index + 1)")
-                        .dsFont(11, weight: .bold).foregroundStyle(accent)
+                        .dsFont(12, weight: .bold).foregroundStyle(accent)
                         .frame(width: 20, height: 20)
                         .background(accent.opacity(0.15), in: Circle())
                     Text(rule).dsFont(13).foregroundStyle(.secondary)
@@ -363,10 +363,10 @@ struct KnowHerLandingView: View {
     private func sectionEyebrow(_ title: String, round: Int?) -> some View {
         HStack(spacing: 8) {
             Text(title.uppercased())
-                .dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
+                .dsFont(12, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
             if let round {
                 Text("Round \(round)")
-                    .dsFont(11, weight: .bold).tracking(0.4).foregroundStyle(accent)
+                    .dsFont(12, weight: .bold).tracking(0.4).foregroundStyle(accent)
             }
             Spacer()
         }

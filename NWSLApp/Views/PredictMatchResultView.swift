@@ -103,13 +103,13 @@ struct PredictMatchResultView: View {
         let awayAbbr = f.isHome ? f.opponentAbbreviation : f.teamAbbreviation
         return VStack(spacing: 8) {
             Text("RESULTS\(model.detail?.weekLabel.map { " · \($0.uppercased())" } ?? "")")
-                .dsFont(11, weight: .bold).tracking(1.2).foregroundStyle(accent)
+                .dsFont(12, weight: .bold).tracking(1.2).foregroundStyle(accent)
             HStack(spacing: 14) {
                 crestColumn(homeAbbr)
                 VStack(spacing: 3) {
                     if let final = item.finalScore {
                         Text("\(final.home)–\(final.away)").dsFont(24, weight: .heavy, monospacedDigit: true)
-                        Text("FT").dsFont(11, weight: .bold).foregroundStyle(.secondary)
+                        Text("FT").dsFont(12, weight: .bold).foregroundStyle(.secondary)
                     }
                 }
                 .frame(minWidth: 72)
@@ -220,7 +220,7 @@ struct PredictMatchResultView: View {
                       animated: true) {
                 VStack(spacing: 0) {
                     Text("\(model.startersCalled)").dsFont(28, weight: .heavy).foregroundStyle(Color.dsFgPrimary)
-                    Text("of 11").dsFont(11).foregroundStyle(.secondary)
+                    Text("of 11").dsFont(12).foregroundStyle(.secondary)
                 }
             }
             .accessibilityElement(children: .ignore)
@@ -472,7 +472,7 @@ struct PredictMatchResultView: View {
                 .strikethrough(!entry.started)
                 .lineLimit(1)
             if !entry.started {
-                Text("didn't start").dsFont(11).foregroundStyle(Color.dsFgTertiary)
+                Text("didn't start").dsFont(12).foregroundStyle(Color.dsFgTertiary)
             }
         }
         .accessibilityHidden(true)
@@ -534,7 +534,7 @@ struct PredictMatchResultView: View {
                     onPredictNext?(next)
                 }
                 Text("Locks \(Self.lockFormatter.string(from: next.deadline))")
-                    .dsFont(11).foregroundStyle(.secondary)
+                    .dsFont(12).foregroundStyle(.secondary)
             }
         } else {
             Text("Next fixture opens soon")
@@ -550,7 +550,7 @@ struct PredictMatchResultView: View {
     }
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text).dsFont(11, weight: .bold).tracking(1.2).foregroundStyle(.secondary)
+        Text(text).dsFont(12, weight: .bold).tracking(1.2).foregroundStyle(.secondary)
     }
 
     private func bandTitle(_ group: PositionGroup) -> String {

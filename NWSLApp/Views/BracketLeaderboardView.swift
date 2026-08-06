@@ -145,7 +145,7 @@ struct BracketLeaderboardView: View {
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 1) {
                 Text("\(you.points)").dsFont(22, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
-                Text("pts").dsFont(11).foregroundStyle(Color.dsFgTertiary)
+                Text("pts").dsFont(12).foregroundStyle(Color.dsFgTertiary)
             }
         }
         .padding(16)
@@ -179,7 +179,7 @@ struct BracketLeaderboardView: View {
     private func podiumColumn(_ s: BracketStanding, height: CGFloat, maxPts: Int) -> some View {
         let frac = CGFloat(s.points) / CGFloat(maxPts)
         return VStack(spacing: 6) {
-            Text(s.name).dsFont(11, weight: .semibold).foregroundStyle(s.isYou ? accent : .dsFgPrimary)
+            Text(s.name).dsFont(12, weight: .semibold).foregroundStyle(s.isYou ? accent : .dsFgPrimary)
                 .lineLimit(2).minimumScaleFactor(0.7).frame(maxWidth: 84)
             Text("\(s.points)").dsFont(13, weight: .heavy, monospacedDigit: true).foregroundStyle(s.isYou ? accent : Color.dsFgSecondary)
             RoundedRectangle(cornerRadius: 6)
@@ -261,7 +261,7 @@ struct BracketLeaderboardView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(value).dsFont(28, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
                 .lineLimit(1).minimumScaleFactor(0.6)
-            Text(label).dsFont(11).foregroundStyle(Color.dsFgSecondary)
+            Text(label).dsFont(12).foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -295,7 +295,7 @@ struct BracketLeaderboardView: View {
                 }
                 Spacer(minLength: 8)
                 Text(e.isComplete ? "Final" : "In progress")
-                    .dsFont(10, weight: .bold).foregroundStyle(e.isComplete ? Color.dsFgTertiary : accent)
+                    .dsFont(12, weight: .bold).foregroundStyle(e.isComplete ? Color.dsFgTertiary : accent)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background((e.isComplete ? Color.dsFgTertiary : accent).opacity(0.14), in: Capsule())
             }
@@ -311,7 +311,7 @@ struct BracketLeaderboardView: View {
             // Absent (not invented) for editions closed before stamping existed.
             if e.isComplete, let rank = e.finalRank, let field = e.fieldSize {
                 HStack(spacing: 5) {
-                    Image(systemName: "flag.checkered").dsFont(11).foregroundStyle(accent)
+                    Image(systemName: "flag.checkered").dsFont(12).foregroundStyle(accent)
                     Text("Finished #\(rank) of \(field)")
                         .dsFont(12, weight: .bold).foregroundStyle(accent)
                 }
@@ -360,7 +360,7 @@ struct BracketLeaderboardView: View {
                 Image(systemName: "rosette").dsFont(18).foregroundStyle(accent)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Game Center").dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
-                    Text("Compare with players everywhere").dsFont(11).foregroundStyle(Color.dsFgSecondary)
+                    Text("Compare with players everywhere").dsFont(12).foregroundStyle(Color.dsFgSecondary)
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgTertiary)

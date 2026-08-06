@@ -157,7 +157,7 @@ struct SuperfanDetailView: View {
         VStack(spacing: 14) {
             TierBadge(tier: tier, size: 80)
             Text("SUPERFAN · \(String(season)) SEASON")
-                .dsFont(11, weight: .bold).tracking(1.5).foregroundStyle(.secondary)
+                .dsFont(12, weight: .bold).tracking(1.5).foregroundStyle(.secondary)
             // Score + tier NAME together, so the number is never read without knowing which tier it is.
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("\(displayTotal)").dsFont(48, weight: .heavy, design: .rounded).foregroundStyle(.primary)
@@ -243,7 +243,7 @@ struct SuperfanDetailView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "person.crop.circle.badge.checkmark")
                         .dsFont(13).foregroundStyle(Color.dsGameSpotlight)
-                    Text("PLAYERS LEARNED").dsFont(11, weight: .bold).tracking(1).foregroundStyle(.secondary)
+                    Text("PLAYERS LEARNED").dsFont(12, weight: .bold).tracking(1).foregroundStyle(.secondary)
                     Spacer()
                     Text("\(learned.count)").dsFont(14, weight: .heavy, monospacedDigit: true)
                         .foregroundStyle(Color.dsGameSpotlight)
@@ -267,7 +267,7 @@ struct SuperfanDetailView: View {
                 }
             }
             .overlay(Circle().stroke(ring, lineWidth: 2))
-            Text(lastName(p.name)).dsFont(11).foregroundStyle(.secondary)
+            Text(lastName(p.name)).dsFont(12).foregroundStyle(.secondary)
                 .lineLimit(1).minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity)
@@ -282,7 +282,7 @@ struct SuperfanDetailView: View {
 
     private var breakdownSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("BREAKDOWN").dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
+            Text("BREAKDOWN").dsFont(12, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
             ForEach(SuperfanGame.allCases) { game in
                 breakdownRow(game)
             }
@@ -426,7 +426,7 @@ struct SuperfanDetailView: View {
         if !achievements.isEmpty {
             let shown = Array(achievements.prefix(5))
             VStack(alignment: .leading, spacing: 10) {
-                Text("YOUR BEST MOMENTS").dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
+                Text("YOUR BEST MOMENTS").dsFont(12, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
                 ForEach(shown) { earned in achievementCard(earned) }
                 if achievements.count > shown.count {
                     Text("+\(achievements.count - shown.count) more")
@@ -460,7 +460,7 @@ struct SuperfanDetailView: View {
     private var seasonHistorySection: some View {
         if !seasonHistory.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                Text("SEASON HISTORY").dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
+                Text("SEASON HISTORY").dsFont(12, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
                 ForEach(seasonHistory) { entry in
                     let isCurrent = entry.seasonYear == season
                     HStack(spacing: 12) {
@@ -490,7 +490,7 @@ struct SuperfanDetailView: View {
                 Image(systemName: "gamecontroller.fill").font(.system(size: 15)).foregroundStyle(Color.dsAccent)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Game Center").dsFont(13, weight: .semibold).foregroundStyle(.primary)
-                    Text("Compare with players everywhere").dsFont(11).foregroundStyle(.secondary)
+                    Text("Compare with players everywhere").dsFont(12).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold)).foregroundStyle(.tertiary)

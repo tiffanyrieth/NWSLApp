@@ -499,7 +499,7 @@ private struct DayHeader: View {
                 .foregroundStyle(isToday ? Color.dsFgPrimary : Color.dsFgSecondary)
             if isToday {
                 Text("TODAY")
-                    .dsFont(10, weight: .bold)
+                    .dsFont(12, weight: .bold)
                     .tracking(0.5)
                     .foregroundStyle(Color.dsStateKickoff)
                     .padding(.horizontal, 7)

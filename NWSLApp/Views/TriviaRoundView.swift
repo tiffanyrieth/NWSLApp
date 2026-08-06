@@ -117,7 +117,7 @@ struct TriviaRoundView: View {
                     .background(accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                     .padding(.top, 8)
                 Text("NWSL TRIVIA")
-                    .dsFont(11, weight: .bold).tracking(0.5)
+                    .dsFont(12, weight: .bold).tracking(0.5)
                     .padding(.horizontal, 10).padding(.vertical, 4)
                     .background(accent.opacity(0.14)).foregroundStyle(accent).clipShape(Capsule())
                 VStack(spacing: 4) {
@@ -158,7 +158,7 @@ struct TriviaRoundView: View {
     private func metaItem(_ value: String, _ label: String) -> some View {
         VStack(spacing: 3) {
             Text(value).dsFont(17, weight: .semibold).foregroundStyle(accent)
-            Text(label).dsFont(11).foregroundStyle(.secondary)
+            Text(label).dsFont(12).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -168,7 +168,7 @@ struct TriviaRoundView: View {
             Image(systemName: "flame.fill").dsFont(18).foregroundStyle(.orange)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(store.streak)-round streak").dsFont(13, weight: .bold)
-                Text("Keep it going — play every round").dsFont(11).foregroundStyle(.secondary)
+                Text("Keep it going — play every round").dsFont(12).foregroundStyle(.secondary)
             }
             Spacer()
         }
@@ -214,7 +214,7 @@ struct TriviaRoundView: View {
                     .dsFont(12, weight: .semibold).foregroundStyle(.secondary)
                 Spacer()
                 Text(question.category.label.uppercased())
-                    .dsFont(11, weight: .bold)
+                    .dsFont(12, weight: .bold)
                     .padding(.horizontal, 9).padding(.vertical, 4)
                     .background(accent.opacity(0.14)).foregroundStyle(accent).clipShape(Capsule())
             }
@@ -303,7 +303,7 @@ struct TriviaRoundView: View {
                 }
                 .buttonStyle(.plain)
                 Text("A fresh 10 drop with every round — keep your streak alive!")
-                    .dsFont(11).foregroundStyle(.tertiary)
+                    .dsFont(12).foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center).padding(.horizontal)
             }
             .padding(20)
@@ -324,7 +324,7 @@ struct TriviaRoundView: View {
             Image(systemName: icon).foregroundStyle(tint)
             VStack(alignment: .leading, spacing: 1) {
                 Text(value).dsFont(15, weight: .bold)
-                Text(label).dsFont(10).foregroundStyle(.secondary)
+                Text(label).dsFont(12).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
         }

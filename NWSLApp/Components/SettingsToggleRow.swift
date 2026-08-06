@@ -30,7 +30,7 @@ struct SettingsToggleRow: View {
                     .foregroundStyle(Color.dsFgSecondary)
                 if let note {
                     Text(note)
-                        .dsFont(11, weight: .semibold)
+                        .dsFont(12, weight: .semibold)
                         .foregroundStyle(Color.dsFgSecondary)
                 }
             }

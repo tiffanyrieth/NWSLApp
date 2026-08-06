@@ -91,7 +91,7 @@ struct PlayoffMatchupRow: View {
             // Seed line — the playoff addition, quiet under the abbreviation.
             if let seed = bside.seed {
                 Text("#\(seed) seed")
-                    .dsFont(11, weight: .semibold)
+                    .dsFont(12, weight: .semibold)
                     .foregroundStyle(Color.dsFgSecondary)
             }
             // Fixed-height score band (reserved on every state so rows align, like MatchCard).
@@ -134,7 +134,7 @@ struct PlayoffMatchupRow: View {
                 EmptyView()
             case .post:
                 Text("FULL TIME")
-                    .dsFont(11)
+                    .dsFont(12)
                     .tracking(0.3)
                     .foregroundStyle(Color.dsFgSecondary)
             case .pre:
@@ -166,18 +166,18 @@ struct PlayoffMatchupRow: View {
                     .opacity(pulse ? 0.3 : 1)
                     .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: pulse)
                 Text("LIVE")
-                    .dsFont(11, weight: .bold)
+                    .dsFont(12, weight: .bold)
                     .tracking(0.6)
                     .foregroundStyle(Color.dsStateLive)
             }
         case .post:
             Text("FT")
-                .dsFont(11, weight: .bold)
+                .dsFont(12, weight: .bold)
                 .tracking(0.6)
                 .foregroundStyle(Color.dsStateFinal)
         case .pre:
             Text(matchup.kickoff != nil ? "KICKOFF" : "MATCHUP")
-                .dsFont(11, weight: .bold)
+                .dsFont(12, weight: .bold)
                 .tracking(0.6)
                 .foregroundStyle(matchup.kickoff != nil ? Color.dsStateKickoff : Color.dsFgTertiary)
         }
@@ -196,7 +196,7 @@ struct PlayoffMatchupRow: View {
             // color for "future", NOT the orange live clock.
             if matchup.state == .pre, matchup.kickoff != nil {
                 Text(dateLabel)
-                    .dsFont(11, weight: .bold)
+                    .dsFont(12, weight: .bold)
                     .tracking(0.6)
                     .foregroundStyle(isToday ? Color.dsStateKickoff : Color.dsFgSecondary)
             }
@@ -205,7 +205,7 @@ struct PlayoffMatchupRow: View {
             }
             if let venue = matchup.venue {
                 Text(venue)
-                    .dsFont(11.5)
+                    .dsFont(12)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)

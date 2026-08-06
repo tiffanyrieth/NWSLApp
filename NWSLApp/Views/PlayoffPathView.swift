@@ -157,7 +157,7 @@ struct PlayoffPathView: View {
     private func championRow(championAbbr: String?) -> some View {
         HStack(spacing: 12) {
             Circle().fill(Color.dsBgTertiary).frame(width: 16, height: 16)
-                .overlay(Text("🏆").dsFont(10))
+                .overlay(Text("🏆").dsFont(12))
                 .overlay(Circle().strokeBorder(Color.dsFgQuaternary, lineWidth: 2))
             if let championAbbr {
                 // Mixed case deliberately (club name stays proper-case, not shouted).

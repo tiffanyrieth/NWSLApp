@@ -21,7 +21,7 @@ struct CategoryPill: View {
 
     var body: some View {
         Text(label)
-            .dsFont(9.5, weight: .bold)
+            .dsFont(12, weight: .bold)
             .tracking(0.4)
             .foregroundStyle(color)
             .padding(.horizontal, 7)

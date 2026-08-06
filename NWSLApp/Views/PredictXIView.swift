@@ -485,7 +485,7 @@ struct PredictXIView: View {
 
             VStack(spacing: 6) {
                 Text("THIS ROUND\(week.flatMap { FanZoneCadence.weekLabel(week: $0) }.map { " · \($0.uppercased())" } ?? "")")
-                    .dsFont(11, weight: .bold).tracking(1.2).foregroundStyle(accent)
+                    .dsFont(12, weight: .bold).tracking(1.2).foregroundStyle(accent)
                 // Starters called is the hero here too; points are the supporting line.
                 Text("\(starters) of \(inRound.count * 11)")
                     .dsFont(34, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
@@ -495,13 +495,13 @@ struct PredictXIView: View {
                     Text(superlative).dsFont(12, weight: .bold).foregroundStyle(accent)
                 }
                 if let contribution = predictSuperfanLine {
-                    Text(contribution).dsFont(11).foregroundStyle(Color.dsFgTertiary)
+                    Text(contribution).dsFont(12).foregroundStyle(Color.dsFgTertiary)
                 }
                 // ⚠️ Load-bearing copy, not decoration: points DO aggregate (they're league-wide) but
                 // ranks do NOT (each club board has its own population). Without this line the card's
                 // combined total sitting above per-club movements reads as one merged standing.
                 Text("Points are league-wide. Ranks are per club — each board is scored separately.")
-                    .dsFont(11).foregroundStyle(Color.dsFgTertiary)
+                    .dsFont(12).foregroundStyle(Color.dsFgTertiary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
@@ -562,18 +562,18 @@ struct PredictXIView: View {
                     Spacer()
                     HStack(spacing: 3) {
                         Text("See details").dsFont(13, weight: .semibold)
-                        Image(systemName: "chevron.right").dsFont(11, weight: .bold)
+                        Image(systemName: "chevron.right").dsFont(12, weight: .bold)
                     }
                     .foregroundStyle(accent)
                 }
                 // Round rank — cached once the user has opened the result (network-only otherwise), so it
                 // shows on a reviewed result, omitted (never faked) before then.
                 if let rank = store.roundRank(forFixture: item.fixture.id) {
-                    Text("\(ordinal(rank)) this round").dsFont(11, weight: .bold).foregroundStyle(accent)
+                    Text("\(ordinal(rank)) this round").dsFont(12, weight: .bold).foregroundStyle(accent)
                 }
                 Text(resultSummaryLine(score)).dsFont(12).foregroundStyle(.secondary)
                 if let movement = rankMovementLine(for: item) {
-                    Text(movement.text).dsFont(11, weight: .semibold).foregroundStyle(movement.color)
+                    Text(movement.text).dsFont(12, weight: .semibold).foregroundStyle(movement.color)
                 }
             }
             .padding(16)
@@ -629,12 +629,12 @@ struct PredictXIView: View {
                 if let final = finalScore {
                     Text("\(final.home)–\(final.away)").dsFont(20, weight: .heavy)
                     Text(isSuspended ? "SUSP" : (isLive ? "LIVE" : "FT"))
-                        .dsFont(11, weight: .bold)
+                        .dsFont(12, weight: .bold)
                         .foregroundStyle(isSuspended ? Color.dsWarning
                                          : (isLive ? Color.dsStateLive : Color.dsStateFinal))
                 } else {
                     Text("KICKOFF")
-                        .dsFont(11, weight: .bold).tracking(0.6)
+                        .dsFont(12, weight: .bold).tracking(0.6)
                         .foregroundStyle(Color.dsStateKickoff)
                     Text(Self.kickoffTimeLabel(fixture.kickoff))
                         .dsFont(22, weight: .bold, design: .rounded, monospacedDigit: true)
@@ -778,7 +778,7 @@ struct PredictXIView: View {
                         .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("HOW POINTS WORK").dsFont(11, weight: .bold).tracking(0.8).foregroundStyle(accent)
+                    Text("HOW POINTS WORK").dsFont(12, weight: .bold).tracking(0.8).foregroundStyle(accent)
                     VStack(spacing: 6) {
                         predictPointRow("Each correct starter", "+\(PredictionScore.playerPoints)")
                         predictPointRow("Right position band for a correct pick", "+\(PredictionScore.positionPoints)")
@@ -927,7 +927,7 @@ struct PredictXIView: View {
         Button(action: action) {
             HStack(spacing: 4) {
                 Text(title).dsFont(12, weight: .semibold)
-                if let detail { Text(detail).dsFont(11).opacity(0.8) }
+                if let detail { Text(detail).dsFont(12).opacity(0.8) }
             }
             .padding(.horizontal, 10).padding(.vertical, 5)
             .background(isOn ? accent.opacity(0.2) : Color.dsBgTertiary.opacity(0.5))

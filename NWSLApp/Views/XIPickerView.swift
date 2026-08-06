@@ -421,7 +421,7 @@ struct XIPickerView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(athlete.name).dsFont(15, weight: .semibold)
                 if let position = athlete.positionName {
-                    Text(position).dsFont(11).foregroundStyle(.secondary)
+                    Text(position).dsFont(12).foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 0)

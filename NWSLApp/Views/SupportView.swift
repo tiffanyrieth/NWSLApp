@@ -221,7 +221,7 @@ struct SupportView: View {
 
     private var footer: some View {
         Text("NWSLApp will always be free. Supporters get no extra features — just the knowledge that you're helping grow women's soccer.")
-            .dsFont(11)
+            .dsFont(12)
             .foregroundStyle(Color.dsFgSecondary)
             .multilineTextAlignment(.center)
             .padding(.horizontal, 8)

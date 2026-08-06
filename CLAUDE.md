@@ -208,6 +208,22 @@ docs above — go read them):
   docs/memory/CLAUDE.md, `git diff` it and list every REMOVAL with a status (relocated-to-X / obsolete-
   because-Y / owner-approved), the same roll call deliverables get. The SessionStart size check is a prompt to
   **relocate detail to a doc, NEVER to trim facts away.**
+  **Why this rule is FIRM (owner 2026-08-06 — the reasoning, so it isn't loosened later):** the danger is not
+  sloppy text, it's a specific blind spot. Some subsystems LOOK like standard training knowledge and are not —
+  **V2 Live Activity push** is the canonical case: push-to-start / broadcast-channel fan-out / the payload
+  render law are an Apple feature built for premium sports apps, exactly where training is THIN, yet it
+  pattern-matches to "ordinary notifications." So the model's instinct to generalize/trim is most confident
+  precisely where it's most wrong — it trims the wall of V2-LA detail as "redundant," the next session works
+  the fragile system without the full picture, and code breaks it AGAIN (this happened ~7 times). The rule
+  exists because the model's judgment about "what's needed" is the untrustworthy part; loosening it re-opens
+  the exact judgment call that caused the damage. Default is **don't decide — relocate.**
+  **THE ONE EXCEPTION — `docs/roadmap.md` (owner 2026-08-06):** the roadmap is the owner's PERSONAL
+  task-tracking doc (her "sticky notes"), not durable knowledge. The relocate-never-delete rule and the
+  KB-diff roll-call do **NOT** apply to it — when the owner directs removal of a roadmap item, just delete it,
+  no relocation/roll-call ceremony. Durable lessons belong in the SYSTEM docs (`docs/live-activity-v2.md`,
+  `notifications.md`, `backend.md`, `decisions.md`, …), which keep the full protection. Only caveat: if a
+  roadmap entry being deleted carries a device-proven lesson not captured in a system doc, one-line flag it
+  first ("this had lesson X — keep it in a system doc?"); if she says drop it, it's dropped.
 - **BACKBONE IS NEVER DEFERRED FOR A MISSING FRONT END.** Build the structure AS IF the generator /
   content pipeline / data source already works — the app should be waiting on the pipeline, never the
   reverse. "The questions aren't generated biweekly yet" is NOT a reason to skip the round model, the
@@ -319,7 +335,9 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
   Read before touching any game. The BUILD RULES stay in `.claude/rules/fan-zone.md` (auto-loads).
 - **`docs/navigation.md`** — each tab's lens + adjacency rules (read when adding/redesigning a screen).
 - **`docs/versioning.md`** — the (non-semver) version model + distribution.
-- **`docs/roadmap.md`** — What's Next (pending work).
+- **`docs/roadmap.md`** — What's Next (OPEN blockers only; the owner's personal punch-list). Done/dropped
+  items are removed, not archived — git history keeps the record, and durable lessons live in the system
+  docs. It is exempt from the KB relocate-never-delete rule (see the KNOWLEDGE-BASE WRITE PATH bullet).
 - **`docs/roster-source-research.md`** — the 2026-07-29/30 live-verified research on ESPN vs the NWSL
   SDP API: two error classes (fabrication vs lagging fact), invariants-first correction design, what SDP
   has/lacks, live-games verdict (stay on ESPN). Read BEFORE any roster-source or cross-check work.

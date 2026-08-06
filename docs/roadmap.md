@@ -488,7 +488,7 @@
 > Trivia's restore deliberately skips the season accuracy pair (`TriviaStore.swift:233-239`, guarding the
 > earlier "0/10 shows 100%" bug); KHG's baseline is excluded from the accuracy numerator; the Home card
 > and Game Center both max-merge. **NEW EVIDENCE (owner 2026-08-04):** her cell shows Superfan **59**, the
-> sim shows **46**, and BOTH are signed in as `tiffany.rieth@proton.me` (same Apple ID ⇒ same `user_id`).
+> sim shows **46**, and BOTH are signed in with the SAME Apple ID (⇒ same `user_id`).
 > Same user_id means the two SHOULD converge to one score, so 59-vs-46 is the two devices **DIVERGING**
 > (each displaying its own local total, not reconciling to the server max) — a different shape than
 > doubling. **The mechanism is not yet found — do not "fix" it by guessing.** Owner's planned repro:

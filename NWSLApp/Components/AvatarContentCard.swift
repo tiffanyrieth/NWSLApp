@@ -85,7 +85,7 @@ struct AvatarContentCard: View {
             }
             Spacer(minLength: 6)
             Text(card.timestamp.relativeAgo)
-                .dsFont(11)
+                .dsFont(12)
                 .foregroundStyle(Color.dsFgSecondary)
                 .layoutPriority(1)
         }
@@ -256,7 +256,7 @@ struct CTARow: View {
             Text(label)
                 .dsFont(13, weight: .semibold)
             Image(systemName: "arrow.up.right")
-                .dsFont(11, weight: .semibold)
+                .dsFont(12, weight: .semibold)
         }
         .foregroundStyle(Color.dsAccent)
     }

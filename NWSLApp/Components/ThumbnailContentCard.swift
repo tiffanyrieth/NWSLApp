@@ -273,7 +273,7 @@ struct ThumbnailHeader: View {
         HStack(spacing: 5) {
             PlatformBadge(platform: chip.platform, size: 14)
             Text(chip.label)
-                .dsFont(11, weight: .semibold)
+                .dsFont(12, weight: .semibold)
                 .foregroundStyle(.white)
         }
         .padding(.vertical, 4)
@@ -284,7 +284,7 @@ struct ThumbnailHeader: View {
 
     private func durationPill(_ text: String) -> some View {
         Text(text)
-            .dsFont(11, weight: .semibold, monospacedDigit: true)
+            .dsFont(12, weight: .semibold, monospacedDigit: true)
             .foregroundStyle(.white)
             .padding(.vertical, 2)
             .padding(.horizontal, 6)
@@ -308,7 +308,7 @@ struct MediaTeamBadge: View {
 
     var body: some View {
         Text(abbreviation)
-            .dsFont(11, weight: .semibold)
+            .dsFont(12, weight: .semibold)
             .foregroundStyle(teamColor)
             .padding(.vertical, 4)
             .padding(.horizontal, 8)

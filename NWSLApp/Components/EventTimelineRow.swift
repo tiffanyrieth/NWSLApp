@@ -54,7 +54,7 @@ struct EventTimelineRow: View {
                     .foregroundStyle(Color.dsFgPrimary)
                 if let detail = item.detail {
                     Text(detail)
-                        .dsFont(11.5)
+                        .dsFont(12)
                         .foregroundStyle(Color.dsFgSecondary)
                         .fixedSize(horizontal: false, vertical: true)   // commentary can wrap 2 lines
                 }
@@ -134,6 +134,6 @@ private struct SubstitutionArrows: View {
             Image(systemName: "arrow.up").foregroundStyle(Color.dsSuccess)
             Image(systemName: "arrow.down").foregroundStyle(Color.dsError)
         }
-        .dsFont(11, weight: .bold)
+        .dsFont(12, weight: .bold)
     }
 }

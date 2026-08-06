@@ -138,7 +138,7 @@ struct FanZoneCarouselCard: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Text(model.contextLine)
-                .dsFont(11)
+                .dsFont(12)
                 .foregroundStyle(Color.dsFgSecondary)
                 .lineLimit(2, reservesSpace: true)
             statusRow
@@ -192,12 +192,12 @@ struct FanZoneCarouselCard: View {
     private var statusRow: some View {
         HStack(spacing: 3) {
             Text(model.compactStatus)
-                .dsFont(11, weight: .semibold)
+                .dsFont(12, weight: .semibold)
                 .foregroundStyle(model.effectiveAccent)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Image(systemName: "chevron.right")
-                .dsFont(9, weight: .bold)
+                .dsFont(12, weight: .bold)
                 .foregroundStyle(model.effectiveAccent)
         }
     }
@@ -227,11 +227,11 @@ struct SuperfanCard: View {
                 Text("\(score)")
                     .dsFont(22, weight: .heavy, monospacedDigit: true)
                     .foregroundStyle(Color.dsFgPrimary)
-                Text(tier.label).dsFont(11, weight: .semibold).foregroundStyle(tier.color)
+                Text(tier.label).dsFont(12, weight: .semibold).foregroundStyle(tier.color)
             }
             if let teaser {
                 Text(teaser)
-                    .dsFont(10.5, weight: .semibold).foregroundStyle(tier.color)
+                    .dsFont(12, weight: .semibold).foregroundStyle(tier.color)
                     .lineLimit(2).minimumScaleFactor(0.8)
                     .fixedSize(horizontal: false, vertical: true)
             }

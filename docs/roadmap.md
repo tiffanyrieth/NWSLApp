@@ -387,24 +387,24 @@
 > app source. The unit tests that reference `PostseasonSimulator.clinchTable` (`PlayoffClinchTests`) move
 > to inline fixtures at that point. Nothing auto-reminds — this note is the reminder.
 
-> ### 📏 TYPE AUDIT — broader small-type sweep (owner 2026-07-28) — DATA-BAR sweep ✅ DONE (archived)
-> The DATA-BAR sweep (every bar the reader compares → 10pt, `Grid`-aligned) is ✅ DONE (see git
-> history). **⚠️ STILL OPEN — the broader TYPE audit.** 151 uses of `.dsFont(10/10.5/11)`
-> remain app-wide. **26 are the deliberate tracked-caps eyebrow motif** (`trackedCaps(size: 11)` — small
-> caps with tracking read larger than their point size, a consistent DS motif) and should stay. The other
-> ~125 are mostly legitimately-secondary captions, but some are certainly too small. That is a
-> screen-by-screen judgement pass across ~40 files, not a find-and-replace — doing it blind would risk
-> breaking layouts tuned around the current sizes. Worth its own session with the AX1-cap revisit in the
-> accessibility workstream.
+> ### 📏 TYPE AUDIT — ✅ 12pt floor DONE 2026-08-06 · 🕰️ 13-14 secondary tier = a FEW-WEEKS VIBE CHECK
+> **✅ DONE (this PR):** a **12pt hard readable-font floor** — every `.dsFont(9…11.5)` bumped to 12 (160
+> sites). No floor existed before (119 uses at 11pt); the trigger was the owner's mom (70s) not being able
+> to read the app, and the Sim renders desktop-scale so small type "looked fine" but wasn't on a phone
+> ([[feedback_size_for_phone_not_desktop]]). Owner research + the AX1 engineering point both land on 12
+> ("below 10-11 stays illegible even after accessibility scaling"). Verified default + AX1 on Standings +
+> Schedule (no overflow). Exceptions kept: the 5pt bullet-dot icon, `trackedCaps` eyebrows, monograms.
+>
+> **🕰️ FOLLOW-UP — do NOT do this now (owner 2026-08-06): the 13-14pt "must-read secondary" tier.** Per
+> the research, must-read secondary text (Match Detail stat labels, standings secondary numbers) ideally
+> wants 13-14, not just the 12 floor. But whether it's *needed* is a **VIBE reaction after living with
+> today's change for a few weeks on-device**, NOT a gut call now — and it should be done SURGICALLY per
+> screen where the owner's eye says it still reads small, never another blanket bump (that flattens
+> hierarchy). Revisit ~late Aug after the 12 floor has been felt on real use.
 
 ---
 
 **Pending work only (ALIVE > core > hardening); shipped/decided/dropped work lives in git history + the File Map.**
-- **First-launch perf** — Tier 1+2 shipped; onboarding quick-tips screen DEFERRED (build only if wanted).
-- **YouTube Shorts thumbnail pillarbox** — DEFERRED; fix is proxy-side.
-- **Pull-to-refresh polish** — keep the list visible during refresh (spinner only on first load).
-- **Home follow-ups:** spotlight no-repeat-per-season + opt-in weekly notif.
-- **Player headshots Phase B2 banners** — DEFERRED (licensing).
 - **More team-color vibrancy (owner interested 2026-07-21)** — Predict cards + schedule `MatchCard` +
   player detail now carry the wash (via `TeamWashBackground` / `accentHex`, shipped in Fan Zone v2). STILL
   pending: extend it to more surfaces so club color carries further (candidate surfaces: Home header, Team
@@ -419,13 +419,19 @@
 - **Club-page links data pass** — Website · Shop · Tickets (OFFICIAL) + Discord (Fan) → `SocialPlatform` + `TeamSocialLinksProvider`, per-club.
 
 **Longer-term:**
-- **Push — Tier 2 (SERVER push) — SHIPPED** (Stage A–D done: watcher cron + KV diff + APNs JWT, per-team
-  targeting, `APNS_HOST=production`, lineups-posted, red-card/VAR; NT alerts by FIFA code). Delivery now
-  rides **Cloudflare Queues (V1) + APNs Broadcast Channels (V2)** — `docs/push-fanout-scaling.md`. Still
-  open on the CLUB-competition axis: **Champions Cup / Challenge Cup (`usa.nwsl.cup`) push** — the watcher
-  polls the NWSL + NT scoreboards but not these club-comp slugs; needs their slugs + a competition-aware
-  card footer/title (carry the comp label through the pipeline). (The old "self-hosted crest primary is
-  dead" item is RESOLVED — that was CF error 1042 from fetching the proxy over its public URL; `card.ts`
-  now uses the PROXY service binding, so self-hosted `/crest` is the working primary, ESPN the fallback.)
-- **Competitions follow-ups:** Challenge Cup (`usa.nwsl.cup`, single annual match) + Champions Cup + followed NTs fold into Schedule "My teams" (NT coverage now 16 feeds, shipped). WWC/Olympics whole-tournament UI DEFERRED; foreign-club color DB grows as Champions Cup opponents appear (`DesignTeamColors.international`).
-- **Feed** — user-added sources; richer filtering. **Weather** — kickoff-temp header slot.
+- **CLUB-competition PUSH — needs a live check before it's called done or dropped (2026-08-06).**
+  Tier 2 server push is SHIPPED and **national-team** competitions push correctly (WAFCON = `caf.w.nations`
+  etc. are in the watcher's `NT_LEAGUES`, `nwslapp-match-watcher/src/index.ts:113`). ⚠️ **Showing a cup
+  game live in the app ≠ the watcher pushing alerts for it** — display is the app fetching a scoreboard;
+  push is the watcher's cron polling specific slugs. The watcher does NOT poll `usa.nwsl.cup` (Challenge
+  Cup) or the Concacaf W Champions Cup slug. **The open question:** does ESPN fold those cup fixtures into
+  the regular NWSL league scoreboard the watcher already polls (→ they'd push via the existing club
+  fan-out, already done) or are they a separate slug (→ real gap, needs the slug added + a comp-aware card
+  footer/title)? Settle it with a live curl when a Challenge/Champions Cup fixture exists. Don't drop this
+  until that's checked.
+- **Competitions follow-ups:** national-team coverage is DONE (16 NT feeds, WAFCON live + Tier-2 pushing).
+  Residual = the CLUB cups (Challenge/Champions) folding into Schedule "My teams" (tied to the push
+  question above) + foreign-club colors growing as Champions Cup opponents appear
+  (`DesignTeamColors.international`). WWC/Olympics whole-tournament UI stays DEFERRED.
+- **Weather** — kickoff-temp header slot (nice-to-have, stays). _(User-added feed sources SHIPPED in the
+  Social Phase-3 "make it yours" pass — Bluesky reporters + player follows; that line is retired.)_

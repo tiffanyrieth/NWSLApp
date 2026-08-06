@@ -86,7 +86,7 @@ struct ArticleContentCard: View {
             CategoryPill(sourceType: card.resolvedSourceType)
             Spacer(minLength: 6)
             Text(card.timestamp.relativeAgo)
-                .dsFont(11)
+                .dsFont(12)
                 .foregroundStyle(Color.dsFgSecondary)
                 .layoutPriority(1)
         }
@@ -102,7 +102,7 @@ struct ArticleContentCard: View {
             CategoryPill(sourceType: .news)
             Spacer(minLength: 8)
             Text(card.timestamp.relativeAgo)
-                .dsFont(11)
+                .dsFont(12)
                 .foregroundStyle(Color.dsFgSecondary)
         }
     }
@@ -157,7 +157,7 @@ struct ArticleContentCard: View {
             Text("Read on \(outlet)")
                 .dsFont(13, weight: .semibold)
             Image(systemName: "arrow.right")
-                .dsFont(11, weight: .semibold)
+                .dsFont(12, weight: .semibold)
         }
         .foregroundStyle(Color.dsAccent)
     }

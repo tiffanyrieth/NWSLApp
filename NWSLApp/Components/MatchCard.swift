@@ -35,7 +35,7 @@ struct MatchCard: View {
             // (redundant on the home league). E.g. "SHEBELIEVES CUP", "INTERNATIONAL FRIENDLY".
             if let label = match.competition.displayLabel {
                 Text(label.uppercased())
-                    .dsFont(10, weight: .bold)
+                    .dsFont(12, weight: .bold)
                     .tracking(0.6)
                     .foregroundStyle(Color.dsFgSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -100,7 +100,7 @@ struct MatchCard: View {
                 Text(event.isFinalResult
                      ? "FULL TIME"
                      : (event.status?.type?.description ?? "SUSPENDED").uppercased())
-                    .dsFont(11)
+                    .dsFont(12)
                     .tracking(0.3)
                     .foregroundStyle(Color.dsFgSecondary)
             default:
@@ -129,7 +129,7 @@ struct MatchCard: View {
                     .opacity(pulse ? 0.3 : 1)
                     .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: pulse)
                 Text("LIVE")
-                    .dsFont(11, weight: .bold)
+                    .dsFont(12, weight: .bold)
                     .tracking(0.6)
                     .foregroundStyle(Color.dsStateLive)
                 // The live-clock guard (halftime → static HT, never tick through the break; live →
@@ -142,19 +142,19 @@ struct MatchCard: View {
                         halftimeLabel: "HT", fallback: event.status?.displayClock)
                 ) { label in
                     Text(label)
-                        .dsFont(11, weight: .bold, monospacedDigit: true)
+                        .dsFont(12, weight: .bold, monospacedDigit: true)
                         .foregroundStyle(Color.dsStateClock)
                 }
             }
         case "post":
             // "Susp" (ESPN's own shortDetail) instead of a green FT on a match that hasn't finished.
             Text(event.isFinalResult ? "FT" : (event.status?.type?.shortDetail ?? "SUSP"))
-                .dsFont(11, weight: .bold)
+                .dsFont(12, weight: .bold)
                 .tracking(0.6)
                 .foregroundStyle(event.isFinalResult ? Color.dsStateFinal : Color.dsWarning)
         default:
             Text("KICKOFF")
-                .dsFont(11, weight: .bold)
+                .dsFont(12, weight: .bold)
                 .tracking(0.6)
                 .foregroundStyle(Color.dsStateKickoff)
         }
@@ -181,7 +181,7 @@ struct MatchCard: View {
             }
             if let venue = event.venueName {
                 Text(venue)
-                    .dsFont(11.5)
+                    .dsFont(12)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)

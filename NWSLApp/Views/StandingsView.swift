@@ -163,7 +163,7 @@ struct StandingsView: View {
 
     private var playoffPill: some View {
         Text("TOP \(playoffSpots) ADVANCE")
-            .dsFont(11, weight: .bold)
+            .dsFont(12, weight: .bold)
             .tracking(0.4)
             .foregroundStyle(Color.dsStateKickoff)
             .lineLimit(1)
@@ -248,7 +248,7 @@ struct StandingsView: View {
         HStack(spacing: 10) {
             playoffRule
             Text("PLAYOFF LINE")
-                .dsFont(10, weight: .bold)
+                .dsFont(12, weight: .bold)
                 .tracking(0.8)
                 .foregroundStyle(Color.dsStateKickoff)
             playoffRule
@@ -389,7 +389,7 @@ struct StandingsView: View {
 
     private var footer: some View {
         Text("Tap any club for its full page · Last 5 shows recent results, newest on the right.")
-            .dsFont(11.5)
+            .dsFont(12)
             .lineSpacing(2)
             .multilineTextAlignment(.center)
             .foregroundStyle(Color.dsFgSecondary)

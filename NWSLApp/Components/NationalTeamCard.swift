@@ -162,7 +162,7 @@ struct NationalTeamCard: View {
         Button { toggleFollow() } label: {
             HStack(spacing: 5) {
                 Image(systemName: isFollowing ? "star.fill" : "star")
-                    .dsFont(11)
+                    .dsFont(12)
                     .foregroundStyle(isFollowing ? Color.dsFollowStar : Color.dsFgSecondary)
                 Text(isFollowing ? "Following" : "Follow")
                     .dsFont(12.5, weight: .semibold)

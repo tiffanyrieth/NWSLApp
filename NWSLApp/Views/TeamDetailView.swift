@@ -183,7 +183,7 @@ struct TeamDetailView: View {
         if !official.isEmpty {
             VStack(alignment: .leading, spacing: 9) {
                 Text("OFFICIAL")
-                    .dsFont(11, weight: .semibold).tracking(0.5)
+                    .dsFont(12, weight: .semibold).tracking(0.5)
                     .foregroundStyle(Color.dsFgSecondary)
                     .padding(.horizontal, 16)
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -204,7 +204,7 @@ struct TeamDetailView: View {
                         .foregroundStyle(Color.dsFgPrimary)
                     Spacer()
                     Text("FAN-RUN · UNOFFICIAL")
-                        .dsFont(10, weight: .semibold).tracking(0.4)
+                        .dsFont(12, weight: .semibold).tracking(0.4)
                         .foregroundStyle(Color.dsFgSecondary)
                 }
                 HStack(spacing: 8) {
@@ -361,7 +361,7 @@ struct TeamDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if let jersey = athlete.jersey, !jersey.isEmpty {
                     Text("#\(jersey)")
-                        .dsFont(11.5).monospaced()
+                        .dsFont(12).monospaced()
                         .foregroundStyle(Color.dsFgSecondary)
                 }
             }
@@ -428,7 +428,7 @@ struct TeamDetailView: View {
                 .dsFont(20, weight: .heavy, monospacedDigit: true)
                 .foregroundStyle(emphasized ? accent : Color.dsFgPrimary)
             Text(label)
-                .dsFont(11).foregroundStyle(Color.dsFgSecondary)
+                .dsFont(12).foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity)
     }

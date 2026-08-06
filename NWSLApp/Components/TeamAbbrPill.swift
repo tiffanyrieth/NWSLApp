@@ -16,7 +16,7 @@ struct TeamAbbrPill: View {
 
     var body: some View {
         Text(abbr)
-            .dsFont(10.5, weight: .bold)
+            .dsFont(12, weight: .bold)
             .tracking(0.3)
             .foregroundStyle(color)
             .padding(.horizontal, 7)

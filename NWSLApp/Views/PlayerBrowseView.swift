@@ -102,7 +102,7 @@ struct PlayerBrowseView: View {
             TeamLogo(urlString: nil, teamAbbreviation: abbr, size: 22)
             Text((teamNames[abbr] ?? abbr).uppercased()).dsFont(12, weight: .bold).foregroundStyle(.secondary)
             if following {
-                Text("FOLLOWING").dsFont(9, weight: .bold).foregroundStyle(Color.dsSuccess)
+                Text("FOLLOWING").dsFont(12, weight: .bold).foregroundStyle(Color.dsSuccess)
             }
             Spacer()
         }

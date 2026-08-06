@@ -146,7 +146,7 @@ struct KnowHerGameView: View {
     private func metaItem(_ value: String, _ label: String) -> some View {
         VStack(spacing: 3) {
             Text(value).dsFont(17, weight: .semibold).foregroundStyle(accent)
-            Text(label).dsFont(11).foregroundStyle(.secondary)
+            Text(label).dsFont(12).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -184,7 +184,7 @@ struct KnowHerGameView: View {
                     .dsFont(12, weight: .semibold).foregroundStyle(.secondary)
                 Spacer()
                 Text(question.category.label.uppercased())
-                    .dsFont(11, weight: .bold)
+                    .dsFont(12, weight: .bold)
                     .padding(.horizontal, 9).padding(.vertical, 4)
                     .background(accent.opacity(0.14)).foregroundStyle(accent)
                     .clipShape(Capsule())

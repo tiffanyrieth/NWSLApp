@@ -74,7 +74,7 @@ struct HowToWatchCard: View {
                     // No badge at all when access is unknown — never guess a paywall.
                     if let badge = info.access.badge {
                         Text(badge)
-                            .dsFont(10.5, weight: .bold)
+                            .dsFont(12, weight: .bold)
                             .tracking(0.5)
                             .foregroundStyle(info.access.isFree ? Color.dsSuccess : Color.dsFgSecondary)
                             .padding(.horizontal, 9)

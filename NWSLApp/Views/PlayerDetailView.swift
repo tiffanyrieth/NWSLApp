@@ -170,7 +170,7 @@ struct PlayerDetailView: View {
                 ForEach(sections) { section in
                     VStack(alignment: .leading, spacing: 6) {
                         Text(section.title.uppercased())
-                            .dsFont(11, weight: .semibold)
+                            .dsFont(12, weight: .semibold)
                             .tracking(0.6)
                             .foregroundStyle(Color.dsFgTertiary)
                         statsTable(section.items.map { (label: $0.label, value: $0.value) })

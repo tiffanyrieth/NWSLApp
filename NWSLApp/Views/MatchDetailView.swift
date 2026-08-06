@@ -221,7 +221,7 @@ struct MatchDetailView: View {
 
                 if temporalState == .live {
                     Text("Updates every ~60 seconds")
-                        .dsFont(11)
+                        .dsFont(12)
                         .foregroundStyle(.tertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 8)
@@ -287,7 +287,7 @@ struct MatchDetailView: View {
 
             if let officials = officialsText(summary) {
                 Text(officials)
-                    .dsFont(11)
+                    .dsFont(12)
                     .foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -335,7 +335,7 @@ struct MatchDetailView: View {
                         .shadow(radius: 3)
                     if let duration = video.durationLabel {
                         Text(duration)
-                            .dsFont(10, weight: .bold, monospacedDigit: true)
+                            .dsFont(12, weight: .bold, monospacedDigit: true)
                             .foregroundStyle(.white)
                             .padding(.horizontal, 5).padding(.vertical, 2)
                             .background(.black.opacity(0.7), in: Capsule())
@@ -351,7 +351,7 @@ struct MatchDetailView: View {
                     .multilineTextAlignment(.leading)
                     .frame(width: 220, height: 34, alignment: .topLeading)
                 Label("Watch on ESPN", systemImage: "arrow.up.right")
-                    .dsFont(10, weight: .semibold)
+                    .dsFont(12, weight: .semibold)
                     .foregroundStyle(Color.dsFgTertiary)
             }
         }
@@ -370,7 +370,7 @@ struct MatchDetailView: View {
                     HStack(spacing: 8) {
                         performerSide(row.home, color: matchColors.home.fill, trailing: false)
                         Text(row.category)
-                            .dsFont(10.5, weight: .semibold)
+                            .dsFont(12, weight: .semibold)
                             .foregroundStyle(Color.dsFgTertiary)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
@@ -396,7 +396,7 @@ struct MatchDetailView: View {
                     .dsFont(16, weight: .heavy, design: .rounded, monospacedDigit: true)
                     .foregroundStyle(color)
                 Text(pick.jersey.map { "\($0)  \(pick.name)" } ?? pick.name)
-                    .dsFont(11)
+                    .dsFont(12)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -635,18 +635,18 @@ struct MatchDetailView: View {
                         .dsFont(15)
                     if player.didSubOut {
                         Image(systemName: "arrow.down.circle.fill")
-                            .dsFont(11)
+                            .dsFont(12)
                             .foregroundStyle(.red.opacity(0.7))
                     }
                     if player.didSubIn {
                         Image(systemName: "arrow.up.circle.fill")
-                            .dsFont(11)
+                            .dsFont(12)
                             .foregroundStyle(.green.opacity(0.7))
                     }
                     Spacer(minLength: 0)
                     if let pos = player.position?.abbreviation {
                         Text(pos)
-                            .dsFont(11)
+                            .dsFont(12)
                             .foregroundStyle(.tertiary)
                     }
                 }
@@ -1209,7 +1209,7 @@ struct MatchDetailView: View {
 
     private func competitionPill(_ label: String) -> some View {
         Text(label.uppercased())
-            .dsFont(10.5, weight: .bold)
+            .dsFont(12, weight: .bold)
             .tracking(0.6)
             .foregroundStyle(Color.dsFgSecondary)
             .padding(.horizontal, 10)

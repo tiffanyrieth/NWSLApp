@@ -272,7 +272,7 @@ struct TeamsView: View {
         Button { following.toggle(club) } label: {
             HStack(spacing: 5) {
                 Image(systemName: isFollowing ? "star.fill" : "star")
-                    .dsFont(11)
+                    .dsFont(12)
                     .foregroundStyle(isFollowing ? Color.dsFollowStar : Color.dsFgSecondary)
                 Text(isFollowing ? "Following" : "Follow")
                     .dsFont(12.5, weight: .semibold)
@@ -348,7 +348,7 @@ struct TeamsView: View {
                 Spacer(minLength: 8)
                 if competitionFollowCount > 0 {
                     Text("\(competitionFollowCount) ON")
-                        .dsFont(11, weight: .bold)
+                        .dsFont(12, weight: .bold)
                         .foregroundStyle(Color.dsSuccess)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)

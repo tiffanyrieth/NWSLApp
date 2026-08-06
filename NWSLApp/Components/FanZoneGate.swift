@@ -303,7 +303,7 @@ struct FanZoneGateSheet: View {
                 Task { await saveName() }
             }
             Text("A username is required to play Fan Zone games")
-                .dsFont(11)
+                .dsFont(12)
                 .foregroundStyle(Color.dsFgTertiary)
         }
     }

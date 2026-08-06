@@ -134,7 +134,7 @@ struct FeedSourcesView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(displayName).dsFont(15, weight: .semibold)
                     HStack(spacing: 4) {
-                        Image(systemName: "checkmark.seal.fill").dsFont(11).foregroundStyle(Color.dsSuccess)
+                        Image(systemName: "checkmark.seal.fill").dsFont(12).foregroundStyle(Color.dsSuccess)
                         Text("Active · @\(handle)").dsFont(12).foregroundStyle(.secondary)
                     }
                 }
@@ -203,7 +203,7 @@ struct FeedSourcesView: View {
                 .dsFont(12, weight: .bold)
                 .foregroundStyle(.secondary)
             if following {
-                Text("FOLLOWING").dsFont(9, weight: .bold)
+                Text("FOLLOWING").dsFont(12, weight: .bold)
                     .foregroundStyle(Color.dsSuccess)
             }
             Spacer()
@@ -233,7 +233,7 @@ struct FeedSourcesView: View {
                     Text(source.detail).dsFont(12).foregroundStyle(.secondary)
                 }
                 if source.isAdded {
-                    Text("ADDED").dsFont(9, weight: .bold)
+                    Text("ADDED").dsFont(12, weight: .bold)
                         .foregroundStyle(.white)
                         .padding(.horizontal, 5).padding(.vertical, 2)
                         .background(Capsule().fill(Color.dsBluesky))

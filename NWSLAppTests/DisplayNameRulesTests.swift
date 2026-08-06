@@ -60,4 +60,33 @@ struct DisplayNameRulesTests {
     @Test func gateRunsImmediatelyWhenConfirmed() {
         #expect(FanZoneGateDecision.resolve(isSignedIn: true, hasChosenName: true) == .runNow)
     }
+
+    // MARK: - DisplayNameError (RPC status → outcome)
+    // The whole uniqueness/profanity flow hinges on mapping the server's status string correctly:
+    // "ok" must NOT throw (else a valid save looks failed), and every other code must surface a
+    // distinct, honest message rather than a swallowed no-op (the banned looks-like-success shape).
+
+    @Test func okStatusIsNotAnError() {
+        #expect(DisplayNameError.from(status: "ok") == nil)
+    }
+
+    @Test func knownRefusalsMapToDistinctErrors() {
+        #expect(DisplayNameError.from(status: "taken") == .taken)
+        #expect(DisplayNameError.from(status: "blocked") == .blocked)
+        #expect(DisplayNameError.from(status: "too_short") == .tooShort)
+    }
+
+    @Test func unknownAndNotSignedInFailSafeToSaveFailed() {
+        // Fail SAFE: an unrecognized or not-signed-in status must still surface as an error (never "ok"),
+        // so a name that didn't save can never appear saved.
+        #expect(DisplayNameError.from(status: "not_signed_in") == .saveFailed)
+        #expect(DisplayNameError.from(status: "") == .saveFailed)
+        #expect(DisplayNameError.from(status: "🤖") == .saveFailed)
+    }
+
+    @Test func everyErrorHasUserFacingCopy() {
+        for error in [DisplayNameError.taken, .blocked, .tooShort, .saveFailed] {
+            #expect(error.message.isEmpty == false)
+        }
+    }
 }

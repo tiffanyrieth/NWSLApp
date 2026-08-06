@@ -31,6 +31,38 @@ enum DisplayNameRules {
     }
 }
 
+/// Why a display-name write was refused, so the entry UI can say something honest instead of
+/// silently pretending it saved. `taken`/`blocked`/`tooShort` are EXPECTED user outcomes (not
+/// diagnostics-worthy); `saveFailed` is a real network/unknown failure (which DOES emit telemetry).
+/// The raw strings are the `set_display_name` / `check_display_name` RPC status codes.
+enum DisplayNameError: Error, Equatable {
+    case taken
+    case blocked
+    case tooShort
+    case saveFailed
+
+    /// Map an RPC status string to an error, or nil for `"ok"`. Unknown codes fail safe → `.saveFailed`.
+    static func from(status: String) -> DisplayNameError? {
+        switch status {
+        case "ok":            return nil
+        case "taken":         return .taken
+        case "blocked":       return .blocked
+        case "too_short":     return .tooShort
+        default:              return .saveFailed   // "not_signed_in" + anything unrecognized
+        }
+    }
+
+    /// User-facing copy for the entry field's inline error line.
+    var message: String {
+        switch self {
+        case .taken:      return "That username's taken — try another."
+        case .blocked:    return "That username isn't allowed — pick another."
+        case .tooShort:   return "Usernames are 2–20 characters."
+        case .saveFailed: return "Couldn't save — check your connection and try again."
+        }
+    }
+}
+
 /// What a Fan Zone ranked action should do when the user triggers it, from auth state alone.
 /// `hasChosenName` (signed in + a CONFIRMED name) is what lets an unconfirmed Apple name still
 /// route through the name step instead of silently passing onto a public leaderboard.

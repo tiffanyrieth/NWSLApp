@@ -300,6 +300,13 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
   `.toolbarRole(.editor)` or hide the bar (breaks edge-swipe).
 - **Dynamic Type:** size text via `.dsFont(...)` (`@ScaledMetric`), NOT raw `.font(.system(size:))`;
   crests/flags scale on the same `.body` axis; **capped at AX1** at the root so dense tables don't break.
+  **⚠️ 12pt readable-font FLOOR (owner 2026-08-06):** no readable prose renders below `.dsFont(12)` at
+  default size — 12 is the AX1-critical floor (below 10-11 stays illegible even after scaling), set after
+  the owner's mom (70s) couldn't read the app and the Sim's desktop-scale render hid it
+  ([[feedback_size_for_phone_not_desktop]]). EXEMPT: `trackedCaps` eyebrows (11pt but small-caps+tracking
+  read larger), fixed numeric columns / badge letters / monograms, non-text indicators (5-7pt dots). A
+  13-14pt "must-read secondary" tier is a parked follow-up (roadmap). Size for the phone in the hand, not
+  the Sim — err larger.
 - **Team naming:** one team as subject → full club name (Gotham FC); **two-team contexts (match cards,
   match detail, comparisons, standings rows) → CREST + ABBREVIATION (e.g. WAS), never crest-less text or
   full names.** ESPN has no nickname field.

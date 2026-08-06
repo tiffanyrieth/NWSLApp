@@ -371,6 +371,23 @@ survives reinstall (UserDefaults is wiped, the server row is not; this is the fi
 Member" bug). `name_is_custom` marks a CONFIRMED name vs. a merely-present (Apple-supplied) one; the Fan
 Zone gate (`hasChosenName`) makes the user confirm before it hits a public board. Added via
 `migration_profile_name_is_custom.sql` (defaults false, **no backfill** — existing testers confirm once).
+
+**Display-name UNIQUENESS + profanity filter (`migration_display_name_uniqueness.sql`, 2026-08-06).**
+Global, case-insensitive, first-come — a `unique index on public.profiles (lower(display_name))` is the
+real guard; renaming frees your old name automatically. The write path is now **`set_display_name(new_name)`**
+(SECURITY DEFINER RPC), NOT a raw upsert: it validates, writes `profiles`, and **cascades** the new name
+onto every denormalized copy — `prediction_scores`, `predict_round_scores`, `superfan_scores`,
+`bracket_scores` (all keyed `user_id`) — in one atomic call, so a rename shows on the boards immediately
+(no rank reset). `AuthStore.updateDisplayName` is server-first + throwing (surfaces `taken`/`blocked`/
+`too_short`, commits local cache only on `ok`). The UI's live "is it taken/allowed?" feedback comes from
+**`check_display_name(candidate)`** (also SECURITY DEFINER — RLS on `profiles` is `auth.uid()=id`, so a
+client CAN'T read others' rows to check). Profanity is a curated **`blocked_names`** table (`exact` vs
+`substring` match) consulted by `display_name_rejection()`, enforced by a **BEFORE INSERT/UPDATE trigger
+on `profiles`** so even a direct client write can't bypass it (owner: client + DB guard). v1 = profanity
+only (no club/player impersonation lists yet). ⚠️ The migration self-dedupes SEED names before creating
+the index (a real-vs-real collision fails LOUD → resolve by hand). The seeder
+(`nwslapp-proxy/scripts/seed_test_fans.mjs`) now generates unique names so re-seed survives the index.
+
 **Offline-first:** UserDefaults is the immediate cache; the app never blocks on the network to show
 follows. **Follows sync = UPWARD-ONLY (2026-07-23).** The DEVICE is the source of truth and Supabase is backend
 bookkeeping the user never hears about: there is **no restore-down at all**. Signing in never rewrites

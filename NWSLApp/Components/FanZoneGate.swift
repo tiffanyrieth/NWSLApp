@@ -24,17 +24,37 @@ import SwiftUI
 
 // MARK: - Shared display-name entry (gate's name step + Profile editor)
 
-/// The display-name text field + helper + CTA, reused by the gate and Profile. Required:
-/// the CTA disables on an empty/whitespace name. Saving routes through
-/// `AuthStore.updateDisplayName` (trims, 20-char cap, UserDefaults + `profiles` upsert).
+/// The display-name text field + helper + CTA, reused by the gate and Profile so first-time setup and
+/// later edits look + validate identically. Self-contained (2026-08-06): it runs a debounced
+/// availability/filter check as you type (`AuthStore.checkDisplayName`) for live "available / taken /
+/// not allowed" feedback, and saves via `AuthStore.updateDisplayName` — the atomic server guard that
+/// enforces uniqueness + the filter and cascades the name onto the boards. It commits nothing locally
+/// until the server confirms, surfaces a thrown `DisplayNameError` inline, and calls `onSaved` ONLY on
+/// success (so the caller dismisses / advances the gate only when the name really took).
 struct DisplayNameEntry: View {
     @Binding var draft: String
     let cta: String
     let accent: Color
-    let onSubmit: () -> Void
+    /// Runs only after the name SAVES successfully (dismiss the editor / advance the gate).
+    let onSaved: () -> Void
+
+    @Environment(AuthStore.self) private var auth
+
+    private enum CheckState: Equatable { case idle, checking, available, error(DisplayNameError) }
+    @State private var check: CheckState = .idle
+    @State private var checkTask: Task<Void, Never>?
+    @State private var saving = false
+    @State private var saveError: String?
 
     /// 2–20 characters after trimming — see `DisplayNameRules` (shared with the store).
     private var isValid: Bool { DisplayNameRules.isValid(draft) }
+    /// Block submit only on a KNOWN-bad name; an in-flight/absent check still lets you try — the save
+    /// re-guards, so a flaky pre-check never traps a valid name.
+    private var canSubmit: Bool {
+        guard isValid, !saving else { return false }
+        if case .error = check { return false }
+        return true
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -45,31 +65,94 @@ struct DisplayNameEntry: View {
 
             TextField("Enter a username…", text: $draft)
                 .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
                 .submitLabel(.done)
-                .onSubmit { if isValid { onSubmit() } }
+                .onSubmit { submit() }
                 .dsFont(17)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.dsBgTertiary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.white.opacity(0.08)))
+                .onChange(of: draft) { _, newValue in scheduleCheck(newValue) }
 
-            Text("2–20 characters · visible to other players · change anytime in Profile")
-                .dsFont(12)
-                .foregroundStyle(Color.dsFgTertiary)
-                .padding(.leading, 2)
+            statusLine
+                .frame(minHeight: 16, alignment: .leading)   // reserve the line so the CTA doesn't jump
 
-            Button(action: onSubmit) {
-                Text(cta)
+            Button(action: submit) {
+                Text(saving ? "Saving…" : cta)
                     .dsFont(17, weight: .semibold)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 15)
-                    .background(isValid ? accent : Color.dsBgTertiary,
+                    .background(canSubmit ? accent : Color.dsBgTertiary,
                                 in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            .disabled(!isValid)
+            .disabled(!canSubmit)
             .padding(.top, 4)
+        }
+    }
+
+    @ViewBuilder private var statusLine: some View {
+        if let saveError {
+            statusLabel(saveError, color: Color.dsError, icon: "exclamationmark.circle.fill")
+        } else {
+            switch check {
+            case .idle:
+                Text("2–20 characters · visible to other players · change anytime in Profile")
+                    .dsFont(12).foregroundStyle(Color.dsFgTertiary).padding(.leading, 2)
+            case .checking:
+                statusLabel("Checking…", color: Color.dsFgTertiary, icon: nil)
+            case .available:
+                statusLabel("That username's available", color: Color.dsSuccess, icon: "checkmark.circle.fill")
+            case .error(let refusal):
+                statusLabel(refusal.message, color: Color.dsError, icon: "exclamationmark.circle.fill")
+            }
+        }
+    }
+
+    private func statusLabel(_ text: String, color: Color, icon: String?) -> some View {
+        HStack(spacing: 5) {
+            if let icon { Image(systemName: icon).dsFont(11) }
+            Text(text).dsFont(12)
+        }
+        .foregroundStyle(color)
+        .padding(.leading, 2)
+    }
+
+    /// Debounced live check: cancel any in-flight check, wait, then ask the server. Advisory only —
+    /// a nil (offline) leaves the line neutral; the save is the real guard.
+    private func scheduleCheck(_ value: String) {
+        saveError = nil
+        checkTask?.cancel()
+        guard DisplayNameRules.isValid(value) else { check = .idle; return }
+        check = .checking
+        checkTask = Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            guard !Task.isCancelled else { return }
+            let status = await auth.checkDisplayName(value)
+            guard !Task.isCancelled, value == draft else { return }   // drop a stale response
+            guard let status else { check = .idle; return }
+            check = DisplayNameError.from(status: status).map(CheckState.error) ?? .available
+        }
+    }
+
+    private func submit() {
+        guard canSubmit else { return }
+        saving = true
+        saveError = nil
+        Task {
+            do {
+                try await auth.updateDisplayName(draft)
+                saving = false
+                onSaved()
+            } catch {
+                saving = false
+                let refusal = (error as? DisplayNameError) ?? .saveFailed
+                // taken/blocked also refresh the inline status so the field itself flags the problem.
+                if refusal == .taken || refusal == .blocked { check = .error(refusal) }
+                saveError = refusal.message
+            }
         }
     }
 }
@@ -80,7 +163,6 @@ struct DisplayNameEntry: View {
 /// "Playing as {name}" in a game's nav. Wraps DisplayNameEntry with edit chrome; saves via
 /// `AuthStore.updateDisplayName`. Seeded with the current name (no empty flash).
 struct DisplayNameEditorSheet: View {
-    @Environment(AuthStore.self) private var auth
     @Environment(\.dismiss) private var dismiss
     @State private var draft: String
 
@@ -94,7 +176,7 @@ struct DisplayNameEditorSheet: View {
                     .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
                 DisplayNameEntry(draft: $draft, cta: "Save", accent: Color.dsAccent) {
-                    Task { await auth.updateDisplayName(draft); dismiss() }
+                    dismiss()   // only fires on a SUCCESSFUL save; errors stay inline in the field
                 }
                 Spacer()
             }
@@ -203,7 +285,6 @@ struct FanZoneGateSheet: View {
     @State private var step: Step
     @State private var draftName: String
     @State private var errorMessage: String?
-    @State private var saving = false
 
     init(gameName: String, accent: Color, startAt: Step, prefilledName: String, onComplete: @escaping () -> Void) {
         self.gameName = gameName
@@ -297,10 +378,9 @@ struct FanZoneGateSheet: View {
                     .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
             }
-            DisplayNameEntry(draft: $draftName,
-                             cta: saving ? "Saving…" : "Let's go",
-                             accent: accent) {
-                Task { await saveName() }
+            DisplayNameEntry(draft: $draftName, cta: "Let's go", accent: accent) {
+                onComplete()   // fires only on a SUCCESSFUL save; a taken/blocked name stays inline
+                dismiss()
             }
             Text("A username is required to play Fan Zone games")
                 .dsFont(11)
@@ -319,15 +399,6 @@ struct FanZoneGateSheet: View {
             if let authError = error as? ASAuthorizationError, authError.code == .canceled { return }
             errorMessage = "Sign in didn't complete. Try again."
         }
-    }
-
-    private func saveName() async {
-        guard !saving else { return }
-        saving = true
-        await auth.updateDisplayName(draftName)
-        saving = false
-        onComplete()
-        dismiss()
     }
 }
 

@@ -253,47 +253,27 @@
 > Fan Zone contamination only; the broader 3-install cross-talk still wants a test Apple ID + `.debug`
 > bundle id (see the signOut/global-scope finding).
 
-> ### 🪪 DISPLAY NAMES ARE NOT UNIQUE — decide BEFORE launch (owner 2026-07-29)
-> **Today anyone can take a name someone else already has.** `profiles.display_name` is a plain `text`
-> column with **no unique constraint** (`supabase/schema.sql:34`), `DisplayNameRules` only trims and
-> checks 2–20 characters, and **nothing anywhere queries whether a name is taken** — not on first
-> choice, not on rename. Every board row carries a denormalized copy of the name, and nothing joins by it.
+> ### 🪪 DISPLAY-NAME UNIQUENESS + PROFANITY — 🟡 BUILT 2026-08-06, pending owner migration apply
+> **Decisions (owner 2026-08-06):** global, case-insensitive, first-come uniqueness (renaming frees your
+> old name); profanity/slur filter only for v1 (no club/player impersonation lists yet); enforced
+> client-side AND server-side; a rename AUTO-UPDATES the leaderboards (no rank reset). Was: `profiles.
+> display_name` had no unique constraint (10 collisions across ~120 seeded fans) and no content filter.
 >
-> **⚠️ It already happens.** Audited 2026-07-29 across the 2026 Predict boards: of 108 distinct names,
-> **10 are held by more than one account** — "devontouchline" and "skyoffside" by THREE each. Those are
-> seeded fans and purge before launch, but the demonstration stands: a *random name generator* collided
-> ten times in ~120 accounts. Real users deliberately choosing desirable names will collide far more.
+> **Built on `feature/display-name-uniqueness`:**
+> - `supabase/migration_display_name_uniqueness.sql` — `blocked_names` table + seed, `display_name_
+>   rejection()` fn, a BEFORE-write trigger on `profiles` (unbypassable profanity guard), `check_display_
+>   name()` advisory RPC (RLS blocks a client from reading others' profiles), `set_display_name()` RPC
+>   (atomic: writes profiles + CASCADES the new name to `prediction_scores` / `predict_round_scores` /
+>   `superfan_scores` / `bracket_scores`), seed-dedup + `unique index on lower(display_name)`.
+> - App: `AuthStore.updateDisplayName` → server-first + **throwing** (was optimistic + swallowed errors —
+>   the banned looks-like-success shape); `checkDisplayName`; `DisplayNameError`; `DisplayNameEntry` now
+>   does a debounced live availability/filter check + inline errors and only advances on a real save.
+> - `nwslapp-proxy/scripts/seed_test_fans.mjs` → generates unique names so re-seed survives the index.
 >
-> **Why it matters beyond tidiness.** Club boards are small (a few hundred), so a collision is visible
-> and confusing rather than lost in a crowd. Your own row is accent-highlighted, so YOU can find
-> yourself — but the board is ambiguous to everyone else, and it directly undermines the recognition
-> the Fan Zone is chasing ("why is nwslnoob always two spots above me?" only works if a name is a
-> stable identity). It also leaves impersonation wide open: nothing stops a user picking a real
-> player's name, or yours.
->
-> **⚠️ THE TIMING IS THE WHOLE POINT.** Adding uniqueness before launch costs one index + one lookup.
-> Adding it after means forcing existing users to rename — the kind of change that reads as the app
-> taking something away. This is a pre-launch decision, not a someday one.
->
-> **Recommended: case-insensitive GLOBAL uniqueness, first-come-first-served.**
-> - `create unique index on public.profiles (lower(display_name))` — case-insensitive, so "Tiffany" and
->   "tiffany" can't coexist. ⚠️ Check for existing duplicates first; the index creation fails if any
->   remain (the seed purge clears today's).
-> - An availability check in `DisplayNameEntry` before submit, plus honest "that name's taken" copy.
-> - ⚠️ The UI check is ADVISORY ONLY — two people can submit the same name in the same instant. The
->   unique index is the real guard, so `AuthStore.updateDisplayName` must catch the `23505` unique
->   violation and surface it, not swallow it (NO SILENT FAILURES: a rename that appears to work and
->   didn't is exactly the banned shape).
-> - Renaming must free the old name — it does automatically with a single-column index.
-> - Load: one indexed lookup per name entry. Passes 1k/100k by construction; no new load path worth a
->   stress-test entry.
->
-> **Considered:** per-club uniqueness (messy — users follow several clubs); a Discord-style `#1234`
-> discriminator (kills collisions but also kills recognition, which is the thing the names are FOR);
-> leaving it and relying on the you-row highlight (fails for everyone reading the board except you).
->
-> **Separate but adjacent, worth deciding at the same time:** a reserved/blocked-name list. Nothing
-> currently stops impersonating an NWSL player, a club, or the app itself.
+> **🔴 REMAINING (owner):** apply the migration in the Supabase SQL editor (it self-dedupes seed names, so
+> it applies today). Then verify with two `-signInAsTestFan` accounts (take a taken name → blocked; rename
+> → boards update; profane name → blocked). Verification queries + apply steps are in the session handoff.
+> Load: one indexed lookup per name entry; rename = a few indexed UPDATEs — both rare, pass 1k/100k.
 
 > ### 📋 PRE-PUBLISH — privacy package (needed BEFORE App Store submission; target mid-Aug)
 > Lower priority than ALIVE work but MUST exist at submission (owner 2026-07-16 — track it here so
@@ -359,8 +339,8 @@
 > **First step when picked up:** run the VoiceOver audit in the sim screen by screen, then work the
 > punch-list. Dynamic Type and colour-blind are closed — do NOT re-audit them.
 > (Dark-only is NOT an a11y issue — the app's colour balances it.)
-> Also still pending here, unrelated to a11y: profanity-filter the editable leaderboard display name
-> before public launch.
+> (The display-name profanity filter that used to be parked here is now BUILT — see the display-name
+> uniqueness item above.)
 
 > ### 🧹 PRE-LAUNCH GATE — purge the Fan Zone seed test population (owner 2026-07-23)
 > The pre-launch seeder (`nwslapp-proxy/scripts/seed_test_fans.mjs`) creates real `@seed.nwslapp.test`

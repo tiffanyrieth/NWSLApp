@@ -416,14 +416,6 @@ final class AuthStore {
         let name_is_custom: Bool?
     }
 
-    /// The shape of an explicit "user chose their name" write. All fields present, so the
-    /// upsert sets `name_is_custom = true` alongside the name in one round-trip.
-    private struct ProfileNameChoice: Encodable {
-        let id: String
-        let display_name: String
-        let name_is_custom: Bool
-    }
-
     /// Fetch the authoritative display name + chosen flag from the server and refresh the
     /// local cache. This is the fix for "name reverts to Member after reinstall": UserDefaults
     /// is wiped on reinstall, so the server (written at sign-in) is the only durable source.
@@ -480,28 +472,58 @@ final class AuthStore {
         }
     }
 
-    /// Change how the user's name appears on the leaderboards. Trims + caps length, marks the
-    /// name CONFIRMED (`name_is_custom = true`, locally + server-side), and upserts the Supabase
-    /// `profiles` row. The user's own row reflects it on the next board load; other players see it
-    /// after the user's next submit. (Length cap + trim only — no profanity filter yet; revisit
-    /// before public launch.)
-    ///
-    /// Note: we mark it confirmed even when the text is UNCHANGED — the user reaching this from the
-    /// gate with a prefilled Apple name is explicitly confirming it, so the gate must not re-fire.
-    /// (Only the empty case early-returns; `DisplayNameEntry` already blocks that in the UI.)
-    func updateDisplayName(_ newName: String) async {
-        guard let capped = DisplayNameRules.normalized(newName) else { return }
+    private struct SetNameParams: Encodable { let new_name: String }
+    private struct CheckNameParams: Encodable { let candidate: String }
+
+    /// Change how the user's name appears on the leaderboards. **Server-first + throwing** (2026-08-06,
+    /// display-name uniqueness): the name goes through the `set_display_name` RPC, which enforces
+    /// case-insensitive global uniqueness + the profanity filter and CASCADES the new name onto every
+    /// leaderboard copy in one atomic call — so a rename shows up on the boards immediately and a
+    /// rejected name (taken / not allowed) is never faked as saved. The local cache + `name_is_custom`
+    /// are committed ONLY after the server confirms `ok`; on failure the old name stands and the caller
+    /// shows the thrown `DisplayNameError` inline (NO SILENT FAILURES — this used to swallow errors and
+    /// pretend success). Marks the name confirmed even when unchanged (the gate's prefilled-name confirm).
+    /// Requires connectivity, consistent with the app's online-only stance + the Apple sign-in that
+    /// precedes the first-run gate.
+    func updateDisplayName(_ newName: String) async throws {
+        guard let capped = DisplayNameRules.normalized(newName) else { throw DisplayNameError.tooShort }
+        guard currentUser?.id != nil else { throw DisplayNameError.saveFailed }
+        let status: String
+        do {
+            status = try await client
+                .rpc("set_display_name", params: SetNameParams(new_name: capped))
+                .execute()
+                .value
+        } catch {
+            // A genuine network/API failure — LOUD to the engineer, honest to the user.
+            Diagnostics.shared.record(.apiFailure, "display name update: \(error.localizedDescription)")
+            throw DisplayNameError.saveFailed
+        }
+        if let refusal = DisplayNameError.from(status: status) {
+            // taken / blocked / too_short are EXPECTED user outcomes → no telemetry, just surface them.
+            throw refusal
+        }
         displayName = capped
         displayNameIsCustom = true
         UserDefaults.standard.set(capped, forKey: Self.nameKey)
         UserDefaults.standard.set(true, forKey: Self.nameChosenKey)
-        guard let userID = currentUser?.id else { return }
+    }
+
+    /// Advisory availability + filter pre-check the entry UI runs before submit. Returns the RPC
+    /// status (`"ok"` / `"taken"` / `"blocked"` / `"too_short"`), or nil when the check itself couldn't
+    /// run (offline) — the caller must NOT block submission on a nil, because `updateDisplayName` is the
+    /// real guard. RLS blocks a client from reading other users' `profiles` rows, so this is a
+    /// SECURITY DEFINER RPC, not a plain select.
+    func checkDisplayName(_ name: String) async -> String? {
+        guard let capped = DisplayNameRules.normalized(name) else { return "too_short" }
         do {
-            try await client.from("profiles")
-                .upsert(ProfileNameChoice(id: userID.uuidString, display_name: capped, name_is_custom: true))
+            return try await client
+                .rpc("check_display_name", params: CheckNameParams(candidate: capped))
                 .execute()
+                .value
         } catch {
-            Diagnostics.shared.record(.apiFailure, "display name update: \(error.localizedDescription)")
+            Diagnostics.shared.record(.apiFailure, "display name check: \(error.localizedDescription)")
+            return nil
         }
     }
 

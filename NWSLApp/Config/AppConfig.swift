@@ -366,4 +366,11 @@ enum AppConfig {
         components.queryItems = [URLQueryItem(name: "abbr", value: abbr)]
         return components.url
     }
+
+    /// Proxy `POST /club-news/device-report` — the app reports the RESULT of a device-IP club-news
+    /// fetch so the admin Status tab can VERIFY the device-fallback clubs (a URL move → 🔴 not a
+    /// masked 🔵). Body `{abbr, ok, count, error?}`.
+    static func clubNewsDeviceReportURL() -> URL? {
+        scoreboardProxyBase.appendingPathComponent("club-news").appendingPathComponent("device-report")
+    }
 }

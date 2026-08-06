@@ -156,6 +156,10 @@ final class HomeContentStore {
             if !supplementary.isEmpty {
                 teamContentItems = (cards + supplementary).sorted { $0.timestamp > $1.timestamp }
             }
+            // Health-sweep the device-fallback clubs the user does NOT follow (throttled), so the
+            // admin Status tab gets a fresh per-club beacon regardless of follows. Backgrounded and
+            // best-effort — never delays Home. (Followed clubs are already reported by the fetch above.)
+            maybeRunDeviceHealthSweep(skip: scope)
         } catch {
             Diagnostics.shared.record(.apiFailure, "home content (\(scope.count) team(s)): \(error.localizedDescription)")
             teamContentItems = []
@@ -164,5 +168,18 @@ final class HomeContentStore {
         // Only latch the scope when the content actually loaded — so a failed load doesn't mark
         // this scope "done" and suppress the next retry.
         if anySuccess { loadedScope = scope }
+    }
+
+    /// Kick off a device-fallback health sweep at most once every 6h (so the admin Status tab has a
+    /// fresh beacon per blocked club without a fetch on every Home load). Detached + best-effort.
+    private static let deviceSweepThrottleKey = "clubNewsDeviceHealthSweep.lastRun"
+    private static let deviceSweepInterval: TimeInterval = 6 * 60 * 60
+    private func maybeRunDeviceHealthSweep(skip: Set<String>) {
+        let last = UserDefaults.standard.double(forKey: Self.deviceSweepThrottleKey)
+        let now = Date().timeIntervalSince1970
+        guard now - last >= Self.deviceSweepInterval else { return }
+        UserDefaults.standard.set(now, forKey: Self.deviceSweepThrottleKey)
+        let service = clubNewsFallback
+        Task.detached(priority: .utility) { await service.runDeviceHealthSweep(skip: skip) }
     }
 }

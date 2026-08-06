@@ -401,29 +401,39 @@ final class MatchStore {
         return nil
     }
 
-    /// NWSL-only events. Use this (not `events`) for anything that joins by NWSL club
-    /// abbreviation — Standings' Last-5, season-form comparisons, `matches(for:)` —
-    /// so a Champions Cup match (which carries a real NWSL abbreviation like WAS/GFC)
-    /// never leaks into a club's league record. National-team matches never collide
-    /// (their codes aren't NWSL abbreviations), but the Champions Cup ones would.
+    /// NWSL-only events. Use this (not `events`) for anything that resolves a club to its league
+    /// record — Standings' Last-5, season-form comparisons, `matches(for:)` — so a Champions Cup
+    /// match (which carries the SAME real NWSL club, id and abbreviation alike — WAS/GFC) never leaks
+    /// into a club's league record. The competition filter is what excludes it; National-team matches
+    /// never collide anyway (their codes/ids aren't NWSL clubs).
     var nwslEvents: [Event] { matches.filter { $0.competition.isNWSL }.map(\.event) }
 
-    // TEMP (fragile join): we match a club to its matches by `abbreviation`
-    // because ESPN's scoreboard competitor `Team` carries no id (only the
-    // `/teams` Club does). Verified in-sim that all 16 clubs' abbreviations are
-    // identical across both endpoints, so this works today — but an abbreviation
-    // rename (relocation/rebrand) would silently empty a club's schedule. Real
-    // fix when we have a back end: a normalized club-id map, or a proxy that
-    // attaches a stable id to every competitor. Until then the Team page shows a
-    // visible empty state rather than failing silently.
+    // Join a club to its matches by ESPN's STABLE team id (`Team.id`, same namespace as `Club.id`),
+    // which survives an abbreviation rebrand/relocation. It was previously joined by `abbreviation`
+    // because the scoreboard `Team` didn't decode the id — ESPN sends it, we just dropped it (fixed
+    // 2026-08-06). Falls back to abbreviation only when a competitor lacks an id (fail-open: never
+    // worse than the old behaviour; a Team page still degrades to a visible empty state, never a
+    // silent one).
     func matches(for club: Club) -> [Event] {
         // NWSL-only: a club's league record/fixtures, not its Champions Cup ties
         // (those reach the schedule via the tagged `matches`/My-teams path instead).
-        let clubMatches = nwslEvents.filter { event in
-            event.homeCompetitor?.team?.abbreviation == club.abbreviation
-                || event.awayCompetitor?.team?.abbreviation == club.abbreviation
-        }
-        return clubMatches.sorted { ($0.kickoff ?? .distantFuture) < ($1.kickoff ?? .distantFuture) }
+        Self.matches(for: club, in: nwslEvents)
+    }
+
+    /// The pure club↔fixtures join, extracted so the id-over-abbreviation rule (and its rename-robustness)
+    /// is unit-testable without a live store — mirrors `auxFeedsWorthPolling`.
+    nonisolated static func matches(for club: Club, in events: [Event]) -> [Event] {
+        events
+            .filter { team($0.homeCompetitor?.team, isClub: club) || team($0.awayCompetitor?.team, isClub: club) }
+            .sorted { ($0.kickoff ?? .distantFuture) < ($1.kickoff ?? .distantFuture) }
+    }
+
+    /// True when `team` is `club`. Prefers the stable ESPN id; only when the competitor carries no id
+    /// does it fall back to the (rename-fragile) abbreviation.
+    nonisolated static func team(_ team: Team?, isClub club: Club) -> Bool {
+        guard let team else { return false }
+        if let id = team.id { return id == club.id }
+        return team.abbreviation == club.abbreviation
     }
 
     private func message(for error: Error) -> String {

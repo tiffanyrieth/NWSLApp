@@ -119,6 +119,15 @@ the old ~28pt chips→card void). Targets: Home→Fan Zone ≈8, Fan Zone header
 (the section break, as `playSection` bottom padding so it scrolls away leaving the pinned header flush),
 title→chips 11, **chips→first card 12** (the `clubNewsHeader` bottom padding), card→card 10; below-Club-News
 breaks (Spotlight/Upcoming) are 24pt bottom pads on the preceding always-rendered content.
+**⚠️ Carousel card metrics (2026-08-06, #245 — vertical space is scarce here, don't let it creep):** the
+card is **`kFanZoneCardMinHeight` = 135pt** (the pre-7/27 compact size), a **MINIMUM not a hard cap** — it
+holds 135 at default text size but GROWS with Dynamic Type, so **AX1 expands** (verified: no overlap, CTAs
+still aligned, carousel truncation of a long title is fine — full value is one tap away). The context uses
+**`.lineLimit(2, reservesSpace: true)`** so it always reserves TWO lines top-aligned: a 1-line context is
+"line 1 = text, line 2 = blank", every card is the same height, and the **CTAs bottom-align** across all
+cards. ⚠️ Don't hard-CAP the height (breaks AX1); don't remove `reservesSpace` (ragged CTAs return); don't
+add a growing element like the reverted Superfan teaser. ⚠️ **A played/done card is NOT dimmed** — the old
+`.opacity(0.7)` was unreadable on the dark page; the "Done this week/today" status line is the completed cue.
 **Club News card density (Home only, `unified == false`):** `ArticleContentCard`/`ThumbnailContentCard`
 render **152pt media** (top-center aspect-fill crop), a 15pt/2-line article headline, and tighter
 10/12 footer padding for ~2.5 cards/screen. **Social (`FeedView`, `unified == true`) is unchanged** —

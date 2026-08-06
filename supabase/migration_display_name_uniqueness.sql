@@ -40,6 +40,7 @@ grant select on public.blocked_names to service_role;
 insert into public.blocked_names (pattern, match_type) values
   ('fuck','substring'), ('shit','substring'), ('bitch','substring'), ('cunt','substring'),
   ('nigger','substring'), ('nigga','substring'), ('faggot','substring'), ('retard','substring'),
+  ('tranny','substring'), ('trannie','substring'),
   ('rape','substring'), ('rapist','substring'), ('slut','substring'), ('whore','substring'),
   ('pedophile','substring'), ('pedo','substring'), ('molest','substring'), ('nazi','substring'),
   ('kkk','substring'), ('coon','exact'), ('spic','exact'), ('chink','substring'), ('kike','substring'),

@@ -34,8 +34,6 @@ struct HomeView: View {
     // A LOCAL flag, not bound directly to `router.pendingPredictEventID` — the pushed PredictXIView clears
     // that router value once it routes to the result, and a binding tied to it would then pop the screen.
     @State private var showPredictFromPush = false
-    /// Shared with SuperfanDetailView — the detail bumps it on open, so the card's rotating teaser refreshes.
-    @AppStorage("superfan.spotlight.rotation") private var superfanCardRotation = 0
     @Environment(FollowingStore.self) private var following
     @Environment(MatchStore.self) private var matchStore
     @Environment(ClubStore.self) private var clubStore
@@ -450,7 +448,7 @@ struct HomeView: View {
                 // an honest "Fan · 0" with an empty tier bar, and the detail screen behind it carries
                 // the "How Superfan works" explainer — which is the actual onboarding.
                 NavigationLink { SuperfanDetailView() } label: {
-                    SuperfanCard(score: superfanScore, teaser: superfanTeaser)
+                    SuperfanCard(score: superfanScore)
                 }
                 .buttonStyle(.plain)
                 .frame(width: 152)
@@ -475,19 +473,6 @@ struct HomeView: View {
         return local.merged(with: SuperfanCountsCache.load(season: season))
     }
 
-    /// The rotating "reason to tap" line for the Superfan card — the same spotlight the detail screen shows,
-    /// keyed off the SHARED rotation, so opening Superfan freshens the card too. nil ⇒ card shows the number.
-    private var superfanTeaser: String? {
-        let season = AppConfig.currentSeasonYear
-        let counts = superfanCounts
-        return SuperfanSpotlight.pick(.init(
-            total: SuperfanScoring.total(counts: counts),
-            breakdown: SuperfanScoring.breakdown(counts: counts),
-            playersLearned: PlayersLearnedStore.count(season: season),
-            bestPredictStarters: predict.seasonBests.hasMatchBaseline ? predict.seasonBests.bestMatchStarters : nil,
-            recentAchievement: nil,
-            gamesPlayed: counts.gamesPlayed), rotation: superfanCardRotation)?.headline
-    }
 
     @ViewBuilder
     private func destination(for game: FanGame) -> some View {

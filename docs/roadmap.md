@@ -402,6 +402,35 @@
 > screen where the owner's eye says it still reads small, never another blanket bump (that flattens
 > hierarchy). Revisit ~late Aug after the 12 floor has been felt on real use.
 
+> ### ⛔ V2 LIVE ACTIVITY WORK — DEDICATED, ISOLATED SESSION ONLY (owner 2026-08-06)
+> **Both items below touch the V2 Live Activity system: device-proven, fragile, easy to break (weeks to
+> get right — read `docs/live-activity-v2.md` §0 FIRST, never edit from first principles). 🔒 RULE (owner):
+> do V2 LA work in its OWN session with NO other tasks in flight — never bundled with unrelated work.**
+> (This item was scoped + verified on 2026-08-06 but deliberately NOT built, because that session had
+> other work in it — the owner's call, exactly right.)
+>
+> **1. CLUB-COMPETITION PUSH + V2 LA — 🔴 CONFIRMED GAP (verified 2026-08-06).** Following an NWSL club
+> (e.g. Orlando Pride) gets you NOTHING when they play a **Challenge Cup** or **Concacaf Champions Cup**
+> match — no goal/FT/red-card/lineup push AND no lock-screen Live Activity — even though the club is live
+> and scoring right now. **Owner ruling: this MUST be built** — a followed NWSL club needs push + V2 LA for
+> ALL its matches, cups included; alerts vanishing the moment the competition changes makes no sense.
+> **Evidence:** the app fetches the cups on their OWN slugs (`usa.nwsl.cup`, `concacaf.w.champions_cup`;
+> `Competition.swift:121,130`) so they show in the calendar, but the watcher polls only
+> `[NWSL_FEED, ...NT_LEAGUES]` (`nwslapp-match-watcher/src/index.ts:521`) — neither cup slug is in it, and
+> they're not in the default NWSL board either. WAFCON pushes only because it's an NT competition IN
+> `NT_LEAGUES`. **Scope:** add the two cup slugs to the watcher's CLUB fan-out (by team, like NWSL — NOT
+> the NT path) + a competition label on the push card ("NWSL Challenge Cup" / "Concacaf Champions Cup") +
+> V2 LA for cup matches + foreign-club card rendering for Champions Cup opponents (crest + name; colors =
+> the `DesignTeamColors.international` growth item). ⚠️ The watcher runs Tier 2 AND V2 LA off the SAME event
+> list (`index.ts:579` + `startUpcomingActivities` :737) — which is exactly why this is V2-LA-touching.
+>
+> **2. NT V2 LA — extend the lock-screen Live Activity to national teams (owner 2026-08-06).** Today NTs
+> get Tier-2 push (goals etc.) but NO V2 LA card — only **USWNT** was wired for V2 LA ("for now", the
+> per-match-channel economics note at `index.ts:141`). Owner wants NTs on V2 LA too, **GATED on passing the
+> 1k/100k stress test** (`docs/stress-testing.md §5`): the per-match broadcast-channel economics are the
+> open question the stress test answers (channel-per-match × concurrent NT matches × audience). Revisit the
+> USWNT-only gate against that result.
+
 ---
 
 **Pending work only (ALIVE > core > hardening); shipped/decided/dropped work lives in git history + the File Map.**
@@ -419,19 +448,9 @@
 - **Club-page links data pass** — Website · Shop · Tickets (OFFICIAL) + Discord (Fan) → `SocialPlatform` + `TeamSocialLinksProvider`, per-club.
 
 **Longer-term:**
-- **CLUB-competition PUSH — needs a live check before it's called done or dropped (2026-08-06).**
-  Tier 2 server push is SHIPPED and **national-team** competitions push correctly (WAFCON = `caf.w.nations`
-  etc. are in the watcher's `NT_LEAGUES`, `nwslapp-match-watcher/src/index.ts:113`). ⚠️ **Showing a cup
-  game live in the app ≠ the watcher pushing alerts for it** — display is the app fetching a scoreboard;
-  push is the watcher's cron polling specific slugs. The watcher does NOT poll `usa.nwsl.cup` (Challenge
-  Cup) or the Concacaf W Champions Cup slug. **The open question:** does ESPN fold those cup fixtures into
-  the regular NWSL league scoreboard the watcher already polls (→ they'd push via the existing club
-  fan-out, already done) or are they a separate slug (→ real gap, needs the slug added + a comp-aware card
-  footer/title)? Settle it with a live curl when a Challenge/Champions Cup fixture exists. Don't drop this
-  until that's checked.
 - **Competitions follow-ups:** national-team coverage is DONE (16 NT feeds, WAFCON live + Tier-2 pushing).
-  Residual = the CLUB cups (Challenge/Champions) folding into Schedule "My teams" (tied to the push
-  question above) + foreign-club colors growing as Champions Cup opponents appear
-  (`DesignTeamColors.international`). WWC/Olympics whole-tournament UI stays DEFERRED.
+  Residual (NOT the cup PUSH — that's the ⛔ V2 LA block above): the CLUB cups folding into Schedule
+  "My teams", and foreign-club colors as Champions Cup opponents appear (`DesignTeamColors.international`).
+  WWC/Olympics whole-tournament UI stays DEFERRED.
 - **Weather** — kickoff-temp header slot (nice-to-have, stays). _(User-added feed sources SHIPPED in the
   Social Phase-3 "make it yours" pass — Bluesky reporters + player follows; that line is retired.)_

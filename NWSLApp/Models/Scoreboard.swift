@@ -179,13 +179,19 @@ struct Competitor: Decodable {
 }
 
 struct Team: Decodable {
+    /// ESPN's stable team id (e.g. "20905"), the SAME namespace as `Club.id` (from `/teams`) and the
+    /// number embedded in the logo URL. Present on scoreboard competitors — it just wasn't decoded
+    /// before, which forced the fragile abbreviation join in `MatchStore.matches(for:)`. Optional so a
+    /// sparse/NT payload without it still decodes (the join falls back to abbreviation).
+    let id: String?
     let displayName: String?
     let abbreviation: String?
     let shortDisplayName: String?
     let logo: String?
 
-    init(displayName: String? = nil, abbreviation: String? = nil,
+    init(id: String? = nil, displayName: String? = nil, abbreviation: String? = nil,
          shortDisplayName: String? = nil, logo: String? = nil) {
+        self.id = id
         self.displayName = displayName
         self.abbreviation = abbreviation
         self.shortDisplayName = shortDisplayName

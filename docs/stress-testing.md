@@ -212,12 +212,58 @@ For each subsystem, walk it explicitly:
       channels make this flat per match; re-check Apple's (undocumented) broadcast throttle in practice.
       ⚠️ Now especially relevant: the stoppage `+N` clock broadcasts EACH MINUTE in added time (2026-07-11)
       — device-verify that iOS doesn't throttle a ~1/min broadcast cadence (build 26, fake-match harness).
+- [x] **All-NT V2 Live Activity fan-out (analyzed 2026-08-06)** — ✅ **GO at 1k, with ONE merge
+      requirement: the LA-start token lookup must be BATCHED per tick** (one Supabase query set covering
+      every starting match's follow keys — the unbatched 3-external-calls-per-match shape busts the
+      50-external budget at an 8-match FIFA-window kickoff cluster). Full numbers + the 100k lever in §7.
+- [x] **Cup club feeds (`usa.nwsl.cup` + `concacaf.w.champions_cup`) watcher polling (2026-08-06)** —
+      ✅ passes 1k trivially; load is per-FIXTURE, not per-user, so 100k is unchanged. +2 seasonal feeds
+      in the ~6h discovery sweep (+8 internal fetches/day); +1 internal scoreboard fetch/tick ONLY while
+      a cup fixture is inside [KO−75m … KO+4h] (+1 more for the lineup `/summary` poll in its 75-min
+      window); zero cost at rest (fixture-window gate). Challenge Cup ≈ 1 match/yr; Champions Cup ≈ a
+      short seasonal window. Fan-out rides the existing team-id path — no new axis.
 - [ ] (expand as subsystems are examined)
 
 - [x] **Predict the XI community aggregate + `/predict/community`** — PASSES 1k (2026-07-28). Flat-in-user-count
       counter table; the only per-user growth is a 28-day-pruned dedupe mark. See §7.
 
 ## 7. Status ledger
+
+- **All-NT V2 Live Activity extension (2026-08-06): ✅ GO at 1k — batched token lookup is a MERGE
+  REQUIREMENT; 100k lever = Workers Paid Queues (the pre-designated $5/mo slot).**
+  **Unit of load — three axes, do not conflate:** (a) LA-**start** fan-out scales with *opt-in followers
+  per match* (per-device, via Queues); (b) in-match **updates** are FLAT per match at any audience size
+  (one Broadcast-Channel POST, Apple fans out); (c) the cron tick's **external-subrequest** spend scales
+  with *concurrent matches*, and clusters at shared kickoff times — the axis that actually binds.
+  **Worst case modelled (1k users):** a FIFA-window day — 15 concurrent NT matches (fifa.friendly.w can
+  serve 10+, plus qualifier feeds), 8 entering the 20-min LA-start lead on the SAME tick, half-times
+  aligned. NWSL/NT calendars rarely overlap (league breaks for windows/WWC/Olympics), which helps but is
+  not assumed.
+  **The binding number — external subrequests per tick (cap 50, split verified 2026-02-11):** today's
+  `startTokensForCompetition` = 3 sequential Supabase REST calls PER MATCH → an 8-match KO cluster alone
+  = 24, + 8 channel creates + a 15-match HT broadcast cluster ⇒ **47+, breach territory ⇒ unbatched
+  all-NT FAILS 1k.** With the batched per-tick lookup (ONE 3-call set covering all starting matches'
+  `nt:` keys): 3 + 8 creates + 15 broadcasts ≈ **26 of 50 — PASS** with margin for V1 event lookups.
+  Belt-and-braces lever (documented, cheap): cap channel-creates/starts per tick (~8) and roll the
+  remainder to the next tick — the 20-min lead makes a one-minute stagger invisible.
+  **Queues ops/day (free cap 10k, free since 2026-02-04):** starts are per-device — `CHUNK=40`
+  tokens/message, ~3 ops/message. Absolute worst (all 1k users opted into all 15 matches): 15k
+  token-sends = 375 messages ≈ **1,125 ops — PASS ~8×.** Realistic (a few hundred followers across a
+  handful of NTs): tens of messages.
+  **Channels:** ~15-20/day worst vs Apple's 10k/app — trivial. Orphan sweep is code-agnostic (verified).
+  **KV writes (cap 1k/day):** +~10/match state writes × 15 + start/channel markers ≈ +180 on the worst
+  day, on top of the existing ~300 club-day baseline — PASS; the number to re-check if NWSL and a full
+  NT window ever truly collide.
+  **Failure-mode honesty:** a budget breach kills the tick mid-loop (loud, next tick retries detection;
+  Queues decouple delivery so no duplicate-refire). The batched lookup + stagger cap keep the breach
+  from being reachable. Broadcast throttle by Apple stays the one undocumented unknown (existing §6 item;
+  device-watch continues).
+  **100k lever:** batching makes the tick O(1) in matches for lookups; broadcasts stay flat per match
+  (the structural win of Channels); start fan-out scales with followers → Queues ops exceed the free 10k
+  around ~10-15k heavy-opt-in users ⇒ **Workers Paid $5/mo**, which is already the designated expansion
+  slot (docs/push-fanout-scaling.md). Supabase: confirm `competition_alert_preferences.follow_key` is
+  indexed when the table grows (100k note, not a 1k concern).
+  **Verdict: build W3 with the batched lookup in the same PR; flag bundle rides the A1 app build.**
 
 - **Predict the XI community aggregate + results redesign (2026-07-28): ✅ passes 1k; 100k needs only
   the pre-existing levers.**

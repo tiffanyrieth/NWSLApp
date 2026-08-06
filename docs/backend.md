@@ -230,13 +230,24 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   rendering. Before concluding any club site is unscrapeable, check whether the club sits under an
   MLS parent domain. (This also confirmed the matchday ruling independently: team sheet, club site
   and SDP all say 34.)
-- **🗂️ One admin portal: `GET /admin`** (`src/admin-portal.ts`) — one URL, one password, three tabs
-  (Roster · The Bracket · Know Her Game), same HTTP Basic realm so the browser authenticates once for
+- **🗂️ One admin portal: `GET /admin`** (`src/admin-portal.ts`) — one URL, one password, four tabs
+  (Roster · Status · The Bracket · Know Her Game), same HTTP Basic realm so the browser authenticates once for
   the origin. Ops at `POST /admin/roster` (`state` / `run` / `setOverride` / `renewOverride` /
   `removeOverride`); every op returns the same `{report, overrides, ttlDays}` shape so the page
   re-renders from the response instead of keeping client state that can drift from KV.
   ⚠️ **The Bracket + KHG tabs are IFRAMED, not rewritten** — both are complete working documents and
   one drives a live game; their own URLs still work, so the shell is additive and reversible.
+- **🩺 Status tab: `GET /admin/status`** (2026-08-05) — an on-demand health dashboard (green/yellow/red
+  rows) run live each time the tab opens, complementing the passive alerting (it doesn't replace it).
+  Checks: **club news per club** · **ESPN core** (scoreboard/standings/teams — the Aug-4 outage path) ·
+  **feed sources** (every reporter/league Bluesky handle + news RSS) · **IG snapshot** freshness ·
+  **recent `sdiag`** (24h/1h, spike flagged). ⚠️ **SECTIONED ON PURPOSE — do NOT recombine into one
+  invocation.** Running all checks in one request blew Cloudflare's per-invocation subrequest cap
+  (club OG-enrich fan-out + ~19 Bluesky + ~40 KV reads) and made tail checks FALSELY fail. Fix: (1) a
+  LIGHT club probe (`clubOfficialProbe` — one fetch/club, NO per-article OG enrich); (2) the shell
+  fetches `/admin/status?section=NAME` per section, each in its own request/budget, tallied client-side.
+  Bluesky handles tier on their last ORIGINAL post age (reposts skipped): 🟢 <14d · 🟡 14–30d cooling ·
+  🔴 >30d (past the app's ~30d feed window = invisible in Social, drop candidate) or dead/renamed.
 - **Know Her Game club completeness:** a published edition must cover **all 16 clubs**
   (`KNOWN_CLUB_ABBRS` in `src/knowher.ts`, twinned in `scripts/load_knowher.mjs`). Both validators
   checked for DUPLICATE clubs but never for MISSING ones — which is why W31 shipped 15 teams silently.
@@ -272,7 +283,8 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   side: `MatchWeather` model (WMO→SF-Symbol day/night map) + `MatchDetailView` header stamp
   (`MatchDetailViewModel.loadWeather`, additive/non-blocking, past-only).
 - **Content routes** (build + normalize to `[ContentCard]`/models): `/team-videos` (Home: YouTube +
-  club OG news + club IG), `/feed` (Feed: Bluesky reporters/clubs + news RSS + player IG), `/spotlight`
+  club OG news + club IG), `/feed` (Feed: Bluesky reporters/league + news RSS + player IG — the **Clubs
+  chip was retired 2026-08-05**, club Bluesky no longer fans into `/feed`), `/spotlight`
   (app-side retired for Know Her Game — the proxy route + its Haiku builder are retained but currently unused),
   `/trivia` (KV pool), `/quiz-results` (community splits for BOTH quiz games — **always revealed since
   2026-07-23**: Trivia's biweekly round keys ("2026-R08") retired the old wait-for-the-day-to-close rule,
@@ -305,6 +317,29 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   key would race). Admin `POST /refresh-social` (`x-admin-key`) forces an immediate refresh (token swap /
   aborted run). Gotcha: BD bills a record even for an EMPTY handle (renamed/dead account) — quota drains
   silently, hence the `bdHandleEmpty` diag; keep the player handle list clean.
+- **📰 Club news — official-source-per-club (`CLUB_NEWS` map, all 16 reach OFFICIAL news since 2026-08-05).**
+  Each club has a strategy `kind`: **`rss`** (feed inline, 1 fetch — incl. BOS's Shopify `press.atom`),
+  **`index`** (scrape the SSR'd news index for links, then OG-enrich each article — GFC/POR/KC/etc; dates
+  from the article OG or the index card via `extractIndexDates`), **`api`** (a club's JSON news API — NC
+  Courage's SDP `dapi` `/api/dapi/selection/latest-news`, the RSC HTML has no article list but the dapi
+  JSON does), or **`fallback`** (curated NWSL-outlet RSS, `sourceType:"news"` not `club`).
+- **🌐 Device-IP club-news fallback (Phase 2b, DYNAMIC — no hardcoded list).** Some clubs (CHI/POR today)
+  block the Worker's datacenter IP but SSR fully to a **residential IP**. Driven purely by "did the proxy
+  return official news for this followed club" (`ClubNewsFallbackService`): `GET /club-news/sources`
+  (per-club `{abbr,kind,url,deviceFallback}`) → the app DEVICE-fetches the club's feed → POSTs the bytes to
+  `POST /club-news/normalize?abbr=` → the proxy parses with the same rss/index logic. Self-heals: when the
+  proxy can serve a club officially again, the app finds no gap and does nothing.
+- **🩺 Device-fallback health beacon (2026-08-05).** The device path was invisible to ops — a URL move on
+  a blocked club looked like the normal block. The app now POSTs each device fetch's RESULT to
+  `POST /club-news/device-report {abbr,ok,count,error?}` → KV `clubnews-devhealth-<ABBR>` (7d TTL, latest
+  wins, only the `DEVICE_FALLBACK_CLUBS` accepted) → the admin **Status** tab reads it: 🟢 verified /
+  🔴 URL-moved / 🟡 stale-or-none. A throttled (6h) app-side sweep covers the device clubs even when nobody
+  follows them.
+- **🙋 Feed personalization (Phase 3 "make it yours", 2026-08-05, app-local state).** `GET /feed/players`
+  (34-player directory to browse/follow beyond your teams), `GET /feed/validate-reporter?handle=`
+  (validate a user-added Bluesky reporter → `{found,displayName,hasNWSLPosts}`), and `/feed?handles=&players=`
+  fans out the user's added reporters (Haiku NWSL-gated but NOT team-scoped — they chose them) + followed
+  cross-team players' IG (already scraped). Choices are device-local (THE RESTORE LINE), not Supabase.
 - **Headshots** (`src/headshots.ts`): `GET /headshots` serves an `{espnAthleteId: nwslGuid}` map (NWSL
   SDP JSON name-matched to ESPN rosters, ~98%; weekly cron + admin `POST /headshots/run`; union-merged
   in KV with an unmatched/overrides audit). App builds the Cloudinary URL on-device — no image bytes.

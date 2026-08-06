@@ -60,27 +60,15 @@
 > fetches `/scoreboard` and asserts 200 + non-empty `events` — defense-in-depth so a pager gap can't hide
 > a data outage again. See memory `project_espn_403_no_user_agent`.
 
-> ### 📰 CONTENT-SOURCE AUDIT — per club, are we pulling everything we can? (owner 2026-08-03)
-> **Goal:** Club News (Home) and Social are the ALIVE surfaces — the whole product thesis. Audit and
-> log, **per club**, every source we pull and every one we could: club news/article feed (OG
-> fast-path or RSS), YouTube channel, Bluesky handles (club · players · reporters), Instagram, and
-> anything else the club actually publishes to. Confirm each is (a) correct, (b) live, (c) complete.
->
-> ⚠️ **THE TRAP THAT PROMPTED THIS — a wrong club URL looks identical to a club that publishes
-> nothing.** Verified 2026-08-03: `houstondashsoccer.com` is a HOLLOW domain (27KB, zero player
-> data); Houston's real site is **`houstondynamofc.com/houstondash/`**. It returns 214KB of
-> server-rendered HTML and was readable by plain `curl` all along. A dead URL had been read as
-> "unscrapeable JS site." Any club we quietly pull nothing from deserves the same check before it is
-> written off.
->
-> **Why it will hit more than one club (owner):** several NWSL sides are run by their MLS owner and
-> live UNDER the men's team's domain as a sub-path, so the standalone `<club>soccer.com` is legacy or
-> parked. Enumerate which clubs are structured this way and fix their URLs together — the pattern is
-> the finding, not the single club.
->
-> **Deliverable:** a per-club table (16 rows) of source → URL/handle → last successful pull → gaps,
-> plus fixes for anything stale. Cross-check against `SOCIAL_HANDLES` + the club-news fast-paths in
-> the proxy, and against what each club visibly publishes.
+> ### ✅ DONE 2026-08-05 — CONTENT-SOURCE AUDIT (opened 2026-08-03)
+> Audited + fixed per club across the 2026-08-05 Social-tab pass: **all 16 clubs reach OFFICIAL news**
+> (rss/index/api strategies + the device-IP fallback for CHI/POR), YouTube + IG present on all 16,
+> reporters audited + 6 added, club-Bluesky deliberately retired. The MLS-subdomain pattern (Houston's
+> `houstondynamofc.com/houstondash/`, etc.) is handled. **The static 16-row table is SUPERSEDED by the
+> live admin Status tab** (`GET /admin/status`) — it checks each club's source health on demand, so the
+> Houston-Dash trap (a moved URL reading identical to "publishes nothing") is now auto-caught rather than
+> re-audited by hand. Detail: `docs/backend.md` (club-news + device-fallback + Status tab), memory
+> `project_resume_2026_08_05_social_and_context`. Reopen only if a NEW source type is wanted per club.
 
 > ### 🧭 SYNC-DIRECTION AUDIT — write down what syncs which way, and why (owner 2026-08-01)
 > **Why:** the "reinstall restores your teams" idea has resurfaced ~7 times in a few months. Root cause
@@ -605,22 +593,6 @@
 > Owner deferred 2026-07-30: rosters are the correctness problem, this is a scaling one. Full sizing in
 > **`docs/stress-testing.md` §6**.
 
-> ### 🎮 FAN ZONE — a long-horizon iteration loop, NOT a one-session build (owner 2026-07-27)
-> Four mini-games plus a Superfan point economy tying them together. The owner's framing, worth holding
-> onto: **designing games is far harder than it looks and takes many revisions and trial-and-error.** The
-> 2026-07-24 competitive redesign was a big improvement, but a few things still don't feel right — the
-> target is that it feels **instantly big and connected**, and getting there is a matter of several more
-> passes, not one more change.
->
-> **Expected working rhythm:** change → TestFlight → live with it for a few weeks → adjust from real use →
-> TestFlight again → repeat. Over months.
->
-> **How to work on this (for future sessions):** don't treat a Fan Zone ask as a single-session build, and
-> don't propose sweeping rewrites between passes — small, reversible tweaks that can be felt in real use
-> beat big swings. Expect the owner to sit with a change before judging it. Instrument what's cheap to
-> measure, but weight her lived impression above metrics at this scale. Read `docs/fan-zone.md` and
-> `.claude/rules/fan-zone.md` (LOGIC GATE, incl. invariant #7) before touching any of it.
-
 > ### ✅ DECIDED 2026-07-31 — Predict per-match scoring stays AS IS (max 88)
 > Flagged 2026-07-27 as possibly oversized for a low-scoring sport (halve every value → max 44).
 > **Owner decided against it:** the season view moved to an AVERAGE-based board (2026-07-24 redesign),
@@ -882,10 +854,10 @@
 > this done.
 
 Pending work only (ALIVE > core > hardening); shipped work lives in git history + the File Map.
-- **The Bracket v2 — built, awaiting owner deploy:** run the 4 SQL files (`migration_bracket_v2`
-  → `migration_bracket_qualifying` → `seed_bracket_stats_editions` → `seed_bracket_creative_editions`)
-  + `npm run deploy` (proxy) + the first-launch flow (`Reference/Bracket Battle/first-launch-checklist.md`).
-  Optional later: more stat/creative themes; full bracket-TREE graphic.
+- **The Bracket v2 — ✅ DONE + deployed** (owner-confirmed good, 2026-08-05): migrations applied,
+  proxy deployed, editions live + iterated (rename to "The Bracket", avg board, rank line). Optional
+  later, not blocking: more stat/creative themes; full bracket-TREE graphic. (The offseason-first
+  advance-only change remains its own open item above.)
 - **First-launch perf** — Tier 1+2 shipped; onboarding quick-tips screen DEFERRED (build only if wanted).
 - **YouTube Shorts thumbnail pillarbox** — DEFERRED; fix is proxy-side.
 - **Pull-to-refresh polish** — keep the list visible during refresh (spinner only on first load).

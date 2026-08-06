@@ -113,6 +113,11 @@ struct FanZoneCardModel {
     }
 }
 
+/// The Fan Zone carousel's compact MINIMUM height (the pre-7/27 size, owner 2026-08-06). A minimum,
+/// NOT a hard cap: the card holds this tight height at the default text size, but grows with Dynamic
+/// Type (AX1) so nothing clips. Change this ONE value to compare sizes (e.g. 135 vs 140).
+private let kFanZoneCardMinHeight: CGFloat = 135
+
 // MARK: - The compact carousel card
 
 /// One uniform, compact game card in the horizontal Fan Zone row (~152pt wide). A dumb
@@ -121,30 +126,26 @@ struct FanZoneCarouselCard: View {
     let model: FanZoneCardModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        // Compact, uniform card. The context ALWAYS reserves two lines (`reservesSpace`) top-aligned,
+        // so its text starts on line 1 — a 1-line context is "line 1 = text, line 2 = blank", never
+        // pushed down — and every card is the same height with the CTA bottom-aligned. Two lines shown
+        // (a long Bracket title fills both); a would-be 3rd line truncates rather than growing the card.
+        VStack(alignment: .leading, spacing: 6) {
             GameIcon(systemName: model.effectiveIcon, accent: model.effectiveAccent)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(model.title)
-                    .dsFont(14, weight: .bold)
-                    .foregroundStyle(Color.dsFgPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                // Wrap into the slack that already exists between here and the status line, rather
-                // than shrinking. This was one line with `.minimumScaleFactor(0.8)`, so a long
-                // context ("Most Likely to Coach in 10 Years") first shrank to ~9pt AND still
-                // truncated — the worst of both. The card's own height is untouched: two lines fit
-                // in the gap the Spacer was already leaving above the status row.
-                Text(model.contextLine)
-                    .dsFont(11)
-                    .foregroundStyle(Color.dsFgSecondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 6)
+            Text(model.title)
+                .dsFont(14, weight: .bold)
+                .foregroundStyle(Color.dsFgPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(model.contextLine)
+                .dsFont(11)
+                .foregroundStyle(Color.dsFgSecondary)
+                .lineLimit(2, reservesSpace: true)
             statusRow
+                .padding(.top, 3)
         }
         .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 128, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: kFanZoneCardMinHeight, alignment: .topLeading)
         // Per-game accent wash fading into the card fill (mockup: accent/15% → dsBgCard).
         .background(
             LinearGradient(
@@ -182,7 +183,9 @@ struct FanZoneCarouselCard: View {
                     .accessibilityLabel("New")
             }
         }
-        .opacity(model.dimmed ? 0.7 : 1)
+        // A played/done card is NOT dimmed (owner 2026-08-05): 0.7 opacity on the dark page made a
+        // finished card barely readable. The "Done this week / Done today" status line is the completed
+        // cue; the card stays at full contrast.
     }
 
     // Bottom-pinned accent status line + a small chevron affordance.
@@ -245,7 +248,7 @@ struct SuperfanCard: View {
             .frame(height: 7)
         }
         .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 128, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: kFanZoneCardMinHeight, alignment: .topLeading)
         .background(
             LinearGradient(
                 colors: [tier.color.opacity(0.12), Color.dsBgCard],

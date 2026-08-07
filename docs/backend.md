@@ -49,6 +49,10 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
 (GitHub `tiffanyrieth/nwslapp-proxy`), live at `https://nwslapp-proxy.tiffany-rieth.workers.dev`.
 - **Pass-through caching:** `GET /scoreboard`, `GET /summary?event={id}` forward to ESPN
   and return bytes **unchanged** (app decoders untouched); match-state-aware TTL.
+  Both accept an ALLOWLISTED `league=<slug>` (`SCOREBOARD_LEAGUES`, shared by the two routes;
+  default `usa.nwsl` — `/summary` gained the param 2026-08-06 for the watcher's cup lineup poll).
+  The edge cache keys on the full incoming URL, so per-league entries never collide, and `league`
+  is stripped before ESPN sees it (it's path-encoded upstream).
   - ⚠️ **`chooseSummaryTTL` is a THIRD place the `post`≠finished trap bites, and the worst one.**
     The app and watcher recover on their next read; a cache does not. Live-proven 2026-07-31: WAS @ UTA
     was suspended for weather at 23', the summary was cached AT THAT INSTANT under `IMMUTABLE_TTL`

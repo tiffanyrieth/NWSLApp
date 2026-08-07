@@ -181,7 +181,14 @@ makes this the alignment that matters most.
   change needed beyond the list: discovery indexes any listed feed automatically.
 - **Confederation change (rare):** move the code between lists; nothing else.
 - **V1 alerts** fan out by FIFA code → `competition_alert_preferences` ("nt:ZAM"); **V2 Live
-  Activities are USWNT-only** today (`USWNT_CODE` in the watcher) — extending is a config change.
+  Activities cover ALL NTs** (2026-08-06 — was USWNT-only until the 1k/100k stress test cleared the
+  channel economics, `stress-testing.md` §6/§7): the watcher's `startNationalActivities` batches ONE
+  follow-key token lookup per tick (3 REST calls total, the stress-gate requirement) + staggers
+  channel creates at `NT_STARTS_PER_TICK`. Cards label by feed ("WAFCON", "SheBelieves", …).
+  **Widget flags are baked at BUILD TIME** (`NWSLLiveActivity/Assets.xcassets/Flags`, 106 codes as of
+  2026-08-06 matching the directory; a code ESPN adds later renders the coded country-color block
+  until the next app release — the directory stays dynamic, the widget catalog does not; there is no
+  App Group / AssetRefreshService path into the widget).
 
 ## 6. Cost model (why this shape — see stress-testing §7 for the ledger)
 

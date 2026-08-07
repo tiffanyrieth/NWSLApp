@@ -55,9 +55,14 @@ struct MatchLiveActivity: Widget {
         ActivityConfiguration(for: MatchActivityAttributes.self) { context in
             // Lock-screen / banner surface.
             LockScreenBanner(attributes: context.attributes, state: context.state)
-                // Slightly-navy base under the team wash (matches dsMdPanel), replacing the
-                // old flat black — the team-color gradient rides on top inside the banner.
-                .activityBackgroundTint(LA.panel.opacity(0.85))
+                // SOLID slightly-navy base (matches dsMdPanel) under the team wash. Was 0.85 —
+                // that 15% translucency let the lock-screen WALLPAPER bleed through the card,
+                // worst in the CENTER where the team wash fades to clear, muting the team colors
+                // (owner-diagnosed 2026-08-06 vs Apple Sports: theirs reads more vibrant because
+                // it's opaque, not because of its gradient shape). 1.0 = zero bleed on any
+                // wallpaper → team colors render at full strength; keeps our own left/right→clear
+                // gradient personality. ⚠️ V2 LA visual — device-verify in Round 2 (never sim).
+                .activityBackgroundTint(LA.panel)
                 .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             let a = context.attributes

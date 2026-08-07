@@ -153,6 +153,27 @@
 > real spike; (2) a **synthetic scoreboard check** (UptimeRobot keyword monitor or a health route) that
 > fetches `/scoreboard` and asserts 200 + non-empty `events` — defense-in-depth so a pager gap can't hide
 > a data outage again. See memory `project_espn_403_no_user_agent`.
+>
+> **➕ IG SOCIAL REFRESH MUST BE COVERED TOO (owner 2026-08-06).** Same class, different subsystem: the
+> every-other-day IG social cron (`0 12 */2 * *`, writes `social-cards-club-v1` + `social-cards-player-v1`)
+> **silently missed its 08-05 noon firing** → the 3-day-TTL snapshots expired → the Social **Players chip
+> (Bright Data) + Club IG (Apify) went empty**, discovered only by the owner eyeballing the chip + the admin
+> Status tab. Root cause (evidenced 2026-08-06): NOT code, NOT a deploy race (all 08-05 deploys were evening,
+> ~10h after the noon window), NOT Bright Data (delivered 08-03) — a **free-tier Cloudflare cron skip** (no
+> SLA, no retry; the `*/5` engine was proven flawless in the same window, so it was an isolated miss of the
+> low-frequency cron). Manual `POST /refresh-social` fully recovered it (150 player + 64 club cards).
+> **What's needed:** a **heartbeat / fail-loud** so a missed-or-failed social refresh pages within hours —
+> a skipped low-freq cron emits ZERO diags (no code runs), so the error-spike pager can't catch it; needs
+> either a healthchecks.io-style dead-man's-switch on the social cron OR wiring the Status-tab's
+> snapshot-missing check to page proactively.
+>
+> **⚠️ DO NOT add a stale fallback to "fix" this (owner 2026-08-06 — this is a VALUES call, not a bug).** The
+> empty chip is the INTENDED signal ([[feedback_no_silent_stale_fallback]]); masking a dead pipeline with old
+> IG data would have hidden the break for days. Future design SHE may allow: tolerate **exactly ONE** missed
+> cycle via fallback (Mon fires → Wed skips → still serve Mon's data), but if the NEXT scheduled one **also**
+> misses (now ~4-day-stale = a real scheduling problem), **stop falling back and show nothing** so the outage
+> is loud. Only build that once the cron proves reliable on its normal schedule. Until then: leave unchanged,
+> empty = the canary. First test of reliability: watch whether 08-07 noon fires on its own.
 
 > ### 📜 NT LIST SCROLL JUMP — 🔴 CONFIRMED ON DEVICE (owner 2026-08-06). Real bug; does NOT repro in sim.
 > **Device repro (owner):** cold-start → National Teams → scroll to roughly halfway OR near the bottom →

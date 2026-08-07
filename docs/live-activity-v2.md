@@ -394,6 +394,13 @@ reads need `--remote` (local KV is empty and lies); `wrangler tail` silently dro
   (d) Widget crest assets normalized to a uniform 92% fill (they ranged 57–86% — GFC shipped 110px of
   invisible margin, the owner's island size-mismatch report) + island compact crest 18→21pt + 7 foreign
   cup crests + the full 106-flag bundle. Assets/values only; no other layout change.
+  (e) **`activityBackgroundTint` 0.85 → 1.0 (SOLID).** Owner-diagnosed the real vibrancy gap vs Apple
+  Sports: it wasn't the gradient shape (fade-to-clear-center vs blend — that's just personality, kept
+  ours) — it was TRANSLUCENCY. At 0.85 the lock-screen wallpaper bled through the card (worst in the
+  center where the team wash fades to clear), muting the team colors. Solid = zero bleed on any
+  wallpaper → colors at full strength. One value; gradient untouched. ⚠️ A widget RENDER property, NOT
+  the start payload (so not §0's change-rule), but still V2-LA visual → device-verify in Round 2; the
+  sim can't render a Live Activity at all. If it reads too slab-heavy on device, 0.94 is the dial-back.
 
 - **6/30:** first device run — service_role grants missing (42501); background token path built
   (#104 → build 21 background-task assertion + retry after the unprotected-Task kill diagnosis).

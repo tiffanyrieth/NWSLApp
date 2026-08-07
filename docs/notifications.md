@@ -157,9 +157,19 @@ Full-time detection, the Live Activity teardown, and the fixture index's `ended`
   CPU budget), via a **service binding to the proxy** (`PROXY.fetch("https://proxy/scoreboard…")`). A public
   `*.workers.dev` fetch between same-account Workers **404s with CF error 1042** — the binding is mandatory.
 - **Live-window gate:** only matches with kickoff within `−5 min … +4h` are processed (bounds the KV reads).
-- **A SECOND cron `0 14 * * *`** (~10am EDT) runs the once-daily **post-match Predict-results pass**
-  (Change 8, `runPredictResultsPass`) — entirely separate from the live tick (the `scheduled` handler
-  branches on `event.cron`). It reads the same yesterday→tomorrow window, keeps SETTLED finals
+- **CLUB feeds = league + cups (2026-08-06):** the club event list merges `CLUB_FEEDS`
+  (`nwsl` + `usa.nwsl.cup` + `concacaf.w.champions_cup`, `fixtures.ts`) — a followed club's Challenge
+  Cup / Champions Cup matches ride the SAME detect loop, LA-start pass, and lineup pass as league play
+  (fan-out keys on ESPN team id, so a foreign opponent simply matches zero followers). Each event
+  remembers its source feed → the short competition label ("Challenge Cup" / "CONCACAF" /
+  "NWSL Playoffs" via `season.slug`) on the V2 card + V1 kickoff subtitle, and the lineup pass's
+  `/summary?league=` param. Cup feeds are seasonal → fixture-window gating makes them free at rest.
+- **The once-daily post-match Predict-results pass** (Change 8, `runPredictResultsPass`) **rides the
+  SAME per-minute cron** — `maybeRunPredictResultsPass` hour-checks for ~14:00 UTC + a KV day-marker
+  fires it exactly once (the free plan's 5-cron account cap is fully spoken for: proxy 4 + watcher 1 —
+  an earlier "second cron `0 14 * * *`" note here was stale; receipt: watcher `wrangler.jsonc` crons +
+  the `maybeRunPredictResultsPass` doc comment, corrected 2026-08-06). It reads the same
+  yesterday→tomorrow window, keeps SETTLED finals
   (`state "post" && !unfinishedPost`), and for each pushes a GENERIC "your result is in" alert (no score
   — the hook; the in-app reveal is the payoff) to the match's predictors who (a) opted into the
   standalone `predict_results` pref AND (b) haven't opened their result. Recipients:

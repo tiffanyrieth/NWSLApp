@@ -47,12 +47,19 @@ enum DesignTeamColors {
         return palette[abbreviation.uppercased()]
     }
 
-    /// Foreign clubs that appear as Champions Cup opponents (Liga MX Femenil). Kept
-    /// SEPARATE from `palette` so it never leaks into the NWSL-membership test; grow it
-    /// as new opponents show up (an abbreviation not here just renders neutral gray).
+    /// Foreign clubs that appear as Champions Cup opponents. Kept SEPARATE from
+    /// `palette` so it never leaks into the NWSL-membership test; grow it per season
+    /// as the field changes (an abbreviation not here just renders neutral gray).
+    /// ⚠️ Mirrored by the watcher's INTERNATIONAL_HEX (livestate.ts) so the V2 card
+    /// wash matches in-app color — keep the two maps identical (synced 2026-08-06).
     private static let international: [String: String] = [
         "AME": "FFCC00",  // Club América (Águilas yellow)
         "PAC": "1E4FB0",  // Pachuca (Tuzos blue)
+        "MON": "4D7DD6",  // Monterrey (Rayadas navy, brightened for the dark canvas)
+        "ALI": "3E63D4",  // Alianza FC (SLV — royal blue, brightened)
+        "ALA": "E03A31",  // LD Alajuelense (CRC — La Liga red)
+        "CFC": "FFC61A",  // Chorrillo FC (PAN — crest gold)
+        "VAN": "17A3A8",  // Vancouver Rise FC Academy (CAN — Rise teal, brightened)
     ]
 
     /// National-team OPPONENTS (by FIFA code) that aren't in the followable

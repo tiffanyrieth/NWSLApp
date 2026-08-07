@@ -97,8 +97,10 @@ struct MatchLiveActivity: Widget {
                 // Pre-match honesty (owner call, matches FIFA/The Athletic): before kickoff the
                 // island shows just the crests — a "0" for a match that hasn't started reads as
                 // a live 0–0, which is a lie.
+                // Crest 18→21pt (owner 2026-08-06, with the asset trim): crests are PROMINENT —
+                // fill the island slot. Device-verified via the fake-match harness (Round 1).
                 HStack(spacing: 3) {
-                    CrestBadge(abbr: a.homeAbbr, hex: a.homeColorHex, size: 18, isNational: a.isNational ?? false)
+                    CrestBadge(abbr: a.homeAbbr, hex: a.homeColorHex, size: 21, isNational: a.isNational ?? false)
                     if s.phase != .pre {
                         Text("\(s.homeScore)").font(.system(size: 14, weight: .heavy)).foregroundStyle(.white)
                     }
@@ -108,7 +110,7 @@ struct MatchLiveActivity: Widget {
                     if s.phase != .pre {
                         Text("\(s.awayScore)").font(.system(size: 14, weight: .heavy)).foregroundStyle(.white)
                     }
-                    CrestBadge(abbr: a.awayAbbr, hex: a.awayColorHex, size: 18, isNational: a.isNational ?? false)
+                    CrestBadge(abbr: a.awayAbbr, hex: a.awayColorHex, size: 21, isNational: a.isNational ?? false)
                 }
             } minimal: {
                 // Minimal (second concurrent Activity): the leading team's score in its color —

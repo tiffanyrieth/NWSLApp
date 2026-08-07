@@ -316,9 +316,16 @@ Tools (watcher repo):
   wraps the payload correctly regardless). It proves presentation, not the organic delivery path.
 - **`POST /debug/fake-match` — the FAKE-MATCH HARNESS (built 2026-07-11): the ONLY on-demand test of the
   full ORGANIC path** (cron discovers → gate → **Queue → consumer** → APNs → device). Writes a KV flag
-  (`debug:fake-match`) that `runWatch`'s `readFakeMatch` injects into the LA-start pass ONLY (never V1/
-  lineup). Body `{minutes?=5, homeId?=18206(ORL), homeAbbr?, awayId?=15360(CHI), awayAbbr?}` or
-  `{clear:true}`. Brother-safe by the real preference gate — pick teams your test device follows and the
+  (`debug:fake-match`) that `runWatch`'s `readFakeMatch` injects into the FULL event list — club detect
+  loop (V1 kickoff/goals/red/VAR/FT), LA-start pass, broadcast sync, and lineup pass all process it
+  (corrected 2026-08-06 to match source; an older "LA-start ONLY" note here predated the harness's
+  full-timeline evolution). Body `{gapSec?=90, homeId?=18206(ORL), homeAbbr?, awayId?=15360(CHI),
+  awayAbbr?, feed?}` or `{clear:true}`. **`feed` (2026-08-06):** `"usa.nwsl.cup"` /
+  `"concacaf.w.champions_cup"` exercise the cup competition-label path organically ("Challenge Cup" /
+  "CONCACAF" on the card + the V1 kickoff subtitle); an NT slug (`"fifa.friendly.w"` + FIFA-code
+  abbrs like `homeAbbr:"JPN"`) routes it through the NT loop instead — flag render, `nt:` fan-out, the
+  batched all-NT LA start. NT fan-out keys on ABBREVIATIONS, so use codes the test device LA-follows.
+  Brother-safe by the real preference gate — pick teams your test device follows and the
   other doesn't. Recipe: (1) confirm the test device has that team's alerts ON + Live Activities ON +
   app opened once (fresh start token); (2) fire it; (3) watch `enqueued LA start … → drained …: 1 sent`
   in `wrangler tail` AND the card+buzz on the phone. Set it directly (no secret) via wrangler:
@@ -372,6 +379,21 @@ reads need `--remote` (local KV is empty and lies); `wrangler tail` silently dro
 - Two-phone household ≠ one test: each device independently needs sign-in, Allow, current tokens.
 
 ## 9. Incident history (why each rule above exists — dates are receipts)
+
+- **8/6 (2026): cups + labels + ALL-NT extension + crest normalization (device-verify per runbook).**
+  (a) Club cup competitions (`usa.nwsl.cup`, `concacaf.w.champions_cup`) merged into the watcher's
+  CLUB event list — a followed club's cup matches now get V1 push + V2 LA identically to league play
+  (the watcher had only ever polled `[NWSL_FEED, ...NT_LEAGUES]`; the cups were calendar-only).
+  (b) The `competition` ATTRIBUTE now carries a per-feed short label ("Challenge Cup", "CONCACAF",
+  "NWSL Playoffs" via `season.slug`, NT comp names like "WAFCON") — a VALUE-only change; the §0
+  payload structure was untouched. (c) V2 LA extended USWNT-only → ALL ~106 NTs after the 1k/100k
+  stress test cleared channel economics (stress-testing.md §6/§7); the LA-start token lookup was
+  BATCHED (3 REST/tick total) + stagger-capped (`NT_STARTS_PER_TICK`) because a FIFA-window kickoff
+  cluster × 3 per-match calls breaches the 50-external budget. NT sides color via `ntColorHex` (NT map
+  FIRST — CHI/DEN/POR collide with club abbrs; club-first lookup washed Denmark in Denver green).
+  (d) Widget crest assets normalized to a uniform 92% fill (they ranged 57–86% — GFC shipped 110px of
+  invisible margin, the owner's island size-mismatch report) + island compact crest 18→21pt + 7 foreign
+  cup crests + the full 106-flag bundle. Assets/values only; no other layout change.
 
 - **6/30:** first device run — service_role grants missing (42501); background token path built
   (#104 → build 21 background-task assertion + retry after the unprotected-Task kill diagnosis).

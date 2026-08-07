@@ -19,6 +19,14 @@
 
 import SwiftUI
 
+/// Wash vibrancy — the single knob for how strongly a team-color tint reads across EVERY surface that
+/// uses `TeamWashBackground` (Schedule, Predict, Match/Team/Player detail, …). Bump here, bump
+/// everywhere, consistently. Kept modest on purpose: color comes from the TEAMS, not the chrome
+/// (neutral-canvas rule), and a heavy wash under small text muddies contrast (the 12pt readability
+/// floor). ~0.24 / 0.17 is the vibrant-but-safe zone; past ~0.30 it starts fighting both.
+private let washOpacityTwoTeam: Double = 0.26
+private let washOpacitySingle: Double = 0.17
+
 struct TeamWashBackground: View {
     /// The card's family base color, drawn under the wash (e.g. `.dsBgCard` / `.dsMdCard`).
     let base: Color
@@ -34,10 +42,10 @@ struct TeamWashBackground: View {
                 // Two-team: home left @0.18, away right @0.18, clear center, ~100° (horizontal, tilted).
                 LinearGradient(
                     stops: [
-                        .init(color: home.opacity(0.18), location: 0.0),
+                        .init(color: home.opacity(washOpacityTwoTeam), location: 0.0),
                         .init(color: home.opacity(0.0), location: 0.34),
                         .init(color: away.opacity(0.0), location: 0.66),
-                        .init(color: away.opacity(0.18), location: 1.0),
+                        .init(color: away.opacity(washOpacityTwoTeam), location: 1.0),
                     ],
                     startPoint: UnitPoint(x: 0, y: 0.42),
                     endPoint: UnitPoint(x: 1, y: 0.58)
@@ -46,7 +54,7 @@ struct TeamWashBackground: View {
                 // Single-team: a quiet leading tint that fades out by the card's midpoint.
                 LinearGradient(
                     stops: [
-                        .init(color: home.opacity(0.12), location: 0.0),
+                        .init(color: home.opacity(washOpacitySingle), location: 0.0),
                         .init(color: home.opacity(0.0), location: 0.5),
                     ],
                     startPoint: UnitPoint(x: 0, y: 0.5),

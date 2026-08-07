@@ -162,5 +162,6 @@ struct NationalTeamFeed {
         .init(slug: "fifa.wwcq.ply",                label: "World Cup Qualifying — Playoff"),
         .init(slug: "fifa.w.concacaf.olympicsq",    label: "Concacaf Olympic Qualifying"),
         .init(slug: "global.pinatar_cup",           label: "Pinatar Cup"),
+        .init(slug: "global.w.finalissima",         label: "Women's Finalissima"),
     ]
 }

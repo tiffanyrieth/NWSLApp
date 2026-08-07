@@ -414,12 +414,21 @@
 ---
 
 **Pending work only (ALIVE > core > hardening); shipped/decided/dropped work lives in git history + the File Map.**
-- **More team-color vibrancy (owner interested 2026-07-21)** — Predict cards + schedule `MatchCard` +
-  player detail now carry the wash (via `TeamWashBackground` / `accentHex`, shipped in Fan Zone v2). STILL
-  pending: extend it to more surfaces so club color carries further (candidate surfaces: Home header, Team
-  detail, Standings followed-team rows, the Squad grid). Keeps the neutral-canvas philosophy — color comes
-  from the TEAMS, not the chrome; the crest/abbreviation identity rules still hold. Design pass, scope
-  per-surface with the owner (don't recolor chrome globally). Reference: MatchDetail header wash.
+- **More team-color vibrancy** — LARGELY DONE 2026-08-06: card wash bumped (`washOpacityTwoTeam` 0.26 /
+  `washOpacitySingle` 0.17, one knob in `TeamColorWash.swift`); Teams grid + onboarding picker now two-tier
+  washed (every tile blooms its club color, followed/selected brighter — shared `TeamTile.swift`). Team/
+  Player/Match **detail headers** already carry their own 0.22 diagonal wash. **Standings: deliberately NOT
+  washed** (owner 2026-08-06) — it already carries more color than any comparable standings (colored
+  abbreviations + followed-team bar + last-5 form vs the crest-only norm at PL/MLS/Google); a wash would
+  cost readability with no data gain. Residual candidates only: **Home header** + the **Squad grid**
+  (scope per-surface; keep the neutral-canvas rule — color from the TEAMS, not global chrome).
+- **⛔-adjacent, own session: V2 LA card saturation → match Apple Sports (owner 2026-08-06).** The
+  `activityBackgroundTint` 0.85→1.0 solid fix (build 33) closed the biggest gap — the wallpaper bleed-through
+  that muted colors. A FURTHER step, if ever wanted: Apple carries a saturated team-color FIELD across the
+  whole card width and darkens vertically, vs ours fading each team to CLEAR in the center (our personality).
+  Matching that = reshaping the widget `teamWash` gradient (kill the clear center), NOT a knob — fragile V2-LA
+  work, dedicated session + device verify. Owner is NOT copying Apple's look for now; logged so the mechanism
+  isn't re-derived. See `docs/live-activity-v2.md` §9 (8/6 entry e).
 
 **Hardening (after ALIVE work):**
 - `Fixtures/scoreboard.json` + decode-only test for `Scoreboard`/Event helpers (date parsing, `dayKey` TZ).

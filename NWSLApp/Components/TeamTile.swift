@@ -39,13 +39,15 @@ extension View {
             .background(
                 ZStack {
                     Color.dsBgCard
-                    if isFollowing {
-                        RadialGradient(
-                            colors: [club.accentColor.opacity(0.17), .clear],
-                            center: UnitPoint(x: 0.5, y: 0.32),
-                            startRadius: 0, endRadius: 115
-                        )
-                    }
+                    // Two-tier team wash (2026-08-06): EVERY tile blooms its club color so the grid
+                    // reads alive, but a FOLLOWED tile blooms noticeably brighter — color still
+                    // encodes the follow state (reinforced by the border below). Unfollowed 0.10 →
+                    // followed 0.24; same radial bloom from behind the crest, in the club's color.
+                    RadialGradient(
+                        colors: [club.accentColor.opacity(isFollowing ? 0.24 : 0.10), .clear],
+                        center: UnitPoint(x: 0.5, y: 0.32),
+                        startRadius: 0, endRadius: 115
+                    )
                 }
             )
             .overlay(

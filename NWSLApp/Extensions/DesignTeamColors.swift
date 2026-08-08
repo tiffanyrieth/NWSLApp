@@ -62,41 +62,55 @@ enum DesignTeamColors {
         "VAN": "17A3A8",  // Vancouver Rise FC Academy (CAN — Rise teal, brightened)
     ]
 
-    /// National-team OPPONENTS (by FIFA code) that aren't in the followable
-    /// `NationalTeam` set but show up as opponents in the feeds — so both sides of a
-    /// national-team match read in color, not one colored + one gray. National colors,
-    /// brightened for the dark canvas. (Followable nations get their color from
-    /// `NationalTeam.brandHex`, checked first; CHI is omitted — it collides with the
-    /// Chicago Stars abbreviation, which wins as an NWSL club.)
-    private static let nationalOpponents: [String: String] = [
-        "ARG": "5BA8E0",  // Argentina
-        "CHN": "DE2910",  // China
-        "CRC": "D62B34",  // Costa Rica
-        "GUA": "4997D0",  // Guatemala
-        "KEN": "1E9E57",  // Kenya
-        "MAR": "C1272D",  // Morocco
-        "MWI": "D32F2F",  // Malawi
-        "NZL": "5C6F8A",  // New Zealand (black/white → slate so it reads on dark)
-        "PAN": "D21034",  // Panama
-        "PAR": "D52B1E",  // Paraguay
-        "RSA": "1E9E57",  // South Africa
-        "RUS": "2E5BE0",  // Russia
-        "SLV": "2E5BE0",  // El Salvador
-        "VEN": "9E1B32",  // Venezuela
-        "VIE": "DA251D",  // Vietnam
-        "ZAM": "1E9E57",  // Zambia
+    /// National-team colors by FIFA code — the FULL palette, mirrored from the watcher's
+    /// `NT_HEX` (`nwslapp-match-watcher/src/livestate.ts`) so a national team reads the SAME color
+    /// in the app (schedule / Predict card washes, code chips) as on its V2 Live Activity card.
+    /// Curated for the dark canvas — national teams have no ESPN brand color. This SUPERSEDES the
+    /// old 16-code `nationalOpponents` subset: a partial list meant some NTs washed and others
+    /// rendered gray, which reads as broken (owner 2026-08-08 — the app must be uniform).
+    /// ⚠️ CROSS-REPO CONTRACT: keep identical to the watcher's `NT_HEX` (same discipline as the 3 NT
+    /// slug lists). CHI/DEN/POR deliberately collide with NWSL club abbreviations — `displayHex` is
+    /// club-first (the club wins), `nationalDisplayHex` is NT-first (for national-team matches),
+    /// mirroring the watcher's `colorHex` vs `ntColorHex` split.
+    private static let nationalTeamHex: [String: String] = [
+        "ALB": "DA251C", "ALG": "1E9E57", "AND": "E0322B", "ARG": "5BA8E0", "ARM": "E0322B", "AUS": "F4C20D",
+        "AUT": "D72B2C", "AZE": "00A3D6", "BAN": "1E9E57", "BEL": "E0322B", "BIH": "3A6BD6", "BKA": "E0322B",
+        "BLR": "E0322B", "BOL": "E0322B", "BRA": "00A24A", "BUL": "00D69D", "CAN": "E0322B", "CHI": "D42E12",
+        "CHN": "E0322B", "CIV": "E89000", "CMR": "1E9E57", "COL": "F4C20D", "CPV": "2424B2", "CRC": "D62B34",
+        "CRO": "E0322B", "CYP": "F7991D", "CZE": "D7141A", "DEN": "D02A3E", "DOM": "0062D6", "ECU": "FFDD00",
+        "EGY": "CE1126", "ENG": "E8413A", "ESP": "E8413A", "EST": "2274B9", "FIN": "3A6BD6", "FRA": "2E5BE0",
+        "FRO": "0076D6", "GEO": "E72E3F", "GER": "E0322B", "GHA": "CE2931", "GIB": "E0322B", "GRE": "2A5FAC",
+        "GUA": "4997D0", "HAI": "2E5BE0", "HUN": "E0322B", "IND": "F89939", "IRL": "1E9E57", "IRN": "E0322B",
+        "ISL": "3A6BD6", "ISR": "2E50A8", "ITA": "3D7CE0", "JAM": "F4C20D", "JPN": "E0322B", "KAZ": "00BDD6",
+        "KEN": "1E9E57", "KOR": "E0322B", "KOS": "264FB0", "LIE": "CE1127", "LTU": "FEE000", "LUX": "0099FF",
+        "LVA": "E0322B", "MAR": "C1272D", "MDA": "3A6BD6", "MEX": "1FA463", "MKD": "E0322B", "MLI": "FCD116",
+        "MLT": "CF142B", "MNE": "E0322B", "MWI": "D32F2F", "NED": "FF7A1A", "NGA": "1FA463", "NIR": "E0322B",
+        "NOR": "E0322B", "NZL": "5C6F8A", "PAN": "E0322B", "PAR": "D52B1E", "PER": "E0322B", "PHI": "CE2931",
+        "PNG": "E0322B", "POL": "DC143C", "POR": "DA291C", "PRK": "E0322B", "PUR": "E0322B", "ROU": "E0322B",
+        "RSA": "1E9E57", "RUS": "2E5BE0", "SCO": "3A6BD6", "SEN": "1E9E57", "SLV": "2E5BE0", "SRB": "C6363C",
+        "SUI": "D72B2C", "SVK": "CE1126", "SVN": "E0322B", "SWE": "3A7BE0", "TAN": "00A3DD", "THA": "DD2C33",
+        "TPE": "E0322B", "TUR": "E22D34", "UKR": "FFD500", "URU": "3A6BD6", "USA": "2E5BE0", "UZB": "3BA9D6",
+        "VEN": "9E1B32", "VIE": "DA251D", "WAL": "E0322B", "ZAM": "1E9E57",
     ]
 
-    /// Brand hex for ANY side the app shows, for COLOR rendering only (never the
-    /// membership test): NWSL clubs → women's national teams (followable, by FIFA code)
-    /// → other national-team opponents → foreign Champions Cup clubs. nil → the caller
-    /// renders neutral gray (e.g. a knockout-bracket placeholder like "QFW1").
+    /// Brand hex for ANY side the app shows, CLUB-FIRST (color rendering only, never the
+    /// membership test): NWSL clubs → national teams → foreign Champions Cup clubs. nil → the
+    /// caller renders neutral gray (e.g. a knockout-bracket placeholder like "QFW1"). For a
+    /// national-team MATCH use `nationalDisplayHex` so CHI/DEN/POR resolve to the country, not the
+    /// colliding NWSL club.
     static func displayHex(for abbreviation: String?) -> String? {
         guard let abbreviation else { return nil }
         let code = abbreviation.uppercased()
         if let hex = hex(for: abbreviation) { return hex }
-        if let nt = NationalTeam.team(code: code) { return nt.brandHex }
-        if let hex = nationalOpponents[code] { return hex }
+        if let hex = nationalTeamHex[code] { return hex }
         return international[code]
+    }
+
+    /// NT-FIRST color resolver for national-team matches — the national palette wins over a
+    /// colliding NWSL club abbreviation (CHI = Chile not Chicago, DEN = Denmark not Denver,
+    /// POR = Portugal not Portland). Mirrors the watcher's `ntColorHex`. nil → neutral gray.
+    static func nationalDisplayHex(for abbreviation: String?) -> String? {
+        guard let abbreviation else { return nil }
+        return nationalTeamHex[abbreviation.uppercased()]
     }
 }

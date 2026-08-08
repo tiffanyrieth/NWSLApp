@@ -56,7 +56,7 @@ struct NationalTeam: Identifiable, Hashable {
         self.code = code
         self.name = name
         self.flagSlug = ""
-        self.brandHex = DesignTeamColors.displayHex(for: code) ?? "8E8E93"
+        self.brandHex = DesignTeamColors.nationalDisplayHex(for: code) ?? "8E8E93"
         self.flagHref = flagHref.isEmpty ? nil : flagHref
     }
 

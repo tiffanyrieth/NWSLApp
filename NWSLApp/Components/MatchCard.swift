@@ -45,7 +45,7 @@ struct MatchCard: View {
                 centerColumn
                 side(event.awayCompetitor, color: awayColor)
             }
-            if hasRail { rail }
+            rail
         }
         .padding(14)
         .frame(maxWidth: .infinity)
@@ -168,12 +168,14 @@ struct MatchCard: View {
         match.competition.primaryBroadcastOverride ?? event.broadcastName
     }
 
-    // Kept on all states, including finished games: the broadcast chip helps fans
-    // find (and re-find) where a match aired — NWSL games are hard to track down.
-    private var hasRail: Bool {
-        broadcastName != nil || event.venueName != nil
-    }
-
+    // Bottom rail (broadcast chip + venue). Kept on all states, including finished games: the
+    // broadcast chip helps fans find (and re-find) where a match aired — NWSL games are hard to
+    // track down. ALWAYS rendered at a reserved height (even with no broadcast AND no venue) so a
+    // card's height never depends on whether ESPN happened to supply a venue. Without this, NT games
+    // — which usually carry neither — rendered shorter than the rare one that did, so the cards
+    // "bounced" in a list (owner 2026-08-08: cards must have ONE standard). This mirrors the score
+    // band, which is likewise reserved. NWSL cards are unaffected: they almost always carry a
+    // broadcast, so the rail was already present.
     private var rail: some View {
         HStack(spacing: 10) {
             if let channel = broadcastName {
@@ -187,7 +189,7 @@ struct MatchCard: View {
                     .minimumScaleFactor(0.85)
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 21)
     }
 
     // MARK: - Helpers
@@ -201,8 +203,8 @@ struct MatchCard: View {
     // color of its own).
     // NWSL clubs, women's national teams, and known Champions Cup foreign clubs get
     // their brand color; anything still unknown renders NEUTRAL gray (Color.teamColor).
-    private var homeColor: Color { Color.teamColor(for: event.homeCompetitor) }
-    private var awayColor: Color { Color.teamColor(for: event.awayCompetitor) }
+    private var homeColor: Color { Color.teamColor(for: event.homeCompetitor, isNational: match.competition.isNational) }
+    private var awayColor: Color { Color.teamColor(for: event.awayCompetitor, isNational: match.competition.isNational) }
 
     // Cached: a MatchCard body evaluates per card while scrolling the full-season schedule, so a
     // per-body DateFormatter alloc was scroll-hot. Static = one instance, reused across all cards.

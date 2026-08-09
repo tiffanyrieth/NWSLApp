@@ -80,7 +80,16 @@ struct ScheduleView: View {
                 }
                 .onChange(of: router.pendingMatchEventID) { _, _ in consumePendingMatch() }
                 .onChange(of: matchStore.lastLoadedAt) { _, _ in consumePendingMatch() }
-                .onAppear { consumePendingMatch() }
+                .onAppear {
+                    consumePendingMatch()
+                    #if DEBUG
+                    // Jump straight to the "My teams" filter in-sim (verify NT/cup cards
+                    // tap-free — the headless sim has no reliable tap path).
+                    if ProcessInfo.processInfo.arguments.contains("-startScheduleMyTeams") {
+                        selectedFilter = .myTeams
+                    }
+                    #endif
+                }
         }
         // Hand the view model the shared store + following lens, then load on
         // first appearance. Gate ONLY the season on `.idle` (so re-selecting the

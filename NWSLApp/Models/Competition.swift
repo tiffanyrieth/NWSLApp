@@ -58,6 +58,14 @@ enum CompetitionType: Hashable {
         return false
     }
 
+    /// A women's national-team match (as opposed to an NWSL club or a club cup). Drives NT-FIRST
+    /// color resolution so a country code that collides with an NWSL club abbreviation (CHI/DEN/POR)
+    /// washes as the country, matching the V2 Live Activity card.
+    var isNational: Bool {
+        if case .international = self { return true }
+        return false
+    }
+
     /// Whether this competition belongs in the Schedule's "NWSL" view. BROADER than
     /// `isNWSL`: the Challenge Cup IS an NWSL competition for SCHEDULE purposes (two NWSL
     /// clubs, NWSL trophy) even though it's excluded from the league table. "Counts in

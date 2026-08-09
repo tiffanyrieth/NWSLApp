@@ -77,22 +77,31 @@ extension Color {
     ///   Know Her Game rows on a grouped background).
     /// - `fallback`: color when the abbreviation isn't in any palette. Defaults to the
     ///   neutral `.dsFgSecondary` token (#8E8E93) — the same gray these sites hardcoded.
+    /// - `isNational`: resolve NT-FIRST (for a national-team match) so a code that collides with an
+    ///   NWSL club abbreviation reads as the country (CHI = Chile, DEN = Denmark, POR = Portugal),
+    ///   matching the V2 Live Activity. Defaults to false (club-first) for the club-heavy callers.
     static func teamColor(
         for abbreviation: String?,
+        isNational: Bool = false,
         liftOnDark: Bool = true,
         fallback: Color = .dsFgSecondary
     ) -> Color {
-        guard let hex = DesignTeamColors.displayHex(for: abbreviation) else { return fallback }
+        let hex = isNational
+            ? DesignTeamColors.nationalDisplayHex(for: abbreviation)
+            : DesignTeamColors.displayHex(for: abbreviation)
+        guard let hex else { return fallback }
         return liftOnDark ? Color.teamFillOnDark(hex: hex) : Color(hex: hex)
     }
 
     /// Convenience for scoreboard callers holding a `Competitor` (reads its team abbreviation).
     static func teamColor(
         for competitor: Competitor?,
+        isNational: Bool = false,
         liftOnDark: Bool = true,
         fallback: Color = .dsFgSecondary
     ) -> Color {
-        teamColor(for: competitor?.team?.abbreviation, liftOnDark: liftOnDark, fallback: fallback)
+        teamColor(for: competitor?.team?.abbreviation, isNational: isNational,
+                  liftOnDark: liftOnDark, fallback: fallback)
     }
 
     // MARK: - Match color resolution

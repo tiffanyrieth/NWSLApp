@@ -394,24 +394,11 @@
 > screen where the owner's eye says it still reads small, never another blanket bump (that flattens
 > hierarchy). Revisit ~late Aug after the 12 floor has been felt on real use.
 
-> ### ⌚ APPLE WATCH V2 LA — crest drop (owner 2026-08-08) — DEDICATED, ISOLATED V2-LA SESSION ONLY
-> **🔒 RULE (owner): V2 Live Activity work happens in its OWN session with NO other tasks in flight — it's
-> device-proven, fragile, weeks to get right; read `docs/live-activity-v2.md` §0 FIRST, never edit from
-> first principles.** (The 2026-08-06 ⛔ block — club-cup push+LA and all-NT V2 LA — is ✅ BUILT + DEVICE-
-> PROVEN, Round 2 passed live 8/07-08 on NWSL + WAFCON incl. the first non-USWNT NT Live Activity + a live
-> goal; retired from this roadmap, git history keeps it. This is the one remaining V2-LA item.)
->
-> **🔴 APPLE WATCH V2 LA — crests don't render on the watch (owner 2026-08-08, NEXT V2-LA SESSION).**
-> The Live Activity mirrors to the Apple Watch Smart Stack, but the **team crests drop** there while scores
-> + abbreviations render (phone lock-screen + Dynamic Island are fine). **Root cause (found 2026-08-08):**
-> we never adopted **`.supplementalActivityFamilies([.small])`** — so watchOS gets NO watch-specific layout
-> and instead auto-composes a banner from our **Dynamic Island compact** views, re-rendered onto the tiny
-> watch canvas where watchOS is stricter about images and silently drops the crest `UIImage`s. **Fix:**
-> adopt `supplementalActivityFamilies` and design a real `.small` watch layout (crest + score + clock),
-> sized + verified on a physical watch — NOT the system's auto-composition. **Before starting:** owner to
-> supply a watch screenshot so the failing layer is pinned (blank / ring+monogram fallback / color block).
-> ⚠️ V2-LA-touching → its OWN isolated session per the rule above; read `docs/live-activity-v2.md §0` first;
-> the watch has never been in the device-verify matrix, so treat every rendered surface as new.
+> ### 🔒 V2 LA RULE (standing): V2 Live Activity work happens in its OWN session with NO other tasks
+> in flight — it's device-proven, fragile, weeks to get right; read `docs/live-activity-v2.md` §0 FIRST,
+> never edit from first principles. _(No open V2-LA items — the ⌚ Apple Watch `.small` crest fix merged
+> 2026-08-09 (#263, `live-activity-v2.md` §8b); on-watch check rides the next TestFlight build, owner
+> re-raises only if it misrenders.)_
 
 ---
 

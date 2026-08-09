@@ -378,6 +378,40 @@ reads need `--remote` (local KV is empty and lies); `wrangler tail` silently dro
   imageUrls must keep resolving (the watcher 302s `/card/*` → `nwslapp-card` permanently).
 - Two-phone household ≠ one test: each device independently needs sign-in, Allow, current tokens.
 
+## 8b. ⌚ Apple Watch Smart Stack (the `.small` activity family) — adopted 2026-08-09
+
+How the V2 card reaches a paired Apple Watch, and the trap that broke it for two months:
+
+- **The mirroring model (iOS 18 / watchOS 11+):** the phone's Live Activity auto-appears in the
+  watch **Smart Stack** — no watch app, no watch target, no extra push. But WITHOUT
+  `.supplementalActivityFamilies([.small])`, watchOS **AUTO-COMPOSES** a banner from the Dynamic
+  Island **compact** views: app-name title, "Open on iPhone" full-screen on tap, and — the bug —
+  **crest `UIImage`s silently replaced with gray placeholder blocks** (scores/abbr text survive).
+  Pinned 2026-08-09 by real watch screenshots (owner's brother's watch): Apple Sports' declared
+  watch layout rendered crests fine in the same Stack while ours showed gray blocks.
+- **The fix (shipped on `feature/watch-la-small`):** `.supplementalActivityFamilies([.small])` on the
+  `ActivityConfiguration` + an `ActivitySurface` router on `@Environment(\.activityFamily)`
+  (`.small` → `WatchBanner`, else → `LockScreenBanner` **unchanged — the phone branch must stay
+  byte-identical; it's the device-proven card**) + a dedicated `WatchBanner` (crest+abbr sides,
+  score+clock center, NO phase pill — the clock line carries FT/HT/stoppage/mm:ss in the phase
+  color; team wash self-painted because **the Smart Stack IGNORES `activityBackgroundTint`**).
+- **Deployment target:** the WIDGET EXTENSION is `iOS 18.0` (app stays 17.2). The whole
+  `.small` API surface is `@available(iOS 18, *)`, and V2 LA is already de-facto iOS-18-only
+  (start-token registration gated 18+ for Broadcast Channels), so nothing is lost on 17.x and the
+  fragile file carries zero `#available` ceremony. An appex may target higher than its host app —
+  embedded-binary validation passes; older iOS simply doesn't load it.
+- **Testing on a watch:** all the §7 device-only rules apply, PLUS: on the paired iPhone check
+  **Watch app → General → Auto Launch → Live Activities** — mirroring can be off per-app. The
+  watch renders the `.small` view; tap → full-screen card + "Open on iPhone" (expected without a
+  watchOS app target — deliberately out of scope). The 7 SVG crests in the widget catalog (BAY,
+  HOU, ORL, POR, SD, SEA, UTA) are the prime suspects if a crest still blanks on watch → convert
+  the offender to PNG in the WIDGET catalog only (established precedent, §1).
+- **V1 notifications need NOTHING for the watch** — they mirror automatically with attachments and
+  already render beautifully (the 2026-08-09 screenshots' full-bleed crest goal card IS our V1).
+  The app icon in the corner is watchOS chrome on all third-party notifications; not controllable.
+- **Status: ⏳ DEVICE-VERIFY PENDING** — needs a TestFlight build on a phone paired to a
+  watchOS 11+ watch (fake-match harness recipe, §7). Until then treat the watch surface as unproven.
+
 ## 9. Incident history (why each rule above exists — dates are receipts)
 
 - **8/6 (2026): cups + labels + ALL-NT extension + crest normalization (device-verify per runbook).**
@@ -401,6 +435,13 @@ reads need `--remote` (local KV is empty and lies); `wrangler tail` silently dro
   wallpaper → colors at full strength. One value; gradient untouched. ⚠️ A widget RENDER property, NOT
   the start payload (so not §0's change-rule), but still V2-LA visual → device-verify in Round 2; the
   sim can't render a Live Activity at all. If it reads too slab-heavy on device, 0.94 is the dial-back.
+
+- **8/9 (2026): ⌚ Apple Watch `.small` family ADOPTED (§8b).** Brother-watch screenshots pinned the
+  Smart Stack gray-crest-blocks bug to watchOS auto-composition (no `supplementalActivityFamilies`
+  declared). Fix: widget extension deployment target → 18.0, `.supplementalActivityFamilies([.small])`,
+  `ActivitySurface` family router (phone branch byte-identical), new `WatchBanner` (crest+abbr /
+  score+clock, no pill, self-painted wash — the Stack ignores `activityBackgroundTint`). Render-only
+  change — §0 payload untouched. Device-verify pending a TestFlight round through the paired watch.
 
 - **8/8 (2026): teamWash WIDENED.** Round 2 passed on device (NWSL + WAFCON), but the owner then saw the
   wash still read as thin colored slivers with a mostly-black card. Root cause is NOT the solid fix — the

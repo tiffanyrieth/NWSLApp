@@ -53,8 +53,9 @@ private extension MatchActivityAttributes.Phase {
 struct MatchLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: MatchActivityAttributes.self) { context in
-            // Lock-screen / banner surface.
-            LockScreenBanner(attributes: context.attributes, state: context.state)
+            // Phone lock screen OR ⌚ watch Smart Stack — ActivitySurface routes on the activity
+            // family; the phone branch returns LockScreenBanner exactly as it always did.
+            ActivitySurface(attributes: context.attributes, state: context.state)
                 // SOLID slightly-navy base (matches dsMdPanel) under the team wash. Was 0.85 —
                 // that 15% translucency let the lock-screen WALLPAPER bleed through the card,
                 // worst in the CENTER where the team wash fades to clear, muting the team colors
@@ -62,6 +63,7 @@ struct MatchLiveActivity: Widget {
                 // it's opaque, not because of its gradient shape). 1.0 = zero bleed on any
                 // wallpaper → team colors render at full strength; keeps our own left/right→clear
                 // gradient personality. ⚠️ V2 LA visual — device-verify in Round 2 (never sim).
+                // (The watch Smart Stack ignores this tint — WatchBanner paints its own base.)
                 .activityBackgroundTint(LA.panel)
                 .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
@@ -130,6 +132,13 @@ struct MatchLiveActivity: Widget {
             }
             .keylineTint(s.phase.pillColor)
         }
+        // ⌚ Opt the Activity into the Apple Watch Smart Stack with OUR .small layout. Without
+        // this, watchOS AUTO-COMPOSES a banner from the Dynamic Island compact views (app-name
+        // title + "Open on iPhone") and silently drops the crest UIImages — the gray-placeholder-
+        // blocks bug pinned by real watch screenshots 2026-08-09. Requires iOS 18 / watchOS 11
+        // (the widget extension's deployment target is 18.0 for exactly this; V2 LA is already
+        // de-facto iOS-18-only — start-token registration is gated 18+ for Broadcast Channels).
+        .supplementalActivityFamilies([.small])
     }
 
     // Expanded-region team column (crest/flag + abbreviation).
@@ -165,6 +174,115 @@ struct MatchLiveActivity: Widget {
         } else if s.phase != .fulltime, let label = s.staticLabel {
             // At full-time the top pill already shows "FT" — don't repeat it in the clock slot.
             Text(label).font(font).foregroundStyle(LA.clock)
+        }
+    }
+}
+
+// MARK: - Surface router (phone lock screen vs ⌚ watch Smart Stack)
+// `.small` = the Apple Watch Smart Stack; `.medium` = the iPhone lock screen. The phone branch
+// MUST stay byte-identical to the pre-watch code — LockScreenBanner is device-proven and this
+// router is the only structural thing sitting above it (plain switch, no .id(), no AnyView).
+private struct ActivitySurface: View {
+    @Environment(\.activityFamily) private var family
+    let attributes: MatchActivityAttributes
+    let state: MatchActivityAttributes.ContentState
+
+    var body: some View {
+        switch family {
+        case .small:
+            WatchBanner(attributes: attributes, state: state)
+        case .medium:
+            LockScreenBanner(attributes: attributes, state: state)
+        @unknown default:
+            LockScreenBanner(attributes: attributes, state: state)
+        }
+    }
+}
+
+// MARK: - ⌚ Watch Smart Stack banner (.small activity family)
+// A short, wide strip (~160×55pt on 40mm — design to the low end): crest+abbr each side, score +
+// clock stacked center, NO phase pill (the clock line carries LIVE/HT/FT in its state color —
+// owner layout pick 2026-08-09). Crests stay PROMINENT (30pt vs 10pt abbr) per the standing rule.
+private struct WatchBanner: View {
+    let attributes: MatchActivityAttributes
+    let state: MatchActivityAttributes.ContentState
+
+    var body: some View {
+        ZStack {
+            // The Smart Stack supplies its own container and IGNORES activityBackgroundTint,
+            // so the watch paints its own base + wash (same panel color as the phone card).
+            LA.panel
+            teamWash
+            HStack(alignment: .center) {
+                sideColumn(abbr: attributes.homeAbbr, hex: attributes.homeColorHex)
+                Spacer(minLength: 4)
+                VStack(spacing: 1) {
+                    Text(state.phase == .pre ? "vs" : "\(state.homeScore) – \(state.awayScore)")
+                        .font(.system(size: 19, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                    minute
+                }
+                Spacer(minLength: 4)
+                sideColumn(abbr: attributes.awayAbbr, hex: attributes.awayColorHex)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+        }
+    }
+
+    // Same 4-stop wash grammar + values as LockScreenBanner.teamWash — duplicated on purpose:
+    // sharing a helper would touch the device-proven phone gradient's code path, and the two
+    // surfaces may want independent tuning after watch device-verify.
+    private var teamWash: some View {
+        LinearGradient(
+            stops: [
+                .init(color: Color(hex: attributes.homeColorHex).opacity(0.28), location: 0.0),
+                .init(color: Color(hex: attributes.homeColorHex).opacity(0.0),  location: 0.45),
+                .init(color: Color(hex: attributes.awayColorHex).opacity(0.0),  location: 0.55),
+                .init(color: Color(hex: attributes.awayColorHex).opacity(0.28), location: 1.0),
+            ],
+            startPoint: UnitPoint(x: 0, y: 0.42),
+            endPoint: UnitPoint(x: 1, y: 0.58)
+        )
+    }
+
+    private func sideColumn(abbr: String, hex: String) -> some View {
+        VStack(spacing: 3) {
+            CrestBadge(abbr: abbr, hex: hex, size: 30, isNational: attributes.isNational ?? false)
+            Text(abbr)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.white)
+        }
+    }
+
+    // The watch has no phase pill, so this line carries the WHOLE phase story: FT (final green) /
+    // stoppage "90'+2'" / ticking mm:ss / static label (kickoff time, HT) in the phase color.
+    @ViewBuilder
+    private var minute: some View {
+        if state.phase == .fulltime {
+            Text("FT")
+                .font(.system(size: 11, weight: .heavy))
+                .foregroundStyle(LA.final)
+                .accessibilityLabel("Full time")
+        } else if state.phase.isClockRunning, let stoppage = state.stoppageDisplay {
+            Text(stoppage)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(LA.clock)
+                .accessibilityLabel("Stoppage time")
+        } else if state.phase.isClockRunning, let epoch = state.clockStartEpoch {
+            // ⚠️ Timer law (device-proven 2026-07-24): NEVER .fixedSize()/content-hugging on
+            // Apple's self-ticking timer — one bad subview blanks the whole card. Reserved
+            // frame + centered digits, exactly like LockScreenBanner.minute.
+            Text(timerInterval: Date(timeIntervalSince1970: epoch)...Date.distantFuture, countsDown: false, showsHours: false)
+                .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                .foregroundStyle(LA.clock)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 56, alignment: .center)
+        } else if let label = state.staticLabel {
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(state.phase.pillColor)
+                .accessibilityLabel(label == "HT" ? "Halftime" : label)
         }
     }
 }

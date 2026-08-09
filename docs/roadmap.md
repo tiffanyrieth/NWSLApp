@@ -266,7 +266,6 @@
 > number **neither device produced**. Fix: merge each pair ATOMICALLY — take the side with more progress
 > (the greater denominator) whole, never a numerator from one and a denominator from the other.
 > **🅿️ PARKED for now (owner 2026-08-04) — revisit AFTER Fan Zone if it recurs.**
-> **Also worth deciding:** whether display names should be unique per season.
 
 > ### 🧪 SIM IDENTITY ISOLATION — stop the simulator writing to the owner's real data (owner 2026-07-27)
 > Signing the simulator in with the owner's Apple ID makes it write to her real Superfan / Predict rows.
@@ -287,28 +286,6 @@
 > watcher's `/test-push` with `sandbox:true` remains the only real path. And this is the cheap 80% fix for
 > Fan Zone contamination only; the broader 3-install cross-talk still wants a test Apple ID + `.debug`
 > bundle id (see the signOut/global-scope finding).
-
-> ### 🪪 DISPLAY-NAME UNIQUENESS + PROFANITY — 🟡 BUILT 2026-08-06, pending owner migration apply
-> **Decisions (owner 2026-08-06):** global, case-insensitive, first-come uniqueness (renaming frees your
-> old name); profanity/slur filter only for v1 (no club/player impersonation lists yet); enforced
-> client-side AND server-side; a rename AUTO-UPDATES the leaderboards (no rank reset). Was: `profiles.
-> display_name` had no unique constraint (10 collisions across ~120 seeded fans) and no content filter.
->
-> **Built on `feature/display-name-uniqueness`:**
-> - `supabase/migration_display_name_uniqueness.sql` — `blocked_names` table + seed, `display_name_
->   rejection()` fn, a BEFORE-write trigger on `profiles` (unbypassable profanity guard), `check_display_
->   name()` advisory RPC (RLS blocks a client from reading others' profiles), `set_display_name()` RPC
->   (atomic: writes profiles + CASCADES the new name to `prediction_scores` / `predict_round_scores` /
->   `superfan_scores` / `bracket_scores`), seed-dedup + `unique index on lower(display_name)`.
-> - App: `AuthStore.updateDisplayName` → server-first + **throwing** (was optimistic + swallowed errors —
->   the banned looks-like-success shape); `checkDisplayName`; `DisplayNameError`; `DisplayNameEntry` now
->   does a debounced live availability/filter check + inline errors and only advances on a real save.
-> - `nwslapp-proxy/scripts/seed_test_fans.mjs` → generates unique names so re-seed survives the index.
->
-> **🔴 REMAINING (owner):** apply the migration in the Supabase SQL editor (it self-dedupes seed names, so
-> it applies today). Then verify with two `-signInAsTestFan` accounts (take a taken name → blocked; rename
-> → boards update; profane name → blocked). Verification queries + apply steps are in the session handoff.
-> Load: one indexed lookup per name entry; rename = a few indexed UPDATEs — both rare, pass 1k/100k.
 
 > ### 📋 PRE-PUBLISH — privacy package (needed BEFORE App Store submission; target mid-Aug)
 > Lower priority than ALIVE work but MUST exist at submission (owner 2026-07-16 — track it here so
@@ -417,34 +394,14 @@
 > screen where the owner's eye says it still reads small, never another blanket bump (that flattens
 > hierarchy). Revisit ~late Aug after the 12 floor has been felt on real use.
 
-> ### ⛔ V2 LIVE ACTIVITY WORK — DEDICATED, ISOLATED SESSION ONLY (owner 2026-08-06)
-> **Both items below touch the V2 Live Activity system: device-proven, fragile, easy to break (weeks to
-> get right — read `docs/live-activity-v2.md` §0 FIRST, never edit from first principles). 🔒 RULE (owner):
-> do V2 LA work in its OWN session with NO other tasks in flight — never bundled with unrelated work.**
-> (This item was scoped + verified on 2026-08-06 but deliberately NOT built, because that session had
-> other work in it — the owner's call, exactly right.)
+> ### ⌚ APPLE WATCH V2 LA — crest drop (owner 2026-08-08) — DEDICATED, ISOLATED V2-LA SESSION ONLY
+> **🔒 RULE (owner): V2 Live Activity work happens in its OWN session with NO other tasks in flight — it's
+> device-proven, fragile, weeks to get right; read `docs/live-activity-v2.md` §0 FIRST, never edit from
+> first principles.** (The 2026-08-06 ⛔ block — club-cup push+LA and all-NT V2 LA — is ✅ BUILT + DEVICE-
+> PROVEN, Round 2 passed live 8/07-08 on NWSL + WAFCON incl. the first non-USWNT NT Live Activity + a live
+> goal; retired from this roadmap, git history keeps it. This is the one remaining V2-LA item.)
 >
-> **1. CLUB-COMPETITION PUSH + V2 LA — 🔴 CONFIRMED GAP (verified 2026-08-06).** Following an NWSL club
-> (e.g. Orlando Pride) gets you NOTHING when they play a **Challenge Cup** or **Concacaf Champions Cup**
-> match — no goal/FT/red-card/lineup push AND no lock-screen Live Activity — even though the club is live
-> and scoring right now. **Owner ruling: this MUST be built** — a followed NWSL club needs push + V2 LA for
-> ALL its matches, cups included; alerts vanishing the moment the competition changes makes no sense.
-> **Evidence:** the app fetches the cups on their OWN slugs (`usa.nwsl.cup`, `concacaf.w.champions_cup`;
-> `Competition.swift:121,130`) so they show in the calendar, but the watcher polls only
-> `[NWSL_FEED, ...NT_LEAGUES]` (`nwslapp-match-watcher/src/index.ts:521`) — neither cup slug is in it, and
-> they're not in the default NWSL board either. WAFCON pushes only because it's an NT competition IN
-> `NT_LEAGUES`. **Scope:** add the two cup slugs to the watcher's CLUB fan-out (by team, like NWSL — NOT
-> the NT path) + a competition label on the push card ("NWSL Challenge Cup" / "Concacaf Champions Cup") +
-> V2 LA for cup matches + foreign-club card rendering for Champions Cup opponents (crest + name; colors =
-> the `DesignTeamColors.international` growth item). ⚠️ The watcher runs Tier 2 AND V2 LA off the SAME event
-> list (`index.ts:579` + `startUpcomingActivities` :737) — which is exactly why this is V2-LA-touching.
->
-> **1 + 2 ABOVE: ✅ BUILT + DEVICE-PROVEN 2026-08-07/08 (Round 2 passed live).** Cups push+LA and all-NT
-> V2 LA shipped in build 33; verified on real games (NWSL ORL×LOU/GFC×SD + WAFCON CIV×ALG, first non-USWNT
-> NT Live Activity with a live goal). These two are DONE — kept here only until the close-out roll call
-> formally retires this ⛔ block. The remaining V2-LA-touching work is item 3 (Apple Watch), below.
->
-> **3. 🔴 APPLE WATCH V2 LA — crests don't render on the watch (owner 2026-08-08, NEXT V2-LA SESSION).**
+> **🔴 APPLE WATCH V2 LA — crests don't render on the watch (owner 2026-08-08, NEXT V2-LA SESSION).**
 > The Live Activity mirrors to the Apple Watch Smart Stack, but the **team crests drop** there while scores
 > + abbreviations render (phone lock-screen + Dynamic Island are fine). **Root cause (found 2026-08-08):**
 > we never adopted **`.supplementalActivityFamilies([.small])`** — so watchOS gets NO watch-specific layout
@@ -476,15 +433,12 @@
   isn't re-derived. See `docs/live-activity-v2.md` §9 (8/6 entry e).
 
 **Hardening (after ALIVE work):**
-- `Fixtures/scoreboard.json` + decode-only test for `Scoreboard`/Event helpers (date parsing, `dayKey` TZ).
-- `MatchStore.matches(for:)` joins club↔game by `abbreviation` (no ESPN id) — a rename silently empties a schedule. Fix: a normalized id map.
 - Team social links — verify a few subreddit handles (KC `r/KCCurrent`; CHI `r/redstars` vs `r/ChicagoStars`).
 - **Club-page links data pass** — Website · Shop · Tickets (OFFICIAL) + Discord (Fan) → `SocialPlatform` + `TeamSocialLinksProvider`, per-club.
 
 **Longer-term:**
-- **Competitions follow-ups:** national-team coverage is DONE (16 NT feeds, WAFCON live + Tier-2 pushing).
-  Residual (NOT the cup PUSH — that's the ⛔ V2 LA block above): the CLUB cups folding into Schedule
-  "My teams", and foreign-club colors as Champions Cup opponents appear (`DesignTeamColors.international`).
-  WWC/Olympics whole-tournament UI stays DEFERRED.
+- **Competitions follow-ups:** national-team coverage + cup push/LA + foreign-club colors are all DONE
+  (16 NT feeds, WAFCON live, cups pushing with V2 LA, `DesignTeamColors.international` shipped). Residual:
+  the CLUB cups folding into the Schedule "My teams" grouping; WWC/Olympics whole-tournament UI stays DEFERRED.
 - **Weather** — kickoff-temp header slot (nice-to-have, stays). _(User-added feed sources SHIPPED in the
   Social Phase-3 "make it yours" pass — Bluesky reporters + player follows; that line is retired.)_

@@ -182,7 +182,9 @@ makes this the alignment that matters most.
 - **Confederation change (rare):** move the code between lists; nothing else.
 - **V1 alerts** fan out by FIFA code → `competition_alert_preferences` ("nt:ZAM"); **V2 Live
   Activities cover ALL NTs** (2026-08-06 — was USWNT-only until the 1k/100k stress test cleared the
-  channel economics, `stress-testing.md` §6/§7): the watcher's `startNationalActivities` batches ONE
+  channel economics, `stress-testing.md` §6/§7; ✅ **device-proven 2026-08-08** — WAFCON CIV×ALG rendered
+  the first non-USWNT NT Live Activity with a live goal, plus the app-side NT color parity so an NT card
+  washes in-app the same as its LA, `DesignTeamColors.nationalTeamHex`): the watcher's `startNationalActivities` batches ONE
   follow-key token lookup per tick (3 REST calls total, the stress-gate requirement) + staggers
   channel creates at `NT_STARTS_PER_TICK`. Cards label by feed ("WAFCON", "SheBelieves", …).
   **Widget flags are baked at BUILD TIME** (`NWSLLiveActivity/Assets.xcassets/Flags`, 106 codes as of

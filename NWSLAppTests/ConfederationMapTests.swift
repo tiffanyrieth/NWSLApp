@@ -19,7 +19,7 @@ struct ConfederationMapTests {
 
     private let globalSlugs: Set<String> = [
         "fifa.friendly.w", "fifa.shebelieves", "fifa.wwc", "fifa.w.olympics",
-        "fifa.wwcq.ply", "global.pinatar_cup",
+        "fifa.wwcq.ply", "global.pinatar_cup", "global.w.finalissima",
     ]
 
     // MARK: Completeness
@@ -33,7 +33,7 @@ struct ConfederationMapTests {
     }
 
     /// Every feed carries a deliberate scope tag: the confed feeds match their slug's region,
-    /// and exactly the six cross-confederation feeds are global.
+    /// and exactly the seven cross-confederation feeds are global (Finalissima joined 2026-08).
     @Test func feedScopeTagsAreComplete() {
         let globals = NationalTeamFeed.all.filter { $0.scope == .global }
         #expect(slugs(globals) == globalSlugs)
@@ -55,7 +55,7 @@ struct ConfederationMapTests {
         #expect(s == globalSlugs.union(["caf.w.nations"]))
         #expect(!s.contains("uefa.weuro"))
         #expect(!s.contains("concacaf.w.gold"))
-        #expect(feeds.count == 7)   // was 15 — the whole point
+        #expect(feeds.count == 8)   // was 16 unscoped — the whole point (7 globals + WAFCON)
     }
 
     @Test func usaGetsConcacafSet() {

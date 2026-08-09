@@ -66,11 +66,14 @@ struct ClubNewsFallbackService {
               let normalizeURL = AppConfig.clubNewsNormalizeURL(abbr: src.abbr) else { return [] }
         do {
             // The DEVICE's residential IP fetches the club feed the Worker is blocked from
-            // (URLSession follows the site's redirects). A browser-ish UA in case the club's
-            // WordPress blocks obvious bots.
+            // (URLSession follows the site's redirects). ⚠️ UA = iOS SAFARI, never Chrome: the old
+            // desktop-Chrome disguise BACKFIRED — chicagostars.com's WAF 403s requests claiming
+            // Chrome without Chrome's real TLS fingerprint (curl-reproduced 2026-08-08: Chrome UA
+            // 403, iOS Safari UA / no UA 200; POR unaffected either way). An iPhone claiming
+            // Safari is the honest, fingerprint-consistent identity for this device.
             var feedReq = URLRequest(url: feedURL)
             feedReq.setValue(
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
                 forHTTPHeaderField: "User-Agent")
             let (body, feedResp) = try await session.data(for: feedReq)
             let feedCode = (feedResp as? HTTPURLResponse)?.statusCode ?? 0

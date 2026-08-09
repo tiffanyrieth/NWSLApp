@@ -106,6 +106,20 @@
 > voted, show the reveal as normal.
 > ⏳ **To implement (small):** gate the locked-screen community section on submission-count > 1.
 
+> ### 📺 "FIND THE MATCH" — where/how to actually watch (owner 2026-08-08)
+> The broadcast chip already NAMES the network (great — ION games are the hardest to find). Next step: help
+> fans actually GET there, especially the tricky networks. **The ION problem specifically:** there is no
+> real live ION app on tvOS, and searching "ION" in Apple TV's own TV app finds nothing — so a fan sees
+> "ION" and is stuck. **Clever fallback the owner uses (make this the app's advice): Plex** — install the
+> free Plex app on Apple TV → Live TV → **ION is a channel there**, free. Other free routes: Tubi / Pluto
+> TV live channels; over-the-air antenna. (⚠️ NOT on NWSL+, unlike CBS→Paramount+ / ESPN games.)
+> **⏳ RESEARCH BEFORE BUILDING (owner wants more first):** pin down whether the Apple-TV gap is a "Scripps
+> vs ION" naming/branding thing (does searching "Scripps" surface it? is there a Scripps Sports app?) or
+> whether tvOS genuinely has neither — and confirm the Plex live-TV carriage is stable/national. Then
+> design a small **"how to watch" affordance** on the match card / Match Detail: per-network guidance
+> (network → the app(s) that carry it + a "free via Plex/Tubi/Pluto" hint for the hard ones). Keep it a
+> curated network→apps map (small, owner-maintained), not a live carriage API. US/NWSL scope like the rest.
+>
 > ### 🌩️ IDEA (low priority, nice-to-have) — weather radar during a delay (owner 2026-07-31)
 > When a match is in a weather delay, show a **radar** on Match Detail — precipitation plus, ideally,
 > recent lightning (soccer delays are a LIGHTNING call far more than a rain call). Explicitly a
@@ -425,12 +439,22 @@
 > the `DesignTeamColors.international` growth item). ⚠️ The watcher runs Tier 2 AND V2 LA off the SAME event
 > list (`index.ts:579` + `startUpcomingActivities` :737) — which is exactly why this is V2-LA-touching.
 >
-> **2. NT V2 LA — extend the lock-screen Live Activity to national teams (owner 2026-08-06).** Today NTs
-> get Tier-2 push (goals etc.) but NO V2 LA card — only **USWNT** was wired for V2 LA ("for now", the
-> per-match-channel economics note at `index.ts:141`). Owner wants NTs on V2 LA too, **GATED on passing the
-> 1k/100k stress test** (`docs/stress-testing.md §5`): the per-match broadcast-channel economics are the
-> open question the stress test answers (channel-per-match × concurrent NT matches × audience). Revisit the
-> USWNT-only gate against that result.
+> **1 + 2 ABOVE: ✅ BUILT + DEVICE-PROVEN 2026-08-07/08 (Round 2 passed live).** Cups push+LA and all-NT
+> V2 LA shipped in build 33; verified on real games (NWSL ORL×LOU/GFC×SD + WAFCON CIV×ALG, first non-USWNT
+> NT Live Activity with a live goal). These two are DONE — kept here only until the close-out roll call
+> formally retires this ⛔ block. The remaining V2-LA-touching work is item 3 (Apple Watch), below.
+>
+> **3. 🔴 APPLE WATCH V2 LA — crests don't render on the watch (owner 2026-08-08, NEXT V2-LA SESSION).**
+> The Live Activity mirrors to the Apple Watch Smart Stack, but the **team crests drop** there while scores
+> + abbreviations render (phone lock-screen + Dynamic Island are fine). **Root cause (found 2026-08-08):**
+> we never adopted **`.supplementalActivityFamilies([.small])`** — so watchOS gets NO watch-specific layout
+> and instead auto-composes a banner from our **Dynamic Island compact** views, re-rendered onto the tiny
+> watch canvas where watchOS is stricter about images and silently drops the crest `UIImage`s. **Fix:**
+> adopt `supplementalActivityFamilies` and design a real `.small` watch layout (crest + score + clock),
+> sized + verified on a physical watch — NOT the system's auto-composition. **Before starting:** owner to
+> supply a watch screenshot so the failing layer is pinned (blank / ring+monogram fallback / color block).
+> ⚠️ V2-LA-touching → its OWN isolated session per the rule above; read `docs/live-activity-v2.md §0` first;
+> the watch has never been in the device-verify matrix, so treat every rendered surface as new.
 
 ---
 

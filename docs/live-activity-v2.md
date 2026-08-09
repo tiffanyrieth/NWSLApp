@@ -402,6 +402,17 @@ reads need `--remote` (local KV is empty and lies); `wrangler tail` silently dro
   the start payload (so not §0's change-rule), but still V2-LA visual → device-verify in Round 2; the
   sim can't render a Live Activity at all. If it reads too slab-heavy on device, 0.94 is the dial-back.
 
+- **8/8 (2026): teamWash WIDENED.** Round 2 passed on device (NWSL + WAFCON), but the owner then saw the
+  wash still read as thin colored slivers with a mostly-black card. Root cause is NOT the solid fix — the
+  gradient always faded each team's color out by **34%** from its edge, leaving a 32%-wide neutral seam;
+  against the near-black `#14151C` solid panel that fade reads as "color dies way before the middle." (An
+  in-app card fades into `#2C2C2E` gray, so the same gradient looks fuller — confirmed by the owner's
+  month-old pre-solid screenshot: this predates the tint change.) Fix: fade-out moved to **0.45 / 0.55**
+  (a ~10% seam) so each color carries most of the way across its half — NOT Apple's edge-to-edge slab; we
+  keep the two-team split + center seam (our identity), just wider. `MatchLiveActivity.swift teamWash`,
+  opacity 0.28 untouched (the intensity lever if it still reads dim). Widget render code → **needs a build**;
+  device-verify the width on a real lock screen.
+
 - **6/30:** first device run — service_role grants missing (42501); background token path built
   (#104 → build 21 background-task assertion + retry after the unprotected-Task kill diagnosis).
 - **7/1:** render proven on both phones — WITH an alert on the start. Alert then removed per Apple

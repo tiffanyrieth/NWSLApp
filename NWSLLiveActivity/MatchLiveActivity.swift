@@ -241,9 +241,15 @@ private struct LockScreenBanner: View {
     private var teamWash: some View {
         LinearGradient(
             stops: [
+                // Each team's color carries WIDE across its half before fading, leaving only a
+                // narrow neutral seam at the center (fade-out at 0.45 / 0.55, was 0.34 / 0.66).
+                // The solid `activityBackgroundTint` panel (#14151C, near-black) is otherwise so
+                // dark that the old fast fade read as a thin colored sliver against a black card —
+                // this pushes the color most of the way in so the wash reads like the in-app cards
+                // (owner 2026-08-08; opacity 0.28 is the intensity lever if it still reads dim).
                 .init(color: Color(hex: attributes.homeColorHex).opacity(0.28), location: 0.0),
-                .init(color: Color(hex: attributes.homeColorHex).opacity(0.0),  location: 0.34),
-                .init(color: Color(hex: attributes.awayColorHex).opacity(0.0),  location: 0.66),
+                .init(color: Color(hex: attributes.homeColorHex).opacity(0.0),  location: 0.45),
+                .init(color: Color(hex: attributes.awayColorHex).opacity(0.0),  location: 0.55),
                 .init(color: Color(hex: attributes.awayColorHex).opacity(0.28), location: 1.0),
             ],
             startPoint: UnitPoint(x: 0, y: 0.42),

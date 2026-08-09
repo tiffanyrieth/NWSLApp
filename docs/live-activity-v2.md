@@ -406,6 +406,20 @@ How the V2 card reaches a paired Apple Watch, and the trap that broke it for two
   watchOS app target — deliberately out of scope). The 7 SVG crests in the widget catalog (BAY,
   HOU, ORL, POR, SD, SEA, UTA) are the prime suspects if a crest still blanks on watch → convert
   the offender to PNG in the WIDGET catalog only (established precedent, §1).
+  **⭐ TestFlight is NOT needed for the VISUAL watch check** — the watch mirrors whatever Activity
+  the paired phone is running, from the phone's installed bundle. A USB debug build +
+  `-driveLiveActivity` (local `Activity.request`, zero push) on a phone paired to a watchOS 11+
+  watch shows the `.small` card in the Smart Stack immediately. TestFlight is still required for
+  the ORGANIC push path (debug builds mint SANDBOX tokens → production watcher can't reach them,
+  the §3 checklist trap) — so: USB+driver for layout iteration, TestFlight+fake-match/real game
+  for the delivery proof.
+- **The iOS 17 fallback ladder is PRESERVED (owner Q 2026-08-09):** V2 was already 18-only in
+  practice (start-token registration gated iOS 18+ since Broadcast Channels), so a 17.x phone
+  never had a V2 card — it gets Tier-2 V1 rich notifications, which also mirror to ANY watch.
+  The 18.0 widget-extension floor changes nothing for those users; app/V1/NSE stay at 17.2.
+  Ladder: 17.x phone → V1 only (unchanged) · 18+ phone → V2 LA (unchanged) · 18+ phone +
+  watchOS 11+ → V2 LA + the `.small` watch card · 18+ phone + older watch → phone V2 unchanged,
+  watch gets V1 mirrors only.
 - **V1 notifications need NOTHING for the watch** — they mirror automatically with attachments and
   already render beautifully (the 2026-08-09 screenshots' full-bleed crest goal card IS our V1).
   The app icon in the corner is watchOS chrome on all third-party notifications; not controllable.

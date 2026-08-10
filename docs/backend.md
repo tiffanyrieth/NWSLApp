@@ -99,6 +99,20 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
     the pending-attendance re-check is pointless if ESPN's CDN answers it with the same stale FT-time
     snapshot — the zero just got re-pinned every 6h window. The internal `getSummary` closures
     (`/predict/community`, `/weather`) bust too, since they share `/summary`'s edge cache key.
+  - ⚠️ **Upstream-failure RECOVERY LADDER (`proxyAndCache`, 2026-08-10).** ESPN intermittently 502s the
+    `_cb` recompute under live load (watched live 2026-08-09: failed watcher ticks delayed V2-LA goal
+    pushes vs the in-app score, which polls independently). On a failed fetch: **(1)** bust-enabled
+    routes retry once WITHOUT `_cb` — ESPN's own cache is near-fresh for windowed queries and usually
+    answers (diag `espnRetryRecovered`, quiet); **(2)** stale edge copy under the same key (diag
+    `staleServe`, pages on a sustained burst); **(3)** the **last-known-good snapshot** — written on
+    every successful bust-route fetch under a normalized key (`snapshotKeyURL` strips `_cb`/`w`, so
+    the watcher's unique busted URLs and the app's clean URLs share it; Cache API not KV — free,
+    per-colo is fine because the watcher keeps its own colo warm; 24h `SNAPSHOT_TTL`), served with a
+    30s client TTL so devices re-ask the moment ESPN recovers (diag `staleServe`, pages); **(4)** 502
+    (diag `apiFailure`, pages). Before this, upstream failures emitted NO diagnostics — the pager was
+    blind to an ESPN outage on the hottest routes. Chain proven end-to-end with mocked ESPN fetches in
+    `test/recovery-ladder.spec.ts` (fetchMock — the one deliberate exception to the route-guards-only
+    test convention, because a real ESPN failure can't be produced on demand).
 - **Roster resilience:** `GET /roster?team={espnTeamId}` passes ESPN's roster through when it's a
   plausible squad (≥`ROSTER_GOOD_MIN`=16) and caches it as **last-known-good** in KV (`roster:{id}`,
   90d); when ESPN comes back implausibly small (the recurring "one player" gap, e.g. ACFC) or fails,

@@ -84,6 +84,26 @@ struct MatchSummaryTests {
         #expect(summary.gameInfo?.attendance == 19215)
     }
 
+    // MARK: - GameInfo attendance shape tolerance. ESPN string-ifies numeric fields elsewhere in
+    // this feed (jersey, formationPlace, scoreboard scores); a hard Int decode on `"9538"` would
+    // throw the ENTIRE MatchSummary — blanking lineups and play-by-play over a crowd count (the
+    // SubStatus failure class). These prove both shapes decode and neither kills the summary.
+
+    @Test func gameInfoAttendanceAcceptsStringShape() throws {
+        let json = #"{ "gameInfo": { "attendance": "9538" } }"#
+        let summary = try JSONDecoder().decode(MatchSummary.self, from: Data(json.utf8))
+        #expect(summary.gameInfo?.attendance == 9538)
+    }
+
+    @Test func gameInfoOddAttendanceNeverFailsTheSummaryDecode() throws {
+        // A non-numeric string (or any junk) degrades to nil — the decode itself must succeed,
+        // and the rest of gameInfo must survive.
+        let json = #"{ "gameInfo": { "attendance": "TBD", "venue": { "fullName": "Audi Field" } } }"#
+        let summary = try JSONDecoder().decode(MatchSummary.self, from: Data(json.utf8))
+        #expect(summary.gameInfo?.attendance == nil)
+        #expect(summary.gameInfo?.venue?.fullName == "Audi Field")
+    }
+
     // MARK: - SubStatus shape tolerance (regression: the "Couldn't read the match
     // details" bug). ESPN's LIVE feed sends subbedIn/subbedOut as `{"didSub": Bool}`
     // OBJECTS, while other snapshots send a bare Bool. Before SubStatus, the object

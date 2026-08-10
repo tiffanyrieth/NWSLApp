@@ -127,15 +127,22 @@ struct StatusType: Decodable {
 
 struct Competition: Decodable {
     let competitors: [Competitor]?
-    // Venue + broadcasts ride the SAME scoreboard response we already fetch — no
-    // extra request. Optional/defensive like everything else here.
+    // Venue + broadcasts + attendance ride the SAME scoreboard response we already
+    // fetch — no extra request. Optional/defensive like everything else here.
     let venue: Venue?
     let broadcasts: [Broadcast]?
+    /// Crowd figure for a finished match. ⚠️ 0 is ESPN's "unknown", not a real crowd — consume via
+    /// `Event.attendance`, which nils it out. The scoreboard copy of this figure matters because it
+    /// refreshes on the live poll, while the `/summary` copy can sit behind a long edge-cache TTL
+    /// (the frozen-attendance regression, 2026-08-09).
+    let attendance: Int?
 
-    init(competitors: [Competitor]? = nil, venue: Venue? = nil, broadcasts: [Broadcast]? = nil) {
+    init(competitors: [Competitor]? = nil, venue: Venue? = nil, broadcasts: [Broadcast]? = nil,
+         attendance: Int? = nil) {
         self.competitors = competitors
         self.venue = venue
         self.broadcasts = broadcasts
+        self.attendance = attendance
     }
 }
 
@@ -301,6 +308,13 @@ extension Event {
     // screen (the card only has room for the venue name).
     var venueCity: String? {
         competitions?.first?.venue?.address?.city
+    }
+
+    /// Crowd figure with ESPN's zero-means-unknown rule applied at the model, so every
+    /// consumer inherits it. Preferred over the `/summary` copy on match detail: the
+    /// scoreboard refreshes on the live poll and self-heals when the count lands late.
+    var attendance: Int? {
+        (competitions?.first?.attendance).flatMap { $0 > 0 ? $0 : nil }
     }
 
     // First broadcast channel name (TV icon), e.g. "Prime Video". ESPN can list

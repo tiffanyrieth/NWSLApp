@@ -307,10 +307,28 @@ struct PlayByPlayItem: Identifiable {
 
 // MARK: - Game info
 
+/// ⚠️ Custom decode so a stringified `attendance` can never throw the whole `MatchSummary`.
+/// ESPN string-ifies numeric fields elsewhere in this very feed (`jersey`, `formationPlace`,
+/// scoreboard scores), and `decodeIfPresent(Int)` on a `"9538"` is a hard `DecodingError` that
+/// would blank the ENTIRE match screen — lineups and play-by-play included — over a crowd count
+/// (same failure class as `SubStatus` above). Accept Int, fall back to a numeric String.
 struct GameInfo: Decodable {
     let venue: GameInfoVenue?
     let attendance: Int?
     let officials: [GameInfoOfficial]?
+
+    private enum CodingKeys: String, CodingKey { case venue, attendance, officials }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        venue = try container.decodeIfPresent(GameInfoVenue.self, forKey: .venue)
+        officials = try container.decodeIfPresent([GameInfoOfficial].self, forKey: .officials)
+        // `try?` + `decodeIfPresent` nests optionals (`Int??`): .some(nil) = key absent,
+        // nil = type mismatch. `?? nil` flattens before the String→Int fallback.
+        attendance = ((try? container.decodeIfPresent(Int.self, forKey: .attendance)) ?? nil)
+            ?? ((try? container.decodeIfPresent(String.self, forKey: .attendance)) ?? nil)
+            .flatMap(Int.init)
+    }
 }
 
 /// A match official. ESPN's NWSL feed gives a name + an order index but no

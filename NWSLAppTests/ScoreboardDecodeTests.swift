@@ -74,4 +74,20 @@ struct ScoreboardDecodeTests {
         #expect(!upcoming.isFinalResult)
         #expect(upcoming.kickoff != nil)
     }
+
+    /// Attendance rides the scoreboard payload (frozen-attendance regression, 2026-08-09: the
+    /// `/summary` copy can sit behind a long edge-cache TTL, so match detail prefers THIS one).
+    /// The finished match carries the real figure; ESPN's `0` means "unknown", which
+    /// `Event.attendance` must nil out so no consumer can ever print "Attendance: 0".
+    @Test func decodesAttendanceAndNilsESPNZero() throws {
+        let board = try loadScoreboard()
+
+        let finished = try #require(event(board, id: "401853957"))
+        #expect(finished.competitions?.first?.attendance == 5148)
+        #expect(finished.attendance == 5148)
+
+        let upcoming = try #require(event(board, id: "401853965"))
+        #expect(upcoming.competitions?.first?.attendance == 0)   // raw decode keeps ESPN's value…
+        #expect(upcoming.attendance == nil)                      // …the Event helper applies zero-is-unknown
+    }
 }

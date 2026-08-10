@@ -424,11 +424,6 @@
 - **Club-page links data pass** — Website · Shop · Tickets (OFFICIAL) + Discord (Fan) → `SocialPlatform` + `TeamSocialLinksProvider`, per-club.
 
 **Longer-term:**
-- **Attendance fallback source** (noted 2026-08-10): ESPN's `gameInfo.attendance` has gone spotty
-  since early August (7 of 17 finished matches never got a figure — verified in BOTH ESPN feeds, so
-  it's upstream data absence, not our cache; the 8/09 cache fix is working). If it stays patchy,
-  NWSL's own match reports publish attendance — a proxy-side fallback (blurb-scrape or SDP check)
-  could fill what ESPN never reports. Low priority; the bare "Attendance:" label is honest meanwhile.
 - **Competitions follow-ups:** national-team coverage + cup push/LA + foreign-club colors are all DONE
   (16 NT feeds, WAFCON live, cups pushing with V2 LA, `DesignTeamColors.international` shipped). Residual:
   the CLUB cups folding into the Schedule "My teams" grouping; WWC/Olympics whole-tournament UI stays DEFERRED.

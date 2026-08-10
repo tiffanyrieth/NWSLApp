@@ -64,7 +64,8 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   - **Immutable means COMPLETE, not merely settled.** Attendance lands late at some venues — hours,
     sometimes days (GFC @ BAY was a normal final still reporting 0 two days on). A settled summary
     missing `gameInfo.attendance` gets **6h** (`SUMMARY_PENDING_TTL`); past `SUMMARY_PENDING_MAX_AGE_MS`
-    (14d — most NT matches never report attendance at all) it slows to **weekly**
+    (**30d**, was 14d — widened 2026-08-11 after ESPN's attendance ingestion ran late/never for weeks;
+    most NT matches never report attendance at all) it slows to **weekly**
     (`SUMMARY_PENDING_COLD_TTL`, 7d). ⚠️ **An incomplete record is NEVER promoted to immutable** — the
     original 2026-07-31 version gave up at 14d by pinning the zero body for a YEAR, which (combined with
     the epoch-2 back-catalogue refetch and `/summary` not yet busting upstream) froze most finished
@@ -72,7 +73,28 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
     pinned zeros). Only a real `attendance > 0` earns `IMMUTABLE_TTL`. Same shape as the kickoff-weather
     write-once rule. The app-side twin: 0 renders as a bare "Attendance:" label, never a fake zero, and
     match detail prefers the SCOREBOARD's `competitions[0].attendance` (live-polled, self-healing) over
-    the summary copy (`Event.attendance` in `Scoreboard.swift`).
+    the summary copy (`Event.attendance` in `Scoreboard.swift`). The demand tier is no longer the only
+    engine — see the **Attendance backstop** below.
+  - ⚠️ **Attendance backstop (`src/attendance.ts`, 2026-08-11)** — the PROACTIVE half + the league
+    cross-reference. Every ~6h (KV-gated `attendance-sweep:last` on the 5-min cron — never a new cron
+    string, the scheduled() fall-through runs the PAID Apify scrape) the sweep probes every finished
+    NWSL match of the last 30 days still missing a figure against BOTH sources: ESPN's summary, then
+    NWSL's keyless SDP **matchfacts** endpoint (`/seasons/{guid}/match/{matchId}/matchfacts` →
+    `enviroment.numberOfSpectators` — their typo; season GUIDs in `NWSL_SEASON_GUIDS`, joined to ESPN
+    events by UTC-day ±1 + home acronym). Found figures land in KV `attendance:{espnEventId}` (60d TTL);
+    the `/summary` route's **enrich hook** patches them into a settled body on the next MISS, BEFORE
+    `chooseSummaryTTL`, so a filled figure settles immutable. Disagreement (both >0, different) prefers
+    ESPN + emits `attendanceCrossSource`. Ops: `GET /admin/attendance` (owner-authed; `?sweep=1` forces).
+    ⚠️ **The enrich hook is THE ONE ALLOWED MUTATION on the bytes-unchanged pass-through** (owner 2026-08-11,
+    also in `docs/decisions.md`): fill a settled match's 0/absent `gameInfo.attendance` with a
+    league-verified figure — nothing else, ever; every other route and field stays byte-identical.
+    **⭐ THE SOURCE RESEARCH (live-probed 2026-08-11 — do NOT re-investigate):** the Aug-2026 missing
+    figures exist NOWHERE reachable. NWSL matchfacts mirrors ESPN's nulls exactly (same Opta upstream —
+    6/6 matches agree, nulls included), so the cross-reference guards ESPN-SIDE ingestion breaks, not
+    league-side absence; club recap articles carry no crowd figures (verified on the missing match's own
+    recap); Wikipedia's season page is aggregates-only; FBref / FotMob / Sofascore / FootyStats are
+    bot-walled (403 / signed-header; circumvention is off-limits) and largely Opta-fed anyway. A match
+    the league never recorded stays honestly blank — that is upstream truth, not an app bug.
   - **Two invalidation levers, because there are two cache layers.** `CACHE_EPOCH` is a cache-KEY
     component: bump it and every cached entry is orphaned **globally** on deploy. That is the only
     practical purge — the Cache API is PER-COLO (a Worker can delete only from the colo that served

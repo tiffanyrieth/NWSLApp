@@ -49,6 +49,17 @@ better model — a player who PLAYED an edition experienced it; deleting the art
 ONLY legitimate reclaim is a same-`weekKey` content correction. Full reasoning: `docs/know-her-game.md` +
 `.claude/rules/fan-zone.md` gate #7.
 
+### The proxy pass-through has ONE allowed body mutation — attendance enrichment (owner 2026-08-11)
+The ESPN pass-through's contract is bytes-unchanged (app decoders never see proxy-authored JSON). The single
+exception: the `/summary` enrich hook may fill `gameInfo.attendance` when it is 0/absent on a SETTLED match,
+with a league-verified figure from the attendance-backstop ledger (`src/attendance.ts`; sources: late ESPN
+ingest or NWSL's own matchfacts feed). Nothing else in any body may ever be touched. **Why the exception:**
+ESPN's attendance ingestion went spotty for weeks in Aug 2026 and the figure is display-final data with no
+app-side interpretation — the alternative (a separate endpoint + app merge) would strand every shipped build.
+**Why it stays narrow:** casual payload editing would silently break the defensive-decode assumptions every
+app decoder makes; do not use this as precedent — a second mutation needs its own owner ruling. Mechanism +
+the six-source research: `docs/backend.md` (Attendance backstop).
+
 ### THE BANNED LENS — never size from CURRENT usage
 Every load/reliability/scaling question is asked **as if the app ships tomorrow** (hundreds of one-club fans
 from one subreddit post), never "only N users today → plenty of headroom / defer to launch." **Why:** that

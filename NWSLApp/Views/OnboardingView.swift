@@ -3,11 +3,11 @@
 //  NWSLApp
 //
 //  First-open onboarding — "Make it yours": pick the teams you follow. One
-//  screen, one purpose (per the Home design spec). A single alphabetical list
-//  of every club (no grid, no search — 16-20 teams scroll faster than they
-//  type), each row a whole-row follow toggle. A persistent bottom bar shows the
-//  running "Follow N teams" count and the "you can always change this later"
-//  reassurance.
+//  screen, one purpose (per the Home design spec). A crest-forward 2-up grid of
+//  every club (no search — 16-20 teams scroll faster than they type); the WHOLE
+//  TILE is the follow toggle, and a match-alert bell drops into the tile once
+//  followed. A persistent bottom bar shows the running "Follow N teams" count
+//  and the "you can always change this later" reassurance.
 //
 //  It's the full-screen first-open gate: RootTabView renders it (in its own
 //  NavigationStack) IN PLACE OF the whole TabView while `FollowingStore.hasOnboarded`
@@ -49,6 +49,13 @@ struct OnboardingView: View {
     // After the picker, a one-screen thesis statement frames what the app is before
     // dropping the user into Home. "Let's go" there completes onboarding.
     @State private var showThesis = false
+
+    // Visible bell-circle diameter (2026-08-10 tap-target pass: was a hardcoded 30 — the one
+    // frozen element on a card whose crest/name scale with Dynamic Type, and 14pt under the
+    // HIG minimum). Scales on the same .body axis as the crest; padding in `tileBell` tops the
+    // HIT area up to DS.tapTarget. A missed bell tap lands on the surrounding tile button and
+    // silently unfollows + clears alerts, so this target must be generous.
+    @ScaledMetric(relativeTo: .body) private var tileBellSize: CGFloat = 38
 
     private var followCount: Int { following.followedIDs.count }
 
@@ -138,42 +145,6 @@ struct OnboardingView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func row(for club: Club) -> some View {
-        // Two independent tap targets in one row: the crest+name+checkmark toggle follow,
-        // and (once followed) a separate bell toggles match alerts. Both are `.plain`
-        // buttons so List hit-tests them independently (the bell isn't a follow tap).
-        let isFollowing = following.isFollowing(club)
-        return HStack(spacing: 10) {
-            Button { toggleFollow(club) } label: {
-                HStack(spacing: 12) {
-                    TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 32)
-                    Text(club.displayName)
-                        .foregroundStyle(.primary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isFollowing ? "Unfollow \(club.displayName)" : "Follow \(club.displayName)")
-
-            // Bell appears only after following (alerts require following), OFF by default.
-            if isFollowing {
-                bellButton(for: club)
-                    .transition(.opacity)
-            }
-
-            Button { toggleFollow(club) } label: {
-                Image(systemName: isFollowing ? "checkmark.circle.fill" : "circle")
-                    .imageScale(.large)
-                    .foregroundStyle(isFollowing ? Color.accentColor : Color.secondary)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityHidden(true)
-        }
-        .animation(.easeOut(duration: 0.2), value: isFollowing)
-    }
-
     // Toggle a follow + keep alerts honest: unfollowing clears the team's alert (alerts
     // require following). Warms Home content for the new selection (debounced).
     private func toggleFollow(_ club: Club) {
@@ -182,37 +153,6 @@ struct OnboardingView: View {
             teamAlerts.clearAlerts(for: club.id)
         }
         homeContent.warm(following: following, clubStore: clubStore)
-    }
-
-    // Match-alert bell — same chrome/behavior as the Teams-tab bell. Direct on/off toggle;
-    // never requests iOS notification permission (that fires only from the Notifications
-    // hub on a first toggle-on — the Bell-Tap fix).
-    private func bellButton(for club: Club) -> some View {
-        let on = teamAlerts.alertsEnabled(for: club.id)
-        return Button {
-            let turningOn = !on
-            teamAlerts.toggle(for: club.id)
-            if turningOn {
-                // Onboarding opt-in enables the account-free Tier-1 day-before reminder (owner: at least
-                // this should be on, not a silent bell-with-nothing). The full Tier-2 bundle is NOT enabled
-                // here — no mid-onboarding sign-in — and the first-time sentinel is left untouched, so a
-                // later in-app bell tap still cascades the whole bundle at Sign in with Apple.
-                notifications.dayBefore = true
-                Task { await MatchAlertPresenter.requestNotificationPermission() }
-            }
-        } label: {
-            Image(systemName: on ? "bell.fill" : "bell")
-                .dsFont(13, weight: .medium)
-                .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
-                .frame(width: 36, height: 32)
-                .background(on ? Color.dsAccentMuted : Color.dsBgTertiary)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(
-            on ? "Turn off match alerts for \(club.displayName)"
-               : "Turn on match alerts for \(club.displayName)"
-        )
     }
 
     // A quiet pointer, not a toggle list: international competitions (national teams
@@ -249,30 +189,33 @@ struct OnboardingView: View {
         // fast — the point of onboarding); the bell drops in below the name once followed.
         // Shared crest + card surface with the Teams tab (TeamTile) so they can't drift.
         return Button { toggleFollow(club) } label: {
-            VStack(spacing: 9) {
-                TeamCrestGlow(club: club, size: 52)
+            VStack(spacing: 10) {
+                TeamCrestGlow(club: club, size: 60)
                 Text(club.displayName)
-                    .dsFont(13, weight: .semibold)
+                    .dsFont(14, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
-                    .frame(minHeight: 35, alignment: .center)   // reserve 2 lines so names align
+                    .frame(minHeight: 38, alignment: .center)   // reserve 2 lines so names align
             }
             .frame(maxWidth: .infinity)
             .padding(EdgeInsets(top: 16, leading: 12, bottom: 14, trailing: 12))
             .teamTileSurface(club: club, isFollowing: isFollowing)
             // The bell + follow-check sit TOGETHER in the top-right (as an overlay, so selecting
             // never changes the tile's height — grid stays compact AND uniform). Grouped, not
-            // split across corners, so the related controls read as a pair (like the list row).
+            // split across corners, so the related controls read as a pair. The corner is also
+            // deliberately far from where follow-taps land (tile center), since the bell
+            // materializes under the finger right after a follow tap.
             .overlay(alignment: .topTrailing) {
                 if isFollowing {
-                    VStack(spacing: 6) {
+                    VStack(spacing: 5) {
                         Image(systemName: "checkmark.circle.fill")
                             .dsFont(20)
                             .foregroundStyle(club.accentColor)
                         tileBell(for: club)
                     }
-                    .padding(9)
+                    // 6 here + the bell's own hit-ring padding ≈ the old 9pt visual inset.
+                    .padding(6)
                 }
             }
             .contentShape(RoundedRectangle(cornerRadius: DS.radiusXl))
@@ -293,10 +236,15 @@ struct OnboardingView: View {
                                          alerts: teamAlerts, prefs: notifications)
         } label: {
             Image(systemName: on ? "bell.fill" : "bell")
-                .dsFont(12, weight: .medium)
+                .dsFont(14, weight: .medium)
                 .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
-                .frame(width: 30, height: 30)
+                .frame(width: tileBellSize, height: tileBellSize)
                 .background(on ? Color.dsAccentMuted : Color.dsBgTertiary, in: Circle())
+                // Invisible ring topping the HIT area up to the 44pt HIG minimum (the visible
+                // circle stays 38). contentShape AFTER the padding so the ring is tappable;
+                // max(0,…) because past ~AX sizes the scaled circle alone exceeds 44.
+                .padding(max(0, (DS.tapTarget - tileBellSize) / 2))
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(

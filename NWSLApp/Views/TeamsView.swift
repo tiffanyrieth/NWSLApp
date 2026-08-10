@@ -49,6 +49,11 @@ struct TeamsView: View {
     // every bell — see MatchAlertPresenter / MatchAlertToast).
     @State private var alertPresenter = MatchAlertPresenter()
 
+    // Visible height of the card's Follow pill + bell (2026-08-10 tap-target pass: was a
+    // hardcoded 32 — sub-HIG and frozen while the crest/name scale). Scales on the .body
+    // axis; each control pads its hit area the rest of the way to DS.tapTarget.
+    @ScaledMetric(relativeTo: .body) private var controlHeight: CGFloat = 40
+
     // Two equal columns with the same 12pt gutter as the row spacing (per the mock).
     private let columns = [GridItem(.flexible(), spacing: 12),
                            GridItem(.flexible(), spacing: 12)]
@@ -231,7 +236,7 @@ struct TeamsView: View {
             // Only the crest + name open the club; the controls below are siblings.
             Button { path.append(club) } label: {
                 VStack(spacing: 9) {
-                    TeamCrestGlow(club: club, size: 58)
+                    TeamCrestGlow(club: club, size: 60)
                     Text(club.displayName)
                         .dsFont(14, weight: .semibold)
                         .foregroundStyle(Color.dsFgPrimary)
@@ -259,9 +264,13 @@ struct TeamsView: View {
 
     // The Follow/Following pill (flexes to fill) + a square match-alert bell that
     // only appears once the club is followed (alerts require following).
+    // 2026-08-10 tap-target pass: visible controls 32 → `controlHeight` (40, Dynamic-Type-scaled),
+    // and each control pads its HIT area up to DS.tapTarget with an invisible `.contentShape`
+    // ring — the 2pt vertical overspill lands in dead card padding / the reserved name slack,
+    // and the controls (later siblings) win hit-testing there anyway.
     private func controlRow(for club: Club) -> some View {
         let isFollowing = following.isFollowing(club)
-        return HStack(spacing: 7) {
+        return HStack(spacing: 8) {
             followPill(for: club, isFollowing: isFollowing)
             if isFollowing { bellButton(for: club) }
         }
@@ -272,21 +281,23 @@ struct TeamsView: View {
         Button { following.toggle(club) } label: {
             HStack(spacing: 5) {
                 Image(systemName: isFollowing ? "star.fill" : "star")
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(isFollowing ? Color.dsFollowStar : Color.dsFgSecondary)
                 Text(isFollowing ? "Following" : "Follow")
-                    .dsFont(12.5, weight: .semibold)
+                    .dsFont(13.5, weight: .semibold)
                     .foregroundStyle(isFollowing ? Color.dsFgPrimary : Color.dsFgSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 32)
+            .frame(height: controlHeight)
             .background(isFollowing ? Color.dsBgTertiary : Color.clear)
             .overlay(
                 Capsule().stroke(isFollowing ? .clear : Color.dsFgQuaternary, lineWidth: 1)
             )
             .clipShape(Capsule())
+            .padding(.vertical, max(0, (DS.tapTarget - controlHeight) / 2))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(isFollowing ? "Unfollow \(club.displayName)" : "Follow \(club.displayName)")
@@ -303,11 +314,13 @@ struct TeamsView: View {
         // on a first toggle-on (Bell-Tap fix, Bug 3).
         return Button { toggleAlerts(for: club) } label: {
             Image(systemName: on ? "bell.fill" : "bell")
-                .dsFont(13, weight: .medium)
+                .dsFont(14, weight: .medium)
                 .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
-                .frame(width: 36, height: 32)
+                .frame(width: DS.tapTarget, height: controlHeight)
                 .background(on ? Color.dsAccentMuted : Color.dsBgTertiary)
                 .clipShape(Capsule())
+                .padding(.vertical, max(0, (DS.tapTarget - controlHeight) / 2))
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(

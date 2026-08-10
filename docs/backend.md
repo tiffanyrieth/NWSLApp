@@ -63,11 +63,16 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
     resume (postponed/canceled/abandoned).
   - **Immutable means COMPLETE, not merely settled.** Attendance lands late at some venues — hours,
     sometimes days (GFC @ BAY was a normal final still reporting 0 two days on). A settled summary
-    missing `gameInfo.attendance` gets **6h** (`SUMMARY_PENDING_TTL`) and only becomes immutable once
-    the number is really there, bounded by `SUMMARY_PENDING_MAX_AGE_MS` (14d) because most NT matches
-    never report attendance at all. Same shape as the kickoff-weather write-once rule. Before this,
-    a figure that arrived on Tuesday was never seen by anyone — the app-side twin is that 0 renders
-    as a bare "Attendance:" label, never a fake zero.
+    missing `gameInfo.attendance` gets **6h** (`SUMMARY_PENDING_TTL`); past `SUMMARY_PENDING_MAX_AGE_MS`
+    (14d — most NT matches never report attendance at all) it slows to **weekly**
+    (`SUMMARY_PENDING_COLD_TTL`, 7d). ⚠️ **An incomplete record is NEVER promoted to immutable** — the
+    original 2026-07-31 version gave up at 14d by pinning the zero body for a YEAR, which (combined with
+    the epoch-2 back-catalogue refetch and `/summary` not yet busting upstream) froze most finished
+    matches at attendance 0: the frozen-attendance regression, fixed 2026-08-09 (epoch → 3 flushed the
+    pinned zeros). Only a real `attendance > 0` earns `IMMUTABLE_TTL`. Same shape as the kickoff-weather
+    write-once rule. The app-side twin: 0 renders as a bare "Attendance:" label, never a fake zero, and
+    match detail prefers the SCOREBOARD's `competitions[0].attendance` (live-polled, self-healing) over
+    the summary copy (`Event.attendance` in `Scoreboard.swift`).
   - **Two invalidation levers, because there are two cache layers.** `CACHE_EPOCH` is a cache-KEY
     component: bump it and every cached entry is orphaned **globally** on deploy. That is the only
     practical purge — the Cache API is PER-COLO (a Worker can delete only from the colo that served
@@ -85,12 +90,15 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
     unused `competitor.form` ("WDLWL"), `competitor.records` ("5-4-5"), and embedded per-team
     `competitor.statistics`. Lesson (3-for-3 in one session): before adding a data source, check
     what the already-fetched feeds carry unparsed.
-  - ⚠️ **`/scoreboard` busts the ESPN UPSTREAM on every cache MISS** (`proxyAndCache(..., bustUpstream)`):
-    appends a `_cb=<ts>` to the ESPN fetch so ESPN can't serve its 25–47-min-stale full-season cache
-    (see quirks above). The proxy's OWN edge-cache key stays the clean incoming URL, so app traffic still
-    collapses to ≤2 ESPN hits/min — hit COUNT unchanged, just uncacheable ESPN-side. Zero added CPU
-    (device-proven fix, 2026-07-11). The abandoned alternative (parse+overlay the 2MB season) blew the
-    free-plan 10 ms CPU limit.
+  - ⚠️ **`/scoreboard` AND `/summary` bust the ESPN UPSTREAM on every cache MISS**
+    (`proxyAndCache(..., bustUpstream)`): appends a `_cb=<ts>` to the ESPN fetch so ESPN can't serve its
+    25–47-min-stale full-season cache (see quirks above). The proxy's OWN edge-cache key stays the clean
+    incoming URL, so app traffic still collapses to ≤2 ESPN hits/min — hit COUNT unchanged, just
+    uncacheable ESPN-side. Zero added CPU (device-proven fix, 2026-07-11). The abandoned alternative
+    (parse+overlay the 2MB season) blew the free-plan 10 ms CPU limit. `/summary` joined 2026-08-09:
+    the pending-attendance re-check is pointless if ESPN's CDN answers it with the same stale FT-time
+    snapshot — the zero just got re-pinned every 6h window. The internal `getSummary` closures
+    (`/predict/community`, `/weather`) bust too, since they share `/summary`'s edge cache key.
 - **Roster resilience:** `GET /roster?team={espnTeamId}` passes ESPN's roster through when it's a
   plausible squad (≥`ROSTER_GOOD_MIN`=16) and caches it as **last-known-good** in KV (`roster:{id}`,
   90d); when ESPN comes back implausibly small (the recurring "one player" gap, e.g. ACFC) or fails,

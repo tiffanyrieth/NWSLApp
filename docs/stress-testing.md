@@ -353,6 +353,13 @@ For each subsystem, walk it explicitly:
   traffic); ESPN just recomputes instead of serving its cache. Zero added CPU. (The rejected alternative
   — parse+overlay the 2 MB season in the proxy — measured ~9 ms on a laptop, over the free-plan **10 ms
   CPU cap**; do not ship it.) Passes 1k trivially.
+- **ESPN recovery ladder + last-known-good snapshot (2026-08-10):** ✅ **bounded, failure-driven load
+  only.** The un-busted retry adds ≤1 ESPN fetch per FAILED fetch (failures are rare and the retry
+  replaces the recompute ESPN just refused — net kinder to ESPN). Snapshot writes ride the **Cache
+  API** (unlimited/free), deliberately NOT KV — the watcher's 1-2 scoreboard fetches/min during live
+  windows would eat meaningful slices of KV's 1k-writes/day free budget. Diag KV writes occur only on
+  failure events (1-2/min during a real outage, 30d TTL) and the pager throttle caps email at 1/hr.
+  Follower-count-independent everywhere → identical at 1k and 100k. Passes.
 - **Summary attendance cache fix (2026-08-09):** ✅ **no new load path** — three levers, all fetch-neutral
   or demand-driven. (a) `/summary` (+ the `/predict/community` and `/weather` internal `getSummary`) now
   busts the ESPN upstream on a MISS, same `_cb` mechanism as `/scoreboard`: edge-cache key unchanged →

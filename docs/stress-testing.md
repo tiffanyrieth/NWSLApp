@@ -360,6 +360,12 @@ For each subsystem, walk it explicitly:
   windows would eat meaningful slices of KV's 1k-writes/day free budget. Diag KV writes occur only on
   failure events (1-2/min during a real outage, 30d TTL) and the pager throttle caps email at 1/hr.
   Follower-count-independent everywhere → identical at 1k and 100k. Passes.
+- **Attendance backstop sweep (2026-08-11):** ✅ **cron-driven, user-count-independent.** ~4 sweeps/day
+  (6h KV gate on the 5-min cron), each: 1 windowed 30-day ESPN scoreboard (~15-20 events, small — never
+  the 2MB full-season query) + ≤~20 ESPN summary probes + ≤1 SDP season list (958KB, few-ms parse, lazy)
+  + ≤~20 matchfacts fetches (2.8KB each) + ≤~5 KV writes (`attendance:*`, 60d TTL, ≤~20 live keys).
+  Worst day ≤ ~170 subrequests + ≤20 KV writes — free-tier trivial. Enrich hook adds one JSON parse on
+  summary MISSes only (the TTL chooser already parses there). Identical at 1k and 100k. Passes.
 - **Summary attendance cache fix (2026-08-09):** ✅ **no new load path** — three levers, all fetch-neutral
   or demand-driven. (a) `/summary` (+ the `/predict/community` and `/weather` internal `getSummary`) now
   busts the ESPN upstream on a MISS, same `_cb` mechanism as `/scoreboard`: edge-cache key unchanged →

@@ -353,6 +353,15 @@ For each subsystem, walk it explicitly:
   traffic); ESPN just recomputes instead of serving its cache. Zero added CPU. (The rejected alternative
   — parse+overlay the 2 MB season in the proxy — measured ~9 ms on a laptop, over the free-plan **10 ms
   CPU cap**; do not ship it.) Passes 1k trivially.
+- **Summary attendance cache fix (2026-08-09):** ✅ **no new load path** — three levers, all fetch-neutral
+  or demand-driven. (a) `/summary` (+ the `/predict/community` and `/weather` internal `getSummary`) now
+  busts the ESPN upstream on a MISS, same `_cb` mechanism as `/scoreboard`: edge-cache key unchanged →
+  ESPN hit COUNT identical, and `/summary` misses far less often than the already-busting `/scoreboard`.
+  (b) The 14-day give-up now degrades to a 7d cold TTL instead of pinning a zero body immutable — worst
+  case ~1 demand-driven ESPN fetch/week/colo per never-reporting match that someone actually opens.
+  (c) `CACHE_EPOCH` 2→3: lazy invalidation, one refetch per distinct URL on first request per colo —
+  identical to the proven epoch-2 bump (2026-07-31, shipped without incident). App side adds no fetch
+  (decodes a field the scoreboard response already carries). Passes 1k trivially; 100k unchanged.
 - **Watcher 30s live double-poll (2026-07-11):** ✅ during a live window the cron tick polls twice (poll
   → 30s → poll cache-busted). Orthogonal to nearly every axis — KV writes (write-on-change), push
   fan-out (per-event, collapse-id), APNs are all UNCHANGED; the ONLY axis that ~doubles is ESPN

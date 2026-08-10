@@ -954,8 +954,16 @@ struct MatchDetailView: View {
     }
 
     private var hasCompactInfo: Bool {
-        event.venueName != nil || broadcastName != nil || attendanceText != nil
+        event.venueName != nil || broadcastName != nil || showsAttendanceLine
             || viewModel.weather?.roundedTemp != nil
+    }
+
+    /// One predicate for BOTH the rail gate (`hasCompactInfo`) and `attendanceLine` itself, so the
+    /// bare "Attendance:" label (the deliberate number-arrives-later affordance) can never be
+    /// rendered by one gate and suppressed by the other. Shows once the match is over and we have
+    /// either a figure (from either source) or a loaded summary record awaiting its count.
+    private var showsAttendanceLine: Bool {
+        temporalState == .past && (attendanceText != nil || viewModel.summary?.gameInfo != nil)
     }
 
     // Broadcast color chip + venue (+ attendance for a finished match) — the
@@ -994,7 +1002,7 @@ struct MatchDetailView: View {
 
     @ViewBuilder
     private var attendanceLine: some View {
-        if temporalState == .past, viewModel.summary?.gameInfo != nil {
+        if showsAttendanceLine {
             HStack(spacing: 10) {
                 Circle().fill(Color.dsFgQuaternary).frame(width: 3, height: 3)
                 // Label with no number when the count hasn't landed — see attendanceText.
@@ -1044,10 +1052,16 @@ struct MatchDetailView: View {
     /// @ BAY was still 0 two days on, 2026-07-31), and matches where it will never exist at all
     /// (most national-team fixtures). Since we can't tell them apart, the label stays and only
     /// the number waits — so a late figure appearing later reads as the count arriving rather
-    /// than the screen changing shape. The proxy re-checks a settled-but-incomplete summary
-    /// every 6h precisely so that number can still show up (`chooseSummaryTTL`).
+    /// than the screen changing shape.
+    ///
+    /// **Scoreboard first, summary fallback (2026-08-09).** The scoreboard's
+    /// `competitions[0].attendance` rides the live poll and self-heals, while the `/summary`
+    /// copy can sit behind a long edge-cache TTL and read 0 for hours after FT (the
+    /// frozen-attendance regression). `Event.attendance` already nils out ESPN's zero.
     private var attendanceText: String? {
-        guard let attendance = viewModel.summary?.gameInfo?.attendance, attendance > 0 else { return nil }
+        guard let attendance = event.attendance
+            ?? viewModel.summary?.gameInfo?.attendance.flatMap({ $0 > 0 ? $0 : nil })
+        else { return nil }
         return NumberFormatter.localizedString(from: NSNumber(value: attendance), number: .decimal)
     }
 

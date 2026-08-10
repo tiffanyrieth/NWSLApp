@@ -353,6 +353,14 @@ For each subsystem, walk it explicitly:
   traffic); ESPN just recomputes instead of serving its cache. Zero added CPU. (The rejected alternative
   — parse+overlay the 2 MB season in the proxy — measured ~9 ms on a laptop, over the free-plan **10 ms
   CPU cap**; do not ship it.) Passes 1k trivially.
+- **Predict reinstall durability (`predict_match_results`, 2026-08-10):** ✅ **run through §5.** Unit
+  of load = graded matches/user (~26/season × ~300B incl. index ≈ 8KB/user/season; 1k users ≈ 26k
+  rows ≈ ~8MB — trivial vs the 500MB budget). Writes: one own-row upsert per graded match + a
+  ONE-TIME ≤26-upsert history backfill per existing device (marker-gated, idempotent on the PK).
+  Reads: one season read per sign-in restore + one own-row `myScore`/`myTeams` read per team per
+  board load (indexed by the PK prefix, ≤ a handful of rows). 100k: ~2.6M rows/season ≈ low hundreds
+  of MB — the 400-day pg_cron prune is the lever, and the Pro-tier note from the 2026-07-24 DB sizing
+  already covers the multi-year horizon. Passes 1k with wide margin.
 - **ESPN recovery ladder + last-known-good snapshot (2026-08-10):** ✅ **bounded, failure-driven load
   only.** The un-busted retry adds ≤1 ESPN fetch per FAILED fetch (failures are rare and the retry
   replaces the recompute ESPN just refused — net kinder to ESPN). Snapshot writes ride the **Cache

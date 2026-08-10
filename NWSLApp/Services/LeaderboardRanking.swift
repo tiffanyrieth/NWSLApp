@@ -43,4 +43,30 @@ enum LeaderboardRanking {
         guard rank <= visibleLimit else { return .belowFold(rank) }
         return .inline(min(rank - 1, cappedRivalCount))
     }
+
+    /// One (points, matches, avg) season standing — the shape both the local store and the user's
+    /// own `prediction_scores` row reduce to, so the You-row logic reasons about ONE value whichever
+    /// side supplied it.
+    struct SeasonStanding: Equatable {
+        let points: Int
+        let matches: Int
+        let avg: Double
+    }
+
+    /// The You-row's source of truth when the LOCAL store and the SERVER row disagree (the
+    /// reinstall fix, 2026-08-10 — before this, the row was local-only and a wiped device erased
+    /// the user from their own board while everyone else still saw them ranked).
+    ///
+    /// Rule: the side with MORE matches wins — both pairs are monotonic (a scored fixture never
+    /// un-scores; the server upsert clamps with `max`), so more matches = the fuller record.
+    /// Ties → LOCAL (fresher: it includes a match scored since the last successful push).
+    /// nil = genuinely unranked on both sides.
+    static func effectiveStanding(local: SeasonStanding?, server: SeasonStanding?) -> SeasonStanding? {
+        switch (local, server) {
+        case (nil, nil): return nil
+        case (let l?, nil): return l
+        case (nil, let s?): return s
+        case (let l?, let s?): return s.matches > l.matches ? s : l
+        }
+    }
 }

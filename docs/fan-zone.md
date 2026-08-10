@@ -132,7 +132,7 @@ aggregates, and restore.** Local writes always succeed first; every network step
 | Trivia counters (lifetime/season/streak) | `TriviaStore` | `fanzone_progress` | Aggregates, not history |
 | KHG per-edition scores | `KnowHerGameStore.scores` (all season) | `fanzone_progress` (season totals) | + `previousPool` for last-round review |
 | Quiz per-question answers | — | `quiz_answers` | Feeds community splits; pruned >35d |
-| Predict lineups (the 11 picks) | `PredictionStore` | **never uploaded** | Deliberate. The community aggregate below needs COUNTS, not lineups — see the note under this table |
+| Predict lineups (the 11 picks) | `PredictionStore` | **never uploaded PRE-DEADLINE**; the graded XI + breakdown upload POST-MATCH to `predict_match_results` (own-row RLS, 2026-08-10) | The pre-deadline half is the deliberate rule (the community aggregate needs COUNTS, not lineups — see the note under this table, whose protections are untouched). The post-grading upload exists so a reinstall restores Recent Results / the round board / the predicted-vs-actual detail — owner decision after a real reinstall lost hers |
 | Predict community pick counts | — | `predict_pick_counts` / `predict_match_submissions` (NO `user_id`) | Aggregate only; flat in user count; pruned >28d |
 | Predict submission dedupe mark | — | `predict_submission_marks` (user, event) | Records THAT you submitted, never WHAT; pruned >28d |
 | Predict results-seen flags | `PredictionStore` (`predict.v2.*`) | — | Pure presentation state; a reinstall re-shows one reveal, which is a non-event |
@@ -272,8 +272,15 @@ review window (§7). The Rankings tab can reopen the **previous completed editio
   supplied columns), so Trivia's write can't clobber KHG's. Only the sign-in restore goes through
   `ProgressSyncCoordinator`.
 
-Predict and Bracket need nothing here — their numbers already live in their own server tables and flow
-back through the leaderboard reads.
+Bracket needs nothing here — its numbers live in its own server tables and flow back through the
+leaderboard reads. **Predict DOES restore here as of 2026-08-10** (`ProgressSyncCoordinator.
+restorePredict`, run BEFORE the Superfan merge and outside the `fanzone_progress` guard): season
+bests read down into `mergeSeasonBests`, and the season's graded results read down from
+`predict_match_results` into `PredictionStore.restoreGradedResults` (skip-if-local merge; restored
+rows arrive pre-seen so no reveal re-fires, and pre-marked-uploaded so the backfill never round-trips
+them). The board You-row doesn't even wait for this — it renders from the user's own
+`prediction_scores` row via `effectiveStanding`. (The previous claim that Predict "needed nothing
+here" was the reinstall-erasure bug: the boards were local-gated, so nothing actually flowed back.)
 
 ---
 
@@ -379,6 +386,7 @@ The app can't render anything older, so the database holding it is storage with 
 | `predict_round_scores` | ~28 days | pg_cron, daily |
 | `predict_pick_counts` / `predict_match_submissions` | ~28 days | pg_cron, daily |
 | `predict_submission_marks` | ~28 days | pg_cron, daily (submit is one-way, so an old mark has nothing left to dedupe) |
+| `predict_match_results` | ~400 days (current season restores all season; last season's age out) | pg_cron, daily |
 | `bracket_votes` | current + finished edition (through the review window) | the engine, at the NEXT edition's START |
 | Record book (`*_scores`, `*_stats`, `fanzone_progress`, `superfan_scores`, `season_history`, `user_achievements`) | **forever** | never — one tiny row per user |
 

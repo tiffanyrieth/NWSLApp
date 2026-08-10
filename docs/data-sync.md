@@ -50,27 +50,33 @@ not re-selecting a team is a real signal.
 | KHG rollups (points, editions, week streak, played-week gate) | `fanzone_progress` | same | same → `KnowHerGameStore` restore | monotonic + `restoredBaseline` (prevents double-count when local play and restore overlap) |
 | Superfan counts (per-game correct/attempted) | `superfan_scores` | `SuperfanService.submit` GREATEST merge (only when local ≠ zero) | `savedCounts` read-only adopt at sign-in + on the detail screen | per-counter max; the CACHE write also merges with what it holds, so a failed read can never lower it |
 | Season archive | `season_history` | `SuperfanService` at rollover | read for "past seasons" | append-only |
-| Predict season board row | `prediction_scores` | `PredictLeaderboardService` — client max-merge points/matches | boards read server rows (the "You" row is server truth) | max-merge; avg derived from merged pair |
-| Predict banked rounds | `predict_round_scores` | server-side `GREATEST` upsert | round boards read server | ✅ atomic — not read-then-write |
-| Predict season bests | `predict_season_bests` | `predict_merge_bests` RPC (server-side GREATEST) | season card standing | ✅ atomic |
+| Predict season board row | `prediction_scores` | `PredictLeaderboardService` — client max-merge points/matches | `myScore`/`myTeams` own-row reads → `effectiveStanding` (fuller of local/server drives the You row, rank query, season card) | max-merge; avg derived from merged pair. ⚠️ The pre-2026-08-10 claim here ("boards read server rows — the You row is server truth") was WRONG in code: the You row was local-spliced and GATED on local state, so a reinstalled device erased the user from their own board (server row intact, everyone else still saw them). Fixed 2026-08-10: rank/You-row derive from `LeaderboardRanking.effectiveStanding`, and `rankedRows` never drops the user's fetched row without a replacement splice |
+| Predict graded match results (XI + breakdown) | `predict_match_results` (own-row RLS) | `bankResult` at grading + one-time history backfill in `loadLeaderboards` (marker `predict.v2.uploadedResults`) | `ProgressSyncCoordinator.restorePredict` at sign-in → `restoreGradedResults` | plain upsert UP (a regrade must rewrite — deliberately NOT monotonic); skip-if-local DOWN (any local state for the fixture wins outright). Restored rows arrive marked seen (no reveal re-fire) + uploaded (no round-trip). Moved from Category 3 by owner decision 2026-08-10 |
+| Predict banked rounds | `predict_round_scores` | server-side `GREATEST` upsert | round boards read server; round-board WEEK repopulates via the results restore | ✅ atomic — not read-then-write |
+| Predict season bests | `predict_season_bests` | `predict_merge_bests` RPC (server-side GREATEST) | `restorePredict` at sign-in → `mergeSeasonBests` (the read existed unwired until 2026-08-10) | ✅ atomic |
 | Bracket points | `bracket_scores` | **app never writes** — the Worker tally computes from `bracket_votes` (service-role) | app reads boards + own row | server-authoritative by construction |
 | Bracket per-edition stats | `bracket_user_edition_stats` | Worker at edition close | Superfan detail reads | server-authoritative |
 | Achievements | `user_achievements` | `AchievementService.award` (`ignoreDuplicates`) | `earned()` read on Superfan detail | insert-once; re-detection can't duplicate |
 
-**The replaced-phone walk-through (the acceptance bar, traced):** sign in on the new phone →
-`hydrateProfile` brings the display name back → `ProgressSyncCoordinator` restores Trivia + KHG
-rollups *automatically at sign-in* → Predict/Bracket boards show the server "You" row on first open →
-Superfan counts GREATEST-merge **at sign-in** (`ProgressSyncCoordinator.mergeSuperfan`, 2026-08-03 — it
-used to wait for a visit to Superfan detail, so Home and the Game Center submit understated until then)
-→ achievements read back on the detail screen. **No earned number is lost, and none of it waits for the
-user to go looking.**
+**The replaced-phone walk-through (the acceptance bar, traced; re-verified against code 2026-08-10):**
+sign in on the new phone → `hydrateProfile` brings the display name back →
+`ProgressSyncCoordinator.restorePredict` pulls season bests + every banked graded result down
+(`restoreGradedResults` revives Recent Results, the round board, scoredTeams/counts, seasonPoints)
+→ the same coordinator restores Trivia + KHG rollups → Predict boards rank the user from
+`effectiveStanding` (server row when local is empty) and the board SET comes back via `myTeams`, so
+the You row is there on first open even before the restore lands → Superfan counts GREATEST-merge
+**at sign-in** (`mergeSuperfan`, 2026-08-03; runs AFTER `restorePredict` so the first merged number
+already includes restored Predict counts) → achievements read back on the detail screen. **No earned
+number is lost, and none of it waits for the user to go looking.** (⚠️ This paragraph previously
+claimed the Predict "You" row restore worked — it did NOT until 2026-08-10; the 2026-08-03 audit
+verified the WRITE guards but never traced the read side. The owner's real reinstall found it.)
 
 ## Category 3 — LOCAL-ONLY (deliberate, cost-driven)
 
 | Data | Where | Why it doesn't sync |
 |---|---|---|
-| Predict per-match score breakdowns (`predict.v2.scores`) | UserDefaults | per-match detail × every user = real DB growth; the board totals + banked rounds survive server-side |
-| Predict rank movement snapshots/deltas, seen-results | UserDefaults | presentation memory ("↑2 since last match"), meaningless on a new device |
+| ~~Predict per-match score breakdowns~~ | ~~UserDefaults~~ | **MOVED to Category 2, owner decision 2026-08-10** (`predict_match_results`): a real reinstall cost the owner her Recent Results + round board, which read as "starting over" — the acceptance bar above outranks the storage line (~26 tiny own-row rows/user/season is inside the cost rule). The submitted XI uploads too — POST-GRADING ONLY, so pre-deadline pick secrecy is untouched |
+| Predict rank movement snapshots/deltas, seen-results | UserDefaults | presentation memory ("↑2 since last match"), meaningless on a new device (seen-results now also restore as part of the results restore — a restored result arrives pre-seen so reveals never re-fire) |
 | Trivia per-round picks | UserDefaults | retention is current + previous round ONLY by owner rule — the server keeps the rollups |
 | KHG per-edition score detail | UserDefaults | rollups restore via `fanzone_progress`; the per-question detail is replay UI |
 | Bracket picks by round / submitted rounds | UserDefaults | the VOTE is in `bracket_votes` server-side the moment it's cast; local copy is the picker UI |
@@ -98,10 +104,13 @@ splits, then pruned by pg_cron.
    — `savedCounts` ADOPTS unconditionally (read-only), `submit` WRITES only when there is something to
    contribute. Same split applied in `SuperfanDetailView.syncStanding`, where guarding the read would
    have shown a returning user an empty breakdown.
-3. **🟡 The Predict dual-source disagreement** (roadmap, 2026-08-01 sweep 3e): `standing.rank` and
-   the fetched board rows disagreed on a real device ("#70 of 72" vs a rung at #89, on a team never
-   predicted). Both are category-2 server reads, so this is a consistency bug between two server
-   paths, not a sync-direction gap — but it lives in this table's territory. Fix the data first.
+3. **🟡→NARROWED 2026-08-10 — the Predict dual-source disagreement** (roadmap, 2026-08-01 sweep 3e):
+   `standing.rank` and the fetched board rows disagreed on a real device ("#70 of 72" vs a rung at
+   #89, on a team never predicted). The 2026-08-10 rework routes the You row, the rank query, and
+   the season card through ONE `LeaderboardRanking.effectiveStanding` value, so those three can no
+   longer disagree with each other; a residual server-side inconsistency between the rank COUNT and
+   the fetched top rows remains possible (two queries, one instant apart) and now degrades to the
+   keep-my-fetched-row splice instead of an erasure.
 4. **✅ RESOLVED 2026-08-03 — `trivia_scores` retired.** `supabase/migration_drop_trivia_scores.sql`
    archives the rows (streaks there counted DAYS, not rounds — never read them back) then drops the
    table. Owner runs the SQL.

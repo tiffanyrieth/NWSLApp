@@ -122,7 +122,12 @@ struct PredictLeaderboardService {
             let mergedMatches = max(matches, server.matches)
             let avg = mergedMatches > 0 ? Double(mergedPoints) / Double(mergedMatches) : 0
             let row = ScoreUpsert(user_id: userID, team_abbreviation: teamAbbreviation,
-                                  season: season, display_name: displayName,
+                                  season: season,
+                                  // Coalesce with the row's stored name: a pre-hydrate device (nil local
+                                  // name) keeps writing the name the board already shows. nil-nil is safe
+                                  // either way — synthesized Encodable OMITS a nil optional, so an upsert
+                                  // can never null an existing name.
+                                  display_name: displayName ?? server.name,
                                   points: mergedPoints, matches: mergedMatches, avg_points: avg)
             try await client
                 .from("prediction_scores")
@@ -135,10 +140,12 @@ struct PredictLeaderboardService {
         }
     }
 
-    /// The signed-in user's OWN current server (points, matches) for a team this season (0/0 if no row yet).
-    /// Used to clamp `upsertScore` to a non-decreasing pair. Throws on a read failure so the caller skips
-    /// the push and retries next load — never worse than the old unconditional overwrite.
-    private func currentScore(teamAbbreviation: String, userID: UUID, season: String) async throws -> (points: Int, matches: Int) {
+    /// The signed-in user's OWN current server (points, matches, stored name) for a team this season
+    /// (0/0/nil if no row yet). Used to clamp `upsertScore` to a non-decreasing pair. Throws on a read
+    /// failure so the caller skips the push and retries next load — never worse than the old
+    /// unconditional overwrite.
+    private func currentScore(teamAbbreviation: String, userID: UUID,
+                              season: String) async throws -> (points: Int, matches: Int, name: String?) {
         let rows: [ScoreRow] = try await client
             .from("prediction_scores")
             .select("user_id, display_name, points, matches")
@@ -148,7 +155,53 @@ struct PredictLeaderboardService {
             .limit(1)
             .execute()
             .value
-        return (rows.first?.points ?? 0, rows.first?.matches ?? 0)
+        return (rows.first?.points ?? 0, rows.first?.matches ?? 0, rows.first?.display_name)
+    }
+
+    /// The signed-in user's OWN season standing for one team, as the SERVER holds it — the reinstall
+    /// read: after a wipe, the board's "You" row renders from this instead of the empty local store.
+    /// Filtered by the SAME recency window as `standings`, so a fallen-off row can't resurrect a rank
+    /// the public board wouldn't show. nil = no (active) row, or the read failed (the caller falls
+    /// back to local state — honest, never fabricated).
+    func myScore(teamAbbreviation: String, season: String,
+                 userID: UUID) async -> LeaderboardRanking.SeasonStanding? {
+        do {
+            let rows: [ScoreRow] = try await client
+                .from("prediction_scores")
+                .select("user_id, display_name, points, matches, avg_points")
+                .eq("user_id", value: userID)
+                .eq("team_abbreviation", value: teamAbbreviation)
+                .eq("season", value: season)
+                .gte("last_scored_at", value: Self.recencyCutoffISO())
+                .limit(1)
+                .execute()
+                .value
+            guard let row = rows.first else { return nil }
+            return LeaderboardRanking.SeasonStanding(
+                points: row.points, matches: row.matches ?? 0, avg: row.avg_points ?? 0)
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict myScore \(teamAbbreviation): \(error.localizedDescription)") }
+            return nil
+        }
+    }
+
+    /// Every team the signed-in user has a season row for — restores the BOARD SET after a reinstall
+    /// (the local `scoredTeams` is empty until the results restore lands). Empty on failure.
+    func myTeams(season: String, userID: UUID) async -> [String] {
+        struct TeamRow: Decodable { let team_abbreviation: String }
+        do {
+            let rows: [TeamRow] = try await client
+                .from("prediction_scores")
+                .select("team_abbreviation")
+                .eq("user_id", value: userID)
+                .eq("season", value: season)
+                .execute()
+                .value
+            return rows.map(\.team_abbreviation)
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict myTeams: \(error.localizedDescription)") }
+            return []
+        }
     }
 
     /// The TOP of a team's board this season — capped at `visibleLimit` so a giant
@@ -229,11 +282,13 @@ struct PredictLeaderboardService {
     func upsertRoundScore(teamAbbreviation: String, week: Int, points: Int,
                           displayName: String?, userID: UUID, season: String) async {
         do {
-            let serverPoints = try await currentRoundPoints(
+            let server = try await currentRoundPoints(
                 teamAbbreviation: teamAbbreviation, week: week, userID: userID, season: season)
             let row = RoundScoreUpsert(user_id: userID, team_abbreviation: teamAbbreviation,
-                                       season: season, week: week, display_name: displayName,
-                                       points: max(points, serverPoints))
+                                       season: season, week: week,
+                                       // Same coalesce as upsertScore — see the comment there.
+                                       display_name: displayName ?? server.name,
+                                       points: max(points, server.points))
             try await client
                 .from("predict_round_scores")
                 .upsert(row, onConflict: "user_id,team_abbreviation,season,week")
@@ -244,7 +299,7 @@ struct PredictLeaderboardService {
     }
 
     private func currentRoundPoints(teamAbbreviation: String, week: Int,
-                                    userID: UUID, season: String) async throws -> Int {
+                                    userID: UUID, season: String) async throws -> (points: Int, name: String?) {
         let rows: [ScoreRow] = try await client
             .from("predict_round_scores")
             .select("user_id, display_name, points")
@@ -255,7 +310,7 @@ struct PredictLeaderboardService {
             .limit(1)
             .execute()
             .value
-        return rows.first?.points ?? 0
+        return (rows.first?.points ?? 0, rows.first?.display_name)
     }
 
     /// The top of a team's ROUND board (one soccer week) — same shape, cap, and honest-empty
@@ -294,6 +349,86 @@ struct PredictLeaderboardService {
         } catch {
             await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict round total \(teamAbbreviation) w\(week): \(error.localizedDescription)") }
             return 0
+        }
+    }
+
+    // MARK: - Graded match results (predict_match_results — reinstall durability, 2026-08-10)
+
+    /// One restored graded match: the submitted XI (state `.submitted`) + the grade, exactly as
+    /// this or another device banked them. Feeds `PredictionStore.restoreGradedResults`.
+    struct RestoredResult {
+        let prediction: XIPrediction
+        let score: PredictionScore
+    }
+
+    /// Bank one graded match server-side (own-row RLS). PLAIN upsert on the PK — deliberately NOT
+    /// max-merged like the board tables: a regrade (the suspended-match self-heal) must be able to
+    /// REWRITE the row. Written only post-grading, so the pre-deadline pick-secrecy rule holds.
+    /// Best-effort: the caller marks the fixture uploaded only on success and retries next load.
+    /// Returns whether the write landed.
+    @discardableResult
+    func upsertMatchResult(prediction: XIPrediction, score: PredictionScore,
+                           userID: UUID, season: String) async -> Bool {
+        let row = MatchResultUpsert(
+            user_id: userID, event_id: prediction.eventID,
+            team_abbreviation: prediction.teamAbbreviation, season: season,
+            week: score.soccerWeek,
+            correct_players: score.correctPlayers, correct_positions: score.correctPositions,
+            formation_correct: score.formationCorrect, exact_scoreline: score.exactScoreline,
+            result_correct: score.resultCorrect, perfect_xi: score.perfectXI,
+            graded_home_score: score.gradedHomeScore, graded_away_score: score.gradedAwayScore,
+            formation: prediction.formation,
+            // STRING keys, converted explicitly: the jsonb column's contract is a string-keyed
+            // object, and that shouldn't hang on Codable's Int-key encoding special case.
+            slots: Dictionary(uniqueKeysWithValues: prediction.slots.map { (String($0.key), $0.value) }),
+            home_score_guess: prediction.homeScoreGuess,
+            away_score_guess: prediction.awayScoreGuess,
+            updated_at: ISO8601DateFormatter().string(from: Date()))
+        do {
+            try await client
+                .from("predict_match_results")
+                .upsert(row, onConflict: "user_id,event_id,team_abbreviation")
+                .execute()
+            return true
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict result upsert \(prediction.fixtureID): \(error.localizedDescription)") }
+            return false
+        }
+    }
+
+    /// Every graded match the user banked this season — the reinstall restore read
+    /// (`ProgressSyncCoordinator.restorePredict`). Empty on failure (retried next sign-in observation
+    /// or app launch; the boards still render from `myScore` in the meantime).
+    func matchResults(season: String) async -> [RestoredResult] {
+        do {
+            let rows: [MatchResultRow] = try await client
+                .from("predict_match_results")
+                .select()
+                .eq("season", value: season)   // RLS already scopes to the user; season filter is the key
+                .execute()
+                .value
+            return rows.map { row in
+                let prediction = XIPrediction(
+                    fixtureID: "\(row.event_id)-\(row.team_abbreviation)",
+                    eventID: row.event_id, teamAbbreviation: row.team_abbreviation,
+                    formation: row.formation,
+                    slots: Dictionary(uniqueKeysWithValues: row.slots.compactMap { key, value in
+                        Int(key).map { ($0, value) }
+                    }),
+                    homeScoreGuess: row.home_score_guess, awayScoreGuess: row.away_score_guess,
+                    state: .submitted)
+                var score = PredictionScore(
+                    correctPlayers: row.correct_players, correctPositions: row.correct_positions,
+                    formationCorrect: row.formation_correct, exactScoreline: row.exact_scoreline,
+                    resultCorrect: row.result_correct, perfectXI: row.perfect_xi)
+                score.soccerWeek = row.week
+                score.gradedHomeScore = row.graded_home_score
+                score.gradedAwayScore = row.graded_away_score
+                return RestoredResult(prediction: prediction, score: score)
+            }
+        } catch {
+            await MainActor.run { Diagnostics.shared.record(.apiFailure, "predict results restore: \(error.localizedDescription)") }
+            return []
         }
     }
 
@@ -344,4 +479,46 @@ private struct RoundScoreUpsert: Encodable {
     let week: Int
     let display_name: String?
     let points: Int
+}
+
+// predict_match_results (reinstall durability). `slots` rides as an explicitly String-keyed
+// object both ways — the wire contract, independent of Codable's Int-key encoding behavior.
+private struct MatchResultUpsert: Encodable {
+    let user_id: UUID
+    let event_id: String
+    let team_abbreviation: String
+    let season: String
+    let week: Int?
+    let correct_players: Int
+    let correct_positions: Int
+    let formation_correct: Bool
+    let exact_scoreline: Bool
+    let result_correct: Bool
+    let perfect_xi: Bool
+    let graded_home_score: Int?
+    let graded_away_score: Int?
+    let formation: String
+    let slots: [String: String]
+    let home_score_guess: Int
+    let away_score_guess: Int
+    let updated_at: String
+}
+
+struct MatchResultRow: Decodable {
+    let event_id: String
+    let team_abbreviation: String
+    let season: String
+    let week: Int?
+    let correct_players: Int
+    let correct_positions: Int
+    let formation_correct: Bool
+    let exact_scoreline: Bool
+    let result_correct: Bool
+    let perfect_xi: Bool
+    let graded_home_score: Int?
+    let graded_away_score: Int?
+    let formation: String
+    let slots: [String: String]
+    let home_score_guess: Int
+    let away_score_guess: Int
 }

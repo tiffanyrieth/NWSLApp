@@ -40,14 +40,30 @@
 > ### 🎡 NWSL Trivia — content pipeline ONLY (structure SHIPPED 2026-07-23)
 > The biweekly-round STRUCTURE (rounds, landing page, retention, community model) is built — the app
 > already treats Trivia as biweekly 10-Q rounds alternating with KHG. What remains is CONTENT: the
-> annual ~530-question generation (tuned prompt + evergreen/season-bound tagging + difficulty
-> stratification per `docs/nwsl-trivia-weekly-redesign.md` content rules) and its Claude-Routine
-> loader. Until then the current stocked pool serves rounds with a deterministic slice (repeats
-> after ~4 rounds — acceptable interim, owner-approved).
-> 📄 The design doc is on the parked branch: `git show docs/nwsl-trivia-weekly-redesign:docs/nwsl-trivia-weekly-redesign.md`.
-> ⚠️ Read it for the CONTENT rules only (530-pool → 53 slots, evergreen tagging, difficulty mix, annual
-> regen). Its UI/cadence half is SUPERSEDED — the app shipped BIWEEKLY rounds + the landing page on
-> 2026-07-23. Current truth: `docs/fan-zone.md`.
+> annual ~530-question generation + its Claude-Routine loader. Until then the current stocked pool
+> serves rounds with a deterministic slice (repeats after ~4 rounds — acceptable interim, owner-approved).
+>
+> **CONTENT RULES for the annual batch** (relocated 2026-08-11 from the retired
+> `docs/nwsl-trivia-weekly-redesign.md` planning branch — its UI/cadence half was SUPERSEDED by the
+> 2026-07-23 biweekly rebuild; current structure truth = `docs/fan-zone.md`):
+> - **~530 questions → 53 weekly slots** (53 not 52, so 53-ISO-week years are covered; week 53 wraps to
+>   week 1). Week-indexed deterministic assignment → zero in-year repeats with NO "seen" ledger;
+>   cross-year overlap is acceptable (owner — the requirement was "not the same question I just saw," not
+>   "never repeat NWSL history").
+> - **Tag each question `evergreen` vs `season-bound`; bias HEAVILY evergreen** (settled history, rules,
+>   venues, finalized records) so annual rot is near zero. Keep season-bound (current-season stats/records)
+>   minimal, refresh at the annual regen. (Rot example: "single-season goals record" breaks the day it's
+>   beaten; "when did Utah Royals pause?" never does.)
+> - **Stratify difficulty PER WEEK** (~4 easy / 4 medium / 2 hard) so no week is all-hard or all-easy;
+>   also the moment to catch duds (the original batch shipped a "how many players field a team? (11)").
+> - **One annual fact-check pass** over the whole 530 (like the original hand-vetted batch).
+> - **Generation = reuse the KHG automation template, ANNUAL not weekly** — a tuned Claude-Remote query
+>   regenerates the 530 + clears the old pool once a year (+ optional mid-season patch if a record falls).
+>   ⚠️ **Needs a tuned Trivia generation prompt — does not exist yet**; copy the effort in
+>   `nwslapp-proxy/scripts/knowher-generation-prompt.md`.
+> - **Build-time notes:** streak becomes WEEKLY (reinterpret GC `triviaStreak7/30` as weeks or retire);
+>   `quiz_answers.edition_key` moves day-key → week-key (old daily community data orphaned, harmless);
+>   proxy `quiz-results.ts` already treats Trivia like KHG (always-revealed).
 
 > ### 🏆 The Bracket → offseason-first, semi-automatic (decision LOCKED; the one code change is NOT done)
 > **Decision (locked, owner):** stop running The Bracket year-round on a fixed cadence. Make it primarily

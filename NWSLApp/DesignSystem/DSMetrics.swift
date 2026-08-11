@@ -40,6 +40,11 @@ enum DS {
     static let cardPadding: CGFloat = 16
     static let chipPaddingH: CGFloat = 14
     static let chipPaddingV: CGFloat = 8
+    /// Minimum EFFECTIVE (hit-area) size for a tappable control — Apple's HIG floor. Visible
+    /// chrome may be smaller: top the difference up with padding + `.contentShape` so the ring
+    /// is invisible but tappable (2026-08-10 tap-target pass — the onboarding tile bell was a
+    /// bare 30pt inside the tile-wide follow button, so a near-miss silently unfollowed).
+    static let tapTarget: CGFloat = 44
 
     // MARK: Corner radii
     static let radiusXs: CGFloat = 5     // form badges (W/D/L)

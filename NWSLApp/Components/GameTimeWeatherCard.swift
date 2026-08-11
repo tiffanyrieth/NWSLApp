@@ -1,0 +1,204 @@
+//
+//  GameTimeWeatherCard.swift
+//  NWSLApp
+//
+//  "Expected game-time weather" — the forecast strip on an UPCOMING match's detail screen
+//  (design handoff `design_handoff_weather`). A 4-column hourly strip (kickoff −1h, kickoff,
+//  +1h, +2h) with temperature / condition / wind / precip, plus two conditional footer rows
+//  (heat-index-or-wind-chill, sunset). Purely informational — no ratings, no "nice day" stamp;
+//  the data is shown, the fan decides.
+//
+//  Prop-only (HowToWatchCard pattern): the caller supplies the decoded forecast + kickoff and
+//  applies the 20pt horizontal margin. The card only renders when it has a full 4-hour window —
+//  the caller gates on `weather.isForecast`, so this view assumes a valid strip.
+//
+//  ⚠️ Text sizes were raised to the 12pt readable floor from the handoff's 10–10.5pt (owner
+//  2026-08-11): the handoff came from Claude Design, which sizes below our floor; the KICKOFF
+//  marker keeps its eyebrow feel via small-caps tracking at 12.
+//
+
+import SwiftUI
+
+struct GameTimeWeatherCard: View {
+    let hours: [MatchWeather.ForecastHour]
+    let venueName: String?
+    let sunset: Date?
+    let kickoff: Date
+
+    @Environment(\.dynamicTypeSize) private var typeSize
+    private var isAccessibilitySize: Bool { typeSize.isAccessibilitySize }
+
+    private var feelsRow: GameTimeWeatherModel.FeelsRow? {
+        GameTimeWeatherModel.feelsLikeRow(hours: hours)
+    }
+    private var sunsetLabel: String? {
+        GameTimeWeatherModel.sunsetInWindow(sunset: sunset, kickoff: kickoff)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            titleRow
+            strip
+            if feelsRow != nil || sunsetLabel != nil {
+                Divider().overlay(Color.dsSeparator)
+                footer
+            }
+            // CC-BY 4.0 attribution (kept minimal; the full credit lives on the roadmap's
+            // privacy/disclaimer page). One credit covers all Open-Meteo data in the app.
+            Text("Weather by Open-Meteo")
+                .dsFont(12, weight: .regular)
+                .foregroundStyle(Color.dsFgQuaternary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color.dsBgCard)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
+    }
+
+    // MARK: Title
+
+    private var titleRow: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Expected game-time weather")
+                .dsFont(17, weight: .bold)
+                .foregroundStyle(Color.dsFgPrimary)
+            Spacer(minLength: 8)
+            if let venueName {
+                Text(venueName)
+                    .dsFont(12, weight: .semibold)
+                    .foregroundStyle(Color.dsFgTertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+        }
+    }
+
+    // MARK: Strip
+
+    /// At AX1 the 4 columns can't sit side-by-side legibly, so they reflow to a 2×2 grid
+    /// (StandingsView's isAccessibilitySize precedent). At every normal size it's a 4-wide HStack.
+    @ViewBuilder
+    private var strip: some View {
+        if isAccessibilitySize {
+            let rows = stride(from: 0, to: hours.count, by: 2).map { Array(hours[$0..<min($0 + 2, hours.count)]) }
+            VStack(spacing: 12) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, pair in
+                    HStack(spacing: 10) {
+                        ForEach(pair, id: \.time) { column(for: $0) }
+                    }
+                }
+            }
+        } else {
+            HStack(spacing: 6) {
+                ForEach(hours, id: \.time) { column(for: $0) }
+            }
+        }
+    }
+
+    /// One hour column. Index 1 is kickoff (the proxy guarantees the ordering) — it gets the
+    /// cyan highlight + "KICKOFF" marker.
+    private func column(for hour: MatchWeather.ForecastHour) -> some View {
+        let isKickoff = hours.firstIndex(of: hour) == 1
+        return VStack(spacing: 5) {
+            Text(hour.hourLabel)
+                .dsFont(12, weight: .semibold)
+                .foregroundStyle(isKickoff ? Color.dsStateKickoff : Color.dsFgSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            Text("KICKOFF")
+                .dsFont(12, weight: .bold)
+                .tracking(0.6)
+                .foregroundStyle(Color.dsStateKickoff)
+                .opacity(isKickoff ? 1 : 0)   // reserve the row so all columns align
+
+            Image(systemName: hour.symbolName)
+                .font(.system(size: 28))
+                .symbolRenderingMode(.multicolor)
+                .frame(height: 30)
+
+            Text("\(hour.roundedTemp)°")
+                .dsFont(20, weight: .bold, monospacedDigit: true)
+                .foregroundStyle(Color.dsFgPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            (Text(Image(systemName: "wind")) + Text(" \(hour.roundedWind) mph"))
+                .dsFont(12, weight: .semibold)
+                .foregroundStyle(Color.dsFgTertiary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            Text(hour.showsPrecip ? "\(hour.precipPct)%" : " ")
+                .dsFont(12, weight: .semibold)
+                .foregroundStyle(Color.dsWeatherPrecip)
+                .opacity(hour.showsPrecip ? 1 : 0)   // reserve the row so columns stay aligned
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, minHeight: 0)   // ⚠️ minHeight/flex, never fixed height (AX1)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 4)
+        .background {
+            if isKickoff {
+                RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous)
+                    .fill(Color.dsStateKickoff.opacity(0.08))
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(columnAccessibilityLabel(hour, isKickoff: isKickoff))
+    }
+
+    private func columnAccessibilityLabel(_ hour: MatchWeather.ForecastHour, isKickoff: Bool) -> String {
+        var parts: [String] = []
+        if isKickoff { parts.append("Kickoff") }
+        parts.append(hour.hourLabel)
+        parts.append("\(hour.roundedTemp) degrees")
+        parts.append("wind \(hour.roundedWind) miles per hour")
+        if hour.showsPrecip { parts.append("\(hour.precipPct) percent chance of precipitation") }
+        return parts.joined(separator: ", ")
+    }
+
+    // MARK: Footer
+
+    @ViewBuilder
+    private var footer: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let feelsRow {
+                footerLine(
+                    icon: feelsRow.kind == .heatIndex ? "thermometer.high" : "wind",
+                    iconColor: Color.dsFgTertiary,
+                    label: feelsRow.kind == .heatIndex ? "Heat index" : "Wind chill",
+                    value: feelsRow.minF == feelsRow.maxF ? "\(feelsRow.minF)°" : "\(feelsRow.minF)–\(feelsRow.maxF)°",
+                    trailing: "during the match")
+            }
+            if let sunsetLabel {
+                footerLine(
+                    icon: "sunset.fill",
+                    iconColor: Color.dsWeatherSunset,
+                    label: "Sunset at",
+                    value: sunsetLabel,
+                    trailing: nil)
+            }
+        }
+    }
+
+    /// A footer row: icon + "<label> <bold value> <trailing>", all quiet-tertiary with the value
+    /// bumped to secondary-bold.
+    private func footerLine(icon: String, iconColor: Color, label: String, value: String, trailing: String?) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundStyle(iconColor)
+                .frame(width: 20)
+            (
+                Text(label + " ")
+                    + Text(value).foregroundColor(.dsFgSecondary).fontWeight(.bold)
+                    + Text(trailing.map { " \($0)" } ?? "")
+            )
+            .dsFont(12)
+            .foregroundStyle(Color.dsFgTertiary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}

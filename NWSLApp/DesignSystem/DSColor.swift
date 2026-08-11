@@ -96,6 +96,11 @@ extension Color {
     static let dsStateClock = Color(hex: "#FF9F0A")    // orange — live clock
     static let dsStateFinal = Color(hex: "#30D158")    // green — final
 
+    // MARK: Game-time weather strip (forecast card)
+    // ⚠️ Mirror these into the design-system `colors.css` (this file promises 1:1 with it).
+    static let dsWeatherPrecip = Color(hex: "#5AC8FA")  // system cyan — precip %
+    static let dsWeatherSunset = Color(hex: "#FF9F0A")  // system orange — sunset icon
+
     // MARK: Match Detail V2 — surfaces
     static let dsMdPanel = Color(hex: "#14151C")       // header panel (navy)
     static let dsMdPanelBottom = Color(hex: "#101117") // header gradient end

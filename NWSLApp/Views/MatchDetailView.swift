@@ -109,10 +109,10 @@ struct MatchDetailView: View {
             // the proxy request cap), slower pre-match.
             // The header score/clock advance separately via `event` (the refreshing store).
             if case .idle = viewModel.summaryState { await viewModel.loadSummary() }
-            // Historical kickoff weather for the header stamp — fire alongside the summary,
-            // not gated on it (additive; loadWeather no-ops unless the match is already past).
+            // Weather — fire alongside the summary, not gated on it (additive). Past → the
+            // historical header stamp; future → the game-time forecast strip; live → no-op.
             // Pass the LIVE temporal state, not the VM's frozen seed.
-            await viewModel.loadWeather(isPast: temporalState == .past)
+            await viewModel.loadWeather(temporalState: temporalState)
             while !Task.isCancelled && temporalState != .past {
                 let interval: Duration = temporalState == .live ? .seconds(60) : .seconds(120)
                 try? await Task.sleep(for: interval)
@@ -120,8 +120,8 @@ struct MatchDetailView: View {
                 await viewModel.refresh()
             }
             // The poll loop only exits once the match is past — a match that finished while
-            // on-screen now has weather available, so make one attempt after the loop.
-            await viewModel.loadWeather(isPast: temporalState == .past)
+            // on-screen now has historical weather available, so make one attempt after the loop.
+            await viewModel.loadWeather(temporalState: temporalState)
         }
     }
 
@@ -781,6 +781,10 @@ struct MatchDetailView: View {
                         seasonComparison(preview)
                         recentForm(preview)
                     }
+                    // OUTSIDE the `preview.hasData` block on purpose — an early-season match with no
+                    // season/form data must still get its weather. Renders only with a full forecast
+                    // window (isForecast); unavailable/indoor/too-far-out → no card, honest absence.
+                    gameTimeWeather
                 }
                 .padding(.top, 24)      // preserve the old header→grid gap now that header is pinned
                 .padding(.bottom, 20)
@@ -1026,6 +1030,19 @@ struct MatchDetailView: View {
                 .foregroundStyle(Color.dsFgTertiary)
                 .lineLimit(1)
                 .accessibilityLabel(weather.accessibilityLabel)
+        }
+    }
+
+    // Game-time weather strip (future matches only) — the forecast for the 4-hour game window.
+    // Gated on `isForecast` (a full 4-hour window); anything else (unavailable / indoor /
+    // >10-days-out / no window) simply omits the card. Kickoff comes from the live `event`.
+    @ViewBuilder
+    private var gameTimeWeather: some View {
+        if temporalState == .future, let weather = viewModel.weather, weather.isForecast,
+           let hours = weather.hours, let kickoff = event.kickoff {
+            GameTimeWeatherCard(hours: hours, venueName: weather.venueName,
+                                sunset: weather.sunsetDate, kickoff: kickoff)
+                .padding(.horizontal, 20)
         }
     }
 

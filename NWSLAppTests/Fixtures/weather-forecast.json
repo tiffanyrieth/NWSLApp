@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "mode": "forecast",
+  "venueName": "Red Bull Arena",
+  "hours": [
+    { "time": "2026-08-14T23:00Z", "tempF": 83, "feelsLikeF": 90, "weatherCode": 0, "isDay": 1, "windMph": 11, "precipPct": 2 },
+    { "time": "2026-08-15T00:00Z", "tempF": 81, "feelsLikeF": 88, "weatherCode": 0, "isDay": 0, "windMph": 11, "precipPct": 25 },
+    { "time": "2026-08-15T01:00Z", "tempF": 79, "feelsLikeF": 86, "weatherCode": 3, "isDay": 0, "windMph": 11, "precipPct": 10 },
+    { "time": "2026-08-15T02:00Z", "tempF": 76, "feelsLikeF": 82, "weatherCode": 61, "isDay": 0, "windMph": 11, "precipPct": 40 }
+  ],
+  "sunset": "2026-08-14T23:56:00.000Z",
+  "asOf": "2026-08-15T00:00:00.000Z"
+}

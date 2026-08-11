@@ -234,10 +234,10 @@ struct FeedView: View {
         VStack(spacing: 12) {
             Image(systemName: "dot.radiowaves.left.and.right")
                 .dsFont(40)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             Text(emptyMessage)
                 .dsFont(15)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
         }
         .padding(32)

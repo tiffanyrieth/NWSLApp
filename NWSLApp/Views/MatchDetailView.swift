@@ -352,7 +352,7 @@ struct MatchDetailView: View {
                     .frame(width: 220, height: 34, alignment: .topLeading)
                 Label("Watch on ESPN", systemImage: "arrow.up.right")
                     .dsFont(12, weight: .semibold)
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
         }
         .buttonStyle(.plain)
@@ -371,7 +371,7 @@ struct MatchDetailView: View {
                         performerSide(row.home, color: matchColors.home.fill, trailing: false)
                         Text(row.category)
                             .dsFont(12, weight: .semibold)
-                            .foregroundStyle(Color.dsFgTertiary)
+                            .foregroundStyle(Color.dsFgSecondary)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity)
@@ -481,7 +481,7 @@ struct MatchDetailView: View {
             Text("\((roster.team?.displayName ?? roster.team?.abbreviation ?? "—").uppercased()) BENCH")
                 .dsFont(12, weight: .semibold)
                 .tracking(0.5)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             FlowLayout(spacing: 8) {
                 ForEach(Array(roster.substitutes.enumerated()), id: \.offset) { _, player in
                     substituteChip(player, roster: roster)
@@ -501,7 +501,7 @@ struct MatchDetailView: View {
             Text(formationHeader(roster))
                 .dsFont(12, weight: .semibold)
                 .tracking(0.5)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
                 .frame(maxWidth: .infinity, alignment: .center)
 
             // Pitch when we can place all 11 by position; the list is the
@@ -543,7 +543,7 @@ struct MatchDetailView: View {
             Text("BENCH")
                 .dsFont(12, weight: .semibold)
                 .tracking(0.5)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             FlowLayout(spacing: 8) {
                 ForEach(Array(roster.substitutes.enumerated()), id: \.offset) { _, player in
                     substituteChip(player, roster: roster)
@@ -589,7 +589,7 @@ struct MatchDetailView: View {
             Text(player.jersey ?? "–")
                 .dsFont(14, weight: .bold)
                 .monospacedDigit()
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             Text(subLastName(player))
                 .dsFont(14)
                 .foregroundStyle(Color.dsFgPrimary)
@@ -623,13 +623,13 @@ struct MatchDetailView: View {
             Text(title.uppercased())
                 .dsFont(12, weight: .semibold)
                 .tracking(0.5)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             ForEach(Array(players.enumerated()), id: \.offset) { _, player in
                 HStack(spacing: 10) {
                     Text(player.jersey ?? "–")
                         .dsFont(12, weight: .bold)
                         .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.dsFgSecondary)
                         .frame(width: 24, alignment: .trailing)
                     Text(player.athlete?.displayName ?? "—")
                         .dsFont(15)
@@ -891,7 +891,7 @@ struct MatchDetailView: View {
             if form.recent.isEmpty {
                 Text("No matches yet")
                     .dsFont(12)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.dsFgSecondary)
             } else {
                 HStack(spacing: 5) {
                     ForEach(Array(form.recent.enumerated()), id: \.offset) { _, result in
@@ -1027,7 +1027,7 @@ struct MatchDetailView: View {
         if temporalState == .past, let weather = viewModel.weather, let temp = weather.roundedTemp {
             (Text(Image(systemName: weather.symbolName)) + Text(" \(temp)°"))
                 .dsFont(12)
-                .foregroundStyle(Color.dsFgTertiary)
+                .foregroundStyle(Color.dsFgSecondary)
                 .lineLimit(1)
                 .accessibilityLabel(weather.accessibilityLabel)
         }
@@ -1233,7 +1233,7 @@ struct MatchDetailView: View {
     private func emptyState(_ message: String) -> some View {
         Text(message)
             .dsFont(16)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.dsFgSecondary)
             .frame(maxWidth: .infinity)
             .padding(.top, 40)
     }

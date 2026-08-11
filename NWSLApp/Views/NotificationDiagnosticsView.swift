@@ -28,7 +28,7 @@ struct NotificationDiagnosticsView: View {
                 stateCard
                 crumbsCard
                 Text("Debug tool — remove before App Store. device_id keys the notification_diagnostics table.")
-                    .font(.system(size: 10)).foregroundStyle(Color.dsFgTertiary)
+                    .font(.system(size: 10)).foregroundStyle(Color.dsFgSecondary)
                     .padding(.horizontal, 16)
             }
             .padding(.vertical, 14)

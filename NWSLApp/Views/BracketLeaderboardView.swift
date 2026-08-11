@@ -145,7 +145,7 @@ struct BracketLeaderboardView: View {
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 1) {
                 Text("\(you.points)").dsFont(22, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
-                Text("pts").dsFont(12).foregroundStyle(Color.dsFgTertiary)
+                Text("pts").dsFont(12).foregroundStyle(Color.dsFgSecondary)
             }
         }
         .padding(16)
@@ -194,7 +194,7 @@ struct BracketLeaderboardView: View {
     private func standingRow(_ s: BracketStanding) -> some View {
         HStack(spacing: 12) {
             Text("\(s.rank)").dsFont(13, weight: .bold, monospacedDigit: true)
-                .foregroundStyle(s.isYou ? accent : Color.dsFgTertiary).frame(width: 30, alignment: .trailing)
+                .foregroundStyle(s.isYou ? accent : Color.dsFgSecondary).frame(width: 30, alignment: .trailing)
             Text(s.name).dsFont(14, weight: s.isYou ? .bold : .medium)
                 .foregroundStyle(s.isYou ? accent : .dsFgPrimary).lineLimit(1).minimumScaleFactor(0.8)
             Spacer(minLength: 8)
@@ -295,7 +295,7 @@ struct BracketLeaderboardView: View {
                 }
                 Spacer(minLength: 8)
                 Text(e.isComplete ? "Final" : "In progress")
-                    .dsFont(12, weight: .bold).foregroundStyle(e.isComplete ? Color.dsFgTertiary : accent)
+                    .dsFont(12, weight: .bold).foregroundStyle(e.isComplete ? Color.dsFgSecondary : accent)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background((e.isComplete ? Color.dsFgTertiary : accent).opacity(0.14), in: Capsule())
             }
@@ -304,7 +304,7 @@ struct BracketLeaderboardView: View {
                 Text(e.maxPoints > 0 ? "\(e.points) / \(e.maxPoints) pts" : "\(e.points) pts")
                     .dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                 Spacer()
-                if let acc = e.accuracy { Text("\(pct(acc)) accurate").dsFont(12).foregroundStyle(Color.dsFgTertiary) }
+                if let acc = e.accuracy { Text("\(pct(acc)) accurate").dsFont(12).foregroundStyle(Color.dsFgSecondary) }
             }
             // The competitive line: where you FINISHED, World-Cup-style — survives forever even
             // after the edition's per-vote detail is pruned (rank stamped at close by the engine).

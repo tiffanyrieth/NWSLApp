@@ -81,7 +81,7 @@ struct RetryStateView: View {
             if let icon {
                 Image(systemName: icon)
                     .dsFont(26)
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
             if let title {
                 Text(title)

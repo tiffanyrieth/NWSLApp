@@ -356,7 +356,7 @@ struct TeamsView: View {
                 }
                 Image(systemName: "chevron.right")
                     .dsFont(15, weight: .semibold)
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)

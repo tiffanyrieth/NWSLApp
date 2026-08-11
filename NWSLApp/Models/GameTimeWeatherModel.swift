@@ -12,15 +12,25 @@ import Foundation
 
 enum GameTimeWeatherModel {
 
-    /// The heat-index / wind-chill footer row.
+    /// The "feels like" footer row — heat index, wind chill, or a neutral feels-like.
     ///
     /// Design gate: show ONLY when EVERY hour in the 4-hour window has a ≥5° gap between actual
     /// and feels-like, in the SAME direction. If even one hour is within 4°, or the directions
     /// disagree, the row is suppressed — a "feels like" that only diverges for one hour, or flips
     /// sign across the window, isn't a clean story worth a line. The range is the exact min–max
     /// feels-like across the window (not rounded to 5° increments).
-    enum FeelsKind: Equatable { case heatIndex, windChill }
+    ///
+    /// ⚠️ THE LABEL IS REGIME-AWARE (bug fix 2026-08-11 — a GFC game at ~80°F was labeled "Wind
+    /// chill", which is meteorologically wrong: wind chill is a COLD-weather term, defined only at
+    /// ≤50°F; heat index is a HOT-humid term). So:
+    ///   • feels HOTTER (by definition a warm regime) → "Heat index"
+    ///   • feels COLDER and actually cold (≤ `windChillMaxTempF`) → "Wind chill"
+    ///   • feels COLDER but mild/warm (a breezy 80°) → neutral "Feels like" — honest, not a misnomer
+    enum FeelsKind: Equatable { case heatIndex, windChill, feelsLike }
     struct FeelsRow: Equatable { let kind: FeelsKind; let minF: Int; let maxF: Int }
+
+    /// The upper bound where "wind chill" is a real term (US NWS defines it at ≤50°F).
+    static let windChillMaxTempF = 50
 
     static func feelsLikeRow(hours: [MatchWeather.ForecastHour]) -> FeelsRow? {
         guard !hours.isEmpty else { return nil }
@@ -29,8 +39,15 @@ enum GameTimeWeatherModel {
         let colder = hours.allSatisfy { $0.tempF - $0.feelsLikeF >= 5 }
         guard hotter || colder else { return nil }
         let feels = hours.map(\.roundedFeelsLike)
-        return FeelsRow(kind: hotter ? .heatIndex : .windChill,
-                        minF: feels.min()!, maxF: feels.max()!)
+        let kind: FeelsKind
+        if hotter {
+            kind = .heatIndex
+        } else if hours.allSatisfy({ $0.tempF <= Double(windChillMaxTempF) }) {
+            kind = .windChill   // genuinely cold all window → wind chill is the right word
+        } else {
+            kind = .feelsLike   // cooler-feeling but mild (a breezy warm day) → neutral
+        }
+        return FeelsRow(kind: kind, minF: feels.min()!, maxF: feels.max()!)
     }
 
     /// The sunset footer row: shown only when sunset falls inside the game window

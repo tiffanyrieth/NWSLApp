@@ -171,7 +171,7 @@ struct ProfileView: View {
                 .lineLimit(1)
             Image(systemName: "chevron.right")
                 .dsFont(13, weight: .semibold)
-                .foregroundStyle(Color.dsFgTertiary)
+                .foregroundStyle(Color.dsFgSecondary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 13)
@@ -207,7 +207,7 @@ struct ProfileView: View {
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
                     .dsFont(13, weight: .semibold)
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 20)
@@ -245,7 +245,7 @@ struct ProfileView: View {
                 .foregroundStyle(Color.dsFgSecondary)
             Image(systemName: "chevron.right")
                 .dsFont(13, weight: .semibold)
-                .foregroundStyle(Color.dsFgTertiary)
+                .foregroundStyle(Color.dsFgSecondary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 13)
@@ -416,7 +416,7 @@ struct ProfileView: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                         .dsFont(13, weight: .semibold)
-                        .foregroundStyle(Color.dsFgTertiary)
+                        .foregroundStyle(Color.dsFgSecondary)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 13)
@@ -532,7 +532,7 @@ struct ProfileView: View {
             .frame(width: 29, height: 29)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Notification Diagnostics").dsFont(15).foregroundStyle(Color.dsFgPrimary)
-                Text("Token registration state").dsFont(12).foregroundStyle(Color.dsFgTertiary)
+                Text("Token registration state").dsFont(12).foregroundStyle(Color.dsFgSecondary)
             }
             Spacer(minLength: 8)
             Image(systemName: "chevron.right").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
@@ -546,7 +546,7 @@ struct ProfileView: View {
     private var versionLabel: some View {
         Text("NWSLApp \(appVersion)")
             .dsFont(12)
-            .foregroundStyle(Color.dsFgTertiary)
+            .foregroundStyle(Color.dsFgSecondary)
             .frame(maxWidth: .infinity)
     }
 

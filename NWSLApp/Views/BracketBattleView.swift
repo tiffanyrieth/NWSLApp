@@ -271,7 +271,7 @@ struct BracketBattleView: View {
                     }
                     .frame(height: 18)
                     Text("\(round.displayName(in: rounds)) · \(round.matchupCount) matchups")
-                        .dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
+                        .dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                     if round != rounds.last { Rectangle().fill(Color.dsFgQuaternary).frame(width: 2, height: 8) }
                 }
             }
@@ -489,7 +489,7 @@ struct BracketBattleView: View {
                     .dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
             }
             Text("Browse every round below — results stay up until the next bracket starts.")
-                .dsFont(12).foregroundStyle(Color.dsFgTertiary)
+                .dsFont(12).foregroundStyle(Color.dsFgSecondary)
         }
         .padding(16).frame(maxWidth: .infinity, alignment: .leading)
         .background(accent.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -499,7 +499,7 @@ struct BracketBattleView: View {
     private func ctaMutedCard(title: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).dsFont(16, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
-            Text(subtitle).dsFont(13).foregroundStyle(Color.dsFgTertiary)
+            Text(subtitle).dsFont(13).foregroundStyle(Color.dsFgSecondary)
         }
         .padding(16).frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -540,7 +540,7 @@ struct BracketBattleView: View {
     private func neighborhoodRow(_ row: BracketStanding) -> some View {
         HStack(spacing: 10) {
             Text("#\(row.rank)").dsFont(13, weight: row.isYou ? .heavy : .semibold)
-                .foregroundStyle(row.isYou ? accent : Color.dsFgTertiary)
+                .foregroundStyle(row.isYou ? accent : Color.dsFgSecondary)
                 .frame(width: 34, alignment: .trailing)
             Text(row.isYou ? "You" : row.name).dsFont(14, weight: row.isYou ? .bold : .medium)
                 .foregroundStyle(row.isYou ? accent : Color.dsFgPrimary).lineLimit(1)
@@ -600,7 +600,7 @@ struct BracketBattleView: View {
             HStack(spacing: 8) {
                 Text(round.displayName(in: edition.rounds))
                     .dsFont(15, weight: active ? .bold : done ? .semibold : .regular)
-                    .foregroundStyle(tappable ? Color.dsFgPrimary : Color.dsFgTertiary)
+                    .foregroundStyle(tappable ? Color.dsFgPrimary : Color.dsFgSecondary)
                 if done { Text("· \(round.matchupCount) matchups").dsFont(12).foregroundStyle(Color.dsFgSecondary) }
                 if active {
                     Text("Voting now").dsFont(12, weight: .bold).foregroundStyle(accent)
@@ -833,7 +833,7 @@ struct BracketBattleView: View {
                 }
                 .padding(.top, 4)
             }
-            Text("NWSL · The Bracket").dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgTertiary).padding(.top, 8)
+            Text("NWSL · The Bracket").dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary).padding(.top, 8)
         }
         .padding(28).frame(width: 320)
         .background(LinearGradient(colors: [accent.opacity(0.18), Color.dsBgPrimary], startPoint: .top, endPoint: .bottom))
@@ -937,7 +937,7 @@ struct BracketBattleView: View {
                 PlayerDot(name: e.playerName, jersey: e.jerseyNumber, teamAbbreviation: e.teamAbbreviation,
                           accent: accentColor(e.teamAbbreviation), athleteID: e.id, size: 44, showLabels: false)
                 Text(e.playerName).dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgPrimary).lineLimit(1).minimumScaleFactor(0.8)
-                Text(e.teamAbbreviation).dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
+                Text(e.teamAbbreviation).dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                 if picked {
                     HStack(spacing: 3) {
                         Text("YOUR PICK")
@@ -1027,9 +1027,9 @@ struct BracketBattleView: View {
             PlayerDot(name: e.playerName, jersey: e.jerseyNumber, teamAbbreviation: e.teamAbbreviation,
                       accent: accentColor(e.teamAbbreviation), athleteID: e.id, size: 40, showLabels: false)
             Text(e.playerName).dsFont(13, weight: won ? .bold : .medium)
-                .foregroundStyle(won ? .dsFgPrimary : Color.dsFgTertiary).strikethrough(!won).lineLimit(1).minimumScaleFactor(0.8)
+                .foregroundStyle(won ? .dsFgPrimary : Color.dsFgSecondary).strikethrough(!won).lineLimit(1).minimumScaleFactor(0.8)
             Text(e.teamAbbreviation + (isYour ? " · your pick" : ""))
-                .dsFont(12, weight: .semibold).foregroundStyle(isYour ? accent : Color.dsFgTertiary)
+                .dsFont(12, weight: .semibold).foregroundStyle(isYour ? accent : Color.dsFgSecondary)
             if won { Text("ADVANCES").dsFont(12, weight: .bold).foregroundStyle(Color.dsSuccess) }
         }
         // Fix 4: the teal wash + border marks YOUR PICK (regardless of outcome) so you can always see which
@@ -1092,7 +1092,7 @@ struct BracketBattleView: View {
                 .rotationEffect(.degrees(-90))
             VStack(spacing: 0) {
                 Text("\(centerPct)%").dsFont(22, weight: .heavy).foregroundStyle(Color.dsFgPrimary)
-                Text("WON").dsFont(12, weight: .bold).tracking(1).foregroundStyle(Color.dsFgTertiary)
+                Text("WON").dsFont(12, weight: .bold).tracking(1).foregroundStyle(Color.dsFgSecondary)
             }
         }
         .frame(width: 124, height: 124).padding(6)
@@ -1103,7 +1103,7 @@ struct BracketBattleView: View {
             Circle().fill(winner ? accent : Color.dsFgQuaternary).frame(width: 8, height: 8)
             Text(e.playerName).dsFont(12, weight: winner ? .semibold : .regular).foregroundStyle(winner ? .dsFgPrimary : Color.dsFgSecondary)
             Spacer()
-            Text("\(pct)%").dsFont(12, weight: .semibold).foregroundStyle(winner ? accent : Color.dsFgTertiary)
+            Text("\(pct)%").dsFont(12, weight: .semibold).foregroundStyle(winner ? accent : Color.dsFgSecondary)
         }
     }
 

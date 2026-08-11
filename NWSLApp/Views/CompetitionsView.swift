@@ -124,7 +124,7 @@ struct CompetitionsView: View {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill")
                         .dsFont(15)
-                        .foregroundStyle(Color.dsFgTertiary)
+                        .foregroundStyle(Color.dsFgSecondary)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear search")

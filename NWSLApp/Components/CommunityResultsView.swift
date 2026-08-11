@@ -92,7 +92,7 @@ struct CommunityResultsView: View {
                 Image(systemName: "person.3.fill").foregroundStyle(accent)
                 Text("How everyone did").dsFont(17, weight: .semibold)
                 Spacer()
-                Text("Community").dsFont(12).foregroundStyle(.secondary)
+                Text("Community").dsFont(12).foregroundStyle(Color.dsFgSecondary)
             }
             content
         }
@@ -147,7 +147,7 @@ struct CommunityResultsView: View {
     private func statBlock(value: String, label: String) -> some View {
         VStack(spacing: 4) {
             Text(value).dsFont(20, weight: .bold).foregroundStyle(accent)
-            Text(label).dsFont(12).foregroundStyle(.secondary)
+            Text(label).dsFont(12).foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -282,7 +282,7 @@ struct CommunityResultsView: View {
                 // A minimum width keeps the bars' right edges aligned down the block.
                 Text(showPercent ? "\(pct)%" : "\(count)")
                     .dsFont(13, weight: .semibold, monospacedDigit: true)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.dsFgSecondary)
                     .frame(minWidth: 42, alignment: .trailing)
             }
             // Indent the bar to the label TEXT, not the mark, so the ✓/✗/○ marks stay a clean scannable
@@ -297,7 +297,7 @@ struct CommunityResultsView: View {
     @ViewBuilder
     private func honest(_ message: String, retry: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(message).dsFont(15).foregroundStyle(.secondary)
+            Text(message).dsFont(15).foregroundStyle(Color.dsFgSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             if retry {
                 Button("Try again") { Task { await load() } }

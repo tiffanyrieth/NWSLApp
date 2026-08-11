@@ -454,13 +454,13 @@ struct ScheduleView: View {
         VStack(spacing: 12) {
             Image(systemName: "star")
                 .dsFont(40)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             Text("Follow your teams to see their matches here")
                 .dsFont(17, weight: .semibold)
                 .multilineTextAlignment(.center)
             Text("Tap the star on any club in the Teams tab.")
                 .dsFont(15)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
         }
         .padding(.horizontal, 32)
@@ -474,7 +474,7 @@ struct ScheduleView: View {
         VStack(spacing: 12) {
             Image(systemName: "calendar")
                 .dsFont(40)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             // Honest + contextual: a followed team (incl. a sparse national team) with no fixtures
             // in the season feed reads as a real "no matches" state, never a blank screen.
             Text(selectedFilter == .myTeams ? "No matches for your teams yet" : "No matches to show")

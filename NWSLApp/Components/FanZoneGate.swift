@@ -100,9 +100,9 @@ struct DisplayNameEntry: View {
             switch check {
             case .idle:
                 Text("2–20 characters · visible to other players · change anytime in Profile")
-                    .dsFont(12).foregroundStyle(Color.dsFgTertiary).padding(.leading, 2)
+                    .dsFont(12).foregroundStyle(Color.dsFgSecondary).padding(.leading, 2)
             case .checking:
-                statusLabel("Checking…", color: Color.dsFgTertiary, icon: nil)
+                statusLabel("Checking…", color: Color.dsFgSecondary, icon: nil)
             case .available:
                 statusLabel("That username's available", color: Color.dsSuccess, icon: "checkmark.circle.fill")
             case .error(let refusal):
@@ -384,7 +384,7 @@ struct FanZoneGateSheet: View {
             }
             Text("A username is required to play Fan Zone games")
                 .dsFont(12)
-                .foregroundStyle(Color.dsFgTertiary)
+                .foregroundStyle(Color.dsFgSecondary)
         }
     }
 

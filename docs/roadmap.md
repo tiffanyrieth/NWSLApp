@@ -297,6 +297,12 @@
 >   honest-language work — values as promises (no ads; no data sold; no third-party/cross-app
 >   tracking), what IS collected (account basics; anonymous aggregate diagnostics/usage, never
 >   linked), retention, delete-account. Host it (GitHub Pages is $0) + paste the URL in ASC.
+> - **Attributions / acknowledgements** (fold into this page or a sibling): **Open-Meteo weather data
+>   is CC-BY 4.0 — attribution is required.** The app carries a minimal "Weather by Open-Meteo" line on
+>   the forecast card already (one credit covers all Open-Meteo data, forecast + historical stamp); the
+>   FULL/proper credit (name + link + license link) belongs here. Add any other third-party data credits
+>   at the same time (ESPN is unofficial/uncredited by nature; NWSL matchfacts for the attendance
+>   backstop).
 > - README/showcase copy already reframed to match (PR #152); CLAUDE.md carries the
 >   values-vs-mechanics stance so future copy stays consistent.
 
@@ -427,5 +433,3 @@
 - **Competitions follow-ups:** national-team coverage + cup push/LA + foreign-club colors are all DONE
   (16 NT feeds, WAFCON live, cups pushing with V2 LA, `DesignTeamColors.international` shipped). Residual:
   the CLUB cups folding into the Schedule "My teams" grouping; WWC/Olympics whole-tournament UI stays DEFERRED.
-- **Weather** — kickoff-temp header slot (nice-to-have, stays). _(User-added feed sources SHIPPED in the
-  Social Phase-3 "make it yours" pass — Bluesky reporters + player follows; that line is retired.)_

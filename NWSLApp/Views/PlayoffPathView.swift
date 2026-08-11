@@ -110,8 +110,8 @@ struct PlayoffPathView: View {
                 stepCard(step)
                 if let win = step.winContext {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("Win →").dsFont(13, weight: .heavy).foregroundStyle(accent)
-                        Text(humanize(win)).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                        Text("Win →").dsFont(15, weight: .heavy).foregroundStyle(accent)
+                        Text(humanize(win)).dsFont(15).foregroundStyle(Color.dsFgSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -128,7 +128,7 @@ struct PlayoffPathView: View {
         } else {
             HStack(spacing: 6) {
                 Text(step.round.slug == PlayoffRound.championship.slug ? "NWSL Championship" : "Opponent to be decided")
-                    .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                    .dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                 Spacer(minLength: 0)
             }
             .padding(14)
@@ -157,7 +157,7 @@ struct PlayoffPathView: View {
     private func championRow(championAbbr: String?) -> some View {
         HStack(spacing: 12) {
             Circle().fill(Color.dsBgTertiary).frame(width: 16, height: 16)
-                .overlay(Text("🏆").dsFont(12))
+                .overlay(Text("🏆").dsFont(13))
                 .overlay(Circle().strokeBorder(Color.dsFgQuaternary, lineWidth: 2))
             if let championAbbr {
                 // Mixed case deliberately (club name stays proper-case, not shouted).
@@ -176,7 +176,7 @@ struct PlayoffPathView: View {
     private func storylineCard(_ text: String) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "sparkles").dsFont(16).foregroundStyle(Color.dsGameBracket)
-            Text(humanize(text)).dsFont(13, weight: .medium).foregroundStyle(Color.dsFgPrimary)
+            Text(humanize(text)).dsFont(15, weight: .medium).foregroundStyle(Color.dsFgPrimary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
@@ -202,7 +202,7 @@ struct PlayoffPathView: View {
             Image(systemName: "flag.checkered").dsFont(34).foregroundStyle(Color.dsFgTertiary)
             Text("None of your teams are in the playoffs").dsFont(16, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
             Text("Check the Bracket tab to follow the whole postseason.")
-                .dsFont(13).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center)
+                .dsFont(15).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity).padding(.top, 60).padding(.horizontal, 32)
     }

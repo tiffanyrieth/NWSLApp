@@ -117,7 +117,7 @@ struct NationalTeamDetailView: View {
             // registered squad), so naming the source keeps a Zambia list of 26 explicable
             // against a WAFCON lineup of 23.
             Text("Squad · \(result.feed.label)")
-                .dsFont(12)
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
             ForEach(Roster.grouped(result.squad.athletes)) { group in
                 VStack(alignment: .leading, spacing: 10) {
@@ -154,7 +154,7 @@ struct NationalTeamDetailView: View {
                 ZStack {
                     Circle().fill(accent.opacity(0.16))
                     Text(initials(for: athlete))
-                        .dsFont(14, weight: .bold)
+                        .dsFont(15, weight: .bold)
                         .foregroundStyle(accent)
                         .minimumScaleFactor(0.7).lineLimit(1)
                 }
@@ -162,13 +162,13 @@ struct NationalTeamDetailView: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(athlete.shortName ?? athlete.name)
-                    .dsFont(14.5, weight: .semibold)
+                    .dsFont(15.5, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                     .lineLimit(2)
                     .minimumScaleFactor(0.85)
                 if let jersey = athlete.jersey {
                     Text("#\(jersey)")
-                        .dsFont(12)
+                        .dsFont(13)
                         .foregroundStyle(Color.dsFgSecondary)
                 }
             }

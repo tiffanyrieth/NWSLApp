@@ -59,7 +59,7 @@ struct DisplayNameEntry: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Username")
-                .dsFont(12, weight: .medium)
+                .dsFont(13, weight: .medium)
                 .foregroundStyle(Color.dsFgSecondary)
                 .padding(.leading, 2)
 
@@ -100,7 +100,7 @@ struct DisplayNameEntry: View {
             switch check {
             case .idle:
                 Text("2–20 characters · visible to other players · change anytime in Profile")
-                    .dsFont(12).foregroundStyle(Color.dsFgSecondary).padding(.leading, 2)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary).padding(.leading, 2)
             case .checking:
                 statusLabel("Checking…", color: Color.dsFgSecondary, icon: nil)
             case .available:
@@ -113,8 +113,8 @@ struct DisplayNameEntry: View {
 
     private func statusLabel(_ text: String, color: Color, icon: String?) -> some View {
         HStack(spacing: 5) {
-            if let icon { Image(systemName: icon).dsFont(12) }
-            Text(text).dsFont(12)
+            if let icon { Image(systemName: icon).dsFont(13) }
+            Text(text).dsFont(13)
         }
         .foregroundStyle(color)
         .padding(.leading, 2)
@@ -172,7 +172,7 @@ struct DisplayNameEditorSheet: View {
         NavigationStack {
             VStack(spacing: 18) {
                 Text("This is how you appear on the Fan Zone leaderboards.")
-                    .dsFont(13)
+                    .dsFont(15)
                     .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
                 DisplayNameEntry(draft: $draft, cta: "Save", accent: Color.dsAccent) {
@@ -211,7 +211,7 @@ struct PlayingAsBadge: View {
             Button { showEditor = true } label: {
                 (Text("Playing as ").foregroundStyle(Color.dsFgSecondary)
                  + Text(name).foregroundStyle(accent).fontWeight(.semibold))
-                    .dsFont(12)
+                    .dsFont(13)
                     // Take the width the full 2–20 char name needs — keep the nav bar
                     // from compressing/truncating it to one squeezed line.
                     .lineLimit(1)
@@ -319,7 +319,7 @@ struct FanZoneGateSheet: View {
                     .dsFont(24, weight: .bold)
                     .multilineTextAlignment(.center)
                 Text("\(gameName) is scored. Sign in so your results count — on the leaderboards and in the community stats.")
-                    .dsFont(15)
+                    .dsFont(16)
                     .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
             }
@@ -329,9 +329,9 @@ struct FanZoneGateSheet: View {
                     .foregroundStyle(accent)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Your results count.")
-                        .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
+                        .dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
                     Text("Your points on the leaderboards, your answers in the community stats — see how you compare across the league.")
-                        .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                        .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
@@ -343,7 +343,7 @@ struct FanZoneGateSheet: View {
 
             if let errorMessage {
                 Text(errorMessage)
-                    .dsFont(13)
+                    .dsFont(15)
                     .foregroundStyle(Color.dsError)
                     .multilineTextAlignment(.center)
             }
@@ -358,7 +358,7 @@ struct FanZoneGateSheet: View {
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             Button("Go back to rules") { dismiss() }   // cancels the action — NOT a skip-and-play
-                .dsFont(15, weight: .semibold)
+                .dsFont(16, weight: .semibold)
                 .foregroundStyle(Color.dsFgSecondary)
         }
     }
@@ -374,7 +374,7 @@ struct FanZoneGateSheet: View {
                     .dsFont(22, weight: .bold)
                     .multilineTextAlignment(.center)
                 Text("This is how you'll appear across Fan Zone — leaderboards and community stats. Make it good — other fans will see this.")
-                    .dsFont(15)
+                    .dsFont(16)
                     .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
             }
@@ -383,7 +383,7 @@ struct FanZoneGateSheet: View {
                 dismiss()
             }
             Text("A username is required to play Fan Zone games")
-                .dsFont(12)
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
         }
     }

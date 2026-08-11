@@ -50,7 +50,7 @@ struct TierBadge: View {
                 TierBadge(tier: tier, size: 24)
                 TierBadge(tier: tier, size: 40)
                 TierBadge(tier: tier, size: 80)
-                Text(tier.label).dsFont(12)
+                Text(tier.label).dsFont(13)
             }
         }
     }

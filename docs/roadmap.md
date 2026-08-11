@@ -393,21 +393,6 @@
 > app source. The unit tests that reference `PostseasonSimulator.clinchTable` (`PlayoffClinchTests`) move
 > to inline fixtures at that point. Nothing auto-reminds — this note is the reminder.
 
-> ### 📏 TYPE AUDIT — ✅ 12pt floor DONE 2026-08-06 · 🕰️ 13-14 secondary tier = a FEW-WEEKS VIBE CHECK
-> **✅ DONE (this PR):** a **12pt hard readable-font floor** — every `.dsFont(9…11.5)` bumped to 12 (160
-> sites). No floor existed before (119 uses at 11pt); the trigger was the owner's mom (70s) not being able
-> to read the app, and the Sim renders desktop-scale so small type "looked fine" but wasn't on a phone
-> ([[feedback_size_for_phone_not_desktop]]). Owner research + the AX1 engineering point both land on 12
-> ("below 10-11 stays illegible even after accessibility scaling"). Verified default + AX1 on Standings +
-> Schedule (no overflow). Exceptions kept: the 5pt bullet-dot icon, `trackedCaps` eyebrows, monograms.
->
-> **🕰️ FOLLOW-UP — do NOT do this now (owner 2026-08-06): the 13-14pt "must-read secondary" tier.** Per
-> the research, must-read secondary text (Match Detail stat labels, standings secondary numbers) ideally
-> wants 13-14, not just the 12 floor. But whether it's *needed* is a **VIBE reaction after living with
-> today's change for a few weeks on-device**, NOT a gut call now — and it should be done SURGICALLY per
-> screen where the owner's eye says it still reads small, never another blanket bump (that flattens
-> hierarchy). Revisit ~late Aug after the 12 floor has been felt on real use.
-
 > ### 🔒 V2 LA RULE (standing): V2 Live Activity work happens in its OWN session with NO other tasks
 > in flight — it's device-proven, fragile, weeks to get right; read `docs/live-activity-v2.md` §0 FIRST,
 > never edit from first principles. _(No open V2-LA items — the ⌚ Apple Watch `.small` crest fix merged

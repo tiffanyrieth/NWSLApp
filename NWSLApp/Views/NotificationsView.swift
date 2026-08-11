@@ -100,7 +100,7 @@ struct NotificationsView: View {
         ) {
             if !hasAny {
                 Text("Follow teams to turn on match alerts.")
-                    .dsFont(13)
+                    .dsFont(15)
                     .foregroundStyle(Color.dsFgSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
@@ -133,7 +133,7 @@ struct NotificationsView: View {
             .frame(width: DS.avatarMd, height: DS.avatarMd * 0.68)
             .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             Text(team?.name ?? code)
-                .dsFont(15)
+                .dsFont(16)
                 .foregroundStyle(Color.dsFgPrimary)
             Spacer(minLength: 8)
             Toggle("", isOn: Binding(
@@ -163,7 +163,7 @@ struct NotificationsView: View {
         HStack(spacing: 12) {
             TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: DS.avatarMd)
             Text(club.displayName)
-                .dsFont(15)
+                .dsFont(16)
                 .foregroundStyle(Color.dsFgPrimary)
             Spacer(minLength: 8)
             Toggle("", isOn: Binding(

@@ -90,7 +90,7 @@ struct FeedSourcesView: View {
         Section {
             HStack {
                 Image(systemName: "at")
-                    .dsFont(14)
+                    .dsFont(15)
                     .foregroundStyle(Color.dsBluesky)
                 TextField("Bluesky handle", text: $searchText)
                     .textInputAutocapitalization(.never)
@@ -103,12 +103,12 @@ struct FeedSourcesView: View {
             ForEach(prefs.addedReporters) { r in
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(r.displayName).dsFont(15, weight: .semibold)
-                        Text("@\(r.handle)").dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                        Text(r.displayName).dsFont(16, weight: .semibold)
+                        Text("@\(r.handle)").dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     }
                     Spacer()
                     Button("Remove") { prefs.removeReporter(handle: r.handle) }
-                        .dsFont(13, weight: .semibold)
+                        .dsFont(15, weight: .semibold)
                         .foregroundStyle(Color.dsError)
                         .buttonStyle(.plain)
                 }
@@ -125,27 +125,27 @@ struct FeedSourcesView: View {
             EmptyView()
         case .notFound:
             Label("No NWSL posts found for this handle", systemImage: "xmark.circle")
-                .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                .dsFont(15).foregroundStyle(Color.dsFgSecondary)
         case .failed:
             Label("Couldn't check that handle — try again", systemImage: "exclamationmark.triangle")
-                .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                .dsFont(15).foregroundStyle(Color.dsFgSecondary)
         case let .found(handle, displayName):
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(displayName).dsFont(15, weight: .semibold)
+                    Text(displayName).dsFont(16, weight: .semibold)
                     HStack(spacing: 4) {
-                        Image(systemName: "checkmark.seal.fill").dsFont(12).foregroundStyle(Color.dsSuccess)
-                        Text("Active · @\(handle)").dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                        Image(systemName: "checkmark.seal.fill").dsFont(13).foregroundStyle(Color.dsSuccess)
+                        Text("Active · @\(handle)").dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     }
                 }
                 Spacer()
                 if prefs.isReporterAdded(handle: handle) {
-                    Text("Added").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                    Text("Added").dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                 } else {
                     Button("Add") {
                         prefs.addReporter(.init(handle: handle, displayName: displayName))
                     }
-                    .dsFont(14, weight: .bold)
+                    .dsFont(15, weight: .bold)
                     .foregroundStyle(Color.dsBluesky)
                     .buttonStyle(.plain)
                 }
@@ -187,7 +187,7 @@ struct FeedSourcesView: View {
                     .environment(preferences)
             } label: {
                 HStack {
-                    Text("Browse all players").dsFont(15, weight: .semibold).foregroundStyle(Color.dsAccent)
+                    Text("Browse all players").dsFont(16, weight: .semibold).foregroundStyle(Color.dsAccent)
                     Spacer()
                 }
             }
@@ -200,10 +200,10 @@ struct FeedSourcesView: View {
         HStack(spacing: 8) {
             TeamLogo(urlString: nil, teamAbbreviation: abbr, size: 22)
             Text((teamNames[abbr] ?? abbr).uppercased())
-                .dsFont(12, weight: .bold)
+                .dsFont(13, weight: .bold)
                 .foregroundStyle(Color.dsFgSecondary)
             if following {
-                Text("FOLLOWING").dsFont(12, weight: .bold)
+                Text("FOLLOWING").dsFont(13, weight: .bold)
                     .foregroundStyle(Color.dsSuccess)
             }
             Spacer()
@@ -216,7 +216,7 @@ struct FeedSourcesView: View {
             get: { prefs.isPlayerFollowed(player.id, isOwnTeam: isOwnTeam) },
             set: { prefs.setPlayerFollowed(player.id, $0, isOwnTeam: isOwnTeam) }
         )
-        return Toggle(isOn: binding) { Text(player.name).dsFont(15) }
+        return Toggle(isOn: binding) { Text(player.name).dsFont(16) }
     }
 
     // MARK: - Sources row (existing + ADDED badge)
@@ -229,11 +229,11 @@ struct FeedSourcesView: View {
         return Toggle(isOn: shown) {
             HStack(spacing: 6) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(source.name).dsFont(15, weight: .semibold)
-                    Text(source.detail).dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                    Text(source.name).dsFont(16, weight: .semibold)
+                    Text(source.detail).dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 }
                 if source.isAdded {
-                    Text("ADDED").dsFont(12, weight: .bold)
+                    Text("ADDED").dsFont(13, weight: .bold)
                         .foregroundStyle(.white)
                         .padding(.horizontal, 5).padding(.vertical, 2)
                         .background(Capsule().fill(Color.dsBluesky))

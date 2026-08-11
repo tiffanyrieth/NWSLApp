@@ -131,7 +131,7 @@ struct BracketBattleView: View {
                                 .dsFont(21, weight: .bold).foregroundStyle(Color.dsFgPrimary)
                                 .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                             Text("\(edition.themeLabel) · \(edition.entrants.count) players · \(edition.rounds.count) rounds")
-                                .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                                .dsFont(15).foregroundStyle(Color.dsFgSecondary)
                                 .multilineTextAlignment(.center)
                         }
                         .frame(maxWidth: .infinity)
@@ -159,7 +159,7 @@ struct BracketBattleView: View {
                 VStack(spacing: 8) {
                     Button { gateRequested = true } label: { Text("Let's Go").primaryButtonLabel(accent) }
                     Text("\(edition.currentRound.displayName(in: edition.rounds)) · \(viewModel.closesInText ?? "Voting open")")
-                        .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                        .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 }
                 .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 14)
             }
@@ -173,9 +173,9 @@ struct BracketBattleView: View {
             Image(systemName: "trophy.fill").dsFont(20).foregroundStyle(accent)
             VStack(alignment: .leading, spacing: 2) {
                 Text(fanCount > 0 ? "Ranked — compete with \(fanCount.formatted()) fans" : "Ranked game")
-                    .dsFont(14, weight: .bold).foregroundStyle(Color.dsFgPrimary)
+                    .dsFont(15, weight: .bold).foregroundStyle(Color.dsFgPrimary)
                 Text("Climb the leaderboard. Track your accuracy in Your Stats.")
-                    .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
@@ -192,7 +192,7 @@ struct BracketBattleView: View {
             ForEach(Self.goodToKnowItems, id: \.self) { item in
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "circle.fill").dsFont(5).foregroundStyle(accent).padding(.top, 6)
-                    Text(item).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                    Text(item).dsFont(15).foregroundStyle(Color.dsFgSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -219,7 +219,7 @@ struct BracketBattleView: View {
                     sectionLabel(header)
                     Spacer()
                     Image(systemName: "chevron.down")
-                        .dsFont(12, weight: .semibold).foregroundStyle(accent)
+                        .dsFont(13, weight: .semibold).foregroundStyle(accent)
                         .rotationEffect(.degrees(open ? 180 : 0))
                 }
                 .padding(14)
@@ -229,7 +229,7 @@ struct BracketBattleView: View {
             if open {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(paragraphs, id: \.self) { p in
-                        Text(p).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                        Text(p).dsFont(15).foregroundStyle(Color.dsFgSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -258,8 +258,8 @@ struct BracketBattleView: View {
                 let widthFraction = max(0.12, 1.0 - Double(i) * (0.85 / Double(max(1, rounds.count - 1))))
                 if round == .final {
                     Circle().fill(accent).frame(width: 32, height: 32)
-                        .overlay(Image(systemName: "trophy.fill").dsFont(13).foregroundStyle(Color.dsFgPrimary))
-                    Text("FINAL · 1 winner").dsFont(12, weight: .bold).foregroundStyle(accent)
+                        .overlay(Image(systemName: "trophy.fill").dsFont(15).foregroundStyle(Color.dsFgPrimary))
+                    Text("FINAL · 1 winner").dsFont(13, weight: .bold).foregroundStyle(accent)
                 } else {
                     GeometryReader { geo in
                         HStack(spacing: 3) {
@@ -271,7 +271,7 @@ struct BracketBattleView: View {
                     }
                     .frame(height: 18)
                     Text("\(round.displayName(in: rounds)) · \(round.matchupCount) matchups")
-                        .dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                        .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                     if round != rounds.last { Rectangle().fill(Color.dsFgQuaternary).frame(width: 2, height: 8) }
                 }
             }
@@ -283,11 +283,11 @@ struct BracketBattleView: View {
             sectionLabel("How it works")
             ForEach(Array(Self.howItWorksSteps.enumerated()), id: \.offset) { i, step in
                 HStack(alignment: .top, spacing: 12) {
-                    Text("\(i + 1)").dsFont(12, weight: .bold).foregroundStyle(accent)
+                    Text("\(i + 1)").dsFont(13, weight: .bold).foregroundStyle(accent)
                         .frame(width: 22, height: 22).background(accent.opacity(0.12)).clipShape(Circle())
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(step.title).dsFont(14, weight: .bold).foregroundStyle(Color.dsFgPrimary)
-                        Text(step.body).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                        Text(step.title).dsFont(15, weight: .bold).foregroundStyle(Color.dsFgPrimary)
+                        Text(step.body).dsFont(15).foregroundStyle(Color.dsFgSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -321,19 +321,19 @@ struct BracketBattleView: View {
                 pointsTier("Semifinals & Final", "+3")
                 Divider().overlay(Color.dsFgQuaternary)
                 HStack {
-                    Text("Max possible (perfect bracket)").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
+                    Text("Max possible (perfect bracket)").dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
                     Spacer()
-                    Text("\(BracketScoring.maxPoints(rounds: rounds)) pts").dsFont(13, weight: .bold).foregroundStyle(accent)
+                    Text("\(BracketScoring.maxPoints(rounds: rounds)) pts").dsFont(15, weight: .bold).foregroundStyle(accent)
                 }
             }
             .padding(14).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14))
             Text("Points increase each round — later picks are worth more because they're harder to predict")
-                .dsFont(12).foregroundStyle(Color.dsFgSecondary).frame(maxWidth: .infinity)
+                .dsFont(13).foregroundStyle(Color.dsFgSecondary).frame(maxWidth: .infinity)
             Text("Your accuracy across the whole edition — correct picks out of every matchup, including rounds you skip — feeds up to 25 of your 100 Superfan points.")
-                .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 .fixedSize(horizontal: false, vertical: true).padding(.top, 2)
             Text("This isn't a popularity contest — you're predicting who the crowd will pick, not who you like best. Your favorite might be the nicest person in the league, but if they're up against someone with serious stare-down energy, voting with your heart will cost you points.")
-                .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2)
         }
@@ -341,9 +341,9 @@ struct BracketBattleView: View {
 
     private func pointsTier(_ label: String, _ value: String) -> some View {
         HStack {
-            Text(label).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+            Text(label).dsFont(15).foregroundStyle(Color.dsFgSecondary)
             Spacer()
-            Text(value).dsFont(13, weight: .bold).foregroundStyle(accent)
+            Text(value).dsFont(15, weight: .bold).foregroundStyle(accent)
         }
     }
 
@@ -410,16 +410,16 @@ struct BracketBattleView: View {
                     Text("YOUR RANK").dsFont(12, weight: .bold).tracking(1.2).foregroundStyle(accent)
                     Text([accuracyText, standing.summary()]
                             .compactMap { $0 }.joined(separator: " · "))
-                        .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                        .dsFont(15).foregroundStyle(Color.dsFgSecondary)
                 }
                 Spacer(minLength: 0)
                 VStack(alignment: .trailing, spacing: 0) {
                     Text("\(you.points)").dsFont(24, weight: .heavy, design: .rounded).foregroundStyle(Color.dsFgPrimary)
-                    Text("pts").dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                    Text("pts").dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 }
             }
             if let movement = movementText(delta: store.lastRoundRankDelta) {
-                Text(movement.text).dsFont(12, weight: .bold).foregroundStyle(movement.color)
+                Text(movement.text).dsFont(13, weight: .bold).foregroundStyle(movement.color)
             }
         }
         .padding(EdgeInsets(top: 18, leading: 16, bottom: 18, trailing: 16))
@@ -450,7 +450,7 @@ struct BracketBattleView: View {
                 }
                 Text("\(name) · \(edition.themeLabel.capitalized)").dsFont(18, weight: .bold).foregroundStyle(Color.dsFgPrimary)
                 Text("\(viewModel.closesInText ?? "Voting open") · \(round.matchupCount) matchups")
-                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                    .dsFont(15).foregroundStyle(Color.dsFgSecondary)
                 Button { gateRequested = true } label: { Text("Let's Go →").primaryButtonLabel(accent) }
                     .padding(.top, 8)
             }
@@ -483,13 +483,13 @@ struct BracketBattleView: View {
                 Text(champion.playerName).dsFont(22, weight: .heavy).foregroundStyle(Color.dsFgPrimary)
                     .lineLimit(2).minimumScaleFactor(0.7)
                 Text("\(edition.themeLabel.capitalized) · decided by \(edition.fanCount) fan\(edition.fanCount == 1 ? "" : "s")")
-                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                    .dsFont(15).foregroundStyle(Color.dsFgSecondary)
             } else {
                 Text("This bracket closed before a final was decided.")
-                    .dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                    .dsFont(16, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
             }
             Text("Browse every round below — results stay up until the next bracket starts.")
-                .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                .dsFont(13).foregroundStyle(Color.dsFgSecondary)
         }
         .padding(16).frame(maxWidth: .infinity, alignment: .leading)
         .background(accent.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -499,7 +499,7 @@ struct BracketBattleView: View {
     private func ctaMutedCard(title: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).dsFont(16, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
-            Text(subtitle).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+            Text(subtitle).dsFont(15).foregroundStyle(Color.dsFgSecondary)
         }
         .padding(16).frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -528,7 +528,7 @@ struct BracketBattleView: View {
                     // something) rather than repeating "of N".
                     Text("#\(you.rank) of \(total) fan\(total == 1 ? "" : "s")"
                          + (standing.usesPercentile ? " · \(standing.suffix())" : ""))
-                        .dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
+                        .dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
                     fullLeaderboardLink
                 }
                 .frame(maxWidth: .infinity).padding(14)
@@ -539,13 +539,13 @@ struct BracketBattleView: View {
 
     private func neighborhoodRow(_ row: BracketStanding) -> some View {
         HStack(spacing: 10) {
-            Text("#\(row.rank)").dsFont(13, weight: row.isYou ? .heavy : .semibold)
+            Text("#\(row.rank)").dsFont(15, weight: row.isYou ? .heavy : .semibold)
                 .foregroundStyle(row.isYou ? accent : Color.dsFgSecondary)
                 .frame(width: 34, alignment: .trailing)
-            Text(row.isYou ? "You" : row.name).dsFont(14, weight: row.isYou ? .bold : .medium)
+            Text(row.isYou ? "You" : row.name).dsFont(15, weight: row.isYou ? .bold : .medium)
                 .foregroundStyle(row.isYou ? accent : Color.dsFgPrimary).lineLimit(1)
             Spacer(minLength: 0)
-            Text("\(row.points) pts").dsFont(13, weight: row.isYou ? .bold : .semibold)
+            Text("\(row.points) pts").dsFont(15, weight: row.isYou ? .bold : .semibold)
                 .foregroundStyle(row.isYou ? accent : Color.dsFgSecondary)
         }
         .padding(.horizontal, 10).padding(.vertical, 8)
@@ -560,9 +560,9 @@ struct BracketBattleView: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionLabel("Edition Progress").foregroundStyle(Color.dsFgSecondary)
             VStack(alignment: .leading, spacing: 0) {
-                Text(edition.themeLabel.capitalized).dsFont(15, weight: .bold).foregroundStyle(Color.dsFgPrimary)
+                Text(edition.themeLabel.capitalized).dsFont(16, weight: .bold).foregroundStyle(Color.dsFgPrimary)
                 Text("\(edition.entrants.count) players · \(edition.rounds.count) rounds")
-                    .dsFont(12).foregroundStyle(Color.dsFgSecondary).padding(.bottom, 10)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary).padding(.bottom, 10)
                 ForEach(Array(edition.rounds.enumerated()), id: \.element) { i, round in
                     steppingStoneNode(edition: edition, round: round, isLast: i == edition.rounds.count - 1)
                 }
@@ -583,7 +583,7 @@ struct BracketBattleView: View {
                 ZStack {
                     if done {
                         Circle().fill(accent).frame(width: 22, height: 22)
-                        Image(systemName: "checkmark").dsFont(12, weight: .heavy).foregroundStyle(.white)
+                        Image(systemName: "checkmark").dsFont(13, weight: .heavy).foregroundStyle(.white)
                     } else if active {
                         Circle().fill(accent.opacity(0.22)).frame(width: 26, height: 26)
                         Circle().strokeBorder(accent, lineWidth: 2.5).frame(width: 26, height: 26).shadow(color: accent.opacity(0.4), radius: 6)
@@ -599,17 +599,17 @@ struct BracketBattleView: View {
             }
             HStack(spacing: 8) {
                 Text(round.displayName(in: edition.rounds))
-                    .dsFont(15, weight: active ? .bold : done ? .semibold : .regular)
+                    .dsFont(16, weight: active ? .bold : done ? .semibold : .regular)
                     .foregroundStyle(tappable ? Color.dsFgPrimary : Color.dsFgSecondary)
-                if done { Text("· \(round.matchupCount) matchups").dsFont(12).foregroundStyle(Color.dsFgSecondary) }
+                if done { Text("· \(round.matchupCount) matchups").dsFont(13).foregroundStyle(Color.dsFgSecondary) }
                 if active {
-                    Text("Voting now").dsFont(12, weight: .bold).foregroundStyle(accent)
+                    Text("Voting now").dsFont(13, weight: .bold).foregroundStyle(accent)
                         .padding(.horizontal, 10).padding(.vertical, 3)
                         .background(accent.opacity(0.18), in: Capsule())
                 }
                 Spacer(minLength: 0)
                 // Chevron signals the row is tappable (completed → results, active → voting).
-                if tappable { Image(systemName: "chevron.right").dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgTertiary) }
+                if tappable { Image(systemName: "chevron.right").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgTertiary) }
             }
             .frame(minHeight: 26)
         }
@@ -625,9 +625,9 @@ struct BracketBattleView: View {
     private var howToPlayRow: some View {
         Button { showRules = true } label: {
             HStack {
-                Text("How to play").dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                Text("How to play").dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                 Spacer()
-                Image(systemName: "chevron.right").dsFont(13).foregroundStyle(Color.dsFgTertiary)
+                Image(systemName: "chevron.right").dsFont(15).foregroundStyle(Color.dsFgTertiary)
             }
             .padding(14).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
@@ -650,7 +650,7 @@ struct BracketBattleView: View {
                 VStack(spacing: 14) {
                     VStack(spacing: 3) {
                         sectionLabel("\(round.displayName(in: edition.rounds)) · Results").foregroundStyle(accent)
-                        Text(edition.themeLabel.capitalized).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                        Text(edition.themeLabel.capitalized).dsFont(15).foregroundStyle(Color.dsFgSecondary)
                     }
                     // Performance summary
                     VStack(spacing: 10) {
@@ -669,10 +669,10 @@ struct BracketBattleView: View {
                     if nextOpen {
                         Button { advanceFromResults(seenRound: round) } label: {
                             HStack(spacing: 6) {
-                                Text("\(nextName) \(nextVerb) open").dsFont(14, weight: .bold).foregroundStyle(accent)
+                                Text("\(nextName) \(nextVerb) open").dsFont(15, weight: .bold).foregroundStyle(accent)
                                 Spacer(minLength: 0)
-                                Text("Make your picks").dsFont(13, weight: .semibold).foregroundStyle(accent)
-                                Image(systemName: "arrow.right").dsFont(12, weight: .bold).foregroundStyle(accent)
+                                Text("Make your picks").dsFont(15, weight: .semibold).foregroundStyle(accent)
+                                Image(systemName: "arrow.right").dsFont(13, weight: .bold).foregroundStyle(accent)
                             }
                             .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                             .background(accent.opacity(0.14)).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -704,17 +704,17 @@ struct BracketBattleView: View {
         VStack(spacing: 4) {
             HStack(spacing: 6) {
                 if let baseline = store.lastSeenRank, let delta, delta != 0 {
-                    Text("Rank #\(baseline) → #\(currentRank)").dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                    Text("Rank #\(baseline) → #\(currentRank)").dsFont(15).foregroundStyle(Color.dsFgSecondary)
                     Text(delta > 0 ? "↑\(delta)" : "↓\(-delta)")
-                        .dsFont(13, weight: .bold).foregroundStyle(delta > 0 ? Color.dsSuccess : Color.dsError)
+                        .dsFont(15, weight: .bold).foregroundStyle(delta > 0 ? Color.dsSuccess : Color.dsError)
                 } else {
-                    Text("Rank #\(currentRank)").dsFont(13, weight: .bold).foregroundStyle(accent)
+                    Text("Rank #\(currentRank)").dsFont(15, weight: .bold).foregroundStyle(accent)
                 }
             }
             // Accent (praise) styling only when the standing is actually good news — a near-last
             // finish stated in the celebration colour is what made "top 94%" read as an award.
             Text(standing.resultsSentence)
-                .dsFont(12)
+                .dsFont(13)
                 .foregroundStyle(standing.isPraiseworthy ? accent : Color.dsFgSecondary)
         }
     }
@@ -795,10 +795,10 @@ struct BracketBattleView: View {
                                     edition: edition, rank: rank, movementDelta: delta)
         return ShareLink(item: img, preview: SharePreview("My result in The Bracket", image: img)) {
             HStack(spacing: 6) {
-                Image(systemName: "square.and.arrow.up").dsFont(14, weight: .semibold)
+                Image(systemName: "square.and.arrow.up").dsFont(15, weight: .semibold)
                 Text("Share your result")
             }
-            .dsFont(15, weight: .semibold).foregroundStyle(accent)
+            .dsFont(16, weight: .semibold).foregroundStyle(accent)
             .frame(maxWidth: .infinity).padding(.vertical, 13)
             .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(accent.opacity(0.4), lineWidth: 1.5))
             .contentShape(Rectangle())
@@ -820,20 +820,20 @@ struct BracketBattleView: View {
         VStack(spacing: 6) {
             Text(edition.themeLabel).dsFont(13, weight: .bold).tracking(2).foregroundStyle(accent)
             Text(edition.title).dsFont(19, weight: .bold).foregroundStyle(.white)
-            Text("\(round.displayName(in: edition.rounds)) · Results").dsFont(12).foregroundStyle(Color.dsFgSecondary)
+            Text("\(round.displayName(in: edition.rounds)) · Results").dsFont(13).foregroundStyle(Color.dsFgSecondary)
             Text("\(correct) / \(total)").dsFont(52, weight: .heavy).foregroundStyle(.white).padding(.top, 6)
-            Text("called right · +\(pts) pts").dsFont(13).foregroundStyle(Color.dsFgSecondary)
+            Text("called right · +\(pts) pts").dsFont(15).foregroundStyle(Color.dsFgSecondary)
             if let rank {
                 HStack(spacing: 6) {
                     if let d = movementDelta, d != 0 {
                         Text(d > 0 ? "↑\(d)" : "↓\(-d)")
-                            .dsFont(14, weight: .bold).foregroundStyle(d > 0 ? Color.dsSuccess : Color.dsError)
+                            .dsFont(15, weight: .bold).foregroundStyle(d > 0 ? Color.dsSuccess : Color.dsError)
                     }
-                    Text("now #\(rank)").dsFont(14, weight: .semibold).foregroundStyle(accent)
+                    Text("now #\(rank)").dsFont(15, weight: .semibold).foregroundStyle(accent)
                 }
                 .padding(.top, 4)
             }
-            Text("NWSL · The Bracket").dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary).padding(.top, 8)
+            Text("NWSL · The Bracket").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary).padding(.top, 8)
         }
         .padding(28).frame(width: 320)
         .background(LinearGradient(colors: [accent.opacity(0.18), Color.dsBgPrimary], startPoint: .top, endPoint: .bottom))
@@ -855,12 +855,12 @@ struct BracketBattleView: View {
                         Spacer()
                         // A null close time = manual mode (round stays open until advanced) → "Voting open".
                         Text(locked ? "Picks locked in" : (viewModel.closesInText ?? "Voting open"))
-                            .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                            .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     }
                     if !locked {
                         VStack(spacing: 6) {
                             HStack {
-                                Text("\(made) of \(total) picks made").dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                                Text("\(made) of \(total) picks made").dsFont(13).foregroundStyle(Color.dsFgSecondary)
                                 Spacer()
                             }
                             GeometryReader { geo in
@@ -886,9 +886,9 @@ struct BracketBattleView: View {
         HStack(spacing: 10) {
             Image(systemName: "lock.fill").dsFont(18).foregroundStyle(accent)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Your picks are locked in").dsFont(14, weight: .bold).foregroundStyle(accent)
+                Text("Your picks are locked in").dsFont(15, weight: .bold).foregroundStyle(accent)
                 Text("Results drop when voting closes. No edits until then — good luck.")
-                    .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
             }
             Spacer(minLength: 0)
         }
@@ -909,9 +909,9 @@ struct BracketBattleView: View {
         HStack(spacing: 10) {
             Image(systemName: "checkmark.circle.fill").dsFont(20).foregroundStyle(accent)
             VStack(alignment: .leading, spacing: 2) {
-                Text("That's all \(viewModel.totalMatchups) — you're ready.").dsFont(14, weight: .bold).foregroundStyle(accent)
+                Text("That's all \(viewModel.totalMatchups) — you're ready.").dsFont(15, weight: .bold).foregroundStyle(accent)
                 Text("Save a draft to keep tinkering, or lock 'em in. Once they're in, there's no take-backs.")
-                    .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
             }
             Spacer(minLength: 0)
         }
@@ -936,14 +936,14 @@ struct BracketBattleView: View {
             VStack(spacing: 6) {
                 PlayerDot(name: e.playerName, jersey: e.jerseyNumber, teamAbbreviation: e.teamAbbreviation,
                           accent: accentColor(e.teamAbbreviation), athleteID: e.id, size: 44, showLabels: false)
-                Text(e.playerName).dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgPrimary).lineLimit(1).minimumScaleFactor(0.8)
-                Text(e.teamAbbreviation).dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                Text(e.playerName).dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgPrimary).lineLimit(1).minimumScaleFactor(0.8)
+                Text(e.teamAbbreviation).dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                 if picked {
                     HStack(spacing: 3) {
                         Text("YOUR PICK")
                         Image(systemName: "checkmark")
                     }
-                    .dsFont(12, weight: .bold).foregroundStyle(accent)
+                    .dsFont(13, weight: .bold).foregroundStyle(accent)
                 }
             }
             .frame(maxWidth: .infinity).padding(.vertical, 12).padding(.horizontal, 8)
@@ -965,7 +965,7 @@ struct BracketBattleView: View {
             // here; the picks stay editable and the button retries.
             if viewModel.submitState == .failed {
                 Text("Couldn't submit — tap to retry")
-                    .dsFont(13, weight: .semibold)
+                    .dsFont(15, weight: .semibold)
                     .foregroundStyle(Color.dsError)
                     .frame(maxWidth: .infinity)
             }
@@ -984,7 +984,7 @@ struct BracketBattleView: View {
             .disabled(!allMade || submitting)
             Button { stage = .intro } label: {
                 Text("Save draft (edit later)")
-                    .dsFont(15, weight: .semibold).foregroundStyle(accent)
+                    .dsFont(16, weight: .semibold).foregroundStyle(accent)
                     .frame(maxWidth: .infinity).padding(.vertical, 13)
                     .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(accent.opacity(0.35), lineWidth: 1.5))
             }
@@ -1002,7 +1002,7 @@ struct BracketBattleView: View {
         return VStack(spacing: 8) {
             HStack(spacing: 0) {
                 resultSide(m.entrantA, won: aWon, isYour: yourPick == m.entrantA.id)
-                Text("VS").dsFont(12, weight: .bold).foregroundStyle(Color.dsFgQuaternary).padding(.horizontal, 2)
+                Text("VS").dsFont(13, weight: .bold).foregroundStyle(Color.dsFgQuaternary).padding(.horizontal, 2)
                 resultSide(m.entrantB, won: !aWon, isYour: yourPick == m.entrantB.id)
             }
             resultVerdict(m, yourPick: yourPick)
@@ -1013,9 +1013,9 @@ struct BracketBattleView: View {
             } label: {
                 HStack(spacing: 4) {
                     Text(expanded ? "Hide the numbers" : "See how the league voted")
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down").dsFont(12, weight: .bold)
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down").dsFont(13, weight: .bold)
                 }
-                .dsFont(12, weight: .semibold).foregroundStyle(accent)
+                .dsFont(13, weight: .semibold).foregroundStyle(accent)
             }
             if expanded { voteStats(m, aWon: aWon) }
         }
@@ -1026,11 +1026,11 @@ struct BracketBattleView: View {
         VStack(spacing: 5) {
             PlayerDot(name: e.playerName, jersey: e.jerseyNumber, teamAbbreviation: e.teamAbbreviation,
                       accent: accentColor(e.teamAbbreviation), athleteID: e.id, size: 40, showLabels: false)
-            Text(e.playerName).dsFont(13, weight: won ? .bold : .medium)
+            Text(e.playerName).dsFont(15, weight: won ? .bold : .medium)
                 .foregroundStyle(won ? .dsFgPrimary : Color.dsFgSecondary).strikethrough(!won).lineLimit(1).minimumScaleFactor(0.8)
             Text(e.teamAbbreviation + (isYour ? " · your pick" : ""))
-                .dsFont(12, weight: .semibold).foregroundStyle(isYour ? accent : Color.dsFgSecondary)
-            if won { Text("ADVANCES").dsFont(12, weight: .bold).foregroundStyle(Color.dsSuccess) }
+                .dsFont(13, weight: .semibold).foregroundStyle(isYour ? accent : Color.dsFgSecondary)
+            if won { Text("ADVANCES").dsFont(13, weight: .bold).foregroundStyle(Color.dsSuccess) }
         }
         // Fix 4: the teal wash + border marks YOUR PICK (regardless of outcome) so you can always see which
         // side you were on; the LOSING side dims. Two independent channels — border = your selection,
@@ -1055,7 +1055,7 @@ struct BracketBattleView: View {
         let text = BracketScoring.verdictText(winnerPercent: winnerPct, winnerName: winnerName,
                                               roundPoints: m.round.points, outcome: outcome)
         return Text(text)
-            .dsFont(12, weight: .semibold)
+            .dsFont(13, weight: .semibold)
             .foregroundStyle(color)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
@@ -1073,7 +1073,7 @@ struct BracketBattleView: View {
                 legendRow(m.entrantB, pct: 100 - splitA, winner: !aWon)
             }
             if let count = m.voteCount {
-                Text("\(count.formatted()) fans voted").dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                Text("\(count.formatted()) fans voted").dsFont(13).foregroundStyle(Color.dsFgSecondary)
             }
             if winnerPct < 55 { dramaBadge("CLOSE CALL", Color.dsWarning) }
             else if winnerPct > 75 { dramaBadge("RUNAWAY", accent) }
@@ -1101,9 +1101,9 @@ struct BracketBattleView: View {
     private func legendRow(_ e: BracketEntrant, pct: Int, winner: Bool) -> some View {
         HStack(spacing: 8) {
             Circle().fill(winner ? accent : Color.dsFgQuaternary).frame(width: 8, height: 8)
-            Text(e.playerName).dsFont(12, weight: winner ? .semibold : .regular).foregroundStyle(winner ? .dsFgPrimary : Color.dsFgSecondary)
+            Text(e.playerName).dsFont(13, weight: winner ? .semibold : .regular).foregroundStyle(winner ? .dsFgPrimary : Color.dsFgSecondary)
             Spacer()
-            Text("\(pct)%").dsFont(12, weight: .semibold).foregroundStyle(winner ? accent : Color.dsFgSecondary)
+            Text("\(pct)%").dsFont(13, weight: .semibold).foregroundStyle(winner ? accent : Color.dsFgSecondary)
         }
     }
 
@@ -1122,10 +1122,10 @@ struct BracketBattleView: View {
                                    myName: auth.displayName ?? "You", myPoints: store.points)
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: "list.number").dsFont(13, weight: .semibold)
-                Text("See full leaderboard").dsFont(14, weight: .semibold)
+                Image(systemName: "list.number").dsFont(15, weight: .semibold)
+                Text("See full leaderboard").dsFont(15, weight: .semibold)
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.right").dsFont(12, weight: .semibold)
+                Image(systemName: "chevron.right").dsFont(13, weight: .semibold)
             }
             .foregroundStyle(accent)
             .padding(.vertical, 12).padding(.horizontal, 16)
@@ -1142,7 +1142,7 @@ struct BracketBattleView: View {
         VStack(spacing: 12) {
             Image(systemName: "trophy").dsFont(40).foregroundStyle(Color.dsFgTertiary)
             Text("Nothing live right now").dsFont(18, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
-            Text("A fresh bracket drops soon — come back and we'll do it all again.").dsFont(14).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center).padding(.horizontal, 32)
+            Text("A fresh bracket drops soon — come back and we'll do it all again.").dsFont(15).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center).padding(.horizontal, 32)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

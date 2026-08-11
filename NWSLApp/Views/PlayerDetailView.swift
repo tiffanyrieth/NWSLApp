@@ -45,9 +45,9 @@ struct PlayerDetailView: View {
                                 HStack {
                                     Text(row.label).foregroundStyle(Color.dsFgSecondary)
                                     Spacer()
-                                    Text(row.value).dsFont(15, weight: .medium).foregroundStyle(Color.dsFgPrimary)
+                                    Text(row.value).dsFont(16, weight: .medium).foregroundStyle(Color.dsFgPrimary)
                                 }
-                                .dsFont(15)
+                                .dsFont(16)
                                 .padding(.vertical, 12)
                                 .padding(.horizontal, 16)
                                 if index < bioRows.count - 1 {
@@ -116,7 +116,7 @@ struct PlayerDetailView: View {
                     .multilineTextAlignment(.center)
                 if let position = athlete.positionName {
                     Text(position)
-                        .dsFont(15)
+                        .dsFont(16)
                         .foregroundStyle(Color.dsFgSecondary)
                         .multilineTextAlignment(.center)
                 }
@@ -162,7 +162,7 @@ struct PlayerDetailView: View {
         let sections = stats.seasonSections
         return VStack(alignment: .leading, spacing: 14) {
             Text(label)
-                .dsFont(12, weight: .semibold)
+                .dsFont(13, weight: .semibold)
                 .foregroundStyle(Color.dsFgSecondary)
             if sections.isEmpty {
                 statsTable(statRows(stats))
@@ -190,7 +190,7 @@ struct PlayerDetailView: View {
                     Spacer()
                     Text(row.value).dsFont(15, weight: .semibold, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
                 }
-                .dsFont(15)
+                .dsFont(16)
                 .padding(.vertical, 12)
                 .padding(.horizontal, 16)
                 if index < rows.count - 1 {

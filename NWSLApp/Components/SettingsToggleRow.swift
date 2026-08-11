@@ -23,14 +23,14 @@ struct SettingsToggleRow: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .dsFont(15)
+                    .dsFont(16)
                     .foregroundStyle(Color.dsFgPrimary)
                 Text(subtitle)
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                 if let note {
                     Text(note)
-                        .dsFont(12, weight: .semibold)
+                        .dsFont(13, weight: .semibold)
                         .foregroundStyle(Color.dsFgSecondary)
                 }
             }
@@ -60,16 +60,16 @@ struct SettingsGroup<Content: View>: View {
             VStack(alignment: .leading, spacing: 2) {
                 // Sentence-case bold white title (redesign language), not tracked caps.
                 Text(title)
-                    .dsFont(15, weight: .bold)
+                    .dsFont(16, weight: .bold)
                     .foregroundStyle(Color.dsFgPrimary)
                 if let subtitle {
                     Text(subtitle)
-                        .dsFont(12.5)
+                        .dsFont(13.5)
                         .foregroundStyle(Color.dsFgSecondary)
                 }
                 if let note {
                     Text(note)
-                        .dsFont(12.5)
+                        .dsFont(13.5)
                         .foregroundStyle(Color.dsFgSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 2)

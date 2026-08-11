@@ -167,7 +167,7 @@ struct SuperfanDetailView: View {
             // so where you stand reads at a glance and All-Star can never look like the floor (owner-caught).
             tierLadder(current: tier)
             Text(TierProgress(score: displayTotal).caption)
-                .dsFont(13, weight: .semibold).foregroundStyle(tier.color)
+                .dsFont(15, weight: .semibold).foregroundStyle(tier.color)
         }
         .frame(maxWidth: .infinity).padding(.top, 8)
     }
@@ -209,7 +209,7 @@ struct SuperfanDetailView: View {
                     Text(item.headline).dsFont(16, weight: .bold).foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                     if let d = item.detail {
-                        Text(d).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                        Text(d).dsFont(15).foregroundStyle(Color.dsFgSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -263,11 +263,11 @@ struct SuperfanDetailView: View {
             PlayerHeadshot(athleteID: p.athleteId, size: 52) {
                 ZStack {
                     Circle().fill(ring.opacity(0.25))
-                    Text(initials(p.name)).dsFont(15, weight: .bold).foregroundStyle(ring)
+                    Text(initials(p.name)).dsFont(16, weight: .bold).foregroundStyle(ring)
                 }
             }
             .overlay(Circle().stroke(ring, lineWidth: 2))
-            Text(lastName(p.name)).dsFont(12).foregroundStyle(Color.dsFgSecondary)
+            Text(lastName(p.name)).dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 .lineLimit(1).minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity)
@@ -310,14 +310,14 @@ struct SuperfanDetailView: View {
                 Image(systemName: m.symbol).font(.system(size: 16)).foregroundStyle(m.color)
                     .frame(width: 28, height: 28)
                     .background(m.color.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                Text(m.name).dsFont(14, weight: .semibold).foregroundStyle(.primary)
+                Text(m.name).dsFont(15, weight: .semibold).foregroundStyle(.primary)
                 Spacer()
                 // No unlock gate (owner ruling): every game shows its contribution from play #1; before the
                 // first play there's simply nothing to show yet.
                 Text(played
                      ? "\(Int((accuracy * 100).rounded()))% accuracy" + (engagement > 0 ? " · +\(engagement) engaged" : "")
                      : "Not played yet")
-                    .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
             }
             HStack(spacing: 8) {
                 GeometryReader { geo in
@@ -350,10 +350,10 @@ struct SuperfanDetailView: View {
         VStack(alignment: .leading, spacing: 0) {
             Button { withAnimation(.easeInOut(duration: 0.2)) { showHowItWorks.toggle() } } label: {
                 HStack {
-                    Text("How Superfan works").dsFont(14, weight: .semibold).foregroundStyle(.primary)
+                    Text("How Superfan works").dsFont(15, weight: .semibold).foregroundStyle(.primary)
                     Spacer()
                     Image(systemName: showHowItWorks ? "chevron.up" : "chevron.right")
-                        .dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                        .dsFont(15).foregroundStyle(Color.dsFgSecondary)
                 }
                 .padding(14)
                 .contentShape(Rectangle())
@@ -381,8 +381,8 @@ struct SuperfanDetailView: View {
 
     private func explainerParagraph(_ title: String, _ body: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(title).dsFont(13, weight: .bold).foregroundStyle(.primary)
-            Text(body).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+            Text(title).dsFont(15, weight: .bold).foregroundStyle(.primary)
+            Text(body).dsFont(15).foregroundStyle(Color.dsFgSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -391,7 +391,7 @@ struct SuperfanDetailView: View {
     /// The four tier bands with their colors — mirrors `SuperfanTier` (Fan 0–24 … MVP 75–100).
     private var tierLegend: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("The tiers").dsFont(13, weight: .bold).foregroundStyle(.primary)
+            Text("The tiers").dsFont(15, weight: .bold).foregroundStyle(.primary)
             tierRow(.fan, "0–24", "just getting started")
             tierRow(.rising, "25–49", "building across games")
             tierRow(.allStar, "50–74", "strong across multiple games")
@@ -403,7 +403,7 @@ struct SuperfanDetailView: View {
         HStack(spacing: 8) {
             Image(systemName: tier.symbol).font(.system(size: 12)).foregroundStyle(tier.color)
                 .frame(width: 18)
-            Text(tier.label).dsFont(13, weight: .semibold).foregroundStyle(.primary)
+            Text(tier.label).dsFont(15, weight: .semibold).foregroundStyle(.primary)
                 .frame(width: 58, alignment: .leading)
             Text(range).font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(tier.color)
                 .frame(width: 52, alignment: .leading)
@@ -411,7 +411,7 @@ struct SuperfanDetailView: View {
             // accessibility text sizes "strong across multiple games" clipped to "strong across
             // multiple…" — the half of the row that explains the tier. A shrink-to-fit floor only
             // delayed it. (Verified in-sim at accessibility-medium, 2026-07-29.)
-            Text(blurb).dsFont(12).foregroundStyle(Color.dsFgSecondary)
+            Text(blurb).dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
@@ -430,7 +430,7 @@ struct SuperfanDetailView: View {
                 ForEach(shown) { earned in achievementCard(earned) }
                 if achievements.count > shown.count {
                     Text("+\(achievements.count - shown.count) more")
-                        .dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                        .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -444,8 +444,8 @@ struct SuperfanDetailView: View {
                 .frame(width: 36, height: 36)
                 .background(color.opacity(0.18), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             VStack(alignment: .leading, spacing: 1) {
-                Text(earned.achievement.title).dsFont(14, weight: .bold).foregroundStyle(.primary)
-                Text(earned.description).dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                Text(earned.achievement.title).dsFont(15, weight: .bold).foregroundStyle(.primary)
+                Text(earned.description).dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
@@ -465,11 +465,11 @@ struct SuperfanDetailView: View {
                     let isCurrent = entry.seasonYear == season
                     HStack(spacing: 12) {
                         TierBadge(tier: entry.peakTier, size: 28)
-                        Text(String(entry.seasonYear)).dsFont(14, weight: .semibold).foregroundStyle(.primary)
+                        Text(String(entry.seasonYear)).dsFont(15, weight: .semibold).foregroundStyle(.primary)
                         Spacer()
                         Text(isCurrent ? "\(entry.peakTier.label) · Current"
                                        : "\(entry.peakTier.label) · \(entry.peakScore)")
-                            .dsFont(12, weight: isCurrent ? .bold : .regular)
+                            .dsFont(13, weight: isCurrent ? .bold : .regular)
                             .foregroundStyle(isCurrent ? entry.peakTier.color : Color.dsFgSecondary)
                     }
                     .padding(12).frame(maxWidth: .infinity)
@@ -489,8 +489,8 @@ struct SuperfanDetailView: View {
             HStack(spacing: 12) {
                 Image(systemName: "gamecontroller.fill").font(.system(size: 15)).foregroundStyle(Color.dsAccent)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Game Center").dsFont(13, weight: .semibold).foregroundStyle(.primary)
-                    Text("Compare with players everywhere").dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                    Text("Game Center").dsFont(15, weight: .semibold).foregroundStyle(.primary)
+                    Text("Compare with players everywhere").dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold)).foregroundStyle(.tertiary)

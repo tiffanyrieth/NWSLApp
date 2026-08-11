@@ -169,7 +169,7 @@ struct HomeView: View {
             ZStack {
                 Circle().fill(Color.dsBgCard)
                 Image(systemName: "person.fill")
-                    .dsFont(14)
+                    .dsFont(15)
                     .foregroundStyle(Color.dsFgSecondary)
             }
             .frame(width: 32, height: 32)
@@ -291,7 +291,7 @@ struct HomeView: View {
             VStack(spacing: 10) {
                 if result.cards.isEmpty {
                     Text("No content from \(viewModel.selectedTeam ?? "") right now.")
-                        .dsFont(13)
+                        .dsFont(15)
                         .foregroundStyle(Color.dsFgSecondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
@@ -319,7 +319,7 @@ struct HomeView: View {
         } label: {
             HStack {
                 Text("See more club news →")
-                    .dsFont(13, weight: .semibold)
+                    .dsFont(15, weight: .semibold)
                     .foregroundStyle(Color.dsAccent)
                 Spacer()
             }
@@ -336,7 +336,7 @@ struct HomeView: View {
                 .dsFont(32)
                 .foregroundStyle(Color.dsFgSecondary)
             Text("Follow your teams to fill your home feed with their latest content.")
-                .dsFont(15)
+                .dsFont(16)
                 .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
             Button("Choose your teams") { showTeamPicker = true }
@@ -823,7 +823,7 @@ struct HomeView: View {
     private var fullScheduleLink: some View {
         Button { router.selectedTab = .schedule } label: {
             Text("Full schedule →")
-                .dsFont(12)
+                .dsFont(13)
                 .foregroundStyle(Color.dsAccent)
         }
         .buttonStyle(.plain)
@@ -848,7 +848,7 @@ struct HomeView: View {
                 }
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .dsFont(12)
+                        .dsFont(13)
                         .foregroundStyle(Color.dsFgSecondary)
                 }
             }

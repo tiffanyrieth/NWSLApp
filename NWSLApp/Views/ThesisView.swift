@@ -45,7 +45,7 @@ struct ThesisView: View {
                     "Match alerts on for \(alertCount) team\(alertCount == 1 ? "" : "s")",
                     systemImage: "bell.fill"
                 )
-                .dsFont(14)
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgSecondary)
                 .padding(.top, 18)
             }

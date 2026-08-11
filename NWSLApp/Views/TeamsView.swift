@@ -189,7 +189,7 @@ struct TeamsView: View {
 
     private var subtitle: some View {
         Text("Tap any club to explore their squad and stats.")
-            .dsFont(13)
+            .dsFont(15)
             .foregroundStyle(Color.dsFgSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
@@ -208,7 +208,7 @@ struct TeamsView: View {
                 .frame(width: 16, height: 8)
                 .padding(.trailing, 12)
             Text("Manage your match alerts here")
-                .dsFont(13, weight: .semibold)
+                .dsFont(15, weight: .semibold)
                 .foregroundStyle(.white)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
@@ -233,7 +233,7 @@ struct TeamsView: View {
                 VStack(spacing: 9) {
                     TeamCrestGlow(club: club, size: 58)
                     Text(club.displayName)
-                        .dsFont(14, weight: .semibold)
+                        .dsFont(15, weight: .semibold)
                         .foregroundStyle(Color.dsFgPrimary)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
@@ -272,10 +272,10 @@ struct TeamsView: View {
         Button { following.toggle(club) } label: {
             HStack(spacing: 5) {
                 Image(systemName: isFollowing ? "star.fill" : "star")
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(isFollowing ? Color.dsFollowStar : Color.dsFgSecondary)
                 Text(isFollowing ? "Following" : "Follow")
-                    .dsFont(12.5, weight: .semibold)
+                    .dsFont(13.5, weight: .semibold)
                     .foregroundStyle(isFollowing ? Color.dsFgPrimary : Color.dsFgSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -303,7 +303,7 @@ struct TeamsView: View {
         // on a first toggle-on (Bell-Tap fix, Bug 3).
         return Button { toggleAlerts(for: club) } label: {
             Image(systemName: on ? "bell.fill" : "bell")
-                .dsFont(13, weight: .medium)
+                .dsFont(15, weight: .medium)
                 .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
                 .frame(width: 36, height: 32)
                 .background(on ? Color.dsAccentMuted : Color.dsBgTertiary)
@@ -338,24 +338,24 @@ struct TeamsView: View {
                     .foregroundStyle(Color.dsAccent)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Follow competitions")
-                        .dsFont(15, weight: .semibold)
+                        .dsFont(16, weight: .semibold)
                         .foregroundStyle(Color.dsFgPrimary)
                     Text(competitionsSubtitle)
-                        .dsFont(12.5)
+                        .dsFont(13.5)
                         .foregroundStyle(Color.dsFgSecondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
                 if competitionFollowCount > 0 {
                     Text("\(competitionFollowCount) ON")
-                        .dsFont(12, weight: .bold)
+                        .dsFont(13, weight: .bold)
                         .foregroundStyle(Color.dsSuccess)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)
                         .background(Color.dsSuccess.opacity(0.18), in: Capsule())
                 }
                 Image(systemName: "chevron.right")
-                    .dsFont(15, weight: .semibold)
+                    .dsFont(16, weight: .semibold)
                     .foregroundStyle(Color.dsFgSecondary)
             }
             .padding(.horizontal, 16)
@@ -404,7 +404,7 @@ struct TeamsView: View {
                     .foregroundStyle(Color.dsFgSecondary)
             }
         }
-        .dsFont(13)
+        .dsFont(15)
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 16)

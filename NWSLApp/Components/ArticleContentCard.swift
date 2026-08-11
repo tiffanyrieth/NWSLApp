@@ -46,7 +46,7 @@ struct ArticleContentCard: View {
             }
             if let blurb = card.blurb, !blurb.isEmpty {
                 Text(blurb)
-                    .dsFont(13)
+                    .dsFont(15)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineSpacing(3)
                     .lineLimit(2)
@@ -86,7 +86,7 @@ struct ArticleContentCard: View {
             CategoryPill(sourceType: card.resolvedSourceType)
             Spacer(minLength: 6)
             Text(card.timestamp.relativeAgo)
-                .dsFont(12)
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
                 .layoutPriority(1)
         }
@@ -102,7 +102,7 @@ struct ArticleContentCard: View {
             CategoryPill(sourceType: .news)
             Spacer(minLength: 8)
             Text(card.timestamp.relativeAgo)
-                .dsFont(12)
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
         }
     }
@@ -155,9 +155,9 @@ struct ArticleContentCard: View {
     private var readOnOutlet: some View {
         HStack(spacing: 4) {
             Text("Read on \(outlet)")
-                .dsFont(13, weight: .semibold)
+                .dsFont(15, weight: .semibold)
             Image(systemName: "arrow.right")
-                .dsFont(12, weight: .semibold)
+                .dsFont(13, weight: .semibold)
         }
         .foregroundStyle(Color.dsAccent)
     }

@@ -47,7 +47,7 @@ struct HowToWatchCard: View {
             Text(name.isEmpty
                  ? "Broadcast details for this match haven't been announced yet."
                  : "We don't have step-by-step directions for \(name) yet. Full replays post to NWSL+ free a few days after each match.")
-                .dsFont(13)
+                .dsFont(15)
                 .lineSpacing(3)
                 .foregroundStyle(Color.dsFgSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -90,13 +90,13 @@ struct HowToWatchCard: View {
                     BroadcastChip(name: broadcast ?? info.name, small: false)
                     if let label = info.access.label {
                         Text(label)
-                            .dsFont(12.5)
+                            .dsFont(13.5)
                             .foregroundStyle(Color.dsFgSecondary)
                     }
                 }
 
                 Text(info.note)
-                    .dsFont(13)
+                    .dsFont(15)
                     .lineSpacing(3)
                     .foregroundStyle(Color.dsFgSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -105,7 +105,7 @@ struct HowToWatchCard: View {
                     withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
                 } label: {
                     Text(expanded ? "Hide steps" : "Find it")
-                        .dsFont(15, weight: .semibold)
+                        .dsFont(16, weight: .semibold)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
@@ -134,11 +134,11 @@ struct HowToWatchCard: View {
     private func deviceRow(_ device: BroadcastInfo.Device) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Text(device.device)
-                .dsFont(13, weight: .semibold)
+                .dsFont(15, weight: .semibold)
                 .foregroundStyle(Color.dsFgPrimary)
                 .frame(width: 100, alignment: .leading)
             Text(device.steps)
-                .dsFont(13)
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)

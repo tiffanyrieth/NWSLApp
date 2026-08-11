@@ -78,14 +78,14 @@ struct AvatarContentCard: View {
             // cards have no color bar/team pill to fall back on), so it stays.
             if card.resolvedSourceType != .club {
                 Text(sourceLine)
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
             Spacer(minLength: 6)
             Text(card.timestamp.relativeAgo)
-                .dsFont(12)
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
                 .layoutPriority(1)
         }
@@ -116,7 +116,7 @@ struct AvatarContentCard: View {
     private var postBody: some View {
         if let text = card.bodyText, !text.isEmpty {
             Text(text)
-                .dsFont(14.5)
+                .dsFont(15.5)
                 .foregroundStyle(Color.dsFgPrimary)
                 .lineSpacing(3)
                 .lineLimit(bodyClamp)
@@ -179,7 +179,7 @@ struct AvatarContentCard: View {
         HStack(spacing: 8) {
             PlatformBadge(platform: .instagram, size: 20)
             Text("View full post on Instagram")
-                .dsFont(13, weight: .semibold)
+                .dsFont(15, weight: .semibold)
                 .foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity)
@@ -241,7 +241,7 @@ struct EngagementRow: View {
             Image(systemName: symbol)
             Text("\(count)")
         }
-        .dsFont(12)
+        .dsFont(13)
         .foregroundStyle(Color.dsFgSecondary)
     }
 }
@@ -254,9 +254,9 @@ struct CTARow: View {
     var body: some View {
         HStack(spacing: 4) {
             Text(label)
-                .dsFont(13, weight: .semibold)
+                .dsFont(15, weight: .semibold)
             Image(systemName: "arrow.up.right")
-                .dsFont(12, weight: .semibold)
+                .dsFont(13, weight: .semibold)
         }
         .foregroundStyle(Color.dsAccent)
     }

@@ -28,12 +28,30 @@ struct GameTimeWeatherModelTests {
         #expect(row?.maxF == 91)
     }
 
-    @Test func windChillWhenEveryHourFeelsColderByAtLeast5() {
+    @Test func windChillOnlyWhenGenuinelyCold() {
+        // ≤50°F all window + feels colder → "wind chill" is the correct meteorological term.
         let hours = [hour(40, feels: 33), hour(39, feels: 31), hour(38, feels: 30), hour(37, feels: 29)]
         let row = GameTimeWeatherModel.feelsLikeRow(hours: hours)
         #expect(row?.kind == .windChill)
         #expect(row?.minF == 29)
         #expect(row?.maxF == 33)
+    }
+
+    /// ⚠️ THE BUG (2026-08-11): the GFC game was ~76–83°F feeling ~72–77° (a breeze) and got labeled
+    /// "Wind chill" — meteorologically wrong (wind chill is ≤50°F only). A cooler-feeling but MILD
+    /// window is a neutral "Feels like", never wind chill.
+    @Test func feelsLikeNotWindChillWhenMildButBreezy() {
+        let hours = [hour(83, feels: 78), hour(81, feels: 76), hour(79, feels: 74), hour(76, feels: 71)]
+        let row = GameTimeWeatherModel.feelsLikeRow(hours: hours)
+        #expect(row?.kind == .feelsLike)   // NOT .windChill
+        #expect(row?.minF == 71)
+        #expect(row?.maxF == 78)
+    }
+
+    /// The boundary: if any hour is above the 50°F wind-chill ceiling, it's "feels like", not "wind chill".
+    @Test func mixedColdAndMildFallsToFeelsLike() {
+        let hours = [hour(48, feels: 41), hour(52, feels: 45), hour(50, feels: 43), hour(47, feels: 40)]
+        #expect(GameTimeWeatherModel.feelsLikeRow(hours: hours)?.kind == .feelsLike)  // the 52° hour disqualifies wind chill
     }
 
     @Test func suppressedWhenOneHourIsWithin4Degrees() {

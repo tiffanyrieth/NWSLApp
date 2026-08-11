@@ -318,7 +318,7 @@ struct TeamDetailView: View {
             if let cachedAsOf = viewModel.rosterCachedAsOf {
                 Text("Roster as of \(cachedAsOf.formatted(.dateTime.month(.abbreviated).day().year()))")
                     .dsFont(12)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
             ForEach(viewModel.positionGroups) { group in
                 VStack(alignment: .leading, spacing: 10) {

@@ -308,10 +308,16 @@
 
 > ### ♿ PRE-RELEASE GATE — accessibility: **VoiceOver is the only part left** (owner 2026-07-21)
 > Accessibility is a release gate, not a nice-to-have — in an inclusive space like NWSL it must not be
-> overlooked. **Two of the three parts are now DONE** (owner-confirmed 2026-07-31):
+> overlooked. **Three of the four parts are now DONE** (owner-confirmed 2026-07-31, +contrast 2026-08-11):
 > - ✅ **Dynamic Type / AX1** — cap decided, whole app swept, every screen passes (detail below).
 > - ✅ **Colour-blind** — deuter/protan/tritan simulation across the app found **no failures**;
 >   existing rules carry it (✓/✗ glyph shapes, crest+abbreviation, text "your pick" labels).
+> - ✅ **Contrast (WCAG AA)** — DONE 2026-08-11. The app had shipped invisible dark-on-dark text
+>   (`dsFgTertiary`/`Quaternary` used as readable text at 1.5–2.3:1 on cards — the weather footer was the
+>   caught exemplar). Fixed: `dsFgSecondary` lightened to #AEAEB2 (AA-clean on every surface), tertiary/
+>   quaternary made decoration-only, ~230 readable sites swept off failing tokens/`.secondary`, and a
+>   **contrast FLOOR** added (`DSColorContrastTests` + `Color.wcagContrastRatio`, CLAUDE.md rule) so a
+>   regression fails CI — the color-axis peer of the 12pt font floor. [[feedback_invisible_dark_on_dark_text]].
 > - ❌ **VoiceOver — THE REMAINING WORK.** Partial today: 16 files carry a11y modifiers, so it is not
 >   zero, but there has been no systematic pass. This is what blind users need to use the app at all,
 >   and it's the reason the AX1 cap is defensible (users needing >AX1 are served by VoiceOver + Zoom).
@@ -355,8 +361,10 @@
 >   letters for coloured dots).
 > - NOT done, deliberately: the Teams grid's uneven tile borders when club names wrap (cosmetic).
 > **First step when picked up:** run the VoiceOver audit in the sim screen by screen, then work the
-> punch-list. Dynamic Type and colour-blind are closed — do NOT re-audit them.
-> (Dark-only is NOT an a11y issue — the app's colour balances it.)
+> punch-list. Dynamic Type, colour-blind, and contrast are closed — do NOT re-audit them.
+> (⚠️ CORRECTED 2026-08-11: the old note here said "dark-only is NOT an a11y issue — the colour balances
+> it." That was WRONG — dark-mode gray-on-gray text was measurably below WCAG AA and shipped invisible.
+> Dark-only doesn't excuse contrast; the CONTRAST gate above now enforces it.)
 > (The display-name profanity filter that used to be parked here is now BUILT — see the display-name
 > uniqueness item above.)
 

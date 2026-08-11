@@ -72,7 +72,7 @@ struct ComingUpRow: View {
     private var matchupLine: some View {
         HStack(spacing: 4) {
             Text(homeAbbr).foregroundStyle(homeColor)
-            Text("vs").foregroundStyle(Color.dsFgTertiary)
+            Text("vs").foregroundStyle(Color.dsFgSecondary)
             Text(awayAbbr).foregroundStyle(awayColor)
         }
         .dsFont(14, weight: .semibold)

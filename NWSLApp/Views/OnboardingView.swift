@@ -131,7 +131,7 @@ struct OnboardingView: View {
             // so the old "following isn't notifications" footnote is no longer needed.
             Text("Your feed starts here. Tap any clubs you're interested in — their news, videos, and social posts will show up on your Home tab.")
                 .dsFont(15)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
                 // Guarantee full wrapping (never truncate) on the smallest screens (SE/mini).
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -311,7 +311,7 @@ struct OnboardingView: View {
 
             Text("You can always change this later")
                 .dsFont(12)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
         }
         .padding(.horizontal)
         .padding(.vertical, 8)

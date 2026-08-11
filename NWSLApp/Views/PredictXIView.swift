@@ -321,9 +321,9 @@ struct PredictXIView: View {
     private func sectionLabel(_ text: String, systemImage: String? = nil) -> some View {
         HStack(spacing: 6) {
             if let systemImage {
-                Image(systemName: systemImage).dsFont(12, weight: .bold).foregroundStyle(.secondary)
+                Image(systemName: systemImage).dsFont(12, weight: .bold).foregroundStyle(Color.dsFgSecondary)
             }
-            Text(text).dsFont(15, weight: .bold).foregroundStyle(.secondary)
+            Text(text).dsFont(15, weight: .bold).foregroundStyle(Color.dsFgSecondary)
             Spacer()
         }
         .padding(.top, 4)
@@ -333,7 +333,7 @@ struct PredictXIView: View {
         VStack(spacing: 10) {
             Image(systemName: "calendar.badge.clock")
                 .dsFont(34)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             if let opening = viewModel.nextOpening {
                 // The PAUSED state (an international break): the game isn't broken, the league is
                 // resting — say when it comes back. Boards below stay browsable throughout (owner
@@ -342,14 +342,14 @@ struct PredictXIView: View {
                     .dsFont(17, weight: .semibold)
                 Text("Predictions for \(viewModel.teamLabel(opening.team))'s next match open \(Self.pausedDateFormatter.string(from: max(opening.opensAt, Date()))).")
                     .dsFont(15)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
             } else {
                 Text("No upcoming matches to predict")
                     .dsFont(17, weight: .semibold)
                 Text("Follow a team with a fixture coming up and it'll appear here to predict.")
                     .dsFont(15)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
             }
         }
@@ -451,7 +451,7 @@ struct PredictXIView: View {
             Image(systemName: icon).foregroundStyle(tint)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).dsFont(15, weight: .semibold)
-                Text(subtitle).dsFont(12).foregroundStyle(.secondary)
+                Text(subtitle).dsFont(12).foregroundStyle(Color.dsFgSecondary)
             }
             Spacer(minLength: 0)
             Image(systemName: "chevron.right").dsFont(12).foregroundStyle(.tertiary)
@@ -495,13 +495,13 @@ struct PredictXIView: View {
                     Text(superlative).dsFont(12, weight: .bold).foregroundStyle(accent)
                 }
                 if let contribution = predictSuperfanLine {
-                    Text(contribution).dsFont(12).foregroundStyle(Color.dsFgTertiary)
+                    Text(contribution).dsFont(12).foregroundStyle(Color.dsFgSecondary)
                 }
                 // ⚠️ Load-bearing copy, not decoration: points DO aggregate (they're league-wide) but
                 // ranks do NOT (each club board has its own population). Without this line the card's
                 // combined total sitting above per-club movements reads as one merged standing.
                 Text("Points are league-wide. Ranks are per club — each board is scored separately.")
-                    .dsFont(12).foregroundStyle(Color.dsFgTertiary)
+                    .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
@@ -550,7 +550,7 @@ struct PredictXIView: View {
                     // Starters called leads; points + round rank follow on the card now (game-feel pass),
                     // so the user sees their result without tapping in.
                     Text("\(score.correctPlayers) of 11 starters").dsFont(16, weight: .bold).foregroundStyle(accent)
-                    Text("+\(score.total) pts").dsFont(13, weight: .semibold).foregroundStyle(.secondary)
+                    Text("+\(score.total) pts").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                     if isUnseen {
                         Text("NEW")
                             .font(.system(size: 9, weight: .black)).tracking(0.6)
@@ -571,7 +571,7 @@ struct PredictXIView: View {
                 if let rank = store.roundRank(forFixture: item.fixture.id) {
                     Text("\(ordinal(rank)) this round").dsFont(12, weight: .bold).foregroundStyle(accent)
                 }
-                Text(resultSummaryLine(score)).dsFont(12).foregroundStyle(.secondary)
+                Text(resultSummaryLine(score)).dsFont(12).foregroundStyle(Color.dsFgSecondary)
                 if let movement = rankMovementLine(for: item) {
                     Text(movement.text).dsFont(12, weight: .semibold).foregroundStyle(movement.color)
                 }
@@ -846,7 +846,7 @@ struct PredictXIView: View {
                 TeamLogo(urlString: viewModel.club(forAbbreviation: team)?.logoURL, teamAbbreviation: team, size: 22)
                 Text(viewModel.teamLabel(team)).dsFont(17, weight: .semibold)
                 Spacer()
-                Text("Leaderboard").dsFont(12).foregroundStyle(.secondary)
+                Text("Leaderboard").dsFont(12).foregroundStyle(Color.dsFgSecondary)
             }
             // Team tabs moved into the header (game-feel pass) — obvious they switch the board's club.
             if allTeams.count >= 2 { teamChips(teams: allTeams, selected: team) }
@@ -893,7 +893,7 @@ struct PredictXIView: View {
                         Text(String(format: "%.1f avg", avg))
                             .dsFont(15, weight: .semibold).foregroundStyle(row.isYou ? accent : .secondary)
                     } else {
-                        Text("\(row.points) pts").dsFont(15, weight: .semibold).foregroundStyle(.secondary)
+                        Text("\(row.points) pts").dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                     }
                 }
                 .padding(.vertical, 8)
@@ -906,11 +906,11 @@ struct PredictXIView: View {
             // window yet — not that a threshold is unmet.
             if rows.isEmpty {
                 Text("No predictors yet — predict this club's XI to start the board.")
-                    .dsFont(12).foregroundStyle(.secondary)
+                    .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                     .padding(.horizontal, 10).padding(.top, 2)
             } else if rows.count == 1, rows.first?.isYou == true {
                 Text("You're first in line — standings grow as more fans play.")
-                    .dsFont(12).foregroundStyle(.secondary)
+                    .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                     .padding(.horizontal, 10).padding(.top, 2)
             }
         }

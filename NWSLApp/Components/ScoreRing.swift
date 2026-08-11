@@ -67,7 +67,7 @@ struct ScoreRingDefaultLabel: View {
         VStack(spacing: 2) {
             Text("\(score)/\(total)")
                 .dsFont(34, weight: .heavy, design: .rounded).foregroundStyle(accent)
-            Text("correct").dsFont(12).foregroundStyle(.secondary)
+            Text("correct").dsFont(12).foregroundStyle(Color.dsFgSecondary)
         }
     }
 }

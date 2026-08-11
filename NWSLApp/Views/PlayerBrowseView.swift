@@ -41,7 +41,7 @@ struct PlayerBrowseView: View {
         List {
             Section {
                 Text("Follow players beyond your teams. Their posts appear in your Feed.")
-                    .dsFont(13).foregroundStyle(.secondary)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .listRowSeparator(.hidden)
                 chipBar
                     .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 4, trailing: 0))
@@ -62,7 +62,7 @@ struct PlayerBrowseView: View {
             }
             Section {
                 Text("Currently featuring \(players.count) players — more coming.")
-                    .dsFont(12).foregroundStyle(.secondary)
+                    .dsFont(12).foregroundStyle(Color.dsFgSecondary)
             }
         }
         .navigationTitle("Follow players")
@@ -100,7 +100,7 @@ struct PlayerBrowseView: View {
     private func teamHeader(_ abbr: String, following: Bool) -> some View {
         HStack(spacing: 8) {
             TeamLogo(urlString: nil, teamAbbreviation: abbr, size: 22)
-            Text((teamNames[abbr] ?? abbr).uppercased()).dsFont(12, weight: .bold).foregroundStyle(.secondary)
+            Text((teamNames[abbr] ?? abbr).uppercased()).dsFont(12, weight: .bold).foregroundStyle(Color.dsFgSecondary)
             if following {
                 Text("FOLLOWING").dsFont(12, weight: .bold).foregroundStyle(Color.dsSuccess)
             }

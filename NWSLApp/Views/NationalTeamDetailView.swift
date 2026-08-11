@@ -118,7 +118,7 @@ struct NationalTeamDetailView: View {
             // against a WAFCON lineup of 23.
             Text("Squad · \(result.feed.label)")
                 .dsFont(12)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             ForEach(Roster.grouped(result.squad.athletes)) { group in
                 VStack(alignment: .leading, spacing: 10) {
                     Text(group.label)
@@ -169,7 +169,7 @@ struct NationalTeamDetailView: View {
                 if let jersey = athlete.jersey {
                     Text("#\(jersey)")
                         .dsFont(12)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.dsFgSecondary)
                 }
             }
             Spacer(minLength: 0)

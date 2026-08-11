@@ -118,7 +118,7 @@ struct XIPickerView: View {
     private var formationSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("FORMATION").dsFont(12, weight: .bold).foregroundStyle(.secondary)
+                Text("FORMATION").dsFont(12, weight: .bold).foregroundStyle(Color.dsFgSecondary)
                 Spacer()
                 if !picker.readOnly {
                     // Quick-fill helper: random formation + random XI (score untouched). Re-tap
@@ -209,7 +209,9 @@ struct XIPickerView: View {
                 .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 1))
                 Text(athlete.map { lastName($0) } ?? slot.group.shortLabel)
                     .dsFont(12, weight: athlete != nil ? .semibold : .regular)
-                    .foregroundStyle(.white.opacity(athlete != nil ? 1 : 0.7))
+                    // Filled slot = full white; empty-slot position label = readable-quiet token
+                    // (was .white.opacity(0.7) — below AA on the pitch; the token is AA-clean there).
+                    .foregroundStyle(athlete != nil ? Color.dsFgPrimary : Color.dsFgSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
@@ -227,11 +229,11 @@ struct XIPickerView: View {
 
     private var scorelineSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("FINAL SCORE").dsFont(12, weight: .bold).foregroundStyle(.secondary)
+            Text("FINAL SCORE").dsFont(12, weight: .bold).foregroundStyle(Color.dsFgSecondary)
             HStack(spacing: 12) {
                 scoreStepper(abbr: homeAbbr, value: picker.homeScore,
                              onDec: picker.decrementHome, onInc: picker.incrementHome)
-                Text("–").dsFont(22, weight: .bold).foregroundStyle(.secondary)
+                Text("–").dsFont(22, weight: .bold).foregroundStyle(Color.dsFgSecondary)
                 scoreStepper(abbr: awayAbbr, value: picker.awayScore,
                              onDec: picker.decrementAway, onInc: picker.incrementAway)
             }
@@ -416,12 +418,12 @@ struct XIPickerView: View {
         HStack(spacing: 12) {
             Text(athlete.jersey ?? "—")
                 .font(.subheadline.weight(.bold).monospacedDigit())
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 1) {
                 Text(athlete.name).dsFont(15, weight: .semibold)
                 if let position = athlete.positionName {
-                    Text(position).dsFont(12).foregroundStyle(.secondary)
+                    Text(position).dsFont(12).foregroundStyle(Color.dsFgSecondary)
                 }
             }
             Spacer(minLength: 0)

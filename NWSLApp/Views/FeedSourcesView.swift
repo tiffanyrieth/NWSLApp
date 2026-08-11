@@ -104,7 +104,7 @@ struct FeedSourcesView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(r.displayName).dsFont(15, weight: .semibold)
-                        Text("@\(r.handle)").dsFont(12).foregroundStyle(.secondary)
+                        Text("@\(r.handle)").dsFont(12).foregroundStyle(Color.dsFgSecondary)
                     }
                     Spacer()
                     Button("Remove") { prefs.removeReporter(handle: r.handle) }
@@ -125,22 +125,22 @@ struct FeedSourcesView: View {
             EmptyView()
         case .notFound:
             Label("No NWSL posts found for this handle", systemImage: "xmark.circle")
-                .dsFont(13).foregroundStyle(.secondary)
+                .dsFont(13).foregroundStyle(Color.dsFgSecondary)
         case .failed:
             Label("Couldn't check that handle — try again", systemImage: "exclamationmark.triangle")
-                .dsFont(13).foregroundStyle(.secondary)
+                .dsFont(13).foregroundStyle(Color.dsFgSecondary)
         case let .found(handle, displayName):
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(displayName).dsFont(15, weight: .semibold)
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark.seal.fill").dsFont(12).foregroundStyle(Color.dsSuccess)
-                        Text("Active · @\(handle)").dsFont(12).foregroundStyle(.secondary)
+                        Text("Active · @\(handle)").dsFont(12).foregroundStyle(Color.dsFgSecondary)
                     }
                 }
                 Spacer()
                 if prefs.isReporterAdded(handle: handle) {
-                    Text("Added").dsFont(13, weight: .semibold).foregroundStyle(.secondary)
+                    Text("Added").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                 } else {
                     Button("Add") {
                         prefs.addReporter(.init(handle: handle, displayName: displayName))
@@ -201,7 +201,7 @@ struct FeedSourcesView: View {
             TeamLogo(urlString: nil, teamAbbreviation: abbr, size: 22)
             Text((teamNames[abbr] ?? abbr).uppercased())
                 .dsFont(12, weight: .bold)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             if following {
                 Text("FOLLOWING").dsFont(12, weight: .bold)
                     .foregroundStyle(Color.dsSuccess)
@@ -230,7 +230,7 @@ struct FeedSourcesView: View {
             HStack(spacing: 6) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(source.name).dsFont(15, weight: .semibold)
-                    Text(source.detail).dsFont(12).foregroundStyle(.secondary)
+                    Text(source.detail).dsFont(12).foregroundStyle(Color.dsFgSecondary)
                 }
                 if source.isAdded {
                     Text("ADDED").dsFont(12, weight: .bold)

@@ -47,7 +47,7 @@ struct NotificationAuthPromptView: View {
                     .multilineTextAlignment(.center)
                 Text("These run through Apple's notification system, which needs a signed-in account to know where to send them.")
                     .dsFont(15)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
             }
             .padding(.horizontal, 8)
@@ -73,7 +73,7 @@ struct NotificationAuthPromptView: View {
 
                 Button("Not now") { dismiss() }
                     .dsFont(15, weight: .semibold)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
         }
         .padding(28)

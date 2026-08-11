@@ -114,7 +114,7 @@ struct TriviaLandingView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "flame.fill").dsFont(13).foregroundStyle(.orange)
                     Text("\(store.streak)-round streak — play every round to keep it")
-                        .dsFont(12).foregroundStyle(.secondary)
+                        .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 4)
@@ -138,12 +138,12 @@ struct TriviaLandingView: View {
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "clock.arrow.circlepath")
-                        .dsFont(16).foregroundStyle(.secondary)
+                        .dsFont(16).foregroundStyle(Color.dsFgSecondary)
                         .frame(width: 40, height: 40)
                         .background(Color.dsBgTertiary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(store.previousScore != nil ? "Your score + how everyone did" : "See how everyone did")
-                            .dsFont(15, weight: .semibold).foregroundStyle(.secondary)
+                            .dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                         Text(store.previousScore != nil ? "You played this round" : "You sat this one out")
                             .dsFont(12).foregroundStyle(.tertiary)
                     }
@@ -183,7 +183,7 @@ struct TriviaLandingView: View {
                         .dsFont(12, weight: .bold).foregroundStyle(accent)
                         .frame(width: 20, height: 20)
                         .background(accent.opacity(0.15), in: Circle())
-                    Text(rule).dsFont(13).foregroundStyle(.secondary)
+                    Text(rule).dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     Spacer(minLength: 0)
                 }
             }
@@ -199,7 +199,7 @@ struct TriviaLandingView: View {
     private func sectionEyebrow(_ title: String, round: Int?) -> some View {
         HStack(spacing: 8) {
             Text(title.uppercased())
-                .dsFont(12, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
+                .dsFont(12, weight: .bold).tracking(0.8).foregroundStyle(Color.dsFgSecondary)
             if let round, round > 0 {
                 Text("Round \(round)")
                     .dsFont(12, weight: .bold).tracking(0.4).foregroundStyle(accent)
@@ -215,7 +215,7 @@ struct TriviaLandingView: View {
                 Text("Results").dsFont(12, weight: .semibold)
                 Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
             }
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.dsFgSecondary)
         }
     }
 }

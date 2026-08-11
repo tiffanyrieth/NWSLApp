@@ -60,6 +60,18 @@ app-side interpretation — the alternative (a separate endpoint + app merge) wo
 app decoder makes; do not use this as precedent — a second mutation needs its own owner ruling. Mechanism +
 the six-source research: `docs/backend.md` (Attendance backstop).
 
+### Contrast floor — readable text is primary/secondary ONLY; tertiary/quaternary are decoration (owner 2026-08-11)
+Dark-mode gray-on-gray text shipped below WCAG AA — invisible dark-on-dark (the weather footer at 1.5–2.3:1
+was the caught exemplar; ~230 sites across Fan Zone/Profile/Match Detail). **Ruling:** readable text uses
+`dsFgPrimary` or `dsFgSecondary` ONLY; `dsFgTertiary`/`dsFgQuaternary` are DECORATION-ONLY (they fail AA as
+text) and hierarchy below primary is expressed by WEIGHT/SIZE, not a darker gray. `dsFgSecondary` was
+lightened #8E8E93 → #AEAEB2 (AA-clean on every surface). Every readable fg×bg must clear WCAG AA 4.5:1
+(3:1 large/bold); `DSColorContrastTests` enforces it (the color peer of the 12pt font floor). Same exemptions
+as the font floor (dividers, dots, disabled, TBD/VS placeholders, icons beside a label). **Why it's locked:**
+a future session (or a Design handoff) will want to re-dim text to a "prettier" darker gray for aesthetics —
+that's exactly the regression; the floor test catches it, and this entry says don't. Full rule: CLAUDE.md UI
+rules; the recurring-mistake lesson: `feedback_invisible_dark_on_dark_text` memory.
+
 ### Efficiency is the TARGET, not the floor; judge load at the MACRO level (owner 2026-08-11)
 Two standing design rules, the positive twin of the BANNED LENS. **(1)** Build the most efficient feasible
 implementation, then verify 1k — not "it passes 1k, ship it." If a capped/metered resource can be AVOIDED

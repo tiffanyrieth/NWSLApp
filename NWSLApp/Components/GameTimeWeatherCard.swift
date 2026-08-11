@@ -47,7 +47,7 @@ struct GameTimeWeatherCard: View {
             // privacy/disclaimer page). One credit covers all Open-Meteo data in the app.
             Text("Weather by Open-Meteo")
                 .dsFont(12, weight: .regular)
-                .foregroundStyle(Color.dsFgQuaternary)
+                .foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -66,7 +66,7 @@ struct GameTimeWeatherCard: View {
             if let venueName {
                 Text(venueName)
                     .dsFont(12, weight: .semibold)
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
@@ -125,7 +125,7 @@ struct GameTimeWeatherCard: View {
 
             (Text(Image(systemName: "wind")) + Text(" \(hour.roundedWind) mph"))
                 .dsFont(12, weight: .semibold)
-                .foregroundStyle(Color.dsFgTertiary)
+                .foregroundStyle(Color.dsFgSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
 
@@ -165,9 +165,9 @@ struct GameTimeWeatherCard: View {
         VStack(alignment: .leading, spacing: 8) {
             if let feelsRow {
                 footerLine(
-                    icon: feelsRow.kind == .heatIndex ? "thermometer.high" : "wind",
-                    iconColor: Color.dsFgTertiary,
-                    label: feelsRow.kind == .heatIndex ? "Heat index" : "Wind chill",
+                    icon: feelsIcon(feelsRow.kind),
+                    iconColor: Color.dsFgSecondary,
+                    label: feelsLabel(feelsRow.kind),
                     value: feelsRow.minF == feelsRow.maxF ? "\(feelsRow.minF)°" : "\(feelsRow.minF)–\(feelsRow.maxF)°",
                     trailing: "during the match")
             }
@@ -179,6 +179,22 @@ struct GameTimeWeatherCard: View {
                     value: sunsetLabel,
                     trailing: nil)
             }
+        }
+    }
+
+    private func feelsIcon(_ kind: GameTimeWeatherModel.FeelsKind) -> String {
+        switch kind {
+        case .heatIndex: return "thermometer.high"
+        case .windChill: return "wind.snow"
+        case .feelsLike: return "wind"
+        }
+    }
+
+    private func feelsLabel(_ kind: GameTimeWeatherModel.FeelsKind) -> String {
+        switch kind {
+        case .heatIndex: return "Heat index"
+        case .windChill: return "Wind chill"
+        case .feelsLike: return "Feels like"
         }
     }
 
@@ -196,7 +212,7 @@ struct GameTimeWeatherCard: View {
                     + Text(trailing.map { " \($0)" } ?? "")
             )
             .dsFont(12)
-            .foregroundStyle(Color.dsFgTertiary)
+            .foregroundStyle(Color.dsFgSecondary)
             .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)

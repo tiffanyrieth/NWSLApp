@@ -99,7 +99,7 @@ struct PlayoffMatchupRow: View {
                 if showScores, let score = bside.score {
                     Text("\(score)")
                         .dsFont(32, weight: .heavy, design: .rounded, monospacedDigit: true)
-                        .foregroundStyle(bside.isWinner || !matchup.isFinal ? Color.dsFgPrimary : Color.dsFgTertiary)
+                        .foregroundStyle(bside.isWinner || !matchup.isFinal ? Color.dsFgPrimary : Color.dsFgSecondary)
                 }
             }
             .frame(height: 34)

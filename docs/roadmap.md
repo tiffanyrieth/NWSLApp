@@ -393,25 +393,6 @@
 > app source. The unit tests that reference `PostseasonSimulator.clinchTable` (`PlayoffClinchTests`) move
 > to inline fixtures at that point. Nothing auto-reminds — this note is the reminder.
 
-> ### 📏 TYPE AUDIT — ✅ 12pt floor DONE 2026-08-06 · ✅ readable-tier bump DONE 2026-08-11
-> **✅ 12pt floor (2026-08-06):** a **12pt hard readable-font floor** — every `.dsFont(9…11.5)` bumped to 12
-> (160 sites). No floor existed before (119 uses at 11pt); the trigger was the owner's mom (70s) not being
-> able to read the app, and the Sim renders desktop-scale so small type "looked fine" but wasn't on a phone
-> ([[feedback_size_for_phone_not_desktop]]). Owner research + the AX1 engineering point both land on 12
-> ("below 10-11 stays illegible even after accessibility scaling"). Exceptions kept: the 5pt bullet-dot
-> icon, `trackedCaps` eyebrows, monograms.
->
-> **✅ READABLE-TIER BUMP (owner 2026-08-11, `feature/font-size-bump`, rides build 35):** after living with
-> the 12 floor + a competitor survey (MLS/NWSL/Wunderground/Sephora/Swift Alert all trend body ~16-17) and
-> the owner's parents (70s) still unable to read prose on-device, the owner directed an app-wide bump. One
-> uniform tier recipe, 525 sites / 52 files: **12→13** (captions), **13→15** (small body prose, the "rules"
-> tier), **14→15** (body), **15→16** (body-large/titles); **16+ unchanged**. Skipped 94 sites (tracked-caps
-> eyebrows + `monospacedDigit` numeric columns — same exemptions as the floor). Proven on a one-screen
-> Trivia mock (owner-approved) then swept; density-sensitive surfaces (Standings table, Schedule cards,
-> Match Detail) verified no wrap/clip in sim. ⚠️ NOTE: this deliberately overrode the earlier "do it
-> SURGICALLY per screen, never a blanket bump" caution — owner's call after the floor was felt on real use;
-> **TestFlight this week is the tune-from-here pass** (per-screen dial-back where hierarchy flattened, if any).
-
 > ### 🔒 V2 LA RULE (standing): V2 Live Activity work happens in its OWN session with NO other tasks
 > in flight — it's device-proven, fragile, weeks to get right; read `docs/live-activity-v2.md` §0 FIRST,
 > never edit from first principles. _(No open V2-LA items — the ⌚ Apple Watch `.small` crest fix merged

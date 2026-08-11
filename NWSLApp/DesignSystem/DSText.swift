@@ -43,7 +43,7 @@ struct DSScaledFont: ViewModifier {
 extension View {
     /// Dynamic-Type-scaling replacement for `.font(.system(size:weight:design:))`.
     /// `size` is the size at the default text setting. Migration is mechanical:
-    /// `.font(.system(size: 14, weight: .bold))` → `.dsFont(14, weight: .bold)`.
+    /// `.font(.system(size: 14, weight: .bold))` → `.dsFont(15, weight: .bold)`.
     func dsFont(
         _ size: CGFloat,
         weight: Font.Weight = .regular,

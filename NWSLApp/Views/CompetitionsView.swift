@@ -36,7 +36,7 @@ struct CompetitionsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 Text("Go beyond the league. Anything you turn on here folds into My teams on your schedule.")
-                    .dsFont(13)
+                    .dsFont(15)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineSpacing(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -47,7 +47,7 @@ struct CompetitionsView: View {
 
                 section("NATIONAL TEAMS") {
                     Text("Follow your national team. Their matches appear in My teams alongside your clubs.")
-                        .dsFont(12.5)
+                        .dsFont(13.5)
                         .foregroundStyle(Color.dsFgSecondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     searchField
@@ -85,10 +85,10 @@ struct CompetitionsView: View {
                             in: RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 Text("Concacaf W Champions Cup")
-                    .dsFont(15, weight: .semibold)
+                    .dsFont(16, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                 Text("Adds your clubs' Champions Cup matches to My teams.")
-                    .dsFont(12.5)
+                    .dsFont(13.5)
                     .foregroundStyle(Color.dsFgSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -113,17 +113,17 @@ struct CompetitionsView: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .dsFont(14)
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgSecondary)
             TextField("Search by name or code", text: $query)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .dsFont(15)
+                .dsFont(16)
                 .foregroundStyle(Color.dsFgPrimary)
             if !query.isEmpty {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .dsFont(15)
+                        .dsFont(16)
                         .foregroundStyle(Color.dsFgSecondary)
                 }
                 .buttonStyle(.plain)
@@ -176,7 +176,7 @@ struct CompetitionsView: View {
             let results = filter(teams)
             if results.isEmpty {
                 Text("No teams match “\(query)”.")
-                    .dsFont(13)
+                    .dsFont(15)
                     .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)

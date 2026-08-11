@@ -104,7 +104,7 @@ struct ThumbnailContentCard: View {
         VStack(alignment: .leading, spacing: 6) {
             if let title = card.title {
                 Text(title)
-                    .dsFont(15, weight: .semibold)
+                    .dsFont(16, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -117,7 +117,7 @@ struct ThumbnailContentCard: View {
                 Text("·")
                 Text(card.timestamp.relativeAgo)
             }
-            .dsFont(12)
+            .dsFont(13)
             .foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -136,27 +136,27 @@ struct ThumbnailContentCard: View {
                 if card.resolvedSourceType != .club {
                     if let author = card.authorName, !author.isEmpty {
                         Text(author)
-                            .dsFont(14, weight: .bold)
+                            .dsFont(15, weight: .bold)
                             .foregroundStyle(Color.dsFgPrimary)
                             .lineLimit(1)
                     }
                     if let sub = card.subreddit {
                         Text("via")
-                            .dsFont(12)
+                            .dsFont(13)
                             .foregroundStyle(Color.dsFgSecondary)
                         PlatformBadge(platform: .reddit, size: 13)
                         Text("r/\(sub)")
-                            .dsFont(12, weight: .semibold)
+                            .dsFont(13, weight: .semibold)
                             .foregroundStyle(PlatformBrand.reddit)
                             .lineLimit(1)
                     }
                     Text("· \(card.timestamp.relativeAgo)")
-                        .dsFont(12)
+                        .dsFont(13)
                         .foregroundStyle(Color.dsFgSecondary)
                         .lineLimit(1)
                 } else {
                     Text(card.timestamp.relativeAgo)
-                        .dsFont(12)
+                        .dsFont(13)
                         .foregroundStyle(Color.dsFgSecondary)
                         .lineLimit(1)
                 }
@@ -164,7 +164,7 @@ struct ThumbnailContentCard: View {
             }
             if let caption = card.bodyText ?? card.title {
                 Text(caption)
-                    .dsFont(14)
+                    .dsFont(15)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineSpacing(3)
                     .lineLimit(2)
@@ -273,7 +273,7 @@ struct ThumbnailHeader: View {
         HStack(spacing: 5) {
             PlatformBadge(platform: chip.platform, size: 14)
             Text(chip.label)
-                .dsFont(12, weight: .semibold)
+                .dsFont(13, weight: .semibold)
                 .foregroundStyle(.white)
         }
         .padding(.vertical, 4)
@@ -308,7 +308,7 @@ struct MediaTeamBadge: View {
 
     var body: some View {
         Text(abbreviation)
-            .dsFont(12, weight: .semibold)
+            .dsFont(13, weight: .semibold)
             .foregroundStyle(teamColor)
             .padding(.vertical, 4)
             .padding(.horizontal, 8)

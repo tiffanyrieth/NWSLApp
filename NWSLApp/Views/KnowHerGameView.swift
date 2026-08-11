@@ -89,7 +89,7 @@ struct KnowHerGameView: View {
                 KnowHerPlayerAvatar(player: player, ring: teamColor, size: 108)
                     .padding(.top, 8)
                 Text(player.teamAbbreviation.uppercased())
-                    .dsFont(12, weight: .bold)
+                    .dsFont(13, weight: .bold)
                     .padding(.horizontal, 10).padding(.vertical, 4)
                     .background(teamColor.opacity(0.18))
                     .foregroundStyle(teamColor)
@@ -97,7 +97,7 @@ struct KnowHerGameView: View {
                 VStack(spacing: 4) {
                     Text(player.playerName).dsFont(28, weight: .bold).multilineTextAlignment(.center)
                     Text("\(player.position) · #\(player.jerseyNumber)")
-                        .dsFont(15).foregroundStyle(Color.dsFgSecondary)
+                        .dsFont(16).foregroundStyle(Color.dsFgSecondary)
                 }
                 Text(player.tagline)
                     .dsFont(17).foregroundStyle(Color.dsFgSecondary)
@@ -121,7 +121,7 @@ struct KnowHerGameView: View {
                 .buttonStyle(.plain)
 
                 Text("A fresh player each week — one of your followed teams. Points add to your Superfan total.")
-                    .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center).padding(.horizontal)
             }
             .padding(20)
@@ -146,7 +146,7 @@ struct KnowHerGameView: View {
     private func metaItem(_ value: String, _ label: String) -> some View {
         VStack(spacing: 3) {
             Text(value).dsFont(17, weight: .semibold).foregroundStyle(accent)
-            Text(label).dsFont(12).foregroundStyle(Color.dsFgSecondary)
+            Text(label).dsFont(13).foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -181,10 +181,10 @@ struct KnowHerGameView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Question \(viewModel.questionNumber) of \(viewModel.questionCount)")
-                    .dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                    .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                 Spacer()
                 Text(question.category.label.uppercased())
-                    .dsFont(12, weight: .bold)
+                    .dsFont(13, weight: .bold)
                     .padding(.horizontal, 9).padding(.vertical, 4)
                     .background(accent.opacity(0.14)).foregroundStyle(accent)
                     .clipShape(Capsule())
@@ -241,7 +241,7 @@ struct KnowHerGameView: View {
                     VStack(spacing: 8) {
                         Text(feelGoodTitle).dsFont(22, weight: .bold).multilineTextAlignment(.center)
                         if let missed = missedFact {
-                            Text(missed).dsFont(15).foregroundStyle(Color.dsFgSecondary)
+                            Text(missed).dsFont(16).foregroundStyle(Color.dsFgSecondary)
                                 .multilineTextAlignment(.center).padding(.horizontal)
                         }
                     }
@@ -274,9 +274,9 @@ struct KnowHerGameView: View {
             KnowHerPlayerAvatar(player: player, ring: teamColor, size: 88)
             Text(player.playerName).dsFont(22, weight: .bold).multilineTextAlignment(.center)
             Text("\(player.position) · \(player.teamAbbreviation.uppercased())")
-                .dsFont(15).foregroundStyle(Color.dsFgSecondary)
+                .dsFont(16).foregroundStyle(Color.dsFgSecondary)
             Text("You didn't play this one — here's how everyone did.")
-                .dsFont(15).foregroundStyle(Color.dsFgSecondary)
+                .dsFont(16).foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center).padding(.horizontal)
         }
     }

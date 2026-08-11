@@ -50,11 +50,11 @@ struct EventTimelineRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.primary)
-                    .dsFont(14, weight: .semibold)
+                    .dsFont(15, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                 if let detail = item.detail {
                     Text(detail)
-                        .dsFont(12)
+                        .dsFont(13)
                         .foregroundStyle(Color.dsFgSecondary)
                         .fixedSize(horizontal: false, vertical: true)   // commentary can wrap 2 lines
                 }
@@ -134,6 +134,6 @@ private struct SubstitutionArrows: View {
             Image(systemName: "arrow.up").foregroundStyle(Color.dsSuccess)
             Image(systemName: "arrow.down").foregroundStyle(Color.dsError)
         }
-        .dsFont(12, weight: .bold)
+        .dsFont(13, weight: .bold)
     }
 }

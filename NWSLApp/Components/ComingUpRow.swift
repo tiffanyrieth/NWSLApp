@@ -42,7 +42,7 @@ struct ComingUpRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 matchupLine
                 detailLineView
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(detailColor)
                     .lineLimit(1)
                 broadcastLine
@@ -62,7 +62,7 @@ struct ComingUpRow: View {
         HStack(spacing: 6) {
             TeamLogo(urlString: event.homeCompetitor?.team?.logo, teamAbbreviation: event.homeCompetitor?.team?.abbreviation, size: 28)
             Text("v")
-                .dsFont(12, weight: .semibold)
+                .dsFont(13, weight: .semibold)
                 .foregroundStyle(Color.dsFgQuaternary)
             TeamLogo(urlString: event.awayCompetitor?.team?.logo, teamAbbreviation: event.awayCompetitor?.team?.abbreviation, size: 28)
         }
@@ -75,7 +75,7 @@ struct ComingUpRow: View {
             Text("vs").foregroundStyle(Color.dsFgSecondary)
             Text(awayAbbr).foregroundStyle(awayColor)
         }
-        .dsFont(14, weight: .semibold)
+        .dsFont(15, weight: .semibold)
         .lineLimit(1)
     }
 
@@ -83,7 +83,7 @@ struct ComingUpRow: View {
         HStack(spacing: 5) {
             Circle().fill(Color.dsLive).frame(width: 7, height: 7)
             Text("LIVE")
-                .dsFont(12, weight: .bold)
+                .dsFont(13, weight: .bold)
                 .foregroundStyle(Color.dsLive)
         }
     }
@@ -156,14 +156,14 @@ struct ComingUpRow: View {
             HStack(spacing: 5) {
                 Circle().fill(color).frame(width: 5, height: 5)
                 Text(name)
-                    .dsFont(12, weight: .bold)
+                    .dsFont(13, weight: .bold)
                     .foregroundStyle(color)
                     .lineLimit(1)
                 // No badge when access is unknown — a guess here reads as fact.
                 if let badge = access.shortBadge {
                     let free = access.isFree
                     Text(badge)
-                        .dsFont(12, weight: .bold)
+                        .dsFont(13, weight: .bold)
                         .foregroundStyle(free ? Color.dsSuccess : Color.dsFgTertiary)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1.5)

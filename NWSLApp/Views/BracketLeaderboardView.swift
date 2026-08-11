@@ -140,12 +140,12 @@ struct BracketLeaderboardView: View {
             .overlay(Circle().strokeBorder(accent.opacity(0.5), lineWidth: 1.5))
             VStack(alignment: .leading, spacing: 3) {
                 Text("Your rank").trackedCaps(color: accent)
-                Text(rankSubtitle(you)).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                Text(rankSubtitle(you)).dsFont(15).foregroundStyle(Color.dsFgSecondary)
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 1) {
                 Text("\(you.points)").dsFont(22, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
-                Text("pts").dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                Text("pts").dsFont(13).foregroundStyle(Color.dsFgSecondary)
             }
         }
         .padding(16)
@@ -186,7 +186,7 @@ struct BracketLeaderboardView: View {
                 .fill(s.isYou ? accent : accent.opacity(0.45))
                 .frame(width: 64, height: max(14, height * max(frac, 0.2)))
                 .overlay(alignment: .top) {
-                    Text("\(s.rank)").dsFont(13, weight: .heavy).foregroundStyle(Color.dsFgPrimary).padding(.top, 4)
+                    Text("\(s.rank)").dsFont(15, weight: .heavy).foregroundStyle(Color.dsFgPrimary).padding(.top, 4)
                 }
         }
     }
@@ -195,7 +195,7 @@ struct BracketLeaderboardView: View {
         HStack(spacing: 12) {
             Text("\(s.rank)").dsFont(13, weight: .bold, monospacedDigit: true)
                 .foregroundStyle(s.isYou ? accent : Color.dsFgSecondary).frame(width: 30, alignment: .trailing)
-            Text(s.name).dsFont(14, weight: s.isYou ? .bold : .medium)
+            Text(s.name).dsFont(15, weight: s.isYou ? .bold : .medium)
                 .foregroundStyle(s.isYou ? accent : .dsFgPrimary).lineLimit(1).minimumScaleFactor(0.8)
             Spacer(minLength: 8)
             // Points are the ranking metric; accuracy is demoted off the board (Competitive Redesign
@@ -232,7 +232,7 @@ struct BracketLeaderboardView: View {
             VStack(spacing: 4) {
                 Text("\(totalPts)").dsFont(42, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
                 Text("total points · across \(history.count) edition\(history.count == 1 ? "" : "s")")
-                    .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 12)
 
@@ -261,7 +261,7 @@ struct BracketLeaderboardView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(value).dsFont(28, weight: .heavy, monospacedDigit: true).foregroundStyle(Color.dsFgPrimary)
                 .lineLimit(1).minimumScaleFactor(0.6)
-            Text(label).dsFont(12).foregroundStyle(Color.dsFgSecondary)
+            Text(label).dsFont(13).foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -273,7 +273,7 @@ struct BracketLeaderboardView: View {
             HStack {
                 Text("Your best round").trackedCaps(color: accent)
                 Spacer()
-                Text("\(label) · \(pct(accuracy))").dsFont(13, weight: .bold).foregroundStyle(Color.dsFgPrimary)
+                Text("\(label) · \(pct(accuracy))").dsFont(15, weight: .bold).foregroundStyle(Color.dsFgPrimary)
             }
             statBar(fraction: accuracy)
         }
@@ -290,30 +290,30 @@ struct BracketLeaderboardView: View {
                     // Wraps rather than truncates (owner, 2026-07-29). Edition titles are authored
                     // ("Most Likely to Coach in 10 Years") and fit at default size, but clipped at
                     // accessibility text sizes — where the title IS the row's identity.
-                    Text(e.title).dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
+                    Text(e.title).dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
                 Text(e.isComplete ? "Final" : "In progress")
-                    .dsFont(12, weight: .bold).foregroundStyle(e.isComplete ? Color.dsFgSecondary : accent)
+                    .dsFont(13, weight: .bold).foregroundStyle(e.isComplete ? Color.dsFgSecondary : accent)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background((e.isComplete ? Color.dsFgTertiary : accent).opacity(0.14), in: Capsule())
             }
             if e.maxPoints > 0 { statBar(fraction: Double(e.points) / Double(e.maxPoints)) }
             HStack {
                 Text(e.maxPoints > 0 ? "\(e.points) / \(e.maxPoints) pts" : "\(e.points) pts")
-                    .dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                    .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                 Spacer()
-                if let acc = e.accuracy { Text("\(pct(acc)) accurate").dsFont(12).foregroundStyle(Color.dsFgSecondary) }
+                if let acc = e.accuracy { Text("\(pct(acc)) accurate").dsFont(13).foregroundStyle(Color.dsFgSecondary) }
             }
             // The competitive line: where you FINISHED, World-Cup-style — survives forever even
             // after the edition's per-vote detail is pruned (rank stamped at close by the engine).
             // Absent (not invented) for editions closed before stamping existed.
             if e.isComplete, let rank = e.finalRank, let field = e.fieldSize {
                 HStack(spacing: 5) {
-                    Image(systemName: "flag.checkered").dsFont(12).foregroundStyle(accent)
+                    Image(systemName: "flag.checkered").dsFont(13).foregroundStyle(accent)
                     Text("Finished #\(rank) of \(field)")
-                        .dsFont(12, weight: .bold).foregroundStyle(accent)
+                        .dsFont(13, weight: .bold).foregroundStyle(accent)
                 }
             }
         }
@@ -342,7 +342,7 @@ struct BracketLeaderboardView: View {
     private func switcherTab(_ title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .dsFont(12, weight: .semibold)
+                .dsFont(13, weight: .semibold)
                 .lineLimit(1)
                 .padding(.horizontal, 10).padding(.vertical, 5)
                 .background(isOn ? accent.opacity(0.2) : Color.dsBgTertiary.opacity(0.5))
@@ -359,11 +359,11 @@ struct BracketLeaderboardView: View {
             HStack(spacing: 12) {
                 Image(systemName: "rosette").dsFont(18).foregroundStyle(accent)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Game Center").dsFont(14, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
-                    Text("Compare with players everywhere").dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                    Text("Game Center").dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
+                    Text("Compare with players everywhere").dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 }
                 Spacer(minLength: 8)
-                Image(systemName: "chevron.right").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
+                Image(systemName: "chevron.right").dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
             }
             .padding(16)
             .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 16))
@@ -375,7 +375,7 @@ struct BracketLeaderboardView: View {
     private func emptyCard(_ title: String, _ subtitle: String) -> some View {
         VStack(spacing: 8) {
             Text(title).dsFont(16, weight: .bold).foregroundStyle(Color.dsFgPrimary)
-            Text(subtitle).dsFont(13).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center)
+            Text(subtitle).dsFont(15).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 36).padding(.horizontal, 20)
         .background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 16))

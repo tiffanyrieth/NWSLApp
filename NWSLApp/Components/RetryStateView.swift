@@ -90,7 +90,7 @@ struct RetryStateView: View {
                     .multilineTextAlignment(.center)
             }
             Text(message)
-                .dsFont(15)
+                .dsFont(16)
                 .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)

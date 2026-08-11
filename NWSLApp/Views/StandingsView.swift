@@ -139,7 +139,7 @@ struct StandingsView: View {
             }
             // `String(...)` so the year renders "2026", not the locale-grouped "2,026".
             Text("\(String(seasonYear)) NWSL · Regular season")
-                .dsFont(13)
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgSecondary)
         }
         // Fill the width and stay leading-aligned. The non-AX branch gets this for free from
@@ -389,7 +389,7 @@ struct StandingsView: View {
 
     private var footer: some View {
         Text("Tap any club for its full page · Last 5 shows recent results, newest on the right.")
-            .dsFont(12)
+            .dsFont(13)
             .lineSpacing(2)
             .multilineTextAlignment(.center)
             .foregroundStyle(Color.dsFgSecondary)

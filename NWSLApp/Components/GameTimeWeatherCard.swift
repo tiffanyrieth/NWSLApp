@@ -46,7 +46,7 @@ struct GameTimeWeatherCard: View {
             // CC-BY 4.0 attribution (kept minimal; the full credit lives on the roadmap's
             // privacy/disclaimer page). One credit covers all Open-Meteo data in the app.
             Text("Weather by Open-Meteo")
-                .dsFont(12, weight: .regular)
+                .dsFont(13, weight: .regular)
                 .foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -65,7 +65,7 @@ struct GameTimeWeatherCard: View {
             Spacer(minLength: 8)
             if let venueName {
                 Text(venueName)
-                    .dsFont(12, weight: .semibold)
+                    .dsFont(13, weight: .semibold)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -101,7 +101,7 @@ struct GameTimeWeatherCard: View {
         let isKickoff = hours.firstIndex(of: hour) == 1
         return VStack(spacing: 5) {
             Text(hour.hourLabel)
-                .dsFont(12, weight: .semibold)
+                .dsFont(13, weight: .semibold)
                 .foregroundStyle(isKickoff ? Color.dsStateKickoff : Color.dsFgSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -124,13 +124,13 @@ struct GameTimeWeatherCard: View {
                 .minimumScaleFactor(0.7)
 
             (Text(Image(systemName: "wind")) + Text(" \(hour.roundedWind) mph"))
-                .dsFont(12, weight: .semibold)
+                .dsFont(13, weight: .semibold)
                 .foregroundStyle(Color.dsFgSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
 
             Text(hour.showsPrecip ? "\(hour.precipPct)%" : " ")
-                .dsFont(12, weight: .semibold)
+                .dsFont(13, weight: .semibold)
                 .foregroundStyle(Color.dsWeatherPrecip)
                 .opacity(hour.showsPrecip ? 1 : 0)   // reserve the row so columns stay aligned
                 .lineLimit(1)
@@ -211,7 +211,7 @@ struct GameTimeWeatherCard: View {
                     + Text(value).foregroundColor(.dsFgSecondary).fontWeight(.bold)
                     + Text(trailing.map { " \($0)" } ?? "")
             )
-            .dsFont(12)
+            .dsFont(13)
             .foregroundStyle(Color.dsFgSecondary)
             .fixedSize(horizontal: false, vertical: true)
         }

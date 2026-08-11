@@ -221,7 +221,7 @@ struct MatchDetailView: View {
 
                 if temporalState == .live {
                     Text("Updates every ~60 seconds")
-                        .dsFont(12)
+                        .dsFont(13)
                         .foregroundStyle(Color.dsFgSecondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 8)
@@ -287,7 +287,7 @@ struct MatchDetailView: View {
 
             if let officials = officialsText(summary) {
                 Text(officials)
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -302,7 +302,7 @@ struct MatchDetailView: View {
     private func highlightsCard(_ videos: [MatchVideo]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Highlights")
-                .dsFont(13, weight: .bold)
+                .dsFont(15, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
@@ -345,13 +345,13 @@ struct MatchDetailView: View {
                 }
                 .frame(width: 220, height: 124)
                 Text(video.headline ?? "Highlight")
-                    .dsFont(12, weight: .semibold)
+                    .dsFont(13, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                     .frame(width: 220, height: 34, alignment: .topLeading)
                 Label("Watch on ESPN", systemImage: "arrow.up.right")
-                    .dsFont(12, weight: .semibold)
+                    .dsFont(13, weight: .semibold)
                     .foregroundStyle(Color.dsFgSecondary)
             }
         }
@@ -363,14 +363,14 @@ struct MatchDetailView: View {
     private func topPerformersCard(_ rows: [TopPerformerRow]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Top performers")
-                .dsFont(13, weight: .bold)
+                .dsFont(15, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             VStack(spacing: 0) {
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     HStack(spacing: 8) {
                         performerSide(row.home, color: matchColors.home.fill, trailing: false)
                         Text(row.category)
-                            .dsFont(12, weight: .semibold)
+                            .dsFont(13, weight: .semibold)
                             .foregroundStyle(Color.dsFgSecondary)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
@@ -396,7 +396,7 @@ struct MatchDetailView: View {
                     .dsFont(16, weight: .heavy, design: .rounded, monospacedDigit: true)
                     .foregroundStyle(color)
                 Text(pick.jersey.map { "\($0)  \(pick.name)" } ?? pick.name)
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -591,11 +591,11 @@ struct MatchDetailView: View {
                 .monospacedDigit()
                 .foregroundStyle(Color.dsFgSecondary)
             Text(subLastName(player))
-                .dsFont(14)
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgPrimary)
             if player.didSubIn {
                 Image(systemName: "arrow.up.circle.fill")
-                    .dsFont(14)
+                    .dsFont(15)
                     .foregroundStyle(Color.dsSuccess)
             }
         }
@@ -632,21 +632,21 @@ struct MatchDetailView: View {
                         .foregroundStyle(Color.dsFgSecondary)
                         .frame(width: 24, alignment: .trailing)
                     Text(player.athlete?.displayName ?? "—")
-                        .dsFont(15)
+                        .dsFont(16)
                     if player.didSubOut {
                         Image(systemName: "arrow.down.circle.fill")
-                            .dsFont(12)
+                            .dsFont(13)
                             .foregroundStyle(.red.opacity(0.7))
                     }
                     if player.didSubIn {
                         Image(systemName: "arrow.up.circle.fill")
-                            .dsFont(12)
+                            .dsFont(13)
                             .foregroundStyle(.green.opacity(0.7))
                     }
                     Spacer(minLength: 0)
                     if let pos = player.position?.abbreviation {
                         Text(pos)
-                            .dsFont(12)
+                            .dsFont(13)
                             .foregroundStyle(Color.dsFgSecondary)
                     }
                 }
@@ -684,7 +684,7 @@ struct MatchDetailView: View {
                 Text(summary.awayBoxscore?.team?.abbreviation ?? "—")
                     .foregroundStyle(matchColors.away.fill)
             }
-            .dsFont(12, weight: .bold)
+            .dsFont(13, weight: .bold)
 
             VStack(spacing: 18) {
                 ForEach(rows) { row in
@@ -890,7 +890,7 @@ struct MatchDetailView: View {
             Spacer(minLength: 8)
             if form.recent.isEmpty {
                 Text("No matches yet")
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
             } else {
                 HStack(spacing: 5) {
@@ -998,7 +998,7 @@ struct MatchDetailView: View {
         }
         if let venue = event.venueName {
             Text(venue)
-                .dsFont(12)
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
                 .lineLimit(1)
         }
@@ -1011,7 +1011,7 @@ struct MatchDetailView: View {
                 Circle().fill(Color.dsFgQuaternary).frame(width: 3, height: 3)
                 // Label with no number when the count hasn't landed — see attendanceText.
                 Text(attendanceText.map { "Attendance: \($0)" } ?? "Attendance:")
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
             }
@@ -1026,7 +1026,7 @@ struct MatchDetailView: View {
     private var weatherStamp: some View {
         if temporalState == .past, let weather = viewModel.weather, let temp = weather.roundedTemp {
             (Text(Image(systemName: weather.symbolName)) + Text(" \(temp)°"))
-                .dsFont(12)
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
                 .lineLimit(1)
                 .accessibilityLabel(weather.accessibilityLabel)
@@ -1055,7 +1055,7 @@ struct MatchDetailView: View {
     private var spanishBroadcastRow: some View {
         if competition.surfacesSpanishSecondary, !event.broadcastNames.isEmpty {
             Text("Español · \(event.broadcastNames.joined(separator: " · "))")
-                .dsFont(12)
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
                 .lineLimit(1)
         }
@@ -1109,7 +1109,7 @@ struct MatchDetailView: View {
                 .opacity(pulse ? 0.3 : 1)
                 .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: pulse)
             Text("LIVE")
-                .dsFont(12, weight: .bold)
+                .dsFont(13, weight: .bold)
                 .foregroundStyle(Color.dsStateLive)
         }
         .onAppear { pulse = true }
@@ -1143,7 +1143,7 @@ struct MatchDetailView: View {
             suffix: suffix
         ) { label in
             Text(label)
-                .dsFont(13, weight: .medium)
+                .dsFont(15, weight: .medium)
                 .foregroundStyle(Color.dsStateClock)   // orange live clock
                 .multilineTextAlignment(.center)
         }
@@ -1207,7 +1207,7 @@ struct MatchDetailView: View {
                     .minimumScaleFactor(0.5)
                 if let date = dateHeadline {
                     Text(date)
-                        .dsFont(12)
+                        .dsFont(13)
                         .foregroundStyle(Color.dsFgSecondary)
                         .multilineTextAlignment(.center)
                         // Wrap rather than truncate. This center column is squeezed between two

@@ -75,7 +75,7 @@ struct SupportView: View {
                 .foregroundStyle(Color.dsFgPrimary)
                 .multilineTextAlignment(.center)
             Text("NWSLApp is indie-built and completely free. No ads, no paywalls, no tracking. Your support helps cover servers, data feeds, and the Apple Developer Program — and keeps it that way.")
-                .dsFont(13)
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
         }
@@ -97,7 +97,7 @@ struct SupportView: View {
     private func segment(_ label: String, isActive: Bool, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
-                .dsFont(14, weight: .semibold)
+                .dsFont(15, weight: .semibold)
                 .foregroundStyle(isActive ? .white : Color.dsFgSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
@@ -124,13 +124,13 @@ struct SupportView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(tier.emoji).dsFont(26)
                 Text(tier.title)
-                    .dsFont(15, weight: .semibold)
+                    .dsFont(16, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                 Text(store.displayPrice(tier, monthly: monthly))
                     .dsFont(17, weight: .bold)
                     .foregroundStyle(isSelected ? pink : Color.dsFgPrimary)
                 Text(tier.blurb)
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -161,7 +161,7 @@ struct SupportView: View {
             // so a non-success NEVER silently looks like nothing happened (or a fake success).
             if let message = store.errorMessage {
                 Text(message)
-                    .dsFont(13)
+                    .dsFont(15)
                     .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
@@ -177,7 +177,7 @@ struct SupportView: View {
     private var restoreLink: some View {
         Button { Task { await store.restore() } } label: {
             Text("Restore purchases")
-                .dsFont(13)
+                .dsFont(15)
                 .foregroundStyle(Color.dsAccent)
         }
         .buttonStyle(.plain)
@@ -206,8 +206,8 @@ struct SupportView: View {
         HStack(spacing: 12) {
             Text(emoji).dsFont(18).frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).dsFont(15).foregroundStyle(Color.dsFgPrimary)
-                Text(subtitle).dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                Text(title).dsFont(16).foregroundStyle(Color.dsFgPrimary)
+                Text(subtitle).dsFont(13).foregroundStyle(Color.dsFgSecondary)
             }
             Spacer(minLength: 8)
         }
@@ -221,7 +221,7 @@ struct SupportView: View {
 
     private var footer: some View {
         Text("NWSLApp will always be free. Supporters get no extra features — just the knowledge that you're helping grow women's soccer.")
-            .dsFont(12)
+            .dsFont(13)
             .foregroundStyle(Color.dsFgSecondary)
             .multilineTextAlignment(.center)
             .padding(.horizontal, 8)
@@ -237,7 +237,7 @@ struct SupportView: View {
                 .dsFont(24, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             Text("Your support directly helps keep NWSLApp free for every fan. You're part of what makes this community special.")
-                .dsFont(14)
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)

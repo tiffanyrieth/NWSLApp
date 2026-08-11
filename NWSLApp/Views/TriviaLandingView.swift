@@ -54,7 +54,7 @@ struct TriviaLandingView: View {
                 }
                 howItWorks
                 Text("NWSL Trivia and Know Her Game take turns — one of them drops every week.")
-                    .dsFont(12).foregroundStyle(.tertiary)
+                    .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
             }
@@ -91,7 +91,7 @@ struct TriviaLandingView: View {
                             .dsFont(17, weight: .semibold).foregroundStyle(.primary)
                         Text(store.hasPlayedCurrentRound ? "Played · \(closesLine)" : "New round · \(closesLine)")
                             .dsFont(15)
-                            .foregroundStyle(store.hasPlayedCurrentRound ? AnyShapeStyle(.secondary) : AnyShapeStyle(accent))
+                            .foregroundStyle(store.hasPlayedCurrentRound ? AnyShapeStyle(Color.dsFgSecondary) : AnyShapeStyle(accent))
                     }
                     Spacer()
                     if let score = store.currentScore {
@@ -145,7 +145,7 @@ struct TriviaLandingView: View {
                         Text(store.previousScore != nil ? "Your score + how everyone did" : "See how everyone did")
                             .dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                         Text(store.previousScore != nil ? "You played this round" : "You sat this one out")
-                            .dsFont(12).foregroundStyle(.tertiary)
+                            .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 2) {
@@ -157,7 +157,7 @@ struct TriviaLandingView: View {
                             Text("Results").dsFont(12, weight: .semibold)
                             Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
                         }
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Color.dsFgSecondary)
                     }
                 }
                 .padding(12)
@@ -167,7 +167,7 @@ struct TriviaLandingView: View {
             }
             .buttonStyle(.plain)
             Text("Community results stay for one round after each round closes.")
-                .dsFont(12).foregroundStyle(.tertiary)
+                .dsFont(12).foregroundStyle(Color.dsFgSecondary)
         }
     }
 

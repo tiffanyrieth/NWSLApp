@@ -125,7 +125,7 @@ struct KnowHerLandingView: View {
                 howPlayersAreChosen()
 
                 Text("A new round every two weeks.")
-                    .dsFont(12).foregroundStyle(.tertiary)
+                    .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
             }
@@ -184,7 +184,7 @@ struct KnowHerLandingView: View {
                     Text(player.playerName).dsFont(17, weight: .semibold).foregroundStyle(.primary)
                     Text(played ? "\(player.position) · \(player.teamAbbreviation.uppercased())"
                                 : "New player available")
-                        .dsFont(15).foregroundStyle(played ? AnyShapeStyle(.secondary) : AnyShapeStyle(accent))
+                        .dsFont(15).foregroundStyle(played ? AnyShapeStyle(Color.dsFgSecondary) : AnyShapeStyle(accent))
                 }
                 Spacer()
                 if played, let score = store.score(for: player) {
@@ -268,7 +268,7 @@ struct KnowHerLandingView: View {
             sectionEyebrow("Last round", round: store.previousRound)
             ForEach(store.previousPlayers) { player in lastRoundRow(player) }
             Text("Community results stay for one round after each edition closes.")
-                .dsFont(12).foregroundStyle(.tertiary)
+                .dsFont(12).foregroundStyle(Color.dsFgSecondary)
         }
     }
 
@@ -284,7 +284,7 @@ struct KnowHerLandingView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(player.playerName).dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                     Text("\(player.position) · \(player.teamAbbreviation.uppercased())")
-                        .dsFont(12).foregroundStyle(.tertiary)
+                        .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
@@ -296,7 +296,7 @@ struct KnowHerLandingView: View {
                         Text("Results").dsFont(12, weight: .semibold)
                         Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
                     }
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
                 }
             }
             .padding(12)

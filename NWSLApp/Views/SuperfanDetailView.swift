@@ -353,7 +353,7 @@ struct SuperfanDetailView: View {
                     Text("How Superfan works").dsFont(14, weight: .semibold).foregroundStyle(.primary)
                     Spacer()
                     Image(systemName: showHowItWorks ? "chevron.up" : "chevron.right")
-                        .dsFont(13).foregroundStyle(.tertiary)
+                        .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 }
                 .padding(14)
                 .contentShape(Rectangle())

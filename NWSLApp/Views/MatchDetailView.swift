@@ -222,7 +222,7 @@ struct MatchDetailView: View {
                 if temporalState == .live {
                     Text("Updates every ~60 seconds")
                         .dsFont(12)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Color.dsFgSecondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 8)
                         .padding(.bottom, 16)
@@ -288,7 +288,7 @@ struct MatchDetailView: View {
             if let officials = officialsText(summary) {
                 Text(officials)
                     .dsFont(12)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, alignment: .center)
             }
@@ -647,7 +647,7 @@ struct MatchDetailView: View {
                     if let pos = player.position?.abbreviation {
                         Text(pos)
                             .dsFont(12)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(Color.dsFgSecondary)
                     }
                 }
             }

@@ -303,7 +303,7 @@ struct TriviaRoundView: View {
                 }
                 .buttonStyle(.plain)
                 Text("A fresh 10 drop with every round — keep your streak alive!")
-                    .dsFont(12).foregroundStyle(.tertiary)
+                    .dsFont(12).foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center).padding(.horizontal)
             }
             .padding(20)

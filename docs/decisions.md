@@ -60,6 +60,18 @@ app-side interpretation — the alternative (a separate endpoint + app merge) wo
 app decoder makes; do not use this as precedent — a second mutation needs its own owner ruling. Mechanism +
 the six-source research: `docs/backend.md` (Attendance backstop).
 
+### Efficiency is the TARGET, not the floor; judge load at the MACRO level (owner 2026-08-11)
+Two standing design rules, the positive twin of the BANNED LENS. **(1)** Build the most efficient feasible
+implementation, then verify 1k — not "it passes 1k, ship it." If a capped/metered resource can be AVOIDED
+(edge cache vs. KV writes; cache-once-serve-many vs. a per-user rate-limited API hit; a computed value vs. a
+stored row), avoid it from day one. Free-tier headroom is preserved for growth, never spent because it's
+currently available; the aim is staying free to the highest user count physically possible. Passing 1k is
+necessary, not sufficient. **(2)** Judge new load against the COMBINED draw on each shared budget (Cloudflare
+requests, KV writes/day, Supabase) and the headroom left for future features — never a feature's own
+service cap in isolation. **Why:** the model kept reading "1k passes with headroom" as license to build the
+naive/wasteful version. Worked example: the game-time weather forecast — edge cache not KV, 8h TTL matched to
+model-update cadence → user-count-independent, never a paid tier. Full method: `docs/stress-testing.md` §3a.
+
 ### THE BANNED LENS — never size from CURRENT usage
 Every load/reliability/scaling question is asked **as if the app ships tomorrow** (hundreds of one-club fans
 from one subreddit post), never "only N users today → plenty of headroom / defer to launch." **Why:** that

@@ -324,12 +324,28 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   (`weather:{eventId}`, NO TTL — a finished match's weather is immutable → first open backfills, everyone
   after is instant; lazy so it covers ALL history, no cron). Night-aware via `is_day` (sun vs. moon icon
   app-side). Guarded to state `post`; future/live → `{mode:"unavailable",reason:"not-finished"}`; unknown
-  venue → `unknown-venue` + `weatherVenueUnknown` diag (no KV write). Versioned envelope
-  (`{v,mode,tempF,weatherCode,isDay,condition,asOf}`) leaves room for a later `mode:"forecast"` (upcoming
-  matches). Strict `?event` validation (writes KV) unlike `/summary`'s pass-through. Deploy gate
-  `health_check_weather.mjs` (FAILS on an NWSL `unknown-venue` = a new/renamed stadium needs coords). App
-  side: `MatchWeather` model (WMO→SF-Symbol day/night map) + `MatchDetailView` header stamp
-  (`MatchDetailViewModel.loadWeather`, additive/non-blocking, past-only).
+  venue → `unknown-venue` + `weatherVenueUnknown` diag (no KV write). Strict `?event` validation (writes
+  KV) unlike `/summary`'s pass-through. Deploy gate `health_check_weather.mjs` (FAILS on an NWSL
+  `unknown-venue` = a new/renamed stadium needs coords). App side: `MatchWeather` model (WMO→SF-Symbol
+  day/night map) + `MatchDetailView` header stamp (`MatchDetailViewModel.loadWeather`, additive/non-blocking).
+  - ⚠️ **FORECAST mode (`mode:"forecast"`, 2026-08-11)** — the same route serves the game-time weather
+    strip for an UPCOMING match. A future kickoff inside a **10-day horizon** (`FORECAST_MAX_DAYS`; NOT
+    Open-Meteo's 16-day max — the 11-16 window flip-flops run-to-run and a confident strip that far out
+    asserts precision it lacks) returns the **4-hour game window** (kickoff −1h…+2h, kickoff at index 1):
+    `hours[{time,tempF,feelsLikeF,weatherCode,isDay,windMph,precipPct}]` + `venueName` + the nearest
+    `sunset`. Extra hourly fields (`apparent_temperature`,`wind_speed_10m`,`precipitation_probability`) +
+    `daily=sunset`, `start_date`/`end_date` spanning the window's UTC dates (~2KB, not the 10-day block).
+    ⚠️ **EDGE-cached (`caches.default`), NOT KV** — a forecast changes run-to-run and KV's 1k-writes/day
+    free cap is a real scaling wall; the Cache API is unlimited/free/TTL-based. 8h TTL (`FORECAST_TTL_SECONDS`
+    — models refresh a few times/day; Open-Meteo stitches to the latest run per fetch). So Open-Meteo is hit
+    **≤ once per match per 8h per colo — INDEPENDENT of user count** (a few hundred calls/day at 1k = 100k =
+    1M; never near the 10k/day free limit). Top-level `tempF` stays ABSENT in forecast mode (the app's
+    `roundedTemp` gates the header rail — a value would surface it on a future match). `indoor:true` on a
+    `VENUE_COORDS` entry (zero flagged today) → `unavailable`/`indoor-venue`. Live / >10d / no-window all
+    return honest `unavailable` reasons. App side: `MatchWeather.isForecast` + `GameTimeWeatherCard`
+    (`Components/`) below Recent Form; **Open-Meteo is CC-BY 4.0** so the card carries a "Weather by
+    Open-Meteo" credit (one credit covers all Open-Meteo data incl. the historical stamp; full credit
+    → the roadmap privacy/disclaimer page).
 - **Content routes** (build + normalize to `[ContentCard]`/models): `/team-videos` (Home: YouTube +
   club OG news + club IG), `/feed` (Feed: Bluesky reporters/league + news RSS + player IG — the **Clubs
   chip was retired 2026-08-05**, club Bluesky no longer fans into `/feed`), `/spotlight`

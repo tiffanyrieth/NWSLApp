@@ -104,7 +104,7 @@ struct XIPickerView: View {
         HStack(spacing: 10) {
             Image(systemName: "checkmark.seal.fill").foregroundStyle(accent)
             Text("Submitted — locked in. Awaiting the result.")
-                .dsFont(15, weight: .semibold)
+                .dsFont(16, weight: .semibold)
             Spacer(minLength: 0)
         }
         .padding(12)
@@ -118,7 +118,7 @@ struct XIPickerView: View {
     private var formationSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("FORMATION").dsFont(12, weight: .bold).foregroundStyle(.secondary)
+                Text("FORMATION").dsFont(13, weight: .bold).foregroundStyle(Color.dsFgSecondary)
                 Spacer()
                 if !picker.readOnly {
                     // Quick-fill helper: random formation + random XI (score untouched). Re-tap
@@ -130,7 +130,7 @@ struct XIPickerView: View {
                             Image(systemName: "wand.and.stars")
                             Text("Auto-pick")
                         }
-                        .dsFont(13, weight: .semibold)
+                        .dsFont(15, weight: .semibold)
                         .foregroundStyle(accent)
                     }
                     .buttonStyle(.plain)
@@ -142,7 +142,7 @@ struct XIPickerView: View {
                         let selected = formation == picker.formation
                         Button { picker.selectFormation(formation) } label: {
                             Text(formation.raw)
-                                .dsFont(15, weight: .semibold)
+                                .dsFont(16, weight: .semibold)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
                                 .background(selected ? accent : Color.dsMdCard)
@@ -208,8 +208,10 @@ struct XIPickerView: View {
                 }
                 .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 1))
                 Text(athlete.map { lastName($0) } ?? slot.group.shortLabel)
-                    .dsFont(12, weight: athlete != nil ? .semibold : .regular)
-                    .foregroundStyle(.white.opacity(athlete != nil ? 1 : 0.7))
+                    .dsFont(13, weight: athlete != nil ? .semibold : .regular)
+                    // Filled slot = full white; empty-slot position label = readable-quiet token
+                    // (was .white.opacity(0.7) — below AA on the pitch; the token is AA-clean there).
+                    .foregroundStyle(athlete != nil ? Color.dsFgPrimary : Color.dsFgSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
@@ -227,11 +229,11 @@ struct XIPickerView: View {
 
     private var scorelineSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("FINAL SCORE").dsFont(12, weight: .bold).foregroundStyle(.secondary)
+            Text("FINAL SCORE").dsFont(13, weight: .bold).foregroundStyle(Color.dsFgSecondary)
             HStack(spacing: 12) {
                 scoreStepper(abbr: homeAbbr, value: picker.homeScore,
                              onDec: picker.decrementHome, onInc: picker.incrementHome)
-                Text("–").dsFont(22, weight: .bold).foregroundStyle(.secondary)
+                Text("–").dsFont(22, weight: .bold).foregroundStyle(Color.dsFgSecondary)
                 scoreStepper(abbr: awayAbbr, value: picker.awayScore,
                              onDec: picker.decrementAway, onInc: picker.incrementAway)
             }
@@ -245,7 +247,7 @@ struct XIPickerView: View {
 
     private func scoreStepper(abbr: String, value: Int, onDec: @escaping () -> Void, onInc: @escaping () -> Void) -> some View {
         VStack(spacing: 6) {
-            Text(abbr).dsFont(12, weight: .bold)
+            Text(abbr).dsFont(13, weight: .bold)
             HStack(spacing: 14) {
                 stepButton("minus", action: onDec)
                 Text("\(value)")
@@ -351,7 +353,7 @@ struct XIPickerView: View {
             // The finality is stated BEFORE the tap, not discovered after it.
             if picker.isComplete && !picker.readOnly {
                 Text("One-way — no edits after this. Locks \(Self.lockLabel(fixture.deadline)).")
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
@@ -416,12 +418,12 @@ struct XIPickerView: View {
         HStack(spacing: 12) {
             Text(athlete.jersey ?? "—")
                 .font(.subheadline.weight(.bold).monospacedDigit())
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 1) {
-                Text(athlete.name).dsFont(15, weight: .semibold)
+                Text(athlete.name).dsFont(16, weight: .semibold)
                 if let position = athlete.positionName {
-                    Text(position).dsFont(12).foregroundStyle(.secondary)
+                    Text(position).dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 }
             }
             Spacer(minLength: 0)

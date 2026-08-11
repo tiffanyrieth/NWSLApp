@@ -130,8 +130,8 @@ struct OnboardingView: View {
             // toggle on each followed row (below) teaches the alerts distinction visually,
             // so the old "following isn't notifications" footnote is no longer needed.
             Text("Your feed starts here. Tap any clubs you're interested in — their news, videos, and social posts will show up on your Home tab.")
-                .dsFont(15)
-                .foregroundStyle(.secondary)
+                .dsFont(16)
+                .foregroundStyle(Color.dsFgSecondary)
                 // Guarantee full wrapping (never truncate) on the smallest screens (SE/mini).
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -202,7 +202,7 @@ struct OnboardingView: View {
             }
         } label: {
             Image(systemName: on ? "bell.fill" : "bell")
-                .dsFont(13, weight: .medium)
+                .dsFont(15, weight: .medium)
                 .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
                 .frame(width: 36, height: 32)
                 .background(on ? Color.dsAccentMuted : Color.dsBgTertiary)
@@ -227,10 +227,10 @@ struct OnboardingView: View {
                 .frame(width: 32)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Following a national team?")
-                    .dsFont(15)
+                    .dsFont(16)
                     .foregroundStyle(Color.dsFgPrimary)
                 Text("Add national teams + the Champions Cup later in Teams → Follow competitions.")
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -252,7 +252,7 @@ struct OnboardingView: View {
             VStack(spacing: 9) {
                 TeamCrestGlow(club: club, size: 52)
                 Text(club.displayName)
-                    .dsFont(13, weight: .semibold)
+                    .dsFont(15, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
@@ -293,7 +293,7 @@ struct OnboardingView: View {
                                          alerts: teamAlerts, prefs: notifications)
         } label: {
             Image(systemName: on ? "bell.fill" : "bell")
-                .dsFont(12, weight: .medium)
+                .dsFont(13, weight: .medium)
                 .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
                 .frame(width: 30, height: 30)
                 .background(on ? Color.dsAccentMuted : Color.dsBgTertiary, in: Circle())
@@ -310,8 +310,8 @@ struct OnboardingView: View {
             followButton
 
             Text("You can always change this later")
-                .dsFont(12)
-                .foregroundStyle(.secondary)
+                .dsFont(13)
+                .foregroundStyle(Color.dsFgSecondary)
         }
         .padding(.horizontal)
         .padding(.vertical, 8)

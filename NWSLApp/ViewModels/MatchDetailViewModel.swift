@@ -131,23 +131,29 @@ final class MatchDetailViewModel {
     /// A `not-finished` body is expected-silent (the match just isn't over yet); a thrown error or
     /// any other unexpected `unavailable` reason fails LOUD to the engineer via Diagnostics
     /// (NO SILENT FAILURES) while failing gracefully to the user (the row simply omits the stamp).
-    /// `isPast` is the CALLER's LIVE temporal state (from the refreshing MatchStore event), NOT the VM's
-    /// `temporalState` — that derives from the frozen seed event, so a match opened pre-kickoff/live would
-    /// stay `.live` forever and never load its (now-available) kickoff weather when it finishes on-screen.
-    func loadWeather(isPast: Bool) async {
-        guard isPast, weather == nil else { return }
+    /// `temporalState` is the CALLER's LIVE temporal state (from the refreshing MatchStore event), NOT
+    /// the VM's — that derives from the frozen seed event, so a match opened pre-kickoff/live would stay
+    /// wrong forever and never load its weather when its state changes on-screen.
+    ///
+    /// Two modes off the ONE `/weather` route: a PAST match loads the historical kickoff stamp; a FUTURE
+    /// match loads the game-time forecast strip (the proxy returns `mode:"forecast"` for a kickoff inside
+    /// the 10-day horizon). A LIVE match loads nothing (no stamp mid-match, no forecast for a game
+    /// underway). The once-per-screen `weather == nil` guard stands: the VM is per-screen `@State`, and
+    /// URLCache + the proxy's 8h forecast TTL handle freshness across re-opens.
+    func loadWeather(temporalState: MatchTemporalState) async {
+        guard temporalState == .past || temporalState == .future, weather == nil else { return }
         do {
             let result = try await service.fetchWeather(eventID: event.id)
-            if result.isHistorical {
+            if result.isHistorical || result.isForecast {
                 weather = result
-            } else if result.mode != "unavailable" || result.mode == nil {
-                // A shape we didn't expect (not historical, not a clean "unavailable") — surface it.
+            } else if result.mode != "unavailable" && result.mode != nil {
+                // A shape we didn't expect (not historical/forecast, not a clean "unavailable") — surface it.
                 Diagnostics.shared.record(.unexpectedEmpty,
                     "match weather \(event.id): unexpected mode \(result.mode ?? "nil")")
             }
-            // mode == "unavailable" (not-finished / unknown-venue / upstream-error) → no stamp,
-            // no noise: an already-finished match has Open-Meteo coverage back to 1940, so the
-            // common case is a clean historical hit; the proxy's own diag covers venue/API gaps.
+            // mode == "unavailable" (not-finished / unknown-venue / upstream-error / too-far-out /
+            // indoor-venue) → nothing shows, no noise: a >10-day-out or indoor match is an expected
+            // empty; the proxy's own diag covers venue/API gaps.
         } catch {
             Diagnostics.shared.record(.apiFailure,
                 "match weather \(event.id): \(error.localizedDescription)")

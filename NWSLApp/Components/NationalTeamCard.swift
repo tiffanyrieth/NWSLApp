@@ -54,7 +54,7 @@ struct NationalTeamCard: View {
                         .tracking(0.4)
                         .foregroundStyle(accent)
                     Text(team.name)
-                        .dsFont(14, weight: .semibold)
+                        .dsFont(15, weight: .semibold)
                         .foregroundStyle(Color.dsFgPrimary)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
@@ -162,10 +162,10 @@ struct NationalTeamCard: View {
         Button { toggleFollow() } label: {
             HStack(spacing: 5) {
                 Image(systemName: isFollowing ? "star.fill" : "star")
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(isFollowing ? Color.dsFollowStar : Color.dsFgSecondary)
                 Text(isFollowing ? "Following" : "Follow")
-                    .dsFont(12.5, weight: .semibold)
+                    .dsFont(13.5, weight: .semibold)
                     .foregroundStyle(isFollowing ? Color.dsFgPrimary : Color.dsFgSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -191,7 +191,7 @@ struct NationalTeamCard: View {
                                          alerts: teamAlerts, prefs: notifications)
         } label: {
             Image(systemName: on ? "bell.fill" : "bell")
-                .dsFont(13, weight: .medium)
+                .dsFont(15, weight: .medium)
                 .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
                 .frame(width: 36, height: 32)
                 .background(on ? Color.dsAccentMuted : Color.dsBgTertiary)

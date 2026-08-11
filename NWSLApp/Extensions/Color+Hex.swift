@@ -232,4 +232,28 @@ extension Color {
             Double(value & 0xFF) / 255
         )
     }
+
+    // MARK: - WCAG contrast (the readable-text contrast floor)
+    //
+    // ⚠️ This is the WCAG contrast-ratio math — sRGB-linearized relative luminance — and is
+    // DELIBERATELY DIFFERENT from the Rec.601 `luminance` used above by teamAccent/teamFillOnDark.
+    // That one is a perceptual light/dark test for picking black-vs-white text on a DYNAMIC team
+    // crest color; this one is the accessibility standard, used to prove the fixed fg/bg TOKEN
+    // pairings clear WCAG AA (DSColorContrastTests). Don't merge them — different purposes, different
+    // formulas.
+
+    /// sRGB relative luminance per WCAG 2.x (0…1). nil for a malformed hex.
+    static func wcagRelativeLuminance(hex: String) -> Double? {
+        guard let rgb = rgbComponents(hex) else { return nil }
+        func lin(_ c: Double) -> Double { c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+        return 0.2126 * lin(rgb.r) + 0.7152 * lin(rgb.g) + 0.0722 * lin(rgb.b)
+    }
+
+    /// WCAG contrast ratio between two hex colors (1…21). AA wants ≥4.5 for normal text,
+    /// ≥3 for large/bold. nil if either hex is malformed.
+    static func wcagContrastRatio(_ a: String, _ b: String) -> Double? {
+        guard let la = wcagRelativeLuminance(hex: a), let lb = wcagRelativeLuminance(hex: b) else { return nil }
+        let hi = max(la, lb), lo = min(la, lb)
+        return (hi + 0.05) / (lo + 0.05)
+    }
 }

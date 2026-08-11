@@ -307,6 +307,15 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
   read larger), fixed numeric columns / badge letters / monograms, non-text indicators (5-7pt dots). A
   13-14pt "must-read secondary" tier is a parked follow-up (roadmap). Size for the phone in the hand, not
   the Sim — err larger.
+  **⚠️ CONTRAST FLOOR (owner 2026-08-11) — the color-axis peer of the font floor:** readable text uses
+  **`dsFgPrimary` or `dsFgSecondary` ONLY.** `dsFgTertiary`/`dsFgQuaternary` are **DECORATION ONLY** (icons
+  beside a label, dividers, dots, disabled, "TBD"/"VS" placeholders) — they FAIL WCAG AA as text on cards
+  (2.33:1 / 1.53:1). Below primary white, express hierarchy with **weight/size, not a darker gray**; never
+  `.foregroundStyle(.secondary)` / `.white.opacity()` for readable prose (bypasses the tokens). Every
+  readable fg×bg pairing must clear **WCAG AA 4.5:1** (3:1 large/bold) — enforced by `DSColorContrastTests`
+  (`Color.wcagContrastRatio`). Set after invisible dark-on-dark text shipped (the weather footer at 1.5–2.3:1);
+  AI — Design's handoffs AND ours — kept reaching for tertiary as "a dimmer text color." Same exemptions as
+  the font floor. [[feedback_invisible_dark_on_dark_text]].
 - **Team naming:** one team as subject → full club name (Gotham FC); **two-team contexts (match cards,
   match detail, comparisons, standings rows) → CREST + ABBREVIATION (e.g. WAS), never crest-less text or
   full names.** ESPN has no nickname field.

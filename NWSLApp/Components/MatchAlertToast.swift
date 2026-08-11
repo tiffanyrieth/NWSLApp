@@ -41,7 +41,7 @@ private struct MatchAlertToastModifier: ViewModifier {
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: toast.on ? "bell.fill" : "bell.slash.fill")
-                    .dsFont(14, weight: .semibold)
+                    .dsFont(15, weight: .semibold)
                     .foregroundStyle(toast.on ? Color.dsAccent : Color.dsFgSecondary)
                 Group {
                     if toast.on {
@@ -53,7 +53,7 @@ private struct MatchAlertToastModifier: ViewModifier {
                         Text("Match alerts off.").foregroundStyle(Color.dsFgPrimary)
                     }
                 }
-                .dsFont(13)
+                .dsFont(15)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)

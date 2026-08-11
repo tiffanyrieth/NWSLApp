@@ -85,4 +85,58 @@ struct MatchWeatherTests {
         let weather = try decode(#"{"mode":"historical","tempF":70,"weatherCode":0,"isDay":1,"condition":"Clear"}"#)
         #expect(weather.accessibilityLabel == "Clear, 70 degrees at kickoff")
     }
+
+    // MARK: - Forecast mode (game-time weather strip)
+
+    private func loadForecastFixture() throws -> MatchWeather {
+        let fixture = URL(filePath: #filePath)
+            .deletingLastPathComponent()
+            .appending(path: "Fixtures/weather-forecast.json")
+        return try JSONDecoder().decode(MatchWeather.self, from: Data(contentsOf: fixture))
+    }
+
+    @Test func decodesForecastFixture() throws {
+        let w = try loadForecastFixture()
+        #expect(w.isForecast)
+        #expect(w.isHistorical == false)          // mutually exclusive
+        #expect(w.venueName == "Red Bull Arena")
+        #expect(w.hours?.count == 4)
+        // Kickoff is index 1 (midnight UTC = 8 PM ET here).
+        #expect(w.hours?[1].time == "2026-08-15T00:00Z")
+        #expect(w.hours?[1].roundedTemp == 81)
+        #expect(w.hours?[1].roundedFeelsLike == 88)
+        #expect(w.hours?[1].roundedWind == 11)
+        #expect(w.sunsetDate != nil)
+    }
+
+    @Test func forecastKeepsRoundedTempNilSoItCantSurfaceTheHeaderRail() throws {
+        // ⚠️ The rail-gate guard: a forecast must NEVER populate the top-level temp, or
+        // hasCompactInfo would show the header info rail on a future match.
+        let w = try loadForecastFixture()
+        #expect(w.roundedTemp == nil)
+    }
+
+    @Test func forecastHourSymbolUsesTheSharedTable() throws {
+        let w = try loadForecastFixture()
+        // Hour 0: clear + day → sun; hour 1: clear + night → moon; hour 3: rain + night.
+        #expect(w.hours?[0].symbolName == "sun.max.fill")
+        #expect(w.hours?[1].symbolName == "moon.stars.fill")
+        #expect(w.hours?[3].symbolName == "cloud.moon.rain.fill")
+        // Same table as the historical stamp (one source of truth).
+        #expect(MatchWeather.symbol(code: 0, isNight: false) == "sun.max.fill")
+    }
+
+    @Test func precipShowsOnlyAtOrAbove20() throws {
+        let w = try loadForecastFixture()
+        #expect(w.hours?[0].showsPrecip == false)   // 2%
+        #expect(w.hours?[1].showsPrecip == true)    // 25%
+        #expect(w.hours?[2].showsPrecip == false)   // 10%
+        #expect(w.hours?[3].showsPrecip == true)    // 40%
+    }
+
+    @Test func partialForecastNeverCountsAsForecast() throws {
+        // A 3-hour window (proxy shouldn't emit it, but the app guards too).
+        let json = #"{"mode":"forecast","venueName":"X","hours":[{"time":"a","tempF":80,"feelsLikeF":80,"weatherCode":0,"isDay":1,"windMph":5,"precipPct":0},{"time":"b","tempF":80,"feelsLikeF":80,"weatherCode":0,"isDay":1,"windMph":5,"precipPct":0},{"time":"c","tempF":80,"feelsLikeF":80,"weatherCode":0,"isDay":1,"windMph":5,"precipPct":0}]}"#
+        #expect(try decode(json).isForecast == false)
+    }
 }

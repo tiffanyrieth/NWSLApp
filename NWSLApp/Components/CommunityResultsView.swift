@@ -92,7 +92,7 @@ struct CommunityResultsView: View {
                 Image(systemName: "person.3.fill").foregroundStyle(accent)
                 Text("How everyone did").dsFont(17, weight: .semibold)
                 Spacer()
-                Text("Community").dsFont(12).foregroundStyle(.secondary)
+                Text("Community").dsFont(13).foregroundStyle(Color.dsFgSecondary)
             }
             content
         }
@@ -147,7 +147,7 @@ struct CommunityResultsView: View {
     private func statBlock(value: String, label: String) -> some View {
         VStack(spacing: 4) {
             Text(value).dsFont(20, weight: .bold).foregroundStyle(accent)
-            Text(label).dsFont(12).foregroundStyle(.secondary)
+            Text(label).dsFont(13).foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -161,10 +161,10 @@ struct CommunityResultsView: View {
         let correct = data?.correctCount ?? 0
         VStack(alignment: .leading, spacing: 8) {
             Text(q.prompt)
-                .dsFont(15, weight: .semibold)
+                .dsFont(16, weight: .semibold)
                 .fixedSize(horizontal: false, vertical: true)
             Text(Self.nailedLine(correct: correct, total: total))
-                .dsFont(12, weight: .semibold)
+                .dsFont(13, weight: .semibold)
                 .foregroundStyle(accent)
             // STACKED: each option's full text on its own line, its bar beneath. The bars still share
             // a common left edge (so their lengths stay comparable — the whole job of a bar), but they
@@ -194,7 +194,7 @@ struct CommunityResultsView: View {
                 // single wrapping Text — the same shape as the plain fact line that shipped fine.
                 (Text(Image(systemName: "lightbulb.fill")).foregroundStyle(accent)
                     + Text("  \(fact)").foregroundStyle(Color.dsFgPrimary))
-                    .dsFont(14)
+                    .dsFont(15)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
@@ -254,14 +254,14 @@ struct CommunityResultsView: View {
             HStack(alignment: .firstTextBaseline, spacing: 7) {
                 Image(systemName: isCorrect ? "checkmark.circle.fill"
                                 : isWrongPick ? "xmark.circle.fill" : "circle")
-                    .dsFont(14)
+                    .dsFont(15)
                     .foregroundStyle(isCorrect ? Color.dsSuccess
                                      : isWrongPick ? Color.dsError : Color.dsFgTertiary)
                 // "your pick" rides the label as concatenated text rather than a sub-line, so it wraps
                 // with the sentence and costs no extra height.
                 (Text(label)
                  + Text(isYourPick ? "  ·  your pick" : "").foregroundStyle(Color.dsFgSecondary))
-                    .dsFont(13)
+                    .dsFont(15)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
             }
@@ -282,7 +282,7 @@ struct CommunityResultsView: View {
                 // A minimum width keeps the bars' right edges aligned down the block.
                 Text(showPercent ? "\(pct)%" : "\(count)")
                     .dsFont(13, weight: .semibold, monospacedDigit: true)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.dsFgSecondary)
                     .frame(minWidth: 42, alignment: .trailing)
             }
             // Indent the bar to the label TEXT, not the mark, so the ✓/✗/○ marks stay a clean scannable
@@ -297,11 +297,11 @@ struct CommunityResultsView: View {
     @ViewBuilder
     private func honest(_ message: String, retry: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(message).dsFont(15).foregroundStyle(.secondary)
+            Text(message).dsFont(16).foregroundStyle(Color.dsFgSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             if retry {
                 Button("Try again") { Task { await load() } }
-                    .dsFont(12, weight: .semibold)
+                    .dsFont(13, weight: .semibold)
                     .foregroundStyle(accent)
             }
         }

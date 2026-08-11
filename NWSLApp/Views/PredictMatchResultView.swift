@@ -109,7 +109,7 @@ struct PredictMatchResultView: View {
                 VStack(spacing: 3) {
                     if let final = item.finalScore {
                         Text("\(final.home)–\(final.away)").dsFont(24, weight: .heavy, monospacedDigit: true)
-                        Text("FT").dsFont(12, weight: .bold).foregroundStyle(.secondary)
+                        Text("FT").dsFont(13, weight: .bold).foregroundStyle(Color.dsFgSecondary)
                     }
                 }
                 .frame(minWidth: 72)
@@ -141,7 +141,7 @@ struct PredictMatchResultView: View {
     private var loadingRow: some View {
         HStack(spacing: 10) {
             ProgressView()
-            Text("Loading the lineup…").dsFont(13).foregroundStyle(.secondary)
+            Text("Loading the lineup…").dsFont(15).foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 20)
     }
@@ -174,7 +174,7 @@ struct PredictMatchResultView: View {
             }
             if !model.busts.isEmpty {
                 Text("Your pick\(model.busts.count == 1 ? "" : "s") who didn't start: \(model.busts.map(\.name).joined(separator: ", "))")
-                    .dsFont(12.5).foregroundStyle(Color.dsFgTertiary)
+                    .dsFont(13.5).foregroundStyle(Color.dsFgSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -188,7 +188,7 @@ struct PredictMatchResultView: View {
                 .foregroundStyle(Color.dsBgPrimary)
                 .frame(width: 15, height: 15)
                 .background(Circle().fill(color))
-            Text(text).dsFont(12.5).foregroundStyle(Color.dsFgSecondary)
+            Text(text).dsFont(13.5).foregroundStyle(Color.dsFgSecondary)
         }
     }
 
@@ -220,23 +220,23 @@ struct PredictMatchResultView: View {
                       animated: true) {
                 VStack(spacing: 0) {
                     Text("\(model.startersCalled)").dsFont(28, weight: .heavy).foregroundStyle(Color.dsFgPrimary)
-                    Text("of 11").dsFont(12).foregroundStyle(.secondary)
+                    Text("of 11").dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 }
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("You called \(model.startersCalled) of the 11 starters")
 
             // The ring's own label — "10 of 11" must never float unexplained.
-            Text("starters called").dsFont(12, weight: .semibold).foregroundStyle(.secondary)
+            Text("starters called").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
 
             Text("+\(score.total) pts this match")
                 .dsFont(18, weight: .bold).foregroundStyle(Color.dsSuccess)
                 .padding(.top, 2)
             Text("\(score.correctPositions) of your \(score.correctPlayers) were in the right line")
-                .dsFont(13).foregroundStyle(.secondary)
+                .dsFont(15).foregroundStyle(Color.dsFgSecondary)
 
             if let line = model.superlative {
-                Text(line).dsFont(12, weight: .bold).foregroundStyle(accent)
+                Text(line).dsFont(13, weight: .bold).foregroundStyle(accent)
                     .multilineTextAlignment(.center)
                     .padding(.top, 4)
             }
@@ -263,9 +263,9 @@ struct PredictMatchResultView: View {
     private var rankRow: some View {
         if let d = model.detail, let rank = d.roundRank, d.roundTotal > 0 {
             HStack(spacing: 8) {
-                Image(systemName: "trophy.fill").dsFont(13).foregroundStyle(accent)
+                Image(systemName: "trophy.fill").dsFont(15).foregroundStyle(accent)
                 Text("Ranked #\(rank) of \(d.roundTotal) \(clubLabel) fans\(d.weekLabel.map { " · \($0)" } ?? "")")
-                    .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
+                    .dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
                 Spacer(minLength: 0)
             }
             .padding(12)
@@ -298,10 +298,10 @@ struct PredictMatchResultView: View {
                 scoreLine(5, breakdownRow("Perfect XI bonus", detail: "All 11!", points: score.perfectPoints, earned: true))
             }
             HStack {
-                Text("Total").dsFont(15, weight: .bold)
+                Text("Total").dsFont(16, weight: .bold)
                 Spacer()
                 Text("\(model.runningScoreTotal) of \(PredictionScore.maxPerMatch) possible")
-                    .dsFont(15, weight: .heavy).foregroundStyle(accent)
+                    .dsFont(16, weight: .heavy).foregroundStyle(accent)
                     .contentTransition(.numericText())
             }
             .padding(.horizontal, 10).padding(.vertical, 11)
@@ -338,8 +338,8 @@ struct PredictMatchResultView: View {
             Image(systemName: earned ? "checkmark.circle.fill" : "minus.circle")
                 .foregroundStyle(earned ? Color.dsSuccess : .secondary)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).dsFont(15, weight: .semibold)
-                Text(detail).dsFont(12).foregroundStyle(.secondary)
+                Text(title).dsFont(16, weight: .semibold)
+                Text(detail).dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
@@ -389,8 +389,8 @@ struct PredictMatchResultView: View {
         HStack(spacing: 12) {
             Image(systemName: icon).dsFont(20).foregroundStyle(tint)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).dsFont(13, weight: .bold)
-                Text(body).dsFont(12).foregroundStyle(.secondary)
+                Text(title).dsFont(15, weight: .bold)
+                Text(body).dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
@@ -416,7 +416,7 @@ struct PredictMatchResultView: View {
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel("HOW \(clubLabel.uppercased()) FANS PICKED")
                 Text("From \(community.submissions) fans' predictions · bars show the % of fans who had her in their XI")
-                    .dsFont(12.5).foregroundStyle(Color.dsFgTertiary)
+                    .dsFont(13.5).foregroundStyle(Color.dsFgSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(model.bandPanels) { panel in
                     bandPanelCard(panel)
@@ -433,7 +433,7 @@ struct PredictMatchResultView: View {
     private func bandPanelCard(_ panel: PredictResultViewModel.BandPanel) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(bandTitle(panel.group).uppercased())
-                .dsFont(12, weight: .bold).tracking(0.8).foregroundStyle(Color.dsFgTertiary)
+                .dsFont(12, weight: .bold).tracking(0.8).foregroundStyle(Color.dsFgSecondary)
             Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 9) {
                 ForEach(panel.entries) { entry in
                     GridRow { barRow(entry) }
@@ -461,18 +461,18 @@ struct PredictMatchResultView: View {
         Image(systemName: entry.started
               ? (entry.called ? "checkmark.circle.fill" : "xmark.circle")
               : "minus.circle")
-            .dsFont(15)
+            .dsFont(16)
             .foregroundStyle(entry.started ? (entry.called ? Color.dsSuccess : Color.dsError) : Color.dsFgQuaternary)
             .accessibilityHidden(true)
 
         VStack(alignment: .leading, spacing: 0) {
             Text(entry.name)
-                .dsFont(14, weight: .medium)
-                .foregroundStyle(entry.started ? Color.dsFgPrimary : Color.dsFgTertiary)
+                .dsFont(15, weight: .medium)
+                .foregroundStyle(entry.started ? Color.dsFgPrimary : Color.dsFgSecondary)
                 .strikethrough(!entry.started)
                 .lineLimit(1)
             if !entry.started {
-                Text("didn't start").dsFont(12).foregroundStyle(Color.dsFgTertiary)
+                Text("didn't start").dsFont(13).foregroundStyle(Color.dsFgSecondary)
             }
         }
         .accessibilityHidden(true)
@@ -534,11 +534,11 @@ struct PredictMatchResultView: View {
                     onPredictNext?(next)
                 }
                 Text("Locks \(Self.lockFormatter.string(from: next.deadline))")
-                    .dsFont(12).foregroundStyle(.secondary)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
             }
         } else {
             Text("Next fixture opens soon")
-                .dsFont(12).foregroundStyle(Color.dsFgTertiary)
+                .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 .frame(maxWidth: .infinity)
         }
     }
@@ -550,7 +550,7 @@ struct PredictMatchResultView: View {
     }
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text).dsFont(12, weight: .bold).tracking(1.2).foregroundStyle(.secondary)
+        Text(text).dsFont(12, weight: .bold).tracking(1.2).foregroundStyle(Color.dsFgSecondary)
     }
 
     private func bandTitle(_ group: PositionGroup) -> String {

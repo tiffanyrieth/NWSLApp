@@ -139,7 +139,7 @@ struct ProfileView: View {
             .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
             Text("Match alerts, alert types, and activity — all in one place.")
-                .dsFont(12)
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
                 .padding(.horizontal, 4)
         }
@@ -152,26 +152,26 @@ struct ProfileView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.dsBgTertiary)
                 Image(systemName: "pencil")
-                    .dsFont(15)
+                    .dsFont(16)
                     .foregroundStyle(Color.dsFgSecondary)
             }
             .frame(width: 29, height: 29)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Username")
-                    .dsFont(15)
+                    .dsFont(16)
                     .foregroundStyle(Color.dsFgPrimary)
                 Text("Shown on leaderboards")
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
             }
             Spacer(minLength: 8)
             Text(auth.displayName ?? "Set username")
-                .dsFont(15)
+                .dsFont(16)
                 .foregroundStyle(Color.dsFgSecondary)
                 .lineLimit(1)
             Image(systemName: "chevron.right")
-                .dsFont(13, weight: .semibold)
-                .foregroundStyle(Color.dsFgTertiary)
+                .dsFont(15, weight: .semibold)
+                .foregroundStyle(Color.dsFgSecondary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 13)
@@ -200,14 +200,14 @@ struct ProfileView: View {
                         .dsFont(16, weight: .semibold)
                         .foregroundStyle(Color.dsFgPrimary)
                     Text("Help keep this app free and growing")
-                        .dsFont(13)
+                        .dsFont(15)
                         .foregroundStyle(Color.dsFgSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
-                    .dsFont(13, weight: .semibold)
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .dsFont(15, weight: .semibold)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 20)
@@ -231,21 +231,21 @@ struct ProfileView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.dsAccent)
                 Image(systemName: "bell.fill")
-                    .dsFont(15)
+                    .dsFont(16)
                     .foregroundStyle(.white)
             }
             .frame(width: 29, height: 29)
             Text("Notifications")
-                .dsFont(15)
+                .dsFont(16)
                 .foregroundStyle(Color.dsFgPrimary)
             Spacer(minLength: 8)
             Text(alerts.enabledCount == 0 ? "Off"
                  : "\(alerts.enabledCount) team\(alerts.enabledCount == 1 ? "" : "s")")
-                .dsFont(15)
+                .dsFont(16)
                 .foregroundStyle(Color.dsFgSecondary)
             Image(systemName: "chevron.right")
-                .dsFont(13, weight: .semibold)
-                .foregroundStyle(Color.dsFgTertiary)
+                .dsFont(15, weight: .semibold)
+                .foregroundStyle(Color.dsFgSecondary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 13)
@@ -281,14 +281,14 @@ struct ProfileView: View {
                             showNameEditor = true
                         } label: {
                             Image(systemName: "pencil")
-                                .dsFont(13, weight: .semibold)
+                                .dsFont(15, weight: .semibold)
                                 .foregroundStyle(Color.dsAccent)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Edit username")
                     }
                     Text("Signed in with Apple")
-                        .dsFont(12)
+                        .dsFont(13)
                         .foregroundStyle(Color.dsFgSecondary)
                 }
             }
@@ -304,7 +304,7 @@ struct ProfileView: View {
                 .dsFont(20, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             Text("Sign in to save your Fan Zone points and sync your follows across devices. The app works the same either way.")
-                .dsFont(13)
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 16)
@@ -318,7 +318,7 @@ struct ProfileView: View {
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
             if let signInError {
                 Text(signInError)
-                    .dsFont(13)
+                    .dsFont(15)
                     .foregroundStyle(Color.dsError)
                     .multilineTextAlignment(.center)
             }
@@ -371,7 +371,7 @@ struct ProfileView: View {
                 .dsFont(17, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             Text(label)
-                .dsFont(12)
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity)
@@ -394,7 +394,7 @@ struct ProfileView: View {
                 HStack(spacing: 12) {
                     TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: DS.avatarMd)
                     Text(club.displayName)
-                        .dsFont(15)
+                        .dsFont(16)
                         .foregroundStyle(Color.dsFgPrimary)
                     Spacer(minLength: 8)
                     Image(systemName: "star.fill")
@@ -411,12 +411,12 @@ struct ProfileView: View {
             } label: {
                 HStack {
                     Text("Manage follows")
-                        .dsFont(15)
+                        .dsFont(16)
                         .foregroundStyle(Color.dsAccent)
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .dsFont(13, weight: .semibold)
-                        .foregroundStyle(Color.dsFgTertiary)
+                        .dsFont(15, weight: .semibold)
+                        .foregroundStyle(Color.dsFgSecondary)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 13)
@@ -477,7 +477,7 @@ struct ProfileView: View {
             .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
             Text("Signing out keeps your follows on this device. Your Fan Zone points and rank stay with your account.")
-                .dsFont(12)
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
                 .padding(.horizontal, 4)
         }
@@ -485,7 +485,7 @@ struct ProfileView: View {
 
     private func accountRow(_ title: String) -> some View {
         Text(title)
-            .dsFont(15)
+            .dsFont(16)
             .foregroundStyle(Color.dsError)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
@@ -527,15 +527,15 @@ struct ProfileView: View {
         HStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.dsBgTertiary)
-                Image(systemName: "stethoscope").dsFont(15).foregroundStyle(Color.dsFgSecondary)
+                Image(systemName: "stethoscope").dsFont(16).foregroundStyle(Color.dsFgSecondary)
             }
             .frame(width: 29, height: 29)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Notification Diagnostics").dsFont(15).foregroundStyle(Color.dsFgPrimary)
-                Text("Token registration state").dsFont(12).foregroundStyle(Color.dsFgTertiary)
+                Text("Notification Diagnostics").dsFont(16).foregroundStyle(Color.dsFgPrimary)
+                Text("Token registration state").dsFont(13).foregroundStyle(Color.dsFgSecondary)
             }
             Spacer(minLength: 8)
-            Image(systemName: "chevron.right").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
+            Image(systemName: "chevron.right").dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgTertiary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 13)
@@ -545,8 +545,8 @@ struct ProfileView: View {
 
     private var versionLabel: some View {
         Text("NWSLApp \(appVersion)")
-            .dsFont(12)
-            .foregroundStyle(Color.dsFgTertiary)
+            .dsFont(13)
+            .foregroundStyle(Color.dsFgSecondary)
             .frame(maxWidth: .infinity)
     }
 

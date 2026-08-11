@@ -297,15 +297,27 @@
 >   honest-language work — values as promises (no ads; no data sold; no third-party/cross-app
 >   tracking), what IS collected (account basics; anonymous aggregate diagnostics/usage, never
 >   linked), retention, delete-account. Host it (GitHub Pages is $0) + paste the URL in ASC.
+> - **Attributions / acknowledgements** (fold into this page or a sibling): **Open-Meteo weather data
+>   is CC-BY 4.0 — attribution is required.** The app carries a minimal "Weather by Open-Meteo" line on
+>   the forecast card already (one credit covers all Open-Meteo data, forecast + historical stamp); the
+>   FULL/proper credit (name + link + license link) belongs here. Add any other third-party data credits
+>   at the same time (ESPN is unofficial/uncredited by nature; NWSL matchfacts for the attendance
+>   backstop).
 > - README/showcase copy already reframed to match (PR #152); CLAUDE.md carries the
 >   values-vs-mechanics stance so future copy stays consistent.
 
 > ### ♿ PRE-RELEASE GATE — accessibility: **VoiceOver is the only part left** (owner 2026-07-21)
 > Accessibility is a release gate, not a nice-to-have — in an inclusive space like NWSL it must not be
-> overlooked. **Two of the three parts are now DONE** (owner-confirmed 2026-07-31):
+> overlooked. **Three of the four parts are now DONE** (owner-confirmed 2026-07-31, +contrast 2026-08-11):
 > - ✅ **Dynamic Type / AX1** — cap decided, whole app swept, every screen passes (detail below).
 > - ✅ **Colour-blind** — deuter/protan/tritan simulation across the app found **no failures**;
 >   existing rules carry it (✓/✗ glyph shapes, crest+abbreviation, text "your pick" labels).
+> - ✅ **Contrast (WCAG AA)** — DONE 2026-08-11. The app had shipped invisible dark-on-dark text
+>   (`dsFgTertiary`/`Quaternary` used as readable text at 1.5–2.3:1 on cards — the weather footer was the
+>   caught exemplar). Fixed: `dsFgSecondary` lightened to #AEAEB2 (AA-clean on every surface), tertiary/
+>   quaternary made decoration-only, ~230 readable sites swept off failing tokens/`.secondary`, and a
+>   **contrast FLOOR** added (`DSColorContrastTests` + `Color.wcagContrastRatio`, CLAUDE.md rule) so a
+>   regression fails CI — the color-axis peer of the 12pt font floor. [[feedback_invisible_dark_on_dark_text]].
 > - ❌ **VoiceOver — THE REMAINING WORK.** Partial today: 16 files carry a11y modifiers, so it is not
 >   zero, but there has been no systematic pass. This is what blind users need to use the app at all,
 >   and it's the reason the AX1 cap is defensible (users needing >AX1 are served by VoiceOver + Zoom).
@@ -349,8 +361,10 @@
 >   letters for coloured dots).
 > - NOT done, deliberately: the Teams grid's uneven tile borders when club names wrap (cosmetic).
 > **First step when picked up:** run the VoiceOver audit in the sim screen by screen, then work the
-> punch-list. Dynamic Type and colour-blind are closed — do NOT re-audit them.
-> (Dark-only is NOT an a11y issue — the app's colour balances it.)
+> punch-list. Dynamic Type, colour-blind, and contrast are closed — do NOT re-audit them.
+> (⚠️ CORRECTED 2026-08-11: the old note here said "dark-only is NOT an a11y issue — the colour balances
+> it." That was WRONG — dark-mode gray-on-gray text was measurably below WCAG AA and shipped invisible.
+> Dark-only doesn't excuse contrast; the CONTRAST gate above now enforces it.)
 > (The display-name profanity filter that used to be parked here is now BUILT — see the display-name
 > uniqueness item above.)
 
@@ -378,21 +392,6 @@
 > `PostseasonSimulator.swift` (or delete the sim harness) so no hard-coded 2025 bracket lingers in the
 > app source. The unit tests that reference `PostseasonSimulator.clinchTable` (`PlayoffClinchTests`) move
 > to inline fixtures at that point. Nothing auto-reminds — this note is the reminder.
-
-> ### 📏 TYPE AUDIT — ✅ 12pt floor DONE 2026-08-06 · 🕰️ 13-14 secondary tier = a FEW-WEEKS VIBE CHECK
-> **✅ DONE (this PR):** a **12pt hard readable-font floor** — every `.dsFont(9…11.5)` bumped to 12 (160
-> sites). No floor existed before (119 uses at 11pt); the trigger was the owner's mom (70s) not being able
-> to read the app, and the Sim renders desktop-scale so small type "looked fine" but wasn't on a phone
-> ([[feedback_size_for_phone_not_desktop]]). Owner research + the AX1 engineering point both land on 12
-> ("below 10-11 stays illegible even after accessibility scaling"). Verified default + AX1 on Standings +
-> Schedule (no overflow). Exceptions kept: the 5pt bullet-dot icon, `trackedCaps` eyebrows, monograms.
->
-> **🕰️ FOLLOW-UP — do NOT do this now (owner 2026-08-06): the 13-14pt "must-read secondary" tier.** Per
-> the research, must-read secondary text (Match Detail stat labels, standings secondary numbers) ideally
-> wants 13-14, not just the 12 floor. But whether it's *needed* is a **VIBE reaction after living with
-> today's change for a few weeks on-device**, NOT a gut call now — and it should be done SURGICALLY per
-> screen where the owner's eye says it still reads small, never another blanket bump (that flattens
-> hierarchy). Revisit ~late Aug after the 12 floor has been felt on real use.
 
 > ### 🔒 V2 LA RULE (standing): V2 Live Activity work happens in its OWN session with NO other tasks
 > in flight — it's device-proven, fragile, weeks to get right; read `docs/live-activity-v2.md` §0 FIRST,
@@ -427,5 +426,3 @@
 - **Competitions follow-ups:** national-team coverage + cup push/LA + foreign-club colors are all DONE
   (16 NT feeds, WAFCON live, cups pushing with V2 LA, `DesignTeamColors.international` shipped). Residual:
   the CLUB cups folding into the Schedule "My teams" grouping; WWC/Olympics whole-tournament UI stays DEFERRED.
-- **Weather** — kickoff-temp header slot (nice-to-have, stays). _(User-added feed sources SHIPPED in the
-  Social Phase-3 "make it yours" pass — Bluesky reporters + player follows; that line is retired.)_

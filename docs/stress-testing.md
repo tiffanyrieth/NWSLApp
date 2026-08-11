@@ -90,6 +90,35 @@ real growth. Rule: **stop writing garbage before you buy a bigger drive.** (This
 certainly the best-practice pattern — a sports watcher is a diff engine; persist state *transitions*,
 not unchanged snapshots.)
 
+### 3a. Efficiency is the TARGET, not the floor (owner 2026-08-11)
+
+Passing the 1k test is **necessary, not sufficient.** A recurring failure: seeing "1k passes with
+headroom" as license to build the minimum that clears launch — the naive version that works because
+the free tier is generous right now. That spends headroom the app will need later, for nothing.
+
+Two rules, applied to EVERY design (not just when asked):
+
+1. **Build the most efficient feasible implementation, then check 1k — not the reverse.** If a
+   capped/metered resource can be **avoided entirely**, avoid it from day one: edge cache instead of KV
+   writes (unlimited vs. a 1k/day cap); cache-once-serve-many instead of a per-user hit on a rate-limited
+   API; a computed value instead of a stored row. Free-tier headroom is **preserved for growth and future
+   features**, never consumed just because it's currently available. The goal is staying free to the
+   **highest user count physically possible** — for many features (weather forecast is the example) that's
+   effectively unbounded, so there's no reason it should EVER force a paid tier.
+
+2. **Judge load at the MACRO level, not per-feature in isolation.** Every feature draws from **shared**
+   budgets — Cloudflare requests/subrequests, KV writes/day, Supabase rows/egress. A feature trivial on
+   its own still consumes a common pool the watcher, Club News, IG/YT scraping, the attendance backstop,
+   and weather all pull from. "This feature is way under Open-Meteo's limit" is the wrong frame; the right
+   one is the **aggregate draw against the shared ceiling**, and the headroom that leaves for the NEXT
+   feature. Evaluate new load against the combined total, not its own service's cap.
+
+Worked example (the game-time weather forecast, 2026-08-11): edge cache (not KV — dodges the 1k-writes/day
+cap), 8h TTL matched to how often the models actually update (not per-user, not hourly-waste) → a few
+hundred Open-Meteo calls/day at ANY user count, and near-zero added draw on the shared Cloudflare request
+pool. It would have "passed 1k" as a per-user KV-writing fetch too — but that version spends two shared
+budgets to do what the efficient one does with neither.
+
 ## 4. Three bars, not one
 
 "**Works today**" ≠ "**properly sized**" ≠ "**efficient / best-practice**." The app can work for 2 users
@@ -360,6 +389,19 @@ For each subsystem, walk it explicitly:
   windows would eat meaningful slices of KV's 1k-writes/day free budget. Diag KV writes occur only on
   failure events (1-2/min during a real outage, 30d TTL) and the pager throttle caps email at 1/hr.
   Follower-count-independent everywhere → identical at 1k and 100k. Passes.
+- **Attendance backstop sweep (2026-08-11):** ✅ **cron-driven, user-count-independent.** ~4 sweeps/day
+  (6h KV gate on the 5-min cron), each: 1 windowed 30-day ESPN scoreboard (~15-20 events, small — never
+  the 2MB full-season query) + ≤~20 ESPN summary probes + ≤1 SDP season list (958KB, few-ms parse, lazy)
+  + ≤~20 matchfacts fetches (2.8KB each) + ≤~5 KV writes (`attendance:*`, 60d TTL, ≤~20 live keys).
+  Worst day ≤ ~170 subrequests + ≤20 KV writes — free-tier trivial. Enrich hook adds one JSON parse on
+  summary MISSes only (the TTL chooser already parses there). Identical at 1k and 100k. Passes.
+- **Game-time weather forecast (2026-08-11):** ✅ **user-count-independent** and the worked example for
+  §3a. `/weather` forecast mode is EDGE-cached (`caches.default`, 8h TTL), never KV — so Open-Meteo is hit
+  ≤ once per upcoming match per 8h per colo: ~(7 matches × 3/day × ~10-20 colos) ≈ a few hundred calls/day
+  at 1k = 100k = 1M, vs the 10k/day free limit. Zero KV writes (dodges the 1k/day cap the naive per-user
+  version would have loaded), ~2KB payloads, one JSON parse per edge MISS. **Macro note:** the added draw on
+  the shared Cloudflare request pool is near-zero (edge-cached, app traffic collapses), leaving the pool's
+  headroom intact for future features alongside the watcher / Club News / IG-YT / attendance backstop.
 - **Summary attendance cache fix (2026-08-09):** ✅ **no new load path** — three levers, all fetch-neutral
   or demand-driven. (a) `/summary` (+ the `/predict/community` and `/weather` internal `getSummary`) now
   busts the ESPN upstream on a MISS, same `_cb` mechanism as `/scoreboard`: edge-cache key unchanged →

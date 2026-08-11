@@ -99,7 +99,7 @@ struct TeamDetailView: View {
                     // Live standing line; fall back to the abbreviation so the header
                     // never looks empty while the roster loads.
                     Text(viewModel.standingLine ?? club.abbreviation)
-                        .dsFont(13.5)
+                        .dsFont(15.5)
                         .foregroundStyle(Color.dsFgSecondary)
                 }
                 Spacer(minLength: 8)
@@ -148,7 +148,7 @@ struct TeamDetailView: View {
 
     private func bellCircle(on: Bool) -> some View {
         Image(systemName: on ? "bell.fill" : "bell")
-            .dsFont(15, weight: .medium)
+            .dsFont(16, weight: .medium)
             .foregroundStyle(on ? Color.dsAccent : Color.dsFgSecondary)
             .frame(width: 38, height: 38)
             .background(on ? Color.dsAccentMuted : Color.dsBgTertiary, in: Circle())
@@ -200,7 +200,7 @@ struct TeamDetailView: View {
             VStack(alignment: .leading, spacing: 11) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Fan community")
-                        .dsFont(15, weight: .bold)
+                        .dsFont(16, weight: .bold)
                         .foregroundStyle(Color.dsFgPrimary)
                     Spacer()
                     Text("FAN-RUN · UNOFFICIAL")
@@ -234,7 +234,7 @@ struct TeamDetailView: View {
                     .frame(width: socialGlyphSize, height: socialGlyphSize)
                     .foregroundStyle(platformStyle(link.platform))
                 Text(link.platform.label)
-                    .dsFont(13, weight: .semibold)
+                    .dsFont(15, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                     .fixedSize()
             }
@@ -317,8 +317,8 @@ struct TeamDetailView: View {
             // Subtle + secondary — the squad is real, just not freshly from ESPN.
             if let cachedAsOf = viewModel.rosterCachedAsOf {
                 Text("Roster as of \(cachedAsOf.formatted(.dateTime.month(.abbreviated).day().year()))")
-                    .dsFont(12)
-                    .foregroundStyle(.secondary)
+                    .dsFont(13)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
             ForEach(viewModel.positionGroups) { group in
                 VStack(alignment: .leading, spacing: 10) {
@@ -344,7 +344,7 @@ struct TeamDetailView: View {
                 ZStack {
                     Circle().fill(accent.opacity(0.16))
                     Text(initials(for: athlete))
-                        .dsFont(14, weight: .bold)
+                        .dsFont(15, weight: .bold)
                         .foregroundStyle(accent)
                         .minimumScaleFactor(0.7).lineLimit(1)
                 }
@@ -352,7 +352,7 @@ struct TeamDetailView: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(athlete.shortName ?? athlete.name)
-                    .dsFont(14.5, weight: .semibold)
+                    .dsFont(15.5, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                     // Player names must never truncate on the roster — wrap to a 2nd line
                     // (the grid row grows to the tallest card) with a scale backstop.
@@ -361,7 +361,7 @@ struct TeamDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if let jersey = athlete.jersey, !jersey.isEmpty {
                     Text("#\(jersey)")
-                        .dsFont(12).monospaced()
+                        .dsFont(13).monospaced()
                         .foregroundStyle(Color.dsFgSecondary)
                 }
             }
@@ -406,7 +406,7 @@ struct TeamDetailView: View {
     private func seasonCard(_ s: (gp: Int, w: Int, d: Int, l: Int, pts: Int)) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Season")
-                .dsFont(15, weight: .bold)
+                .dsFont(16, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             HStack(spacing: 0) {
                 statCell("GP", s.gp)
@@ -428,7 +428,7 @@ struct TeamDetailView: View {
                 .dsFont(20, weight: .heavy, monospacedDigit: true)
                 .foregroundStyle(emphasized ? accent : Color.dsFgPrimary)
             Text(label)
-                .dsFont(12).foregroundStyle(Color.dsFgSecondary)
+                .dsFont(13).foregroundStyle(Color.dsFgSecondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -439,17 +439,17 @@ struct TeamDetailView: View {
         if !leaders.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text(title)
-                    .dsFont(14, weight: .bold)
+                    .dsFont(15, weight: .bold)
                     .foregroundStyle(accent)
                 VStack(spacing: 0) {
                     ForEach(Array(leaders.enumerated()), id: \.element.id) { index, leader in
                         HStack {
                             Text("\(index + 1)")
-                                .dsFont(13, weight: .semibold)
+                                .dsFont(15, weight: .semibold)
                                 .foregroundStyle(Color.dsFgSecondary)
                                 .frame(width: 18, alignment: .leading)
                             Text(leader.name)
-                                .dsFont(14.5)
+                                .dsFont(15.5)
                                 .foregroundStyle(Color.dsFgPrimary)
                             Spacer()
                             Text("\(leader.value)")

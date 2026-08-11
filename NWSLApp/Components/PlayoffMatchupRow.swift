@@ -91,7 +91,7 @@ struct PlayoffMatchupRow: View {
             // Seed line — the playoff addition, quiet under the abbreviation.
             if let seed = bside.seed {
                 Text("#\(seed) seed")
-                    .dsFont(12, weight: .semibold)
+                    .dsFont(13, weight: .semibold)
                     .foregroundStyle(Color.dsFgSecondary)
             }
             // Fixed-height score band (reserved on every state so rows align, like MatchCard).
@@ -99,7 +99,7 @@ struct PlayoffMatchupRow: View {
                 if showScores, let score = bside.score {
                     Text("\(score)")
                         .dsFont(32, weight: .heavy, design: .rounded, monospacedDigit: true)
-                        .foregroundStyle(bside.isWinner || !matchup.isFinal ? Color.dsFgPrimary : Color.dsFgTertiary)
+                        .foregroundStyle(bside.isWinner || !matchup.isFinal ? Color.dsFgPrimary : Color.dsFgSecondary)
                 }
             }
             .frame(height: 34)
@@ -118,7 +118,7 @@ struct PlayoffMatchupRow: View {
             ZStack(alignment: .topTrailing) {
                 TeamLogo(urlString: club?.logoURL, teamAbbreviation: bside.abbreviation, size: 60)
                 if let abbr = bside.abbreviation, followedAbbreviations.contains(abbr) {
-                    Text("★").dsFont(12).foregroundStyle(color).offset(x: 6, y: -3)
+                    Text("★").dsFont(13).foregroundStyle(color).offset(x: 6, y: -3)
                 }
             }
         }
@@ -205,7 +205,7 @@ struct PlayoffMatchupRow: View {
             }
             if let venue = matchup.venue {
                 Text(venue)
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)

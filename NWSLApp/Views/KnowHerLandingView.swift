@@ -125,7 +125,7 @@ struct KnowHerLandingView: View {
                 howPlayersAreChosen()
 
                 Text("A new round every two weeks.")
-                    .dsFont(12).foregroundStyle(.tertiary)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
             }
@@ -158,7 +158,7 @@ struct KnowHerLandingView: View {
             ForEach(exhausted, id: \.self) { abbr in exhaustedRow(abbr) }
             if !exhausted.isEmpty {
                 Text("Teams marked \u{201C}all eligible players featured\u{201D} return when a new player crosses 100 minutes or earns their first start.")
-                    .dsFont(12).foregroundStyle(.secondary)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.dsBgTertiary)
@@ -184,15 +184,15 @@ struct KnowHerLandingView: View {
                     Text(player.playerName).dsFont(17, weight: .semibold).foregroundStyle(.primary)
                     Text(played ? "\(player.position) · \(player.teamAbbreviation.uppercased())"
                                 : "New player available")
-                        .dsFont(15).foregroundStyle(played ? AnyShapeStyle(.secondary) : AnyShapeStyle(accent))
+                        .dsFont(16).foregroundStyle(played ? AnyShapeStyle(Color.dsFgSecondary) : AnyShapeStyle(accent))
                 }
                 Spacer()
                 if played, let score = store.score(for: player) {
                     resultsBadge(score: score, total: player.questions.count)
                 } else {
                     HStack(spacing: 3) {
-                        Text("Play").dsFont(15, weight: .semibold)
-                        Image(systemName: "chevron.right").dsFont(12, weight: .bold)
+                        Text("Play").dsFont(16, weight: .semibold)
+                        Image(systemName: "chevron.right").dsFont(13, weight: .bold)
                     }
                     .foregroundStyle(accent)
                 }
@@ -212,7 +212,7 @@ struct KnowHerLandingView: View {
             teamMonogram(abbr, color: teamColor, size: 52)
             VStack(alignment: .leading, spacing: 3) {
                 Text(teamName(abbr)).dsFont(17, weight: .semibold).foregroundStyle(.primary)
-                Text("All eligible players featured").dsFont(15).foregroundStyle(.secondary)
+                Text("All eligible players featured").dsFont(16).foregroundStyle(Color.dsFgSecondary)
             }
             Spacer()
         }
@@ -227,12 +227,12 @@ struct KnowHerLandingView: View {
     /// the live community results, not a dead end).
     private func resultsBadge(score: Int, total: Int) -> some View {
         VStack(alignment: .trailing, spacing: 3) {
-            Text("\(score)/\(total)").dsFont(15, weight: .bold).foregroundStyle(accent)
+            Text("\(score)/\(total)").dsFont(16, weight: .bold).foregroundStyle(accent)
             HStack(spacing: 2) {
-                Text("Results").dsFont(12, weight: .semibold)
+                Text("Results").dsFont(13, weight: .semibold)
                 Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
             }
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.dsFgSecondary)
         }
     }
 
@@ -247,13 +247,13 @@ struct KnowHerLandingView: View {
                 Text("All caught up for \(teamName(abbr))")
                     .dsFont(18, weight: .bold).multilineTextAlignment(.center)
                 Text("Every eligible \(teamName(abbr)) player has been featured this season. If a returning or breakout player crosses 100 minutes or earns a start, she'll show up here.")
-                    .dsFont(13).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    .dsFont(15).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center)
             } else {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 44)).foregroundStyle(accent)
                 Text("All caught up").dsFont(18, weight: .bold)
                 Text("Every eligible player on your followed teams has been featured this season. If a returning or breakout player crosses 100 minutes or earns a start, she'll appear here.")
-                    .dsFont(13).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    .dsFont(15).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center)
             }
         }
         .frame(maxWidth: .infinity)
@@ -268,7 +268,7 @@ struct KnowHerLandingView: View {
             sectionEyebrow("Last round", round: store.previousRound)
             ForEach(store.previousPlayers) { player in lastRoundRow(player) }
             Text("Community results stay for one round after each edition closes.")
-                .dsFont(12).foregroundStyle(.tertiary)
+                .dsFont(13).foregroundStyle(Color.dsFgSecondary)
         }
     }
 
@@ -282,21 +282,21 @@ struct KnowHerLandingView: View {
             HStack(spacing: 12) {
                 KnowHerPlayerAvatar(player: player, ring: teamColor.opacity(0.6), size: 40)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(player.playerName).dsFont(15, weight: .semibold).foregroundStyle(.secondary)
+                    Text(player.playerName).dsFont(16, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                     Text("\(player.position) · \(player.teamAbbreviation.uppercased())")
-                        .dsFont(12).foregroundStyle(.tertiary)
+                        .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     if let score {
                         Text("\(score)/\(player.questions.count)")
-                            .dsFont(12, weight: .bold).foregroundStyle(accent.opacity(0.75))
+                            .dsFont(13, weight: .bold).foregroundStyle(accent.opacity(0.75))
                     }
                     HStack(spacing: 2) {
-                        Text("Results").dsFont(12, weight: .semibold)
+                        Text("Results").dsFont(13, weight: .semibold)
                         Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
                     }
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
                 }
             }
             .padding(12)
@@ -315,9 +315,9 @@ struct KnowHerLandingView: View {
     private var streakLine: some View {
         if store.weeklyStreak > 1 {
             HStack(spacing: 8) {
-                Image(systemName: "flame.fill").dsFont(13).foregroundStyle(.orange)
+                Image(systemName: "flame.fill").dsFont(15).foregroundStyle(.orange)
                 Text("\(store.weeklyStreak)-round streak — play every round to keep it")
-                    .dsFont(12).foregroundStyle(.secondary)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 4)
@@ -344,10 +344,10 @@ struct KnowHerLandingView: View {
             ForEach(Array(rules.enumerated()), id: \.offset) { index, rule in
                 HStack(alignment: .top, spacing: 10) {
                     Text("\(index + 1)")
-                        .dsFont(12, weight: .bold).foregroundStyle(accent)
+                        .dsFont(13, weight: .bold).foregroundStyle(accent)
                         .frame(width: 20, height: 20)
                         .background(accent.opacity(0.15), in: Circle())
-                    Text(rule).dsFont(13).foregroundStyle(.secondary)
+                    Text(rule).dsFont(15).foregroundStyle(Color.dsFgSecondary)
                     Spacer(minLength: 0)
                 }
             }
@@ -363,7 +363,7 @@ struct KnowHerLandingView: View {
     private func sectionEyebrow(_ title: String, round: Int?) -> some View {
         HStack(spacing: 8) {
             Text(title.uppercased())
-                .dsFont(12, weight: .bold).tracking(0.8).foregroundStyle(.secondary)
+                .dsFont(12, weight: .bold).tracking(0.8).foregroundStyle(Color.dsFgSecondary)
             if let round {
                 Text("Round \(round)")
                     .dsFont(12, weight: .bold).tracking(0.4).foregroundStyle(accent)

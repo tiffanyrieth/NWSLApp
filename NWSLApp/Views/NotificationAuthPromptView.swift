@@ -46,15 +46,15 @@ struct NotificationAuthPromptView: View {
                     .dsFont(22, weight: .bold)
                     .multilineTextAlignment(.center)
                 Text("These run through Apple's notification system, which needs a signed-in account to know where to send them.")
-                    .dsFont(15)
-                    .foregroundStyle(.secondary)
+                    .dsFont(16)
+                    .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
             }
             .padding(.horizontal, 8)
 
             if let errorMessage {
                 Text(errorMessage)
-                    .dsFont(13)
+                    .dsFont(15)
                     .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
             }
@@ -72,8 +72,8 @@ struct NotificationAuthPromptView: View {
                 .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
 
                 Button("Not now") { dismiss() }
-                    .dsFont(15, weight: .semibold)
-                    .foregroundStyle(.secondary)
+                    .dsFont(16, weight: .semibold)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
         }
         .padding(28)

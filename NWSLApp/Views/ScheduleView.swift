@@ -438,8 +438,8 @@ struct ScheduleView: View {
 
     private func winContextCard(_ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text("Win →").dsFont(13, weight: .heavy).foregroundStyle(Color.dsStateKickoff)
-            Text(text).dsFont(13).foregroundStyle(Color.dsFgSecondary)
+            Text("Win →").dsFont(15, weight: .heavy).foregroundStyle(Color.dsStateKickoff)
+            Text(text).dsFont(15).foregroundStyle(Color.dsFgSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
@@ -454,13 +454,13 @@ struct ScheduleView: View {
         VStack(spacing: 12) {
             Image(systemName: "star")
                 .dsFont(40)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             Text("Follow your teams to see their matches here")
                 .dsFont(17, weight: .semibold)
                 .multilineTextAlignment(.center)
             Text("Tap the star on any club in the Teams tab.")
-                .dsFont(15)
-                .foregroundStyle(.secondary)
+                .dsFont(16)
+                .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
         }
         .padding(.horizontal, 32)
@@ -474,7 +474,7 @@ struct ScheduleView: View {
         VStack(spacing: 12) {
             Image(systemName: "calendar")
                 .dsFont(40)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             // Honest + contextual: a followed team (incl. a sparse national team) with no fixtures
             // in the season feed reads as a real "no matches" state, never a blank screen.
             Text(selectedFilter == .myTeams ? "No matches for your teams yet" : "No matches to show")
@@ -563,9 +563,9 @@ private struct RoundHeader: View {
             Circle().fill(color).frame(width: 8, height: 8)
             Text(section.round.title).trackedCaps(size: 12, tracking: 0.6, color: color)
             if let range = section.dateRangeLabel {
-                Text("· \(range)").dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                Text("· \(range)").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
             } else if section.status == .complete {
-                Text("· Complete").dsFont(12, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                Text("· Complete").dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
             }
             Rectangle()
                 .fill(Color.dsSeparator)
@@ -591,7 +591,7 @@ private struct ClinchStatusCard: View {
             TeamLogo(urlString: club?.logoURL, teamAbbreviation: abbreviation, size: 44)
             VStack(alignment: .leading, spacing: 3) {
                 Text(club?.displayName ?? abbreviation)
-                    .dsFont(15, weight: .bold)
+                    .dsFont(16, weight: .bold)
                     .foregroundStyle(Color.dsFgPrimary)
                 statusLine
             }
@@ -607,16 +607,16 @@ private struct ClinchStatusCard: View {
         switch status {
         case .clinched:
             Text("✓ Clinched a playoff spot")
-                .dsFont(13, weight: .semibold).foregroundStyle(Color.dsStateFinal)
+                .dsFont(15, weight: .semibold).foregroundStyle(Color.dsStateFinal)
         case .inPosition(let rank, let gamesLeft):
             Text("In position — #\(rank), \(gamesLeft) game\(gamesLeft == 1 ? "" : "s") left")
-                .dsFont(13, weight: .semibold).foregroundStyle(Color.dsStateKickoff)
+                .dsFont(15, weight: .semibold).foregroundStyle(Color.dsStateKickoff)
         case .outOfPicture:
             Text("Outside the playoff line")
-                .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                .dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
         case .eliminated:
             Text("Out of the playoff race")
-                .dsFont(13, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
+                .dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
         }
     }
 }

@@ -82,7 +82,7 @@ struct PredictLockedView: View {
                         Text("How \(clubLabel) picked opens \(closeLabel).")
                         Text("Your score is posted after full time.")
                     }
-                    .dsFont(12).foregroundStyle(Color.dsFgTertiary)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
                 }
@@ -121,14 +121,14 @@ struct PredictLockedView: View {
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Image(systemName: "lock.fill")
-                    .dsFont(15).foregroundStyle(tint)
+                    .dsFont(16).foregroundStyle(tint)
                     .frame(width: 30, height: 30)
                     .background(Circle().fill(tint.opacity(0.2)))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Locked in").dsFont(15, weight: .bold)
+                    Text("Locked in").dsFont(16, weight: .bold)
                     if let p = prediction {
                         Text("\(p.formation) · you called it \(p.homeScoreGuess)–\(p.awayScoreGuess)")
-                            .dsFont(12).foregroundStyle(.secondary)
+                            .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     }
                 }
                 Spacer(minLength: 8)
@@ -136,11 +136,11 @@ struct PredictLockedView: View {
                 // which reads as missing data on a match that's actually in progress.
                 VStack(alignment: .trailing, spacing: 1) {
                     if hasKickedOff {
-                        Text("LIVE").dsFont(15, weight: .heavy).foregroundStyle(Color.dsStateLive)
-                        Text("underway").dsFont(12).foregroundStyle(Color.dsFgTertiary)
+                        Text("LIVE").dsFont(16, weight: .heavy).foregroundStyle(Color.dsStateLive)
+                        Text("underway").dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     } else {
-                        Text(countdown).dsFont(15, weight: .heavy).foregroundStyle(tint)
-                        Text("to kickoff").dsFont(12).foregroundStyle(Color.dsFgTertiary)
+                        Text(countdown).dsFont(16, weight: .heavy).foregroundStyle(tint)
+                        Text("to kickoff").dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     }
                 }
             }
@@ -149,7 +149,7 @@ struct PredictLockedView: View {
             // the line now shows whenever the board is still sealed.
             if !revealed, !isLoading {
                 Text("Your picks are sealed. Nothing to do now but wait.")
-                    .dsFont(12, weight: .semibold).foregroundStyle(Color.dsSuccess)
+                    .dsFont(13, weight: .semibold).foregroundStyle(Color.dsSuccess)
             }
         }
         .padding(16)
@@ -216,7 +216,7 @@ struct PredictLockedView: View {
             }
             .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 1))
             Text(surname(of: id) ?? slot.group.shortLabel)
-                .dsFont(12, weight: .semibold)
+                .dsFont(13, weight: .semibold)
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -242,11 +242,11 @@ struct PredictLockedView: View {
                 Text("WHERE YOU WENT YOUR OWN WAY")
                     .dsFont(12, weight: .bold).tracking(1.2).foregroundStyle(Color.dsWarning)
                 ForEach(lines, id: \.self) { line in
-                    Text(line).dsFont(13).foregroundStyle(Color.dsFgPrimary)
+                    Text(line).dsFont(15).foregroundStyle(Color.dsFgPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Text("Right or wrong, these are the picks worth arguing about.")
-                    .dsFont(12).foregroundStyle(.secondary).padding(.top, 2)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary).padding(.top, 2)
             }
             .padding(.horizontal, 16).padding(.vertical, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -310,7 +310,7 @@ struct PredictLockedView: View {
                 if !rows.isEmpty {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(bandTitle(group).uppercased())
-                            .dsFont(12, weight: .bold).tracking(0.8).foregroundStyle(Color.dsFgTertiary)
+                            .dsFont(12, weight: .bold).tracking(0.8).foregroundStyle(Color.dsFgSecondary)
                         ForEach(rows, id: \.index) { slot in
                             summaryRow(slot)
                         }
@@ -319,7 +319,7 @@ struct PredictLockedView: View {
             }
             if revealed, let community {
                 Text("Bars show how much of \(clubLabel) picked each player · \(community.submissions) prediction\(community.submissions == 1 ? "" : "s")")
-                    .dsFont(12).foregroundStyle(Color.dsFgTertiary)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .frame(maxWidth: .infinity).multilineTextAlignment(.center)
             }
         }
@@ -350,7 +350,7 @@ struct PredictLockedView: View {
                     .foregroundStyle(Color.dsFgQuaternary)
                     .frame(width: 30, alignment: .leading)
                 Text(name)
-                    .dsFont(13, weight: isContrarian && revealed ? .bold : .medium)
+                    .dsFont(15, weight: isContrarian && revealed ? .bold : .medium)
                     .foregroundStyle(isContrarian && revealed ? Color.dsWarning : Color.dsFgPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
@@ -422,7 +422,7 @@ struct PredictLockedView: View {
     }
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text).dsFont(12, weight: .bold).tracking(1.2).foregroundStyle(.secondary)
+        Text(text).dsFont(12, weight: .bold).tracking(1.2).foregroundStyle(Color.dsFgSecondary)
     }
 
     private func bandTitle(_ group: PositionGroup) -> String {

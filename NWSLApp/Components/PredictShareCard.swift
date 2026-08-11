@@ -131,8 +131,8 @@ struct PredictShareLink: View {
 
     private var shareLabel: some View {
         HStack(spacing: 8) {
-            Image(systemName: "square.and.arrow.up").dsFont(14)
-            Text(label).dsFont(14, weight: .bold)
+            Image(systemName: "square.and.arrow.up").dsFont(15)
+            Text(label).dsFont(15, weight: .bold)
         }
         .foregroundStyle(accent)
         .frame(maxWidth: .infinity)

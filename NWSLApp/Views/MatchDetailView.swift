@@ -109,10 +109,10 @@ struct MatchDetailView: View {
             // the proxy request cap), slower pre-match.
             // The header score/clock advance separately via `event` (the refreshing store).
             if case .idle = viewModel.summaryState { await viewModel.loadSummary() }
-            // Historical kickoff weather for the header stamp — fire alongside the summary,
-            // not gated on it (additive; loadWeather no-ops unless the match is already past).
+            // Weather — fire alongside the summary, not gated on it (additive). Past → the
+            // historical header stamp; future → the game-time forecast strip; live → no-op.
             // Pass the LIVE temporal state, not the VM's frozen seed.
-            await viewModel.loadWeather(isPast: temporalState == .past)
+            await viewModel.loadWeather(temporalState: temporalState)
             while !Task.isCancelled && temporalState != .past {
                 let interval: Duration = temporalState == .live ? .seconds(60) : .seconds(120)
                 try? await Task.sleep(for: interval)
@@ -120,8 +120,8 @@ struct MatchDetailView: View {
                 await viewModel.refresh()
             }
             // The poll loop only exits once the match is past — a match that finished while
-            // on-screen now has weather available, so make one attempt after the loop.
-            await viewModel.loadWeather(isPast: temporalState == .past)
+            // on-screen now has historical weather available, so make one attempt after the loop.
+            await viewModel.loadWeather(temporalState: temporalState)
         }
     }
 
@@ -221,8 +221,8 @@ struct MatchDetailView: View {
 
                 if temporalState == .live {
                     Text("Updates every ~60 seconds")
-                        .dsFont(12)
-                        .foregroundStyle(.tertiary)
+                        .dsFont(13)
+                        .foregroundStyle(Color.dsFgSecondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 8)
                         .padding(.bottom, 16)
@@ -287,8 +287,8 @@ struct MatchDetailView: View {
 
             if let officials = officialsText(summary) {
                 Text(officials)
-                    .dsFont(12)
-                    .foregroundStyle(.tertiary)
+                    .dsFont(13)
+                    .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, alignment: .center)
             }
@@ -302,7 +302,7 @@ struct MatchDetailView: View {
     private func highlightsCard(_ videos: [MatchVideo]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Highlights")
-                .dsFont(13, weight: .bold)
+                .dsFont(15, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
@@ -345,14 +345,14 @@ struct MatchDetailView: View {
                 }
                 .frame(width: 220, height: 124)
                 Text(video.headline ?? "Highlight")
-                    .dsFont(12, weight: .semibold)
+                    .dsFont(13, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                     .frame(width: 220, height: 34, alignment: .topLeading)
                 Label("Watch on ESPN", systemImage: "arrow.up.right")
-                    .dsFont(12, weight: .semibold)
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .dsFont(13, weight: .semibold)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
         }
         .buttonStyle(.plain)
@@ -363,15 +363,15 @@ struct MatchDetailView: View {
     private func topPerformersCard(_ rows: [TopPerformerRow]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Top performers")
-                .dsFont(13, weight: .bold)
+                .dsFont(15, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
             VStack(spacing: 0) {
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     HStack(spacing: 8) {
                         performerSide(row.home, color: matchColors.home.fill, trailing: false)
                         Text(row.category)
-                            .dsFont(12, weight: .semibold)
-                            .foregroundStyle(Color.dsFgTertiary)
+                            .dsFont(13, weight: .semibold)
+                            .foregroundStyle(Color.dsFgSecondary)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity)
@@ -396,7 +396,7 @@ struct MatchDetailView: View {
                     .dsFont(16, weight: .heavy, design: .rounded, monospacedDigit: true)
                     .foregroundStyle(color)
                 Text(pick.jersey.map { "\($0)  \(pick.name)" } ?? pick.name)
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -481,7 +481,7 @@ struct MatchDetailView: View {
             Text("\((roster.team?.displayName ?? roster.team?.abbreviation ?? "—").uppercased()) BENCH")
                 .dsFont(12, weight: .semibold)
                 .tracking(0.5)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             FlowLayout(spacing: 8) {
                 ForEach(Array(roster.substitutes.enumerated()), id: \.offset) { _, player in
                     substituteChip(player, roster: roster)
@@ -501,7 +501,7 @@ struct MatchDetailView: View {
             Text(formationHeader(roster))
                 .dsFont(12, weight: .semibold)
                 .tracking(0.5)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
                 .frame(maxWidth: .infinity, alignment: .center)
 
             // Pitch when we can place all 11 by position; the list is the
@@ -543,7 +543,7 @@ struct MatchDetailView: View {
             Text("BENCH")
                 .dsFont(12, weight: .semibold)
                 .tracking(0.5)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             FlowLayout(spacing: 8) {
                 ForEach(Array(roster.substitutes.enumerated()), id: \.offset) { _, player in
                     substituteChip(player, roster: roster)
@@ -589,13 +589,13 @@ struct MatchDetailView: View {
             Text(player.jersey ?? "–")
                 .dsFont(14, weight: .bold)
                 .monospacedDigit()
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             Text(subLastName(player))
-                .dsFont(14)
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgPrimary)
             if player.didSubIn {
                 Image(systemName: "arrow.up.circle.fill")
-                    .dsFont(14)
+                    .dsFont(15)
                     .foregroundStyle(Color.dsSuccess)
             }
         }
@@ -623,31 +623,31 @@ struct MatchDetailView: View {
             Text(title.uppercased())
                 .dsFont(12, weight: .semibold)
                 .tracking(0.5)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             ForEach(Array(players.enumerated()), id: \.offset) { _, player in
                 HStack(spacing: 10) {
                     Text(player.jersey ?? "–")
                         .dsFont(12, weight: .bold)
                         .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.dsFgSecondary)
                         .frame(width: 24, alignment: .trailing)
                     Text(player.athlete?.displayName ?? "—")
-                        .dsFont(15)
+                        .dsFont(16)
                     if player.didSubOut {
                         Image(systemName: "arrow.down.circle.fill")
-                            .dsFont(12)
+                            .dsFont(13)
                             .foregroundStyle(.red.opacity(0.7))
                     }
                     if player.didSubIn {
                         Image(systemName: "arrow.up.circle.fill")
-                            .dsFont(12)
+                            .dsFont(13)
                             .foregroundStyle(.green.opacity(0.7))
                     }
                     Spacer(minLength: 0)
                     if let pos = player.position?.abbreviation {
                         Text(pos)
-                            .dsFont(12)
-                            .foregroundStyle(.tertiary)
+                            .dsFont(13)
+                            .foregroundStyle(Color.dsFgSecondary)
                     }
                 }
             }
@@ -684,7 +684,7 @@ struct MatchDetailView: View {
                 Text(summary.awayBoxscore?.team?.abbreviation ?? "—")
                     .foregroundStyle(matchColors.away.fill)
             }
-            .dsFont(12, weight: .bold)
+            .dsFont(13, weight: .bold)
 
             VStack(spacing: 18) {
                 ForEach(rows) { row in
@@ -781,6 +781,10 @@ struct MatchDetailView: View {
                         seasonComparison(preview)
                         recentForm(preview)
                     }
+                    // OUTSIDE the `preview.hasData` block on purpose — an early-season match with no
+                    // season/form data must still get its weather. Renders only with a full forecast
+                    // window (isForecast); unavailable/indoor/too-far-out → no card, honest absence.
+                    gameTimeWeather
                 }
                 .padding(.top, 24)      // preserve the old header→grid gap now that header is pinned
                 .padding(.bottom, 20)
@@ -886,8 +890,8 @@ struct MatchDetailView: View {
             Spacer(minLength: 8)
             if form.recent.isEmpty {
                 Text("No matches yet")
-                    .dsFont(12)
-                    .foregroundStyle(.secondary)
+                    .dsFont(13)
+                    .foregroundStyle(Color.dsFgSecondary)
             } else {
                 HStack(spacing: 5) {
                     ForEach(Array(form.recent.enumerated()), id: \.offset) { _, result in
@@ -994,7 +998,7 @@ struct MatchDetailView: View {
         }
         if let venue = event.venueName {
             Text(venue)
-                .dsFont(12)
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
                 .lineLimit(1)
         }
@@ -1007,7 +1011,7 @@ struct MatchDetailView: View {
                 Circle().fill(Color.dsFgQuaternary).frame(width: 3, height: 3)
                 // Label with no number when the count hasn't landed — see attendanceText.
                 Text(attendanceText.map { "Attendance: \($0)" } ?? "Attendance:")
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
             }
@@ -1022,10 +1026,23 @@ struct MatchDetailView: View {
     private var weatherStamp: some View {
         if temporalState == .past, let weather = viewModel.weather, let temp = weather.roundedTemp {
             (Text(Image(systemName: weather.symbolName)) + Text(" \(temp)°"))
-                .dsFont(12)
-                .foregroundStyle(Color.dsFgTertiary)
+                .dsFont(13)
+                .foregroundStyle(Color.dsFgSecondary)
                 .lineLimit(1)
                 .accessibilityLabel(weather.accessibilityLabel)
+        }
+    }
+
+    // Game-time weather strip (future matches only) — the forecast for the 4-hour game window.
+    // Gated on `isForecast` (a full 4-hour window); anything else (unavailable / indoor /
+    // >10-days-out / no window) simply omits the card. Kickoff comes from the live `event`.
+    @ViewBuilder
+    private var gameTimeWeather: some View {
+        if temporalState == .future, let weather = viewModel.weather, weather.isForecast,
+           let hours = weather.hours, let kickoff = event.kickoff {
+            GameTimeWeatherCard(hours: hours, venueName: weather.venueName,
+                                sunset: weather.sunsetDate, kickoff: kickoff)
+                .padding(.horizontal, 20)
         }
     }
 
@@ -1038,7 +1055,7 @@ struct MatchDetailView: View {
     private var spanishBroadcastRow: some View {
         if competition.surfacesSpanishSecondary, !event.broadcastNames.isEmpty {
             Text("Español · \(event.broadcastNames.joined(separator: " · "))")
-                .dsFont(12)
+                .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
                 .lineLimit(1)
         }
@@ -1092,7 +1109,7 @@ struct MatchDetailView: View {
                 .opacity(pulse ? 0.3 : 1)
                 .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: pulse)
             Text("LIVE")
-                .dsFont(12, weight: .bold)
+                .dsFont(13, weight: .bold)
                 .foregroundStyle(Color.dsStateLive)
         }
         .onAppear { pulse = true }
@@ -1126,7 +1143,7 @@ struct MatchDetailView: View {
             suffix: suffix
         ) { label in
             Text(label)
-                .dsFont(13, weight: .medium)
+                .dsFont(15, weight: .medium)
                 .foregroundStyle(Color.dsStateClock)   // orange live clock
                 .multilineTextAlignment(.center)
         }
@@ -1190,7 +1207,7 @@ struct MatchDetailView: View {
                     .minimumScaleFactor(0.5)
                 if let date = dateHeadline {
                     Text(date)
-                        .dsFont(12)
+                        .dsFont(13)
                         .foregroundStyle(Color.dsFgSecondary)
                         .multilineTextAlignment(.center)
                         // Wrap rather than truncate. This center column is squeezed between two
@@ -1216,7 +1233,7 @@ struct MatchDetailView: View {
     private func emptyState(_ message: String) -> some View {
         Text(message)
             .dsFont(16)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.dsFgSecondary)
             .frame(maxWidth: .infinity)
             .padding(.top, 40)
     }

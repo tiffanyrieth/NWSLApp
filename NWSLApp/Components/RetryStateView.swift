@@ -81,7 +81,7 @@ struct RetryStateView: View {
             if let icon {
                 Image(systemName: icon)
                     .dsFont(26)
-                    .foregroundStyle(Color.dsFgTertiary)
+                    .foregroundStyle(Color.dsFgSecondary)
             }
             if let title {
                 Text(title)
@@ -90,7 +90,7 @@ struct RetryStateView: View {
                     .multilineTextAlignment(.center)
             }
             Text(message)
-                .dsFont(15)
+                .dsFont(16)
                 .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)

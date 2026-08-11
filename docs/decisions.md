@@ -49,6 +49,41 @@ better model — a player who PLAYED an edition experienced it; deleting the art
 ONLY legitimate reclaim is a same-`weekKey` content correction. Full reasoning: `docs/know-her-game.md` +
 `.claude/rules/fan-zone.md` gate #7.
 
+### The proxy pass-through has ONE allowed body mutation — attendance enrichment (owner 2026-08-11)
+The ESPN pass-through's contract is bytes-unchanged (app decoders never see proxy-authored JSON). The single
+exception: the `/summary` enrich hook may fill `gameInfo.attendance` when it is 0/absent on a SETTLED match,
+with a league-verified figure from the attendance-backstop ledger (`src/attendance.ts`; sources: late ESPN
+ingest or NWSL's own matchfacts feed). Nothing else in any body may ever be touched. **Why the exception:**
+ESPN's attendance ingestion went spotty for weeks in Aug 2026 and the figure is display-final data with no
+app-side interpretation — the alternative (a separate endpoint + app merge) would strand every shipped build.
+**Why it stays narrow:** casual payload editing would silently break the defensive-decode assumptions every
+app decoder makes; do not use this as precedent — a second mutation needs its own owner ruling. Mechanism +
+the six-source research: `docs/backend.md` (Attendance backstop).
+
+### Contrast floor — readable text is primary/secondary ONLY; tertiary/quaternary are decoration (owner 2026-08-11)
+Dark-mode gray-on-gray text shipped below WCAG AA — invisible dark-on-dark (the weather footer at 1.5–2.3:1
+was the caught exemplar; ~230 sites across Fan Zone/Profile/Match Detail). **Ruling:** readable text uses
+`dsFgPrimary` or `dsFgSecondary` ONLY; `dsFgTertiary`/`dsFgQuaternary` are DECORATION-ONLY (they fail AA as
+text) and hierarchy below primary is expressed by WEIGHT/SIZE, not a darker gray. `dsFgSecondary` was
+lightened #8E8E93 → #AEAEB2 (AA-clean on every surface). Every readable fg×bg must clear WCAG AA 4.5:1
+(3:1 large/bold); `DSColorContrastTests` enforces it (the color peer of the 12pt font floor). Same exemptions
+as the font floor (dividers, dots, disabled, TBD/VS placeholders, icons beside a label). **Why it's locked:**
+a future session (or a Design handoff) will want to re-dim text to a "prettier" darker gray for aesthetics —
+that's exactly the regression; the floor test catches it, and this entry says don't. Full rule: CLAUDE.md UI
+rules; the recurring-mistake lesson: `feedback_invisible_dark_on_dark_text` memory.
+
+### Efficiency is the TARGET, not the floor; judge load at the MACRO level (owner 2026-08-11)
+Two standing design rules, the positive twin of the BANNED LENS. **(1)** Build the most efficient feasible
+implementation, then verify 1k — not "it passes 1k, ship it." If a capped/metered resource can be AVOIDED
+(edge cache vs. KV writes; cache-once-serve-many vs. a per-user rate-limited API hit; a computed value vs. a
+stored row), avoid it from day one. Free-tier headroom is preserved for growth, never spent because it's
+currently available; the aim is staying free to the highest user count physically possible. Passing 1k is
+necessary, not sufficient. **(2)** Judge new load against the COMBINED draw on each shared budget (Cloudflare
+requests, KV writes/day, Supabase) and the headroom left for future features — never a feature's own
+service cap in isolation. **Why:** the model kept reading "1k passes with headroom" as license to build the
+naive/wasteful version. Worked example: the game-time weather forecast — edge cache not KV, 8h TTL matched to
+model-update cadence → user-count-independent, never a paid tier. Full method: `docs/stress-testing.md` §3a.
+
 ### THE BANNED LENS — never size from CURRENT usage
 Every load/reliability/scaling question is asked **as if the app ships tomorrow** (hundreds of one-club fans
 from one subreddit post), never "only N users today → plenty of headroom / defer to launch." **Why:** that

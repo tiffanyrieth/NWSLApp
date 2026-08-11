@@ -102,7 +102,7 @@ struct FeedView: View {
                 .accessibilityLabel("Manage sources")
             }
             Text("The world talking about your teams")
-                .dsFont(13)
+                .dsFont(15)
                 .foregroundStyle(Color.dsFgSecondary)
         }
         .padding(.horizontal, 16)
@@ -132,7 +132,7 @@ struct FeedView: View {
                 .frame(width: 16, height: 8)
                 .padding(.trailing, 12)
             Text("Customize your feed — choose which sources you see")
-                .dsFont(13, weight: .semibold)
+                .dsFont(15, weight: .semibold)
                 .foregroundStyle(.white)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
@@ -234,10 +234,10 @@ struct FeedView: View {
         VStack(spacing: 12) {
             Image(systemName: "dot.radiowaves.left.and.right")
                 .dsFont(40)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.dsFgSecondary)
             Text(emptyMessage)
-                .dsFont(15)
-                .foregroundStyle(.secondary)
+                .dsFont(16)
+                .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
         }
         .padding(32)

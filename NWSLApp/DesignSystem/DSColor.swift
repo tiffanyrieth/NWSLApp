@@ -32,9 +32,24 @@ extension Color {
     static let dsBgTertiary = Color(hex: "#3A3A3C")
 
     // MARK: Foregrounds
+    //
+    // ⚠️ CONTRAST FLOOR (owner 2026-08-11, WCAG AA — enforced by DSColorContrastTests). Only the
+    // TWO tokens marked "readable" below may carry text the user must read; below primary, quiet
+    // hierarchy comes from WEIGHT/SIZE, NOT a third dimmer color. The old `#8E8E93` secondary was
+    // 4.27:1 on a card (under AA) and tertiary/quaternary were 2.33:1 / 1.53:1 — invisible dark-on-
+    // dark text (the weather-footer bug). See CLAUDE.md UI rules + docs/decisions.md.
+
+    /// READABLE. Primary text — titles, values, anything the user reads. White, ~14:1 everywhere.
     static let dsFgPrimary = Color(hex: "#FFFFFF")
-    static let dsFgSecondary = Color(hex: "#8E8E93")
+    /// READABLE. The ONE quiet-text token — labels, captions, secondary prose. #AEAEB2 clears WCAG
+    /// AA (≥4.5:1) on EVERY surface (card 6.30, page 7.69, inset 5.13). Use this for ALL non-primary
+    /// readable text; differentiate tiers with weight (bold value vs. regular label), not a darker gray.
+    static let dsFgSecondary = Color(hex: "#AEAEB2")
+    /// ⚠️ DECORATION ONLY — NOT readable text (2.33:1 on a card, fails AA). For icons that sit beside
+    /// a readable label, disabled-button text, hairline-adjacent glyphs. Never a standalone label/sentence.
     static let dsFgTertiary = Color(hex: "#636366")
+    /// ⚠️ DECORATION ONLY — NOT readable text (1.53:1 on a card, near-invisible). For dividers, dots,
+    /// borders, and "TBD"/"VS"/"?" no-data placeholder markers. Never prose.
     static let dsFgQuaternary = Color(hex: "#48484A")
 
     // MARK: Accent (iOS system blue — the app accent)
@@ -95,6 +110,11 @@ extension Color {
     static let dsStateLive = Color(hex: "#FF453A")     // red — live
     static let dsStateClock = Color(hex: "#FF9F0A")    // orange — live clock
     static let dsStateFinal = Color(hex: "#30D158")    // green — final
+
+    // MARK: Game-time weather strip (forecast card)
+    // ⚠️ Mirror these into the design-system `colors.css` (this file promises 1:1 with it).
+    static let dsWeatherPrecip = Color(hex: "#5AC8FA")  // system cyan — precip %
+    static let dsWeatherSunset = Color(hex: "#FF9F0A")  // system orange — sunset icon
 
     // MARK: Match Detail V2 — surfaces
     static let dsMdPanel = Color(hex: "#14151C")       // header panel (navy)

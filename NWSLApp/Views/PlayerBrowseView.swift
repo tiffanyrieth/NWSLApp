@@ -41,7 +41,7 @@ struct PlayerBrowseView: View {
         List {
             Section {
                 Text("Follow players beyond your teams. Their posts appear in your Feed.")
-                    .dsFont(13).foregroundStyle(.secondary)
+                    .dsFont(15).foregroundStyle(Color.dsFgSecondary)
                     .listRowSeparator(.hidden)
                 chipBar
                     .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 4, trailing: 0))
@@ -56,13 +56,13 @@ struct PlayerBrowseView: View {
                             get: { prefs.isPlayerFollowed(player.id, isOwnTeam: isOwn) },
                             set: { prefs.setPlayerFollowed(player.id, $0, isOwnTeam: isOwn) }
                         )
-                        Toggle(isOn: binding) { Text(player.name).dsFont(15) }
+                        Toggle(isOn: binding) { Text(player.name).dsFont(16) }
                     }
                 } header: { teamHeader(abbr, following: isOwn) }
             }
             Section {
                 Text("Currently featuring \(players.count) players — more coming.")
-                    .dsFont(12).foregroundStyle(.secondary)
+                    .dsFont(13).foregroundStyle(Color.dsFgSecondary)
             }
         }
         .navigationTitle("Follow players")
@@ -88,7 +88,7 @@ struct PlayerBrowseView: View {
         } label: {
             HStack(spacing: 5) {
                 if crest, let abbr { TeamLogo(urlString: nil, teamAbbreviation: abbr, size: 18) }
-                Text(label).dsFont(13, weight: .semibold)
+                Text(label).dsFont(15, weight: .semibold)
             }
             .padding(.horizontal, 12).padding(.vertical, 7)
             .background(Capsule().fill(selected ? Color.dsAccent : Color.dsBgCard))
@@ -100,9 +100,9 @@ struct PlayerBrowseView: View {
     private func teamHeader(_ abbr: String, following: Bool) -> some View {
         HStack(spacing: 8) {
             TeamLogo(urlString: nil, teamAbbreviation: abbr, size: 22)
-            Text((teamNames[abbr] ?? abbr).uppercased()).dsFont(12, weight: .bold).foregroundStyle(.secondary)
+            Text((teamNames[abbr] ?? abbr).uppercased()).dsFont(13, weight: .bold).foregroundStyle(Color.dsFgSecondary)
             if following {
-                Text("FOLLOWING").dsFont(12, weight: .bold).foregroundStyle(Color.dsSuccess)
+                Text("FOLLOWING").dsFont(13, weight: .bold).foregroundStyle(Color.dsSuccess)
             }
             Spacer()
         }

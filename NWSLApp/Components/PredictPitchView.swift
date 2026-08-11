@@ -102,7 +102,7 @@ struct PredictPitchView: View {
                 }
             }
             Text(shortName(starter.name))
-                .dsFont(12, weight: .semibold)
+                .dsFont(13, weight: .semibold)
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)

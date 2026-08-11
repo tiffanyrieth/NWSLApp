@@ -183,7 +183,7 @@ struct MatchCard: View {
             }
             if let venue = event.venueName {
                 Text(venue)
-                    .dsFont(12)
+                    .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)

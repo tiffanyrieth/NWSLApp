@@ -33,6 +33,19 @@ state; restoring saved ~2 taps of 16. **Failed alternative:** a restore-down hij
 when the alert-bell intercept let a user sign in mid-onboarding, and "only the oldest follow survives" was a
 data-loss bug. Full mechanism: `docs/data-sync.md`; owner ruling 2026-08-03.
 
+### Predict graded results are SERVER-DURABLE (supersedes part of the 2026-08-03 storage line)
+Owner ruling 2026-08-10. The 2026-08-03 data-sync audit filed Predict's per-match score breakdowns
+(`predict.v2.scores`) as Category-3 local-only ("per-match detail × every user = real DB growth").
+A real reinstall that same week showed the cost: the owner lost her Recent Results + round board,
+and — combined with the board-rendering bug fixed the same day — appeared to lose her leaderboard
+standing, exactly the "starting over" the Category-2 acceptance bar promises can't happen. **Ruling:**
+graded results (breakdown + the submitted XI, needed to re-render predicted-vs-actual) upload
+POST-GRADING to `predict_match_results` (own-row RLS) and restore at sign-in. ~26 rows × ~300B per
+user per season is inside the cost rule; the storage line was drawn for unbounded per-round detail,
+not for this. **Unchanged and still binding:** pre-deadline lineups are NEVER uploaded (the
+community-consensus protections); the plain-upsert merge is deliberate (a regrade must rewrite —
+don't "fix" it into a GREATEST). Mechanism: `docs/data-sync.md` Category 2.
+
 ### Notifications are OPT-IN — no dark patterns
 Nothing auto-enables at onboarding/launch; the user turns on exactly what they want. The single nuance: an
 EXPLICIT match-alert bell tap IS the opt-in, so it cascades the full default bundle the FIRST time

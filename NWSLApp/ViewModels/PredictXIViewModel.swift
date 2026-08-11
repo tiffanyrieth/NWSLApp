@@ -71,12 +71,9 @@ final class PredictXIViewModel {
 
     /// The season card's per-team standing: the signed-in user's true rank (nil if signed out / unranked)
     /// and the TOTAL predictor count for the "#N of M · top X%" line. Populated in `loadLeaderboards`.
-    /// `serverAvg` is MY average as the SERVER has it (`prediction_scores`), independent of anything
-    /// stored on this device. The season card falls back to it when local state is empty, so a wiped
-    /// or reinstalled device can't show "Predict …'s XI to join the board" while the leaderboard
-    /// directly beneath it still ranks the user. nil = the server has no scored row for me either,
-    /// which is the honest "not on the board yet".
-    struct TeamStanding: Equatable { let rank: Int?; let total: Int; var serverAvg: Double? = nil }
+    /// The rank derives from `LeaderboardRanking.effectiveStanding` — the fuller of the local store and
+    /// the user's own server row — so a wiped/reinstalled device ranks from server truth (2026-08-10).
+    struct TeamStanding: Equatable { let rank: Int?; let total: Int }
     private(set) var standingByTeam: [String: TeamStanding] = [:]
 
     /// The ROUND boards — one per team, for that team's most relevant soccer week (the current week
@@ -133,7 +130,7 @@ final class PredictXIViewModel {
             store: store)
         #endif
 
-        await scoreSettledSubmissions(store: store)
+        await scoreSettledSubmissions(store: store, auth: auth)
         await loadLeaderboards(store: store, auth: auth)
 
         // Game Center: push the (cross-team) season-points total. Best-effort,
@@ -230,10 +227,31 @@ final class PredictXIViewModel {
         Diagnostics.shared.record(.unexpectedEmpty, "predict re-grading \(fixtureID): \(why)")
     }
 
+    /// Whether server writes are allowed this run — false only under the DEBUG preview seed
+    /// (a fake result pushed to the real, max-merged rows could never be taken back down).
+    private var allowServerWrites: Bool {
+        #if DEBUG
+        return !DebugPredictSeed.isActive
+        #else
+        return true
+        #endif
+    }
+
+    /// Bank a freshly graded result in `predict_match_results` (reinstall durability, 2026-08-10).
+    /// The marker is set only on a landed write, so a failure retries via the backfill next load.
+    private func bankResult(prediction: XIPrediction, score: PredictionScore,
+                            store: PredictionStore, auth: AuthStore) async {
+        guard let userID = auth.userID, allowServerWrites else { return }
+        let landed = await leaderboardService.upsertMatchResult(
+            prediction: prediction, score: score, userID: userID, season: Self.currentSeason)
+        if landed { store.markResultUploaded(fixtureID: prediction.fixtureID) }
+    }
+
     /// For each submitted-but-unscored prediction whose match has finished, fetch
-    /// `/summary`, build the answer key, score it, and persist. Best-effort: a
-    /// failed fetch just retries on the next load.
-    private func scoreSettledSubmissions(store: PredictionStore) async {
+    /// `/summary`, build the answer key, score it, and persist — then bank the graded
+    /// result server-side (reinstall durability). Best-effort: a failed fetch just
+    /// retries on the next load.
+    private func scoreSettledSubmissions(store: PredictionStore, auth: AuthStore) async {
         regradeStaleScores(store: store)
         for fixtureID in store.submittedAwaitingScore {
             guard let prediction = store.prediction(for: fixtureID),
@@ -256,6 +274,7 @@ final class PredictXIViewModel {
                     score.gradedHomeScore = homeScore
                     score.gradedAwayScore = awayScore
                     store.recordScore(score, for: fixtureID)
+                    await bankResult(prediction: prediction, score: score, store: store, auth: auth)
                 }
             } catch {
                 // Leave it unscored; the next load tries again (proxy caches the
@@ -473,16 +492,21 @@ final class PredictXIViewModel {
     private func loadLeaderboards(store: PredictionStore, auth: AuthStore) async {
         let season = Self.currentSeason
 
-        #if DEBUG
-        // ⚠️ A seeded result is FAKE, and both `prediction_scores` and `predict_season_bests` are
-        // max-merged — one fake push would raise the real row permanently, with no way back down.
-        // So the preview scaffold reads the boards but never writes to them.
-        let allowServerWrites = !DebugPredictSeed.isActive
-        #else
-        let allowServerWrites = true
-        #endif
-
+        // ⚠️ `allowServerWrites` (property): a seeded result is FAKE, and both `prediction_scores`
+        // and `predict_season_bests` are max-merged — one fake push would raise the real row
+        // permanently, with no way back down. So the preview scaffold reads, never writes.
         if let userID = auth.userID, allowServerWrites {
+            // One-time history BACKFILL into predict_match_results: bank any locally graded result
+            // whose server row hasn't landed. Existing devices upload their season history on the
+            // first run of this build (≤ ~26 idempotent upserts); the marker short-circuits every
+            // later load to a no-op. Restored rows arrive pre-marked, so they never round-trip.
+            for fixtureID in store.scores.keys where !store.hasUploadedResult(fixtureID: fixtureID) {
+                guard let prediction = store.prediction(for: fixtureID),
+                      let score = store.score(for: fixtureID) else { continue }
+                let landed = await leaderboardService.upsertMatchResult(
+                    prediction: prediction, score: score, userID: userID, season: season)
+                if landed { store.markResultUploaded(fixtureID: prediction.fixtureID) }
+            }
             for team in store.scoredTeams {
                 await leaderboardService.upsertScore(
                     teamAbbreviation: team, points: store.points(forTeam: team),
@@ -503,10 +527,16 @@ final class PredictXIViewModel {
             }
         }
 
-        // Boards to show: the teams you're predicting now (slate, soonest first) plus
-        // any extra team you've scored in.
+        // Boards to show: the teams you're predicting now (slate, soonest first), any extra team
+        // you've scored in locally — and, signed in, any team the SERVER holds a season row for.
+        // The last one is the reinstall path: local `scoredTeams` is empty until the results
+        // restore lands, but your boards must come back immediately (2026-08-10).
         var teams = upcomingFixtures.map(\.teamAbbreviation)
         for team in store.scoredTeams where !teams.contains(team) { teams.append(team) }
+        if let userID = auth.userID {
+            for team in await leaderboardService.myTeams(season: season, userID: userID)
+            where !teams.contains(team) { teams.append(team) }
+        }
 
         var boards: [(team: String, rows: [LeaderboardRow])] = []
         var rounds: [(team: String, week: Int, weekLabel: String, rows: [LeaderboardRow])] = []
@@ -515,15 +545,26 @@ final class PredictXIViewModel {
             let standings = await leaderboardService.standings(teamAbbreviation: team, season: season)
             let myPoints = store.points(forTeam: team)
             let myMatches = store.scoredMatchCount(forTeam: team)
-            let myAvg = myMatches > 0 ? Double(myPoints) / Double(myMatches) : 0
+            // The You-row's source of truth: the FULLER of the local store and my own server row
+            // (both monotonic — see effectiveStanding). A wiped device ranks from server truth;
+            // a device with an unpushed fresh score ranks from local. One value drives the rank
+            // query, the You row, and the season card, so they can never disagree (the old
+            // dual-source gap, docs/data-sync.md).
+            let local: LeaderboardRanking.SeasonStanding? = myMatches > 0
+                ? .init(points: myPoints, matches: myMatches, avg: Double(myPoints) / Double(myMatches))
+                : nil
+            var server: LeaderboardRanking.SeasonStanding?
+            if let userID = auth.userID {
+                server = await leaderboardService.myScore(teamAbbreviation: team, season: season, userID: userID)
+            }
+            let mine = LeaderboardRanking.effectiveStanding(local: local, server: server)
             // Recency-to-remain (2026-08-04): a signed-in user ranks from their FIRST scored match — no
-            // entry gate. (They just scored, so they're inside the recency window and appear immediately.)
-            // Only a ranked user needs a rank lookup; the SEASON board ranks by AVERAGE per match.
-            let isMeRanked = auth.userID != nil && myMatches >= 1
+            // entry gate. The rank lookup keys on EITHER source holding a match (not just local, the
+            // 2026-08-10 reinstall fix); the SEASON board ranks by AVERAGE per match.
             var trueRank: Int?
-            if isMeRanked {
+            if auth.userID != nil, let mine {
                 trueRank = await leaderboardService.rank(
-                    teamAbbreviation: team, season: season, avgPoints: myAvg)
+                    teamAbbreviation: team, season: season, avgPoints: mine.avg)
             }
             // The season card's "#N of M predictors" total (public — fetched regardless of sign-in).
             let total = await leaderboardService.totalPredictors(teamAbbreviation: team, season: season)
@@ -531,14 +572,9 @@ final class PredictXIViewModel {
             // server's predictor count (a "#15 of 14"); clamp the shown total up so rank ≤ total always.
             let shownTotal = max(total, trueRank ?? 0)
             let rows = rankedRows(
-                team: team, standings: standings, trueRank: trueRank, store: store, auth: auth,
-                points: myPoints, seasonAvg: myAvg, seasonMatches: myMatches)
-            // My average as the SERVER has it — read off my own row on the board we just built, so it
-            // costs no extra request. Used only as a FALLBACK when this device has no local scores
-            // (wipe / reinstall / new device); local stays authoritative when present, since it
-            // includes anything scored since the last board fetch.
-            let serverAvg = myMatches == 0 ? rows.first(where: { $0.isYou })?.avg : nil
-            teamStandings[team] = TeamStanding(rank: trueRank, total: shownTotal, serverAvg: serverAvg)
+                team: team, standings: standings, trueRank: trueRank, auth: auth,
+                points: mine?.points ?? 0, seasonAvg: mine?.avg ?? 0, seasonMatches: mine?.matches ?? 0)
+            teamStandings[team] = TeamStanding(rank: trueRank, total: shownTotal)
             boards.append((team: team, rows: rows))
 
             // The round board: the current week once it has any of MY scores, else my latest scored
@@ -555,7 +591,7 @@ final class PredictXIViewModel {
                 }
                 rounds.append((team: team, week: week, weekLabel: FanZoneCadence.weekLabel(week: week),
                                rows: rankedRows(team: team, standings: roundStandings,
-                                                trueRank: roundTrueRank, store: store, auth: auth,
+                                                trueRank: roundTrueRank, auth: auth,
                                                 points: weekPoints)))
             }
         }
@@ -580,15 +616,24 @@ final class PredictXIViewModel {
     /// count (the display metric) and the "You" splice uses the caller's live local average. Nil ⇒ the
     /// round board: rows show the week's raw `points`.
     private func rankedRows(team: String, standings: [PredictLeaderboardService.Standing],
-                            trueRank: Int?, store: PredictionStore, auth: AuthStore,
+                            trueRank: Int?, auth: AuthStore,
                             points: Int, seasonAvg: Double? = nil, seasonMatches: Int? = nil) -> [LeaderboardRow] {
+        Self.rankedRows(standings: standings, trueRank: trueRank,
+                        myID: auth.userID?.uuidString, myName: auth.displayName ?? "You",
+                        points: points, seasonAvg: seasonAvg, seasonMatches: seasonMatches)
+    }
+
+    /// The board-assembly core, pure and static so the splice rules — especially the never-drop-
+    /// without-a-replacement guard — are unit-testable without an AuthStore or network.
+    static func rankedRows(standings: [PredictLeaderboardService.Standing],
+                           trueRank: Int?, myID: String?, myName: String,
+                           points: Int, seasonAvg: Double? = nil, seasonMatches: Int? = nil) -> [LeaderboardRow] {
         // ⚠️ LOWERCASE BOTH SIDES. Swift's `UUID.uuidString` is UPPERCASE; PostgREST returns a uuid
         // as a lowercase string. Comparing them raw can NEVER match, so the user's own server row
         // survived into `rivals` and her live "You" row was then spliced in beside it — the board
         // showed her TWICE (proven 2026-07-29: one row in `prediction_scores`, two rendered).
         // `BracketService.swift` has always guarded this ("never double the user"); Predict didn't.
-        let myID = auth.userID?.uuidString.lowercased()
-        let myName = auth.displayName ?? "You"
+        let myID = myID?.lowercased()
         let myPoints = points   // season total OR one week's sum — the caller picks the clock
         let rivals = standings.filter { $0.userID.lowercased() != myID }
 
@@ -606,7 +651,22 @@ final class PredictXIViewModel {
 
         switch LeaderboardRanking.placement(trueRank: trueRank, cappedRivalCount: rivals.count) {
         case .none:
-            // Signed out: just the top rivals, no "You" row.
+            // ⚠️ trueRank nil ≠ "not on the board" (2026-08-10). The rank COUNT query can fail (or
+            // be skipped) while my REAL row sits in the fetched standings — and the `rivals` filter
+            // above has already removed it. Dropping a row without splicing a replacement is the
+            // reinstall-erasure bug: the user vanishes from their own board while everyone else
+            // still sees them ranked. So if my row is among the fetched standings, keep it in
+            // place, flagged as mine (its server values are the honest display). Only a truly
+            // signed-out / no-row user gets the plain rivals list.
+            if let myID, let mineIdx = standings.firstIndex(where: { $0.userID.lowercased() == myID }) {
+                return standings.enumerated().map { i, s in
+                    i == mineIdx
+                        ? LeaderboardRow(rank: i + 1, name: myName, points: s.points, isYou: true,
+                                         avg: seasonAvg == nil ? nil : s.avg,
+                                         matches: seasonAvg == nil ? nil : s.matches)
+                        : rivalRow(i + 1, s)
+                }
+            }
             return rivals.enumerated().map { rivalRow($0 + 1, $1) }
         case .inline(let slot):
             // Insert "You" at your slot, then number sequentially and cap to the window.

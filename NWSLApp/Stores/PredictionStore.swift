@@ -72,6 +72,14 @@ final class PredictionStore {
     /// next-day "results are in" push then correctly skips that user).
     private(set) var uploadedResultSeenFixtureIDs: Set<String>
 
+    /// Fixture ids whose GRADED RESULT row has landed in `predict_match_results` (reinstall
+    /// durability, 2026-08-10). Local fast-path only — the server PK is the real idempotency, so a
+    /// wrong value costs at most a redundant upsert. ⚠️ Deliberately NOT pruned by
+    /// `pruneStaleMarkers`: `scores` itself is season-bounded, and pruning this marker would make
+    /// the one-time history backfill re-upsert everything on every load. Cleared per-fixture in
+    /// `clearScore` (a regraded result must re-upload).
+    private(set) var uploadedResultFixtureIDs: Set<String>
+
     /// Personal bests, season-scoped so a new March resets them.
     private(set) var seasonBests: PredictSeasonBests
 
@@ -99,6 +107,7 @@ final class PredictionStore {
         static let seenResults = "predict.v2.seenResults"
         static let uploadedPicks = "predict.v2.uploadedPicks"
         static let uploadedResultSeen = "predict.v2.uploadedResultSeen"
+        static let uploadedResults = "predict.v2.uploadedResults"
         static let seasonBests = "predict.v2.seasonBests"
         static let roundRanks = "predict.v2.roundRanks"
         static let lastLineups = "predict.v2.lastLineups"
@@ -115,6 +124,7 @@ final class PredictionStore {
         self.seenResultFixtureIDs = Self.decode(Set<String>.self, defaults.data(forKey: Key.seenResults)) ?? []
         self.uploadedPickFixtureIDs = Self.decode(Set<String>.self, defaults.data(forKey: Key.uploadedPicks)) ?? []
         self.uploadedResultSeenFixtureIDs = Self.decode(Set<String>.self, defaults.data(forKey: Key.uploadedResultSeen)) ?? []
+        self.uploadedResultFixtureIDs = Self.decode(Set<String>.self, defaults.data(forKey: Key.uploadedResults)) ?? []
         self.roundRankByFixture = Self.decode([String: Int].self, defaults.data(forKey: Key.roundRanks)) ?? [:]
         self.lastLineupByTeam = Self.decode([String: SavedLineup].self, defaults.data(forKey: Key.lastLineups)) ?? [:]
         let storedBests = Self.decode(PredictSeasonBests.self, defaults.data(forKey: Key.seasonBests))
@@ -319,6 +329,39 @@ final class PredictionStore {
         persist()
     }
 
+    func hasUploadedResult(fixtureID: String) -> Bool { uploadedResultFixtureIDs.contains(fixtureID) }
+
+    /// Mark a graded result's server row as landed (call only after the upsert succeeds).
+    func markResultUploaded(fixtureID: String) {
+        guard !uploadedResultFixtureIDs.contains(fixtureID) else { return }
+        uploadedResultFixtureIDs.insert(fixtureID)
+        persist()
+    }
+
+    /// Adopt graded results restored from `predict_match_results` (reinstall / replacement phone).
+    ///
+    /// Merge rule: LOCAL ALWAYS WINS — a fixture with ANY local state (a live draft, a submitted
+    /// pick awaiting score, or its own grade) is skipped outright; the server only fills holes.
+    /// Restored rows are marked SEEN (history, not news — a reveal must never re-fire for a result
+    /// the user watched on the old device) and UPLOADED (they came FROM the server; the backfill
+    /// must not push them back). Writing `predictions` directly is restore-only and safe: the
+    /// deadline gate in `submit` guards ACTIONS, and these rows are past grading by construction.
+    func restoreGradedResults(_ rows: [(prediction: XIPrediction, score: PredictionScore)]) {
+        var changed = false
+        for row in rows {
+            let id = row.prediction.fixtureID
+            guard predictions[id] == nil, scores[id] == nil else { continue }
+            predictions[id] = row.prediction
+            scores[id] = row.score
+            seenResultFixtureIDs.insert(id)
+            uploadedResultFixtureIDs.insert(id)
+            changed = true
+        }
+        guard changed else { return }
+        seasonPoints = scores.values.reduce(0) { $0 + $1.total }
+        persist()
+    }
+
     func hasUploadedResultSeen(fixtureID: String) -> Bool { uploadedResultSeenFixtureIDs.contains(fixtureID) }
 
     /// Mark the server "result seen" write as landed for this fixture (call only after the upsert succeeds).
@@ -380,6 +423,8 @@ final class PredictionStore {
         scores[fixtureID] = nil
         seasonPoints = scores.values.reduce(0) { $0 + $1.total }
         unmarkResultSeen(fixtureID: fixtureID)
+        // The banked server row is now stale too — dropping the marker makes the re-grade re-upload.
+        uploadedResultFixtureIDs.remove(fixtureID)
         persist()
     }
 
@@ -400,6 +445,7 @@ final class PredictionStore {
         defaults.set(try? JSONEncoder().encode(seenResultFixtureIDs), forKey: Key.seenResults)
         defaults.set(try? JSONEncoder().encode(uploadedPickFixtureIDs), forKey: Key.uploadedPicks)
         defaults.set(try? JSONEncoder().encode(uploadedResultSeenFixtureIDs), forKey: Key.uploadedResultSeen)
+        defaults.set(try? JSONEncoder().encode(uploadedResultFixtureIDs), forKey: Key.uploadedResults)
         defaults.set(try? JSONEncoder().encode(seasonBests), forKey: Key.seasonBests)
         defaults.set(try? JSONEncoder().encode(roundRankByFixture), forKey: Key.roundRanks)
         defaults.set(try? JSONEncoder().encode(lastLineupByTeam), forKey: Key.lastLineups)
@@ -418,6 +464,7 @@ final class PredictionStore {
         seenResultFixtureIDs = []
         uploadedPickFixtureIDs = []
         uploadedResultSeenFixtureIDs = []
+        uploadedResultFixtureIDs = []
         seasonBests = .empty(season: seasonBests.season)
         roundRankByFixture = [:]
         lastLineupByTeam = [:]
@@ -441,6 +488,7 @@ final class PredictionStore {
         seenResultFixtureIDs.remove(fixtureID)
         uploadedPickFixtureIDs.remove(fixtureID)
         uploadedResultSeenFixtureIDs.remove(fixtureID)
+        uploadedResultFixtureIDs.remove(fixtureID)
         roundRankByFixture[fixtureID] = nil
         seasonPoints = scores.values.reduce(0) { $0 + $1.total }
         persist()
@@ -466,6 +514,7 @@ final class PredictionStore {
         defaults.set(Data(), forKey: Key.seenResults)
         defaults.set(Data(), forKey: Key.uploadedPicks)
         defaults.set(Data(), forKey: Key.uploadedResultSeen)
+        defaults.set(Data(), forKey: Key.uploadedResults)
         defaults.set(Data(), forKey: Key.seasonBests)
         defaults.set(Data(), forKey: Key.roundRanks)
         defaults.set(Data(), forKey: Key.lastLineups)

@@ -41,6 +41,9 @@ final class ProgressSyncCoordinator {
     private let auth: AuthStore
     private let service: ProgressSyncService
     private let superfan: SuperfanService
+    /// Predict's own server tables (prediction_scores / predict_match_results / predict_season_bests)
+    /// — the sign-in RESTORE reads them down here (2026-08-10; before that, Predict restored nothing).
+    private let predictBoard: PredictLeaderboardService
 
     /// Last user id we restored for, so the (network) restore runs once per sign-in,
     /// not on every observation tick.
@@ -49,7 +52,8 @@ final class ProgressSyncCoordinator {
     init(trivia: TriviaStore, knowHer: KnowHerGameStore,
          predict: PredictionStore, bracket: BracketStore, auth: AuthStore,
          service: ProgressSyncService = ProgressSyncService(),
-         superfan: SuperfanService = SuperfanService()) {
+         superfan: SuperfanService = SuperfanService(),
+         predictBoard: PredictLeaderboardService = PredictLeaderboardService()) {
         self.trivia = trivia
         self.knowHer = knowHer
         self.predict = predict
@@ -57,6 +61,7 @@ final class ProgressSyncCoordinator {
         self.auth = auth
         self.service = service
         self.superfan = superfan
+        self.predictBoard = predictBoard
     }
 
     /// Call once from RootTabView (after auth.restoreSession, like FollowSyncCoordinator.start).
@@ -91,10 +96,14 @@ final class ProgressSyncCoordinator {
         Task {
             let year = AppConfig.currentSeasonYear
 
-            // ⚠️ SUPERFAN FIRST, and deliberately OUTSIDE the `fanzone_progress` guard below.
-            // A Predict/Bracket-only player has NO fanzone_progress row at all (that table carries
-            // only Trivia + Know Her Game), yet can have a rich superfan_scores row — so running this
-            // after the guard would skip exactly the replacement-phone user it exists to serve.
+            // ⚠️ PREDICT FIRST, then SUPERFAN — BOTH deliberately OUTSIDE the `fanzone_progress`
+            // guard below. A Predict/Bracket-only player has NO fanzone_progress row at all (that
+            // table carries only Trivia + Know Her Game), yet can have rich Predict/superfan rows —
+            // so running these after the guard would skip exactly the replacement-phone user they
+            // exist to serve. Predict-before-Superfan so `SuperfanCounts.fromStores` already sees
+            // the restored Predict numerator/denominator (harmless either way — the GREATEST merge
+            // floors it — but this makes the first post-restore number right immediately).
+            await restorePredict(season: String(year))
             await mergeSuperfan(userID: userID, year: year)
 
             guard let server = await service.fetch(userID: userID, season: String(year)) else {
@@ -125,6 +134,21 @@ final class ProgressSyncCoordinator {
             // side (e.g. an offline play followed by sign-in on the same device).
             await service.upload(merged, userID: userID)
         }
+    }
+
+    /// Restore Predict's server-durable state at sign-in (reinstall / replacement phone, 2026-08-10):
+    /// season bests (the superlative ladder's baselines — the read + merge both existed, this call
+    /// was the missing wire) and the season's graded match results (predict_match_results →
+    /// `restoreGradedResults`, whose skip-if-local merge means a device with fresher state adopts
+    /// nothing). Both best-effort: a failed read logs to Diagnostics and the next sign-in
+    /// observation or launch retries; the boards still render from the server rows meanwhile.
+    private func restorePredict(season: String) async {
+        if let bests = await predictBoard.seasonBests(season: season) {
+            predict.mergeSeasonBests(bests)
+        }
+        let restored = await predictBoard.matchResults(season: season)
+        guard !restored.isEmpty else { return }
+        predict.restoreGradedResults(restored.map { ($0.prediction, $0.score) })
     }
 
     /// Adopt the server's Superfan counts at sign-in, so Home and Game Center show the real score on

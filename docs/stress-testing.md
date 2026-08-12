@@ -256,6 +256,13 @@ For each subsystem, walk it explicitly:
 - [x] **Predict the XI community aggregate + `/predict/community`** — PASSES 1k (2026-07-28). Flat-in-user-count
       counter table; the only per-user growth is a 28-day-pruned dedupe mark. See §7.
 
+- [x] **KHG verify-gate weekend/Monday split (`publishVerifiedPool` + watcher Monday pass)** — PASSES 1k/100k
+      trivially (2026-08-12). It's a **content-publish** path, **flat in user count** — the load doesn't move
+      whether 1k or 100k fans play. Per biweekly cycle: a handful of KV reads/writes (2 candidate keys + 1 pool
+      write + the featured-ledger read/write) and ONE `fetchStatsForMany(16)` ESPN batch, inside a single
+      watcher invocation gated once/week — well under the free 50-subrequest cap and the KV free tier. The 24h/72h
+      candidate TTLs auto-expire. Nothing here scales with users. See §7.
+
 ## 7. Status ledger
 
 - **All-NT V2 Live Activity extension (2026-08-06): ✅ GO at 1k — batched token lookup is a MERGE

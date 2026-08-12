@@ -426,13 +426,6 @@
   abbreviations + followed-team bar + last-5 form vs the crest-only norm at PL/MLS/Google); a wash would
   cost readability with no data gain. Residual candidates only: **Home header** + the **Squad grid**
   (scope per-surface; keep the neutral-canvas rule — color from the TEAMS, not global chrome).
-- **⛔-adjacent, own session: V2 LA card saturation → match Apple Sports (owner 2026-08-06).** The
-  `activityBackgroundTint` 0.85→1.0 solid fix (build 33) closed the biggest gap — the wallpaper bleed-through
-  that muted colors. A FURTHER step, if ever wanted: Apple carries a saturated team-color FIELD across the
-  whole card width and darkens vertically, vs ours fading each team to CLEAR in the center (our personality).
-  Matching that = reshaping the widget `teamWash` gradient (kill the clear center), NOT a knob — fragile V2-LA
-  work, dedicated session + device verify. Owner is NOT copying Apple's look for now; logged so the mechanism
-  isn't re-derived. See `docs/live-activity-v2.md` §9 (8/6 entry e).
 
 **Hardening (after ALIVE work):**
 - Team social links — verify a few subreddit handles (KC `r/KCCurrent`; CHI `r/redstars` vs `r/ChicagoStars`).

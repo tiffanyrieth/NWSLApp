@@ -62,6 +62,18 @@ better model — a player who PLAYED an edition experienced it; deleting the art
 ONLY legitimate reclaim is a same-`weekKey` content correction. Full reasoning: `docs/know-her-game.md` +
 `.claude/rules/fan-zone.md` gate #7.
 
+### Know Her Game verify gate — WEEKEND/MONDAY split + Lever 1, NOT hold-the-whole-run (owner 2026-08-12)
+The verify gate (generate→verify→publish, so the publisher isn't the writer) was split across the week:
+HUMAN questions **generate + verify on the WEEKEND** (human-only, tiered re-search — heavy on fun facts, light
+source-check on career), and **stats inject + the pool publishes MONDAY** (fresh ESPN, so Sunday-night games
+count). **Why:** the owner needs a weekend correction window (a future office schedule leaves no Monday-morning
+window before the 10am nudge), and stat questions are season-cumulative so they must be Monday-fresh. **This
+SUPERSEDES the 2026-08-11 "if any player can't reach 8 confirmed human questions, HOLD THE WHOLE RUN" rule** —
+holding let the (device-local, fixed) Monday nudge fire on stale content. Replaced by **Lever 1**: a short
+player is topped to the 10-floor with deterministic ESPN stats (cap 5) rather than held; only a <5-human player
+holds, and that surfaces at the weekend verify-stage where it's fixable. **Do NOT "restore" hold-the-whole-run**
+— it was reversed on purpose. Full design + reasoning: `docs/know-her-game.md §5c`.
+
 ### The proxy pass-through has ONE allowed body mutation — attendance enrichment (owner 2026-08-11)
 The ESPN pass-through's contract is bytes-unchanged (app decoders never see proxy-authored JSON). The single
 exception: the `/summary` enrich hook may fill `gameInfo.attendance` when it is 0/absent on a SETTLED match,

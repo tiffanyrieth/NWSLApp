@@ -297,7 +297,7 @@ The built loop (proxy repo, branch → PR):
    `playerSpotlight` opt-in) — unchanged, works signed-out.
 Runbook = `scripts/knowher-weekly-routine.md` (the routine's committed instruction set).
 
-## 5c. ✅ THE VERIFY GATE — generate → verify → publish (2026-08-11, owner-approved; being rolled out)
+## 5c. ✅ THE VERIFY GATE — generate → verify → publish, WEEKEND/MONDAY SPLIT (2026-08-12, owner-approved)
 
 **Why it exists.** The 2026-W33 v2 run (with the new personality-quota prompt) wrote genuinely good, sourced
 questions — then **hallucinated its own end-of-run review**: it *reported* personality facts ("art school,
@@ -307,41 +307,82 @@ reconstructs a plausible version instead of reading back what it wrote. Prompt f
 *prevent* it: a generator judging its own work is the structural flaw. So the pipeline was split so the thing
 that PUBLISHES is not the thing that WROTE.
 
-**The three stages (generator can't publish; only the verifier can):**
-1. **GENERATE** (`knowher-weekly-routine.md`, now the "generator" half) — researches + writes as before, but
-   (a) every human question now carries a **`source` URL** it was verified from, and (b) it **STAGES** the
-   pool to `POST /knowher/candidate` (auth: the weaker `CANDIDATE_KEY`, stage-only) instead of publishing. A
-   candidate is NOT live and does NOT advance the featured ledger.
-2. **VERIFY** (`knowher-verify-routine.md`, NEW, chained after generate) — reads the candidate back
-   (`GET /knowher/candidate`, auth: the publish key), and for **every human fact does an INDEPENDENT fresh
-   search to re-confirm it** — never just re-reads the generator's cited URL (that would inherit a misread).
-   Adversarial framing: try to disprove; default to DROP. Drops UNCONFIRMED/WRONG questions. **Repair rule
-   (owner 2026-08-11): drop-and-backfill from the player's OWN confirmed facts; if ANY player can't reach 8
-   confirmed human questions, HOLD THE WHOLE RUN** — publish nothing, last edition stays live (never invent,
-   never pad with stat questions). If everything clears, the verifier **publishes** via `/knowher/ingest`.
-3. **PUBLISH** — unchanged `/knowher/ingest`, but now only ever called by the verifier on a gate-passed pool;
-   the ledger advances here as before. Ingest now REQUIRES `source` on every human question.
+**Why the WEEKEND/MONDAY split (2026-08-12, supersedes the 2026-08-11 single-weekend HOLD design).** Two
+constraints reshaped the cadence: (1) the owner needs a **correction window** — once she's on a full-time
+office schedule she can't hand-fix a bad round on a Monday morning before the 10am nudge, so verification has
+to finish on the **weekend** (her downtime). (2) Stat questions are exact-number MC on **season-cumulative**
+totals, so a Sunday-night game (a hat trick) changes them — stats must be built from ESPN data **current as
+of Monday**, not frozen over the weekend. Human facts (career, fun facts) are NOT time-sensitive, so they can
+generate + verify on the weekend while stats stay Monday. This also replaces the old *hold-the-whole-run*
+rule (which would let the Monday nudge fire on stale content) with **Lever 1**, a deterministic stat top-up
+that guarantees an on-time publish.
 
-**Proxy mechanism (`src/knowher.ts` + `src/index.ts`, deployed 2026-08-11):**
+**The three stages (generator can't publish; only Monday's watcher pass does):**
+1. **GENERATE — weekend** (`knowher-weekly-routine.md`) — researches + writes **8–9 HUMAN questions/player,
+   each with a `source` URL, and NO stat questions**, then **STAGES a human-only candidate** to
+   `POST /knowher/candidate` (auth: the weaker `CANDIDATE_KEY`, stage-only). Not live; ledger untouched.
+   ⚠️ **Weekend targeting:** the assembler stamps the weekKey + biweekly-gates on the **coming Monday**
+   (`targetPublishMonday`), NOT the generation day — a weekend run is in the ISO week *before* go-live, so
+   without this a Saturday run would mis-stamp the edition a week early and gate on the wrong parity. Override
+   `KHG_PUBLISH_MONDAY=YYYY-MM-DD` forces a target (supervised test / manual re-run).
+2. **VERIFY — weekend** (`knowher-verify-routine.md`, chained after generate) — reads the human-only candidate
+   (`GET /knowher/candidate`, publish key) and re-confirms **TIERED by risk**: **fun facts** (personality/
+   off-field — where fabrication lives) get a **heavy independent fresh search** (never just re-read the cited
+   URL — that inherits a misread); **career/bio** facts (clubs/college/caps/position/honours) get a **light
+   source-consistency check** (open the `source`, confirm it supports the claim). Adversarial; default to DROP.
+   Drop-and-backfill from the player's OWN confirmed facts. Then **stages a VERIFIED human-only pool** to
+   `POST /knowher/candidate/verified`. **No hold-the-whole-run:** a player at **5–7** human still ships (Monday
+   Lever 1 tops her up) and is FLAGGED for the owner's weekend window; a player below **5** can't reach the
+   floor even at the stat cap, so the verified-stage endpoint rejects the pool (a HOLD that surfaces on the
+   weekend, when it's fixable). The verifier never touches stats and never publishes.
+3. **PUBLISH — Monday ~10:00 UTC** (`publishVerifiedPool`, triggered by the match-watcher's Monday time-gated
+   pass via the service binding) — reads the verified pool, injects **fresh** ESPN stats (2/player) + **Lever
+   1**, and calls the existing `publishKnowHerPool` (ledger advances here). Then the on-device Monday-10am-local
+   nudge fires.
+
+**Lever 1 (deterministic, `publishVerifiedPool`).** Each player gets the standard 2 stats. A player left below
+the app's **10-question floor** is topped up with EXTRA deterministic stat questions (up to **5** total,
+mirroring `MAX_STAT_QUESTIONS`) rather than holding the run — so the nudge never fires on stale content. A
+player so thin even the cap can't reach 10 (<5 human) HOLDS the whole run (last edition stays) — but that case
+is already caught at the weekend verify-stage, so Monday's hold is the rare backstop-to-the-backstop. Every
+outcome (published / lever-1-topped / held) emits `sdiag` — an unattended 3am publish must be loud.
+
+**Proxy mechanism (`src/knowher.ts` + `src/knowher-stats.ts` + `src/index.ts`; watcher `src/index.ts`):**
 - `KnowHerQuestion.source?: string` — optional in the type (app ignores it → every shipped build keeps
   decoding), but the validator's `requireSource` opt makes it MANDATORY on human questions for the automated
-  candidate + ingest paths (manual admin single-player upsert stays lenient).
-- `KNOWHER_CANDIDATE_KEY` (KV `knowher:candidate-v1`, 6h TTL) — the staged, not-live pool. `stageKnowHerCandidate`
-  validates (shape + all-clubs + source) but never marks featured; `readKnowHerCandidate` is the verifier's read.
-- `POST /knowher/candidate` (generator, `x-candidate-key`) · `GET /knowher/candidate` (verifier, `x-ingest-key`).
-- Two keys: `KNOWHER_CANDIDATE_KEY_SECRET` (generator, stage-only) + `KNOWHER_INGEST_KEY` (verifier, publishes).
-  A compromised generator key can't push live content.
+  paths (manual admin single-player upsert stays lenient).
+- `KNOWHER_CANDIDATE_KEY` (KV `knowher:candidate-v1`, **24h** TTL) — the generator's raw human-only pool.
+  `KNOWHER_CANDIDATE_VERIFIED_KEY` (KV `knowher:candidate-verified-v1`, **72h** TTL — must survive weekend→
+  Monday) — the verifier's cleaned human-only pool. Neither marks featured; that's publish-only.
+- Routes: `POST /knowher/candidate` (generator, `x-candidate-key`) · `GET /knowher/candidate` (verifier) ·
+  `POST /knowher/candidate/verified` (verifier stages the cleaned pool, `x-ingest-key`, floor **5** human/
+  player) · `POST /knowher/publish-verified` (Monday watcher pass / supervised manual curl, `x-ingest-key` →
+  `publishVerifiedPool`).
+- `src/knowher-stats.ts` — the in-Worker TS twin of `scripts/knowher-stat-questions.mjs` (+ the weave), so the
+  Monday publish can inject stats server-side. `buildStatQuestionsN(abbr, player, max)` backs Lever 1;
+  `test/knowher-stats-parity.test.ts` asserts byte-identical output to the .mjs so the copies can't drift.
+- Two keys: `KNOWHER_CANDIDATE_KEY_SECRET` (generator, stage-only) + `KNOWHER_INGEST_KEY` (verifier stages
+  verified; the **watcher** holds it too, to call publish-verified Monday). A compromised generator key can't
+  push live content.
+- Watcher Monday pass: `maybeRunKnowHerPublishPass` — UTC Monday, hour 10 (= 3am PDT; before the earliest US
+  10am-local nudge), once-per-week KV marker, calls `/knowher/publish-verified` via the `PROXY` binding.
+  No-op while `KNOWHER_INGEST_KEY` is unset (not armed) or when no verified candidate is staged (off week → 404).
 
 **Why the verifier catches what the generator misses:** they fail INDEPENDENTLY — for a bad fact to survive,
 the writer must invent it AND the checker must independently confirm the same invention from a fresh search.
 That conjunction is far rarer than either erring alone. **Caveat (honest):** a widely-mirrored web error can
-pass both; the per-fact `source` (now stored on every published question) is the human spot-check backstop.
+pass both; the per-fact `source` (stored on every published question) is the human spot-check backstop.
 
-**Cutover:** ingest requiring `source` means the OLD single-routine flow is retired the moment the proxy
-deployed — the generator must post to `/candidate` and the verifier must exist before the next auto-run.
-First run is **supervised** (owner triggers generator → confirm staged → triggers verifier → watch it
-publish once) BEFORE the cron is armed — proving an auto-publisher that holds the keys, live, before trusting
-it unattended.
+**Cutover + supervised first run:** the split retires the old single-routine flow. Owner wiring: the generator
+routine passes `CANDIDATE_KEY`; the verifier passes `INGEST_KEY`; both run on a **weekend** schedule (verify
+chained after generate). The Monday publish is the watcher pass — **no third claude.ai routine**. Before arming
+the watcher pass, do a **supervised first run**: owner triggers generator → confirm `GET /knowher/candidate`
+shows a human-only pool → triggers verifier → confirm `GET /knowher/candidate/verified` + the report's flags →
+owner **manually curls** `POST /knowher/publish-verified?dryRun=1` with `INGEST_KEY` FIRST — dry-run assembles
++ validates the exact Monday pool (fresh stats, Lever 1, floor check) and returns the per-player breakdown
+**without writing the live pool or advancing the ledger**, so it never disturbs the current live edition. Only
+once that looks right does a real (non-dry) publish-verified go live. THEN set `KNOWHER_INGEST_KEY` on the
+watcher (arms the Monday pass).
 
 ## 6. The five-layer guardrail 🔒 — enforced at generation level (bake into the prompt verbatim)
 

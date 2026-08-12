@@ -178,6 +178,26 @@ Full-time detection, the Live Activity teardown, and the fixture index's `ended`
   gate (predicting IS the opt-in). KV one-shot `predict-result:{eventId}` (retry-until-sent). The payload
   carries **`predictEventID`** (NOT `eventID` — a bare `eventID` routes to Match Detail; the app's tap
   handler branches to the Predict result screen on the separate key).
+- **The MONDAY Know Her Game publish pass** (2026-08-12 weekend/Monday split, `maybeRunKnowHerPublishPass`)
+  rides the SAME per-minute cron: UTC **Monday, hour 10** (= 3am PDT — after Sunday-night finals settle,
+  before the earliest US 10am-local nudge), a once-per-week KV marker fires it once. It calls the proxy's
+  `/knowher/publish-verified` (via the `PROXY` binding, holding `KNOWHER_INGEST_KEY`), which injects fresh
+  ESPN stats + Lever 1 into the weekend-verified pool and publishes. No-op until `KNOWHER_INGEST_KEY` is set
+  on the watcher (armed only after the supervised first run). Full design: `docs/know-her-game.md §5c`.
+
+⏰ **Scheduled-push delivery time — LOCAL vs fixed-UTC (two follow-ups, not yet done):**
+- **KHG "new players" Monday nudge → already fires in each user's LOCAL time.** It's an *on-device* local
+  notification (`NotificationScheduler.weeklySpotlightRequest`, `UNCalendarNotificationTrigger` weekday 2 /
+  hour 10 in the device's own timezone) — no server, no `device_tokens`. So the KHG side of "10am local" is
+  satisfied by construction. Two pre-existing caveats (NOT introduced by the split): it's a fixed **weekly**
+  local timer but rounds are **biweekly** (so it fires on off-weeks with no new content), and a user far east
+  of PT gets the Monday-10am-local nudge *before* the Monday-3am-PT publish. **Follow-up:** make the nudge
+  biweekly-/publish-aware.
+- **Predict "results ready" push → a single fixed 14:00 UTC send (= 10am ET only; 7am PT).** NOT localized,
+  and **no user timezone is stored anywhere** (`device_tokens` has no tz column; not captured at token
+  registration). **Follow-up (own plan):** capture device tz at registration + bucket the watcher fan-out by
+  offset so it fires at each user's local 10am. Cheap/flat at scale; matters even domestically (10am ET vs PT
+  is a 3-hour spread).
 
 ## 4. Detection
 

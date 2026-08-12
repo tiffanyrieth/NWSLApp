@@ -356,6 +356,25 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
     (`Components/`) below Recent Form; **Open-Meteo is CC-BY 4.0** so the card carries a "Weather by
     Open-Meteo" credit (one credit covers all Open-Meteo data incl. the historical stamp; full credit
     → the roadmap privacy/disclaimer page).
+  - ⚠️ **FORECAST refinements (2026-08-12 — the "random inconsistencies" pass)**, four device-found bugs:
+    **(1) VENUE-LOCAL times.** The forecast now fetches `timezone=auto` and returns `utcOffsetSeconds`
+    (the venue's UTC offset) in the envelope; `hours[].time` is a UTC INSTANT (ISO-8601, whole seconds).
+    The app renders the hour labels + sunset in the VENUE's timezone (`MatchWeather.venueTimeZone` →
+    `GameTimeWeatherCard`) — a sunset is a local event ("sun sets at 8 PM in the stadium's city", not the
+    fan's clock). The MATCH-HEADER kickoff time stays the fan's OWN device time (when the match is on for
+    them). The window date range widened to ±1 UTC day so the venue-local hours resolve across a UTC
+    midnight. **(2) NWS HEAT INDEX.** Open-Meteo's `apparent_temperature` nets humidity AGAINST wind and
+    lands back near air temp on a hot windy day (a Houston 96° game read "feels 96°"), so the proxy now
+    computes the true NWS heat index (`heatIndexF(tempF, relative_humidity_2m)` — Rothfusz regression +
+    Steadman low-end, `test/weather-heat-index.test.ts` vs the NWS chart) and uses it as `feelsLikeF` only
+    when it's a BOOST over air temp, else falls back to apparent. **(3) SUNSET wrong-day** fixed by the
+    same `timezone=auto` switch (a UTC-labelled `daily=sunset` had picked the wrong local day).
+    **(4) Hour labels were BLANK** because Open-Meteo's `time` can arrive without seconds and
+    `ISO8601DateFormatter` rejected it — `MatchWeather.parseISO` now has a no-seconds fallback. App gate:
+    the feels-like footer row anchors on the KICKOFF hour (≥5° gap) and ranges over the still-diverging
+    hours, instead of requiring EVERY hour to diverge (a cooling tail no longer suppresses a hot kickoff).
+    Cache key bumped `cv=2` to invalidate stale-shaped forecasts. ⚠️ Client `URLCache` can briefly serve a
+    pre-deploy (no-offset) `/weather` response → device-time labels until it refreshes; a clean fetch is correct.
 - **Content routes** (build + normalize to `[ContentCard]`/models): `/team-videos` (Home: YouTube +
   club OG news + club IG), `/feed` (Feed: Bluesky reporters/league + news RSS + player IG — the **Clubs
   chip was retired 2026-08-05**, club Bluesky no longer fans into `/feed`), `/spotlight`

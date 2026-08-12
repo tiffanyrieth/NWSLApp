@@ -115,6 +115,18 @@ enum AppConfig {
         return components.url
     }
 
+    /// The proxy route bundling a club's whole-squad season stats in ONE edge-cached call:
+    /// `GET /team-stats?team=<espnTeamId>` — replaces the app's old ~27-per-athlete ESPN burst on every
+    /// team-page open. Proxy-only (ESPN has no bundled team-stats endpoint): under DEBUG `-useESPNDirect`,
+    /// the caller (`ESPNService.teamSeasonStats`) skips this and does the per-athlete direct fan-out instead,
+    /// which is also the proxy-outage fallback.
+    static func teamStatsURL(clubID: String) -> URL? {
+        guard var components = URLComponents(url: scoreboardProxyBase.appendingPathComponent("team-stats"),
+                                             resolvingAgainstBaseURL: false) else { return nil }
+        components.queryItems = [URLQueryItem(name: "team", value: clubID)]
+        return components.url
+    }
+
     // MARK: - Live content (ALIVE pipeline)
 
     /// The proxy route that returns Home Module-1 cards as `ContentCard` JSON:

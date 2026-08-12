@@ -40,6 +40,30 @@ struct PlayerSeasonStats: Identifiable, Hashable {
     var id: String { athleteID }
 }
 
+extension PlayerSeasonStats {
+    /// Build a season line from ESPN's FULL flattened stat dict (`"category.statName" → value`). This is the
+    /// ONE place the headline fields are derived from the flat set, shared by BOTH stat paths so they produce
+    /// byte-identical lines: the per-athlete ESPN decode (`AthleteStatistics.playerSeasonStats`) and the
+    /// bundled `/team-stats` proxy route (`ESPNService.teamSeasonStats`). The keys must match the proxy's
+    /// `fetchAthleteStats` flattening — both read the same ESPN athlete-statistics endpoint.
+    init(flat: [String: Double], athleteID: String, isGoalkeeper: Bool) {
+        func int(_ key: String) -> Int { Int((flat[key] ?? 0).rounded()) }
+        self.init(
+            athleteID: athleteID,
+            appearances: int("general.appearances"),
+            minutes: int("general.minutes"),
+            goals: int("offensive.totalGoals"),
+            assists: int("offensive.goalAssists"),
+            shots: int("offensive.totalShots"),
+            saves: int("goalKeeping.saves"),
+            cleanSheets: int("goalKeeping.cleanSheet"),
+            goalsAgainst: int("goalKeeping.goalsConceded"),
+            isGoalkeeper: isGoalkeeper,
+            all: flat // full stat set → the grouped detail sections
+        )
+    }
+}
+
 // MARK: - Grouped season sections (the expanded player-stats screen)
 
 struct SeasonStatSection: Identifiable {
@@ -171,5 +195,16 @@ struct TeamLeaders {
 
     var isEmpty: Bool {
         topScorers.isEmpty && topAssists.isEmpty && topCleanSheets.isEmpty
+    }
+}
+
+/// The proxy's `GET /team-stats` bundled response — every rostered athlete's FULL flattened season stats
+/// (`"category.statName" → value`), the shape `PlayerSeasonStats(flat:)` consumes. Decoded by
+/// `ESPNService.teamSeasonStats`; `team`/`year` are echoed by the route for debugging and ignored here.
+struct TeamStatsResponse: Decodable {
+    let players: [Player]
+    struct Player: Decodable {
+        let athleteId: String
+        let stats: [String: Double]
     }
 }

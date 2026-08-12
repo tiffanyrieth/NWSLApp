@@ -135,6 +135,16 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
     blind to an ESPN outage on the hottest routes. Chain proven end-to-end with mocked ESPN fetches in
     `test/recovery-ladder.spec.ts` (fetchMock — the one deliberate exception to the route-guards-only
     test convention, because a real ESPN failure can't be produced on demand).
+- **Team season stats (bundled):** `GET /team-stats?team={espnTeamId}` → every rostered athlete's FULL
+  flattened season stats (`{team, year, players:[{athleteId, stats:{"category.statName":value}}]}`) in ONE
+  edge-cached call (`TEAM_STATS_TTL`=1h). Handler `handleTeamStats` → `fetchTeamSeasonStats` (reuses
+  `fetchRosterResilient` for the roster + `fetchStatsForMany` for the batched per-athlete stats — ~28 ESPN
+  subrequests, one invocation, under the free 50 cap, same profile as `/knowher/todo`). **Why it exists:** it
+  replaced the app's old ~27-per-athlete device→ESPN burst on every team-page open (the leaders board needs the
+  whole squad's lines) — see `docs/stress-testing.md` §6. The app (`ESPNService.teamSeasonStats`) decodes the
+  flat maps via the shared `PlayerSeasonStats(flat:)` (same derivation as the per-athlete path, so bundled and
+  fallback are identical) and falls back to the per-athlete fan-out on a proxy outage / DEBUG `-useESPNDirect`.
+  Fails loud (`teamStatsError`/`teamStatsEmpty` diag → app falls back), never caches an empty.
 - **Roster resilience:** `GET /roster?team={espnTeamId}` passes ESPN's roster through when it's a
   plausible squad (≥`ROSTER_GOOD_MIN`=16) and caches it as **last-known-good** in KV (`roster:{id}`,
   90d); when ESPN comes back implausibly small (the recurring "one player" gap, e.g. ACFC) or fails,

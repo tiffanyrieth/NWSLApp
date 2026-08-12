@@ -398,14 +398,6 @@
 ---
 
 **Pending work only (ALIVE > core > hardening); shipped/decided/dropped work lives in git history + the File Map.**
-- **More team-color vibrancy** — LARGELY DONE 2026-08-06: card wash bumped (`washOpacityTwoTeam` 0.26 /
-  `washOpacitySingle` 0.17, one knob in `TeamColorWash.swift`); Teams grid + onboarding picker now two-tier
-  washed (every tile blooms its club color, followed/selected brighter — shared `TeamTile.swift`). Team/
-  Player/Match **detail headers** already carry their own 0.22 diagonal wash. **Standings: deliberately NOT
-  washed** (owner 2026-08-06) — it already carries more color than any comparable standings (colored
-  abbreviations + followed-team bar + last-5 form vs the crest-only norm at PL/MLS/Google); a wash would
-  cost readability with no data gain. Residual candidates only: **Home header** + the **Squad grid**
-  (scope per-surface; keep the neutral-canvas rule — color from the TEAMS, not global chrome).
 
 **Hardening (after ALIVE work):**
 - Team social links — verify a few subreddit handles (KC `r/KCCurrent`; CHI `r/redstars` vs `r/ChicagoStars`).

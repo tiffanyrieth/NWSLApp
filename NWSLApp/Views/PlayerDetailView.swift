@@ -138,7 +138,7 @@ struct PlayerDetailView: View {
         ZStack {
             LinearGradient(colors: [Color.dsMdPanel, Color.dsMdPanelBottom],
                            startPoint: .top, endPoint: .bottom)
-            LinearGradient(colors: [accent.fill.opacity(0.22), accent.fill.opacity(0.05)],
+            LinearGradient(colors: [accent.fill.opacity(0.26), accent.fill.opacity(0.05)],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }

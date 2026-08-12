@@ -99,7 +99,7 @@ struct TeamDetailView: View {
                     // Live standing line; fall back to the abbreviation so the header
                     // never looks empty while the roster loads.
                     Text(viewModel.standingLine ?? club.abbreviation)
-                        .dsFont(15.5)
+                        .dsFont(16)
                         .foregroundStyle(Color.dsFgSecondary)
                 }
                 Spacer(minLength: 8)
@@ -121,7 +121,7 @@ struct TeamDetailView: View {
         ZStack {
             LinearGradient(colors: [Color.dsMdPanel, Color.dsMdPanelBottom],
                            startPoint: .top, endPoint: .bottom)
-            LinearGradient(colors: [accent.opacity(0.22), accent.opacity(0.05)],
+            LinearGradient(colors: [accent.opacity(0.26), accent.opacity(0.05)],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
@@ -352,7 +352,7 @@ struct TeamDetailView: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(athlete.shortName ?? athlete.name)
-                    .dsFont(15.5, weight: .semibold)
+                    .dsFont(16, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
                     // Player names must never truncate on the roster — wrap to a 2nd line
                     // (the grid row grows to the tallest card) with a scale backstop.
@@ -369,8 +369,13 @@ struct TeamDetailView: View {
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.dsBgCard)
+        // Uniform card height so a 2-line name (e.g. "D. Pierre-Louis") doesn't make a taller row than a
+        // 1-line one — minHeight floors it with the content vertically centered (name still never truncates;
+        // grows together at AX1). Fixes the uneven roster boxes.
+        .frame(maxWidth: .infinity, minHeight: 82, alignment: .leading)
+        // Subtle team-color wash (single-team leading tint) so the roster matches the app-wide vibrancy pass;
+        // the tint fades to clear by the card midpoint, so the name on the right keeps full contrast.
+        .background(TeamWashBackground(base: .dsBgCard, home: accent))
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd))
         .overlay(alignment: .leading) {
             // Team-color left edge (clipped to the card's rounded shape).
@@ -449,7 +454,7 @@ struct TeamDetailView: View {
                                 .foregroundStyle(Color.dsFgSecondary)
                                 .frame(width: 18, alignment: .leading)
                             Text(leader.name)
-                                .dsFont(15.5)
+                                .dsFont(16)
                                 .foregroundStyle(Color.dsFgPrimary)
                             Spacer()
                             Text("\(leader.value)")

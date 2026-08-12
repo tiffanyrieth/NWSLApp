@@ -260,19 +260,6 @@
 > - **Backwards transitions prove the PRIOR state was wrong** — `post→in` and `in→pre` are both
 >   impossible in a real match. Cheapest in the watcher, which already persists `prev`.
 
-> ### 📊 TEAM-PAGE STATS BURST — ~27 direct ESPN calls per team-page open (found 2026-07-30, DEFERRED by owner)
-> `TeamDetailViewModel.load` fans out **one ESPN Core-API call per athlete, in parallel, from the
-> device** — bypassing the proxy entirely (no edge cache, no last-known-good, no cross-user dedupe;
-> `AthleteStatsCache` is session-scoped so a relaunch refetches everything).
-> ⚠️ **The trigger is opening a TEAM page, not tapping a player** — the team-leaders board needs every
-> squad member's stat line, so the ordinary "who's wearing #7" gameday glance pays the whole burst.
-> **This rules out app-side lazy-loading as a fix.**
-> At 1k users: ~21.6k direct ESPN calls/day. Realistic failure = per-device burst throttling → a stats
-> card with players silently missing rows. **Fix = a bundled `/team-stats?team={id}` proxy route**
-> (27 requests → 1, edge-cached, shared) built on Queues (450 calls > the 50-subrequest budget).
-> Owner deferred 2026-07-30: rosters are the correctness problem, this is a scaling one. Full sizing in
-> **`docs/stress-testing.md` §6**.
-
 > ### 🔐 MULTI-DEVICE INTEGRITY — atomic-pair merge (🅿️ PARKED, owner 2026-08-04)
 > _(The render-bug that doubled a row was fixed in #195. The "Superfan doubling" investigation was
 > removed 2026-08-06 — Superfan has been reworked past its original cause; owner re-raises only if seen again.)_

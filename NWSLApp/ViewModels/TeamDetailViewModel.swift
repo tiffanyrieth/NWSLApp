@@ -61,8 +61,10 @@ final class TeamDetailViewModel {
             // Stats ride a best-effort second pass once the squad is known (they're
             // keyed by athlete id, so the roster must load first). The fetch is
             // non-throwing — a stats outage leaves the leaders empty but never
-            // errors the page.
-            let stats = await service.seasonStats(for: squad.athletes, year: seasonYear)
+            // errors the page. One BUNDLED proxy call (`/team-stats`, edge-cached +
+            // shared) instead of the old ~27-per-athlete device→ESPN burst; falls
+            // back to that per-athlete fan-out on a proxy outage / -useESPNDirect.
+            let stats = await service.teamSeasonStats(for: squad.athletes, clubID: clubID, year: seasonYear)
             seasonStats = Dictionary(uniqueKeysWithValues: stats.map { ($0.athleteID, $0) })
         } catch {
             Diagnostics.shared.record(.apiFailure, "team roster \(clubID): \(error.localizedDescription)")

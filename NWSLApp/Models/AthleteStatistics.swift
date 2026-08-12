@@ -65,21 +65,7 @@ extension AthleteStatistics {
     /// present (ESPN includes a `goalKeeping` category for outfielders too). A
     /// missing stat resolves to 0; Doubles round to the nearest Int.
     func playerSeasonStats(athleteID: String, isGoalkeeper: Bool) -> PlayerSeasonStats {
-        let f = flattened()
-        func int(_ key: String) -> Int { Int((f[key] ?? 0).rounded()) }
-
-        return PlayerSeasonStats(
-            athleteID: athleteID,
-            appearances: int("general.appearances"),
-            minutes: int("general.minutes"),
-            goals: int("offensive.totalGoals"),
-            assists: int("offensive.goalAssists"),
-            shots: int("offensive.totalShots"),
-            saves: int("goalKeeping.saves"),
-            cleanSheets: int("goalKeeping.cleanSheet"),
-            goalsAgainst: int("goalKeeping.goalsConceded"),
-            isGoalkeeper: isGoalkeeper,
-            all: f                       // full stat set → the grouped detail sections
-        )
+        // Shared derivation with the bundled /team-stats proxy path — see PlayerSeasonStats(flat:…).
+        PlayerSeasonStats(flat: flattened(), athleteID: athleteID, isGoalkeeper: isGoalkeeper)
     }
 }

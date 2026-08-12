@@ -192,8 +192,8 @@ For each subsystem, walk it explicitly:
       would sit exactly ON the limit, where one extra KV op fails the whole run. Capped at **6** for
       margin. Raising it, or adding a 17th club, means redoing that arithmetic FIRST.
       No user request touches this path; failure is best-effort and degrades to the weekly routine.
-- [ ] ⚠️ **Team-page athlete-stats burst (CLIENT→ESPN DIRECT, never stress-tested)** — found
-      2026-07-30. `TeamDetailViewModel.load` fetches the roster and then fans out **one ESPN Core-API
+- [x] ✅ **Team-page athlete-stats burst — FIXED 2026-08-12 (bundled `/team-stats` proxy route).** (Problem
+      as found 2026-07-30 kept below for the record.) `TeamDetailViewModel.load` fanned out **one ESPN Core-API
       call PER ATHLETE (~25–30) in parallel, straight from the device** — no proxy, no edge cache, no
       last-known-good, no cross-user dedupe. `AthleteStatsCache` is in-memory + session-scoped, so a
       relaunch refetches all of it. **The trigger is opening a team page, NOT tapping a player** (the
@@ -203,11 +203,16 @@ For each subsystem, walk it explicitly:
       ~27 per residential IP, so a global block is unlikely — the realistic failure is **per-device burst
       throttling**, which degrades to a stats card with players silently missing rows (a no-silent-failures
       smell). At 100k: ~2.1M/day.
-      **Fix (deferred by owner 2026-07-30, rosters prioritised):** a BUNDLED `/team-stats?team={id}`
-      proxy route — whole squad in one edge-cached response, ~27 requests → 1, shared across all users
-      (~800 Worker req/day instead of 21.6k). ⚠️ Naively proxying the existing 27-call fan-out would burn
-      **~22% of the free 100k/day cap at 1k users** — the same trap as the watcher-polling finding above.
-      Build needs Queues (16 clubs × ~28 athletes ≈ 450 calls exceeds the 50-subrequest budget per tick).
+      **SHIPPED FIX (2026-08-12):** `GET /team-stats?team={id}` (proxy `handleTeamStats` → `fetchTeamSeasonStats`,
+      reusing the KHG-built `fetchRosterResilient` + `fetchStatsForMany`). Whole squad in ONE edge-cached
+      response (`{team, year, players:[{athleteId, stats}]}`); the app's `ESPNService.teamSeasonStats` calls it
+      instead of the fan-out, decoding the flat stat maps via the shared `PlayerSeasonStats(flat:)`, and falls
+      back to the per-athlete fetch on a proxy outage / `-useESPNDirect`. **~27 device calls → 1 shared cached
+      call**, and most opens hit the 1h edge cache → **0 ESPN calls**. ⚠️ **No Queues needed** — the earlier
+      "450 > 50 → Queues" note assumed pre-warming ALL 16 clubs in one tick; the route is **on-demand, ONE team
+      per request ≈ 28 ESPN subrequests, under the free 50/invocation cap** (same profile as `/knowher/todo`,
+      proven this session). **PASSES 1k and 100k** — load is now shared + flat in user count (a handful of
+      cache-miss Worker calls/day, not per-device). Recorded in §7.
 - [~] **Supabase** — DB size, monthly egress, auth MAU, connection limits, RLS query cost;
       `device_tokens` / `*_preferences` read volume per tick. Likely the *second* paid lever (~Pro tier)
       around ~30–50k users. **Verify current free-tier + Pro numbers against primary docs.**

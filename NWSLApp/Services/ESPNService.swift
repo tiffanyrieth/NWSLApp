@@ -225,6 +225,38 @@ struct ESPNService {
     /// line, so a fetch failure there is the expected "not in NWSL" answer, not an incident.
     /// Logging it would flood Diagnostics with false apiFailures (the same bug the doomed
     /// club-roster fetch had on NT lineups). Club paths keep full logging.
+    /// Whole-squad season stats in ONE bundled proxy call (`GET /team-stats`) — the PRIMARY path for the team
+    /// page, replacing the old ~27-per-athlete device→ESPN burst (one shared, edge-cached call). Falls back to
+    /// the per-athlete `seasonStats(for:)` fan-out on a proxy outage OR under DEBUG `-useESPNDirect`;
+    /// `athletes` supplies both the isGoalkeeper mapping (the route returns id→stats only) and that fallback
+    /// list. Non-throwing (best-effort): a stats outage leaves the leaders empty, never errors the page.
+    func teamSeasonStats(for athletes: [Athlete], clubID: String,
+                         year: Int = AppConfig.currentSeasonYear) async -> [PlayerSeasonStats] {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-useESPNDirect") {
+            return await seasonStats(for: athletes, year: year)   // bypass the proxy → per-athlete direct fetch
+        }
+        #endif
+        guard let url = AppConfig.teamStatsURL(clubID: clubID) else {
+            return await seasonStats(for: athletes, year: year)
+        }
+        do {
+            let response = try await fetch(TeamStatsResponse.self, from: url)
+            let gkByID = Dictionary(athletes.map { ($0.id, $0.isGoalkeeper) }, uniquingKeysWith: { first, _ in first })
+            // Same flat→PlayerSeasonStats derivation as the per-athlete path (PlayerSeasonStats(flat:…)),
+            // so the leaders board + player pages are identical whether served bundled or via fallback.
+            return response.players.map {
+                PlayerSeasonStats(flat: $0.stats, athleteID: $0.athleteId, isGoalkeeper: gkByID[$0.athleteId] ?? false)
+            }
+        } catch {
+            // Proxy outage/decoding → per-athlete fan-out (an available page beats a blank one). NOT silent:
+            // the degrade is logged so a persistent fallback (proxy down) is diagnosable, per no-silent-failures.
+            Diagnostics.shared.record(.apiFailure,
+                "team-stats \(clubID): \(error.localizedDescription) — falling back to per-athlete fetch")
+            return await seasonStats(for: athletes, year: year)
+        }
+    }
+
     func seasonStats(for athletes: [Athlete],
                      year: Int = AppConfig.currentSeasonYear,
                      quietMisses: Bool = false) async -> [PlayerSeasonStats] {

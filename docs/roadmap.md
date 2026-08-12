@@ -283,26 +283,6 @@
 > (the greater denominator) whole, never a numerator from one and a denominator from the other.
 > **🅿️ PARKED for now (owner 2026-08-04) — revisit AFTER Fan Zone if it recurs.**
 
-> ### 🧪 SIM IDENTITY ISOLATION — stop the simulator writing to the owner's real data (owner 2026-07-27)
-> Signing the simulator in with the owner's Apple ID makes it write to her real Superfan / Predict rows.
-> **The mechanism to avoid this already exists and is wired correctly** — it has just never been switched
-> on. `-signInAsTestFan <n>` (DEBUG-only, `AuthStore.debugSignInAsTestFan`) signs in as a seeded Fan Zone
-> account instead. Verified 2026-07-27:
-> - address format matches exactly on both sides (`seed+%04d@seed.nwslapp.test`)
-> - every gate keys on `auth.isSignedIn` (= `currentUser != nil`), which the path sets — so Fan Zone entry,
->   Tier-2 alert toggles, NT bells and Profile all unlock
-> - the Fan Zone gate additionally needs `hasChosenName`; the seeder writes
->   `profiles.display_name` + `name_is_custom = true`, so a seeded fan arrives already named
->
-> **The one prerequisite: enable the Supabase Email provider with signups DISABLED** (so the only
-> email/password accounts that can exist are the admin-created seed ones). Then:
-> `xcrun simctl launch <SIM> com.tiffanyrieth.nwslapp.NWSLApp -signInAsTestFan 1`
->
-> ⚠️ Push DELIVERY still can't be tested in a simulator at all (hardware, not auth) — device + the
-> watcher's `/test-push` with `sandbox:true` remains the only real path. And this is the cheap 80% fix for
-> Fan Zone contamination only; the broader 3-install cross-talk still wants a test Apple ID + `.debug`
-> bundle id (see the signOut/global-scope finding).
-
 > ### 📋 PRE-PUBLISH — privacy package (needed BEFORE App Store submission; target mid-Aug)
 > Lower priority than ALIVE work but MUST exist at submission (owner 2026-07-16 — track it here so
 > it isn't lost):
@@ -430,8 +410,3 @@
 **Hardening (after ALIVE work):**
 - Team social links — verify a few subreddit handles (KC `r/KCCurrent`; CHI `r/redstars` vs `r/ChicagoStars`).
 - **Club-page links data pass** — Website · Shop · Tickets (OFFICIAL) + Discord (Fan) → `SocialPlatform` + `TeamSocialLinksProvider`, per-club.
-
-**Longer-term:**
-- **Competitions follow-ups:** national-team coverage + cup push/LA + foreign-club colors are all DONE
-  (16 NT feeds, WAFCON live, cups pushing with V2 LA, `DesignTeamColors.international` shipped). Residual:
-  the CLUB cups folding into the Schedule "My teams" grouping; WWC/Olympics whole-tournament UI stays DEFERRED.

@@ -165,7 +165,21 @@ struct PlayerDetailView: View {
                 .dsFont(13, weight: .semibold)
                 .foregroundStyle(Color.dsFgSecondary)
             if sections.isEmpty {
-                statsTable(statRows(stats))
+                if stats.appearances == 0 && stats.minutes == 0 {
+                    // Rostered but no match stats this season (an excused-absence or reserve player — e.g.
+                    // Sydney Leroux, out on a mental-health absence — or ESPN simply has no record). An
+                    // honest, intentional empty beats a 0/0/0/0/0 wall that reads like a data error.
+                    Text("Hasn't featured this season")
+                        .dsFont(16)
+                        .foregroundStyle(Color.dsFgSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 16)
+                        .padding(.horizontal, 16)
+                        .background(Color.dsBgCard)
+                        .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd))
+                } else {
+                    statsTable(statRows(stats))
+                }
             } else {
                 ForEach(sections) { section in
                     VStack(alignment: .leading, spacing: 6) {

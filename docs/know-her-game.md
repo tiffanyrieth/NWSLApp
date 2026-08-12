@@ -297,6 +297,52 @@ The built loop (proxy repo, branch → PR):
    `playerSpotlight` opt-in) — unchanged, works signed-out.
 Runbook = `scripts/knowher-weekly-routine.md` (the routine's committed instruction set).
 
+## 5c. ✅ THE VERIFY GATE — generate → verify → publish (2026-08-11, owner-approved; being rolled out)
+
+**Why it exists.** The 2026-W33 v2 run (with the new personality-quota prompt) wrote genuinely good, sourced
+questions — then **hallucinated its own end-of-run review**: it *reported* personality facts ("art school,
+architecture, bookstores") for a player whose actual questions were her twin sister + hometown. The quiz was
+fine; the self-report was invented — because a model summarizing its own work from far up its context
+reconstructs a plausible version instead of reading back what it wrote. Prompt fixes reduce this but can't
+*prevent* it: a generator judging its own work is the structural flaw. So the pipeline was split so the thing
+that PUBLISHES is not the thing that WROTE.
+
+**The three stages (generator can't publish; only the verifier can):**
+1. **GENERATE** (`knowher-weekly-routine.md`, now the "generator" half) — researches + writes as before, but
+   (a) every human question now carries a **`source` URL** it was verified from, and (b) it **STAGES** the
+   pool to `POST /knowher/candidate` (auth: the weaker `CANDIDATE_KEY`, stage-only) instead of publishing. A
+   candidate is NOT live and does NOT advance the featured ledger.
+2. **VERIFY** (`knowher-verify-routine.md`, NEW, chained after generate) — reads the candidate back
+   (`GET /knowher/candidate`, auth: the publish key), and for **every human fact does an INDEPENDENT fresh
+   search to re-confirm it** — never just re-reads the generator's cited URL (that would inherit a misread).
+   Adversarial framing: try to disprove; default to DROP. Drops UNCONFIRMED/WRONG questions. **Repair rule
+   (owner 2026-08-11): drop-and-backfill from the player's OWN confirmed facts; if ANY player can't reach 8
+   confirmed human questions, HOLD THE WHOLE RUN** — publish nothing, last edition stays live (never invent,
+   never pad with stat questions). If everything clears, the verifier **publishes** via `/knowher/ingest`.
+3. **PUBLISH** — unchanged `/knowher/ingest`, but now only ever called by the verifier on a gate-passed pool;
+   the ledger advances here as before. Ingest now REQUIRES `source` on every human question.
+
+**Proxy mechanism (`src/knowher.ts` + `src/index.ts`, deployed 2026-08-11):**
+- `KnowHerQuestion.source?: string` — optional in the type (app ignores it → every shipped build keeps
+  decoding), but the validator's `requireSource` opt makes it MANDATORY on human questions for the automated
+  candidate + ingest paths (manual admin single-player upsert stays lenient).
+- `KNOWHER_CANDIDATE_KEY` (KV `knowher:candidate-v1`, 6h TTL) — the staged, not-live pool. `stageKnowHerCandidate`
+  validates (shape + all-clubs + source) but never marks featured; `readKnowHerCandidate` is the verifier's read.
+- `POST /knowher/candidate` (generator, `x-candidate-key`) · `GET /knowher/candidate` (verifier, `x-ingest-key`).
+- Two keys: `KNOWHER_CANDIDATE_KEY_SECRET` (generator, stage-only) + `KNOWHER_INGEST_KEY` (verifier, publishes).
+  A compromised generator key can't push live content.
+
+**Why the verifier catches what the generator misses:** they fail INDEPENDENTLY — for a bad fact to survive,
+the writer must invent it AND the checker must independently confirm the same invention from a fresh search.
+That conjunction is far rarer than either erring alone. **Caveat (honest):** a widely-mirrored web error can
+pass both; the per-fact `source` (now stored on every published question) is the human spot-check backstop.
+
+**Cutover:** ingest requiring `source` means the OLD single-routine flow is retired the moment the proxy
+deployed — the generator must post to `/candidate` and the verifier must exist before the next auto-run.
+First run is **supervised** (owner triggers generator → confirm staged → triggers verifier → watch it
+publish once) BEFORE the cron is armed — proving an auto-publisher that holds the keys, live, before trusting
+it unattended.
+
 ## 6. The five-layer guardrail 🔒 — enforced at generation level (bake into the prompt verbatim)
 
 1. **Public** — not private life.

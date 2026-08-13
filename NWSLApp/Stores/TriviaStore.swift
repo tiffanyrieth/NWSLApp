@@ -66,6 +66,12 @@ final class TriviaStore {
     /// stored — they recompute deterministically from the pool + round number).
     private(set) var roundPicks: [String: [Int]]
 
+    /// editionKey → (questionID → optionPicked), restored from `quiz_answers` for a round this DEVICE
+    /// never played but the USER did on another device (Gap 3, 2026-08-13). The recap reads it as a
+    /// by-question-id fallback when the positional `roundPicks` is empty. Pruned with `roundScores`/
+    /// `roundPicks`; keyed by question id (the server rows carry no ordering).
+    private(set) var restoredAnswers: [String: [String: Int]]
+
     /// The round ordinal of the most recent completion (0 = never played a round).
     /// Drives streak adjacency across the biweekly cadence.
     private(set) var lastCompletedRound: Int
@@ -79,6 +85,7 @@ final class TriviaStore {
         static let roundStreak = "trivia.roundStreak"
         static let roundScores = "trivia.roundScores"
         static let roundPicks = "trivia.roundPicks"
+        static let restoredAnswers = "trivia.restoredAnswers"
         static let lastCompletedRound = "trivia.lastCompletedRound"
         // Carried over from the daily model unchanged
         static let bestStreak = "trivia.bestStreak"
@@ -109,6 +116,7 @@ final class TriviaStore {
         self.lastCompletedRound = defaults.integer(forKey: Key.lastCompletedRound)
         self.roundScores = Self.decodeDict(defaults.data(forKey: Key.roundScores)) ?? [:]
         self.roundPicks = Self.decodeDict(defaults.data(forKey: Key.roundPicks)) ?? [:]
+        self.restoredAnswers = Self.decodeDict(defaults.data(forKey: Key.restoredAnswers)) ?? [:]
         // One-time seed when the season counter is first added (season 1): all lifetime correct IS this
         // season's (no prior year exists yet), so the season-scoped Superfan total doesn't undercount
         // pre-migration play. (`self` is fully initialized here, so `seasonNow` is usable.)
@@ -174,6 +182,13 @@ final class TriviaStore {
     func isPlayed(editionKey: String) -> Bool { roundScores[editionKey] != nil }
     func score(editionKey: String) -> Int? { roundScores[editionKey] }
     func picks(editionKey: String) -> [Int]? { roundPicks[editionKey] }
+
+    /// A restored "your answer" for the recap, looked up by QUESTION ID — the fallback the recap uses
+    /// when this device's positional `roundPicks` is empty because the USER played the round on ANOTHER
+    /// device (Gap 3, 2026-08-13). Nil when nothing was restored for that question.
+    func restoredPick(editionKey: String, questionID: String) -> Int? {
+        restoredAnswers[editionKey]?[questionID]
+    }
 
     /// Lifetime accuracy as a fraction 0…1 (0 when nothing's been answered).
     var accuracy: Double {
@@ -249,6 +264,22 @@ final class TriviaStore {
         persist()
     }
 
+    /// Restore rounds the user played on ANOTHER device (reconstructed from `quiz_answers`), so a 2nd
+    /// device shows them as PLAYED — score + full review — instead of offering a replay (Gap 3,
+    /// 2026-08-13). LOCAL-WINS and idempotent: a round already scored on THIS device is untouched. Sets
+    /// ONLY the per-round score/picks — NOT the additive lifetime/season counters or the streak (those
+    /// ride the ProgressSnapshot rollup in `restoreProgress`, so touching them here would double-count).
+    /// Because `recordCompletion` guards on `roundScores[key] == nil`, marking a round here also blocks
+    /// its replay.
+    func restorePlayedRounds(_ rounds: [(editionKey: String, correct: Int, picks: [String: Int])]) {
+        for r in rounds where roundScores[r.editionKey] == nil {
+            roundScores[r.editionKey] = r.correct
+            if !r.picks.isEmpty { restoredAnswers[r.editionKey] = r.picks }
+        }
+        pruneToLastTwoRounds()
+        persist()
+    }
+
     /// Owner retention rule: current + previous round only. Keys are zero-padded ("2026-R08"),
     /// so lexical order == chronological order, including across a season boundary
     /// ("2027-R01" > "2026-R26") — keep the two largest, drop the rest.
@@ -256,6 +287,7 @@ final class TriviaStore {
         let keep = Set(roundScores.keys.sorted().suffix(2))
         roundScores = roundScores.filter { keep.contains($0.key) }
         roundPicks = roundPicks.filter { keep.contains($0.key) }
+        restoredAnswers = restoredAnswers.filter { keep.contains($0.key) }
     }
 
     // MARK: - Helpers
@@ -271,6 +303,7 @@ final class TriviaStore {
         defaults.set(lastCompletedRound, forKey: Key.lastCompletedRound)
         defaults.set(try? JSONEncoder().encode(roundScores), forKey: Key.roundScores)
         defaults.set(try? JSONEncoder().encode(roundPicks), forKey: Key.roundPicks)
+        defaults.set(try? JSONEncoder().encode(restoredAnswers), forKey: Key.restoredAnswers)
     }
 
     private static func decodeDict<V: Decodable>(_ data: Data?) -> [String: V]? {
@@ -297,6 +330,7 @@ final class TriviaStore {
         counterSeason = 0
         roundScores = [:]
         roundPicks = [:]
+        restoredAnswers = [:]
         lastCompletedRound = 0
         persist()
     }
@@ -322,6 +356,7 @@ final class TriviaStore {
         defaults.set(0, forKey: Key.lastCompletedRound)
         defaults.set(Data(), forKey: Key.roundScores)
         defaults.set(Data(), forKey: Key.roundPicks)
+        defaults.set(Data(), forKey: Key.restoredAnswers)
     }
     #endif
 }

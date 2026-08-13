@@ -513,6 +513,10 @@ struct RootTabView: View {
                 // a full cold launch — hydrateProfile is otherwise only called at launch/sign-in. A
                 // single-row select, best-effort (Diagnostics-logged on failure); signed-in only.
                 if auth.isSignedIn { Task { await auth.hydrateProfile() } }
+                // Re-pull cross-device quiz plays (Gap 3): a KHG/Trivia round played on ANOTHER device
+                // while this one was backgrounded reads as already-played on return (score + full
+                // review), instead of offering a replay. Signed-in-guarded + best-effort inside.
+                progressCoordinator?.refreshCrossDevicePlays()
             }
             // Leaving the foreground flushes any pending no-silent-failure telemetry to the
             // remote sink (best-effort) so a field miss reaches the owner without a user report —

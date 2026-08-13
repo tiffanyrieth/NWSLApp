@@ -51,4 +51,26 @@ struct QuizResultsDecodingTests {
         #expect(r.responders == 0)
         #expect(r.questions.isEmpty)
     }
+
+    // MARK: - reconstruct (cross-device played-set, Gap 3)
+
+    @Test func reconstructGroupsOwnRowsByEditionWithScoreAndPicks() {
+        let rows = [
+            QuizResultsService.AnswerRow(editionKey: "2026-R05", questionID: "q0", selectedIndex: 1, isCorrect: true),
+            QuizResultsService.AnswerRow(editionKey: "2026-R05", questionID: "q1", selectedIndex: 2, isCorrect: false),
+            QuizResultsService.AnswerRow(editionKey: "2026-R05", questionID: "q2", selectedIndex: 0, isCorrect: true),
+            QuizResultsService.AnswerRow(editionKey: "2026-R06", questionID: "q0", selectedIndex: 3, isCorrect: true),
+        ]
+        let byKey = Dictionary(uniqueKeysWithValues: QuizResultsService.reconstruct(rows).map { ($0.editionKey, $0) })
+        #expect(byKey["2026-R05"]?.total == 3)
+        #expect(byKey["2026-R05"]?.correct == 2)           // Σ is_correct, not the row count
+        #expect(byKey["2026-R05"]?.picks["q1"] == 2)       // the exact option chosen, by question id
+        #expect(byKey["2026-R06"]?.total == 1)
+        #expect(byKey["2026-R06"]?.correct == 1)
+        #expect(byKey["2026-R06"]?.picks["q0"] == 3)
+    }
+
+    @Test func reconstructOfNoRowsIsEmpty() {
+        #expect(QuizResultsService.reconstruct([]).isEmpty)
+    }
 }

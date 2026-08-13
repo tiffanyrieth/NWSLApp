@@ -126,4 +126,43 @@ struct TriviaStoreRoundTests {
         #expect(store.seasonCorrect == 30)
         #expect(store.hasEverPlayed)
     }
+
+    // MARK: - Cross-device played-set restore (Gap 3)
+
+    @Test func restorePlayedRoundsMarksPlayedWithoutTouchingCountersOrStreak() {
+        let store = TriviaStore(defaults: isolatedDefaults("test.trivia.restore.crossdevice"))
+        store.restorePlayedRounds([(editionKey: key(5), correct: 8, picks: ["q0": 1, "q4": 3])])
+        #expect(store.isPlayed(editionKey: key(5)))
+        #expect(store.score(editionKey: key(5)) == 8)
+        #expect(store.restoredPick(editionKey: key(5), questionID: "q0") == 1)
+        #expect(store.restoredPick(editionKey: key(5), questionID: "q4") == 3)
+        // The additive lifetime/season counters + streak are NOT touched (they ride the rollup restore).
+        #expect(store.totalAnswered == 0)
+        #expect(store.seasonCorrect == 0)
+        #expect(store.streak == 0)
+    }
+
+    @Test func restorePlayedRoundsIsLocalWinsAndBlocksReplay() {
+        let store = TriviaStore(defaults: isolatedDefaults("test.trivia.restore.localwins"))
+        complete(store, round: 5, correct: 7)                                   // a real local play
+        store.restorePlayedRounds([(editionKey: key(5), correct: 2, picks: ["q0": 0])])
+        #expect(store.score(editionKey: key(5)) == 7, "local play wins")
+        // A round known ONLY from another device blocks a replay here too.
+        store.restorePlayedRounds([(editionKey: key(6), correct: 4, picks: [:])])
+        complete(store, round: 6, correct: 10)
+        #expect(store.score(editionKey: key(6)) == 4, "restored round stands; replay blocked")
+        #expect(store.totalAnswered == 10, "only the real local round (5) fed the counters")
+    }
+
+    @Test func restorePlayedRoundsPrunesToLastTwo() {
+        let store = TriviaStore(defaults: isolatedDefaults("test.trivia.restore.prune"))
+        store.restorePlayedRounds([
+            (editionKey: key(3), correct: 5, picks: [:]),
+            (editionKey: key(4), correct: 6, picks: [:]),
+            (editionKey: key(5), correct: 7, picks: [:]),
+        ])
+        #expect(store.score(editionKey: key(3)) == nil, "oldest of three pruned to the 2-round window")
+        #expect(store.score(editionKey: key(4)) == 6)
+        #expect(store.score(editionKey: key(5)) == 7)
+    }
 }

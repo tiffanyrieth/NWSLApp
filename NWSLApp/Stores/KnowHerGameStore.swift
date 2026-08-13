@@ -42,6 +42,14 @@ final class KnowHerGameStore {
     /// per player per edition for a whole season.
     private(set) var editionPicks: [String: [Int]]
 
+    /// editionKey → (questionID → optionPicked), restored from the server (`quiz_answers`) for an
+    /// edition this DEVICE never played but the USER did on another device. The recap reads it as a
+    /// by-question-id fallback when the positional `editionPicks` is empty (this device didn't play),
+    /// so a 2nd device shows the exact "your answer" marks. Pruned to the recap window like
+    /// `editionPicks`. Distinct from `editionPicks` because it's keyed by question id, not position —
+    /// the server rows carry no ordering, and the recap already has each question's id to look it up.
+    private(set) var restoredAnswers: [String: [String: Int]]
+
     /// Weekly streak (§14): consecutive Mon–Sun windows in which ≥1 player was completed.
     private(set) var weeklyStreak: Int
     private(set) var bestWeeklyStreak: Int
@@ -80,6 +88,7 @@ final class KnowHerGameStore {
         static let scores = "knowher.v1.scores"
         static let attempts = "knowher.v1.attempts"
         static let picks = "knowher.v1.picks"
+        static let restoredAnswers = "knowher.v1.restoredAnswers"
         static let weeklyStreak = "knowher.v1.weeklyStreak"
         static let bestWeeklyStreak = "knowher.v1.bestWeeklyStreak"
         static let lastCompletedWeek = "knowher.v1.lastCompletedWeek"
@@ -93,6 +102,7 @@ final class KnowHerGameStore {
         self.scores = Self.decode([String: Int].self, defaults.data(forKey: Key.scores)) ?? [:]
         self.attempts = Self.decode([String: Int].self, defaults.data(forKey: Key.attempts)) ?? [:]
         self.editionPicks = Self.decode([String: [Int]].self, defaults.data(forKey: Key.picks)) ?? [:]
+        self.restoredAnswers = Self.decode([String: [String: Int]].self, defaults.data(forKey: Key.restoredAnswers)) ?? [:]
         self.weeklyStreak = defaults.integer(forKey: Key.weeklyStreak)
         self.bestWeeklyStreak = defaults.integer(forKey: Key.bestWeeklyStreak)
         self.lastCompletedWeek = defaults.string(forKey: Key.lastCompletedWeek)
@@ -190,6 +200,13 @@ final class KnowHerGameStore {
     /// an edition she never played, one played before picks were persisted, or one pruned out of the
     /// two-edition recap window — all of which render the panel with no personal marks.
     func picks(editionKey: String) -> [Int]? { editionPicks[editionKey] }
+
+    /// A restored "your answer" for the recap, looked up by QUESTION ID — the fallback the recap uses
+    /// when this device's positional `editionPicks` is empty because the USER played the edition on
+    /// ANOTHER device (Gap 3, 2026-08-13). Nil when nothing was restored for that question.
+    func restoredPick(editionKey: String, questionID: String) -> Int? {
+        restoredAnswers[editionKey]?[questionID]
+    }
 
     // MARK: Last week (the picker's grace-window section)
 
@@ -298,6 +315,27 @@ final class KnowHerGameStore {
         persist()
     }
 
+    /// Restore editions the user played on ANOTHER device (reconstructed from `quiz_answers`), so a 2nd
+    /// device shows them as PLAYED — real score + full review — instead of offering a replay (Gap 3,
+    /// 2026-08-13). LOCAL-WINS and idempotent: an edition already scored on THIS device is left
+    /// untouched (a live play is never clobbered by the server copy). Sets ONLY the per-edition
+    /// score/attempts/picks — NO streak or season-counter side effects (those ride the ProgressSnapshot
+    /// rollup in `restoreProgress`; the season totals already floor at the baseline). Because
+    /// `recordCompletion` guards on `scores[key] == nil`, marking an edition here also blocks a replay.
+    func restorePlayedEditions(_ editions: [(editionKey: String, correct: Int, total: Int, picks: [String: Int])]) {
+        for e in editions where scores[e.editionKey] == nil {
+            scores[e.editionKey] = e.correct
+            attempts[e.editionKey] = e.total
+            if !e.picks.isEmpty { restoredAnswers[e.editionKey] = e.picks }
+        }
+        // Keep the restored-picks map inside the recap window (current + previous edition). The server
+        // read is already bounded to those by retention, but a season's worth of sign-ins could
+        // otherwise accumulate stale entries; scores stay (season-scoped) so old editions still read
+        // "played", just without personal marks — matching how `editionPicks` ages out.
+        if let weekKey { prunePicks(keeping: [weekKey, previousWeekKey].compactMap { $0 }) }
+        persist()
+    }
+
     // MARK: - Mutation
 
     /// Bank a completed edition and bump the weekly streak (§14). Idempotent per edition —
@@ -357,12 +395,15 @@ final class KnowHerGameStore {
         guard !weekKeys.isEmpty else { return }
         let prefixes = weekKeys.map { "\($0)-" }
         editionPicks = editionPicks.filter { key, _ in prefixes.contains { key.hasPrefix($0) } }
+        // The restored (cross-device) picks share the same recap window, so age them out together.
+        restoredAnswers = restoredAnswers.filter { key, _ in prefixes.contains { key.hasPrefix($0) } }
     }
 
     private func persist() {
         defaults.set(try? JSONEncoder().encode(scores), forKey: Key.scores)
         defaults.set(try? JSONEncoder().encode(attempts), forKey: Key.attempts)
         defaults.set(try? JSONEncoder().encode(editionPicks), forKey: Key.picks)
+        defaults.set(try? JSONEncoder().encode(restoredAnswers), forKey: Key.restoredAnswers)
         defaults.set(weeklyStreak, forKey: Key.weeklyStreak)
         defaults.set(bestWeeklyStreak, forKey: Key.bestWeeklyStreak)
         defaults.set(lastCompletedWeek, forKey: Key.lastCompletedWeek)
@@ -374,6 +415,7 @@ final class KnowHerGameStore {
         scores = [:]
         attempts = [:]
         editionPicks = [:]
+        restoredAnswers = [:]
         weeklyStreak = 0
         bestWeeklyStreak = 0
         lastCompletedWeek = nil
@@ -397,6 +439,7 @@ final class KnowHerGameStore {
         defaults.set(Data(), forKey: Key.scores)
         defaults.set(Data(), forKey: Key.attempts)
         defaults.set(Data(), forKey: Key.picks)
+        defaults.set(Data(), forKey: Key.restoredAnswers)
         defaults.set(0, forKey: Key.weeklyStreak)
         defaults.set(0, forKey: Key.bestWeeklyStreak)
         defaults.set("", forKey: Key.lastCompletedWeek)

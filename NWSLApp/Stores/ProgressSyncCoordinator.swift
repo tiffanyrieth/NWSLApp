@@ -41,6 +41,8 @@ final class ProgressSyncCoordinator {
     private let auth: AuthStore
     private let service: ProgressSyncService
     private let superfan: SuperfanService
+    /// Own-row `quiz_answers` reader for the cross-device played-set restore (Gap 3).
+    private let quizResults: QuizResultsService
     /// Predict's own server tables (prediction_scores / predict_match_results / predict_season_bests)
     /// — the sign-in RESTORE reads them down here (2026-08-10; before that, Predict restored nothing).
     private let predictBoard: PredictLeaderboardService
@@ -53,7 +55,8 @@ final class ProgressSyncCoordinator {
          predict: PredictionStore, bracket: BracketStore, auth: AuthStore,
          service: ProgressSyncService = ProgressSyncService(),
          superfan: SuperfanService = SuperfanService(),
-         predictBoard: PredictLeaderboardService = PredictLeaderboardService()) {
+         predictBoard: PredictLeaderboardService = PredictLeaderboardService(),
+         quizResults: QuizResultsService = QuizResultsService()) {
         self.trivia = trivia
         self.knowHer = knowHer
         self.predict = predict
@@ -62,6 +65,7 @@ final class ProgressSyncCoordinator {
         self.service = service
         self.superfan = superfan
         self.predictBoard = predictBoard
+        self.quizResults = quizResults
     }
 
     /// Call once from RootTabView (after auth.restoreSession, like FollowSyncCoordinator.start).
@@ -104,6 +108,11 @@ final class ProgressSyncCoordinator {
             // the restored Predict numerator/denominator (harmless either way — the GREATEST merge
             // floors it — but this makes the first post-restore number right immediately).
             await restorePredict(season: String(year))
+            // Cross-device played-set (Gap 3) BEFORE the Superfan merge, so the merge's
+            // `SuperfanCounts.fromStores` already sees the restored KHG editions and submits the
+            // accurate pair immediately (harmless either order — the atomic-pair merge floors to the
+            // server — but this makes the first post-restore number right).
+            await restoreQuizPlays(userID: userID, season: String(year))
             await mergeSuperfan(userID: userID, year: year)
 
             guard let server = await service.fetch(userID: userID, season: String(year)) else {
@@ -149,6 +158,35 @@ final class ProgressSyncCoordinator {
         let restored = await predictBoard.matchResults(season: season)
         guard !restored.isEmpty else { return }
         predict.restoreGradedResults(restored.map { ($0.prediction, $0.score) })
+    }
+
+    /// Cross-device dedup (Gap 3, 2026-08-13): pull the user's OWN played editions for both quiz games
+    /// from `quiz_answers` and fold them into the stores, so a 2nd device shows a round as
+    /// already-played (real score + full question-by-question review) instead of offering a replay.
+    /// Bounded own-row reads (current + previous edition after the 35-day prune, ~tens of rows), and
+    /// best-effort (empty on failure — the device just keeps its local view). LOCAL-WINS in the stores:
+    /// a round this device actually played is never overwritten.
+    private func restoreQuizPlays(userID: UUID, season: String) async {
+        let khg = await quizResults.playedEditions(game: "knowher", season: season, userID: userID)
+        if !khg.isEmpty {
+            knowHer.restorePlayedEditions(khg.map {
+                (editionKey: $0.editionKey, correct: $0.correct, total: $0.total, picks: $0.picks)
+            })
+        }
+        let triviaPlays = await quizResults.playedEditions(game: "trivia", season: season, userID: userID)
+        if !triviaPlays.isEmpty {
+            trivia.restorePlayedRounds(triviaPlays.map {
+                (editionKey: $0.editionKey, correct: $0.correct, picks: $0.picks)
+            })
+        }
+    }
+
+    /// Re-pull cross-device quiz plays on app-foreground (Gap 3 warm path): a round played on ANOTHER
+    /// device while this one was backgrounded reads as already-played on return, without a relaunch.
+    /// Signed-in only; best-effort.
+    func refreshCrossDevicePlays() {
+        guard let userID = auth.userID else { return }
+        Task { await restoreQuizPlays(userID: userID, season: String(AppConfig.currentSeasonYear)) }
     }
 
     /// Adopt the server's Superfan counts at sign-in, so Home and Game Center show the real score on

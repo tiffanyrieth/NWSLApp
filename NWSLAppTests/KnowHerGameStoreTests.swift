@@ -112,4 +112,39 @@ struct KnowHerGameStoreTests {
         #expect(s.picks(editionKey: "2026-W29-WAS-1") == [1, 1])
         #expect(s.score(editionKey: "2026-W29-WAS-1") == 2)
     }
+
+    // MARK: - Cross-device played-set restore (Gap 3)
+
+    @Test func restorePlayedEditionsMarksPlayedWithScoreAndPicksByQuestionID() {
+        let s = store()
+        s.restorePlayedEditions([(editionKey: "2026-W29-WAS-317423", correct: 7, total: 10,
+                                  picks: ["q1": 2, "q3": 0])])
+        #expect(s.isPlayed(editionKey: "2026-W29-WAS-317423"))
+        #expect(s.score(editionKey: "2026-W29-WAS-317423") == 7)
+        // The recap looks picks up by question id (positional array is empty — this device didn't play).
+        #expect(s.restoredPick(editionKey: "2026-W29-WAS-317423", questionID: "q1") == 2)
+        #expect(s.restoredPick(editionKey: "2026-W29-WAS-317423", questionID: "q3") == 0)
+        #expect(s.restoredPick(editionKey: "2026-W29-WAS-317423", questionID: "q2") == nil)
+    }
+
+    @Test func restorePlayedEditionsIsLocalWinsAndLeavesTheStreakAlone() {
+        let s = store()
+        s.recordCompletion(editionKey: "2026-W29-WAS-317423", weekKey: "2026-W29", correct: 9, outOf: 10,
+                           picks: Array(repeating: 1, count: 10))
+        let streakBefore = s.weeklyStreak
+        // A server restore with a different score must NOT overwrite the real local play…
+        s.restorePlayedEditions([(editionKey: "2026-W29-WAS-317423", correct: 3, total: 10, picks: ["q1": 0])])
+        #expect(s.score(editionKey: "2026-W29-WAS-317423") == 9)
+        #expect(s.restoredPick(editionKey: "2026-W29-WAS-317423", questionID: "q1") == nil, "no restored map for a local edition")
+        // …and the streak is untouched (it rides the ProgressSnapshot rollup, not this restore).
+        #expect(s.weeklyStreak == streakBefore)
+    }
+
+    @Test func restorePlayedEditionsBlocksReplayOnTheSecondDevice() {
+        let s = store()
+        s.restorePlayedEditions([(editionKey: "2026-W29-WAS-317423", correct: 5, total: 10, picks: [:])])
+        // recordCompletion guards on scores[key]==nil, so a replay after a cross-device restore is a no-op.
+        s.recordCompletion(editionKey: "2026-W29-WAS-317423", weekKey: "2026-W29", correct: 10, outOf: 10)
+        #expect(s.score(editionKey: "2026-W29-WAS-317423") == 5)
+    }
 }

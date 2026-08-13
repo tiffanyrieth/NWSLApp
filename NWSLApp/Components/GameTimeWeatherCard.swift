@@ -21,9 +21,11 @@ import SwiftUI
 
 struct GameTimeWeatherCard: View {
     let hours: [MatchWeather.ForecastHour]
-    let venueName: String?
     let sunset: Date?
     let kickoff: Date
+    /// The VENUE's timezone — the hour labels and sunset are the stadium's local time (a sunset is a
+    /// local event), while kickoff in the match header stays the fan's own clock. See MatchWeather.venueTimeZone.
+    let venueTimeZone: TimeZone
 
     @Environment(\.dynamicTypeSize) private var typeSize
     private var isAccessibilitySize: Bool { typeSize.isAccessibilitySize }
@@ -32,7 +34,7 @@ struct GameTimeWeatherCard: View {
         GameTimeWeatherModel.feelsLikeRow(hours: hours)
     }
     private var sunsetLabel: String? {
-        GameTimeWeatherModel.sunsetInWindow(sunset: sunset, kickoff: kickoff)
+        GameTimeWeatherModel.sunsetInWindow(sunset: sunset, kickoff: kickoff, timeZone: venueTimeZone)
     }
 
     var body: some View {
@@ -57,20 +59,13 @@ struct GameTimeWeatherCard: View {
 
     // MARK: Title
 
+    // The venue name is deliberately NOT shown here — it's already in the match-detail header right
+    // above this card, so repeating it read as redundant (owner 2026-08-12).
     private var titleRow: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("Expected game-time weather")
-                .dsFont(17, weight: .bold)
-                .foregroundStyle(Color.dsFgPrimary)
-            Spacer(minLength: 8)
-            if let venueName {
-                Text(venueName)
-                    .dsFont(13, weight: .semibold)
-                    .foregroundStyle(Color.dsFgSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-        }
+        Text("Expected game-time weather")
+            .dsFont(17, weight: .bold)
+            .foregroundStyle(Color.dsFgPrimary)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: Strip
@@ -100,7 +95,7 @@ struct GameTimeWeatherCard: View {
     private func column(for hour: MatchWeather.ForecastHour) -> some View {
         let isKickoff = hours.firstIndex(of: hour) == 1
         return VStack(spacing: 5) {
-            Text(hour.hourLabel)
+            Text(hour.hourLabel(timeZone: venueTimeZone))
                 .dsFont(13, weight: .semibold)
                 .foregroundStyle(isKickoff ? Color.dsStateKickoff : Color.dsFgSecondary)
                 .lineLimit(1)
@@ -151,7 +146,7 @@ struct GameTimeWeatherCard: View {
     private func columnAccessibilityLabel(_ hour: MatchWeather.ForecastHour, isKickoff: Bool) -> String {
         var parts: [String] = []
         if isKickoff { parts.append("Kickoff") }
-        parts.append(hour.hourLabel)
+        parts.append(hour.hourLabel(timeZone: venueTimeZone))
         parts.append("\(hour.roundedTemp) degrees")
         parts.append("wind \(hour.roundedWind) miles per hour")
         if hour.showsPrecip { parts.append("\(hour.precipPct) percent chance of precipitation") }

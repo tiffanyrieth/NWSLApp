@@ -1040,8 +1040,8 @@ struct MatchDetailView: View {
     private var gameTimeWeather: some View {
         if temporalState == .future, let weather = viewModel.weather, weather.isForecast,
            let hours = weather.hours, let kickoff = event.kickoff {
-            GameTimeWeatherCard(hours: hours, venueName: weather.venueName,
-                                sunset: weather.sunsetDate, kickoff: kickoff)
+            GameTimeWeatherCard(hours: hours, sunset: weather.sunsetDate, kickoff: kickoff,
+                                venueTimeZone: weather.venueTimeZone)
                 .padding(.horizontal, 20)
         }
     }

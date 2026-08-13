@@ -30,6 +30,15 @@ struct MatchWeather: Decodable {
     let hours: [ForecastHour]?
     let sunset: String?        // ISO8601 UTC sunset instant nearest kickoff (nil if none/absent)
     let venueName: String?
+    let utcOffsetSeconds: Int? // the VENUE's UTC offset — the weather card renders its hour labels + sunset
+                               // in VENUE-local time (a sunset is a local event; kickoff in the header stays
+                               // the fan's own local time). Absent on an older proxy → fall to device time.
+
+    /// The venue's timezone for rendering the weather card's times. Falls back to the device timezone when
+    /// the proxy didn't send an offset (older build / historical mode) — never a wrong-by-a-lot local time.
+    var venueTimeZone: TimeZone {
+        utcOffsetSeconds.flatMap { TimeZone(secondsFromGMT: $0) } ?? .current
+    }
 
     /// One hour of the game-window forecast, mirroring the proxy envelope.
     struct ForecastHour: Decodable, Equatable {
@@ -47,11 +56,14 @@ struct MatchWeather: Decodable {
         var roundedWind: Int { Int(windMph.rounded()) }
         var symbolName: String { MatchWeather.symbol(code: weatherCode, isNight: isNight) }
 
-        /// The window's local-time hour label, e.g. "8 PM". Formatted in the DEVICE timezone
-        /// from the UTC instant (Open-Meteo gives UTC; the fan sees their own clock).
-        var hourLabel: String {
+        /// The window's hour label, e.g. "8 PM", in the VENUE's timezone — the weather is about conditions
+        /// at the stadium, so "7 PM / 8 PM / 9 PM / 10 PM" reads as the local hours there (the kickoff time
+        /// in the match header stays the fan's own clock). `time` is a UTC instant from the proxy.
+        func hourLabel(timeZone: TimeZone) -> String {
             guard let date = MatchWeather.parseISO(time) else { return "" }
             let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.timeZone = timeZone
             f.dateFormat = "h a"   // "8 PM"
             return f.string(from: date)
         }
@@ -90,7 +102,15 @@ struct MatchWeather: Decodable {
     static func parseISO(_ s: String) -> Date? {
         let withFraction = ISO8601DateFormatter()
         withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return withFraction.date(from: s) ?? ISO8601DateFormatter().date(from: s)
+        if let d = withFraction.date(from: s) { return d }
+        if let d = ISO8601DateFormatter().date(from: s) { return d }
+        // No-seconds form ("2026-08-19T23:00Z") — Open-Meteo's hourly `time` came back without seconds, which
+        // ISO8601DateFormatter rejects, so the hour labels rendered blank (bug fix 2026-08-12). Handle it.
+        let noSeconds = DateFormatter()
+        noSeconds.locale = Locale(identifier: "en_US_POSIX")
+        noSeconds.timeZone = TimeZone(identifier: "UTC")
+        noSeconds.dateFormat = "yyyy-MM-dd'T'HH:mm'Z'"
+        return noSeconds.date(from: s)
     }
 
     /// WMO weather_code → SF Symbol, night-aware. THE shared table for both the historical stamp

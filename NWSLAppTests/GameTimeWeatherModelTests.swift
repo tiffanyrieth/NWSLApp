@@ -3,8 +3,9 @@
 //  NWSLAppTests
 //
 //  The two conditional footer gates of the game-time weather strip — pure logic, no SwiftUI.
-//  Both are strictly data-driven per the design: surface a number only when it's meaningfully
-//  different across the WHOLE window, stay silent otherwise.
+//  Both are strictly data-driven per the design: the feels-like row surfaces when the KICKOFF
+//  hour diverges ≥5° (ranging over the still-diverging hours); the sunset row when sunset falls
+//  in the game window, labeled in the venue's timezone.
 //
 
 import Foundation
@@ -54,20 +55,27 @@ struct GameTimeWeatherModelTests {
         #expect(GameTimeWeatherModel.feelsLikeRow(hours: hours)?.kind == .feelsLike)  // the 52° hour disqualifies wind chill
     }
 
-    @Test func suppressedWhenOneHourIsWithin4Degrees() {
-        // Three hours diverge ≥5, one is within 4 → the row is suppressed entirely.
+    /// ⚠️ THE BUG (2026-08-12): the old gate required EVERY hour to diverge ≥5°, so a single cooling
+    /// tail hour (a storm rolling in, or the forecast easing run-to-run) suppressed the whole heat-index
+    /// line — exactly when a hot kickoff mattered most. The new gate anchors on the KICKOFF hour (index 1)
+    /// and ranges over only the still-diverging hours, so the cooling hour is excluded, not fatal.
+    @Test func heatIndexSurvivesACoolingTailHour() {
         let hours = [hour(84, feels: 91), hour(83, feels: 90), hour(82, feels: 84), hour(81, feels: 86)]
+        let row = GameTimeWeatherModel.feelsLikeRow(hours: hours)
+        #expect(row?.kind == .heatIndex)
+        #expect(row?.minF == 86)   // ranges over the hot hours only (91, 90, 86) — the 84° hour is excluded,
+        #expect(row?.maxF == 91)   // so the low end never collapses to a bogus "heat index 84°"
+    }
+
+    @Test func suppressedWhenKickoffHourIsWithin4() {
+        // The kickoff hour (index 1) is within 4° → suppressed, even though later hours diverge. The
+        // anchor is kickoff; a hot spell an hour after the whistle isn't the story worth a line.
+        let hours = [hour(84, feels: 91), hour(83, feels: 86), hour(82, feels: 90), hour(81, feels: 89)]
         #expect(GameTimeWeatherModel.feelsLikeRow(hours: hours) == nil)
     }
 
-    @Test func suppressedWhenDirectionsDisagree() {
-        // Some hours hotter, some colder → no clean story, suppressed.
-        let hours = [hour(84, feels: 91), hour(40, feels: 33), hour(82, feels: 89), hour(81, feels: 87)]
-        #expect(GameTimeWeatherModel.feelsLikeRow(hours: hours) == nil)
-    }
-
-    @Test func suppressedWhenGapIsExactly4() {
-        // The gate is ≥5; a uniform 4° gap stays silent.
+    @Test func suppressedWhenKickoffGapIsExactly4() {
+        // The gate is ≥5; a 4° gap at kickoff stays silent.
         let hours = [hour(84, feels: 88), hour(83, feels: 87), hour(82, feels: 86), hour(81, feels: 85)]
         #expect(GameTimeWeatherModel.feelsLikeRow(hours: hours) == nil)
     }
@@ -75,26 +83,34 @@ struct GameTimeWeatherModelTests {
     // MARK: sunsetInWindow
 
     private let kickoff = ISO8601DateFormatter().date(from: "2026-08-15T00:00:00Z")!
+    private let utc = TimeZone(identifier: "UTC")!
 
     @Test func sunsetShownWhenInsideTheWindow() {
         // Sunset 11:56 PM UTC = kickoff −4 min → inside [kickoff−1h, kickoff+2h].
         let sunset = ISO8601DateFormatter().date(from: "2026-08-14T23:56:00Z")!
-        #expect(GameTimeWeatherModel.sunsetInWindow(sunset: sunset, kickoff: kickoff) != nil)
+        #expect(GameTimeWeatherModel.sunsetInWindow(sunset: sunset, kickoff: kickoff, timeZone: utc) == "11:56 PM")
+    }
+
+    /// The label is rendered in the VENUE's timezone, not the device's — a sunset is a local event.
+    @Test func sunsetLabelUsesVenueTimeZone() {
+        let sunset = ISO8601DateFormatter().date(from: "2026-08-14T23:56:00Z")!
+        let pacific = TimeZone(identifier: "America/Los_Angeles")!   // UTC−7 in August (DST)
+        #expect(GameTimeWeatherModel.sunsetInWindow(sunset: sunset, kickoff: kickoff, timeZone: pacific) == "4:56 PM")
     }
 
     @Test func sunsetHiddenWhenBeforeTheWindow() {
         // Sunset 90 min before kickoff → outside the −1h edge.
         let sunset = kickoff.addingTimeInterval(-90 * 60)
-        #expect(GameTimeWeatherModel.sunsetInWindow(sunset: sunset, kickoff: kickoff) == nil)
+        #expect(GameTimeWeatherModel.sunsetInWindow(sunset: sunset, kickoff: kickoff, timeZone: utc) == nil)
     }
 
     @Test func sunsetHiddenWhenAfterTheWindow() {
         // Sunset 3h after kickoff → past the +2h edge (window end is kickoff+3h boundary; 3h01m out).
         let sunset = kickoff.addingTimeInterval(3 * 3600 + 60)
-        #expect(GameTimeWeatherModel.sunsetInWindow(sunset: sunset, kickoff: kickoff) == nil)
+        #expect(GameTimeWeatherModel.sunsetInWindow(sunset: sunset, kickoff: kickoff, timeZone: utc) == nil)
     }
 
     @Test func sunsetHiddenWhenAbsent() {
-        #expect(GameTimeWeatherModel.sunsetInWindow(sunset: nil, kickoff: kickoff) == nil)
+        #expect(GameTimeWeatherModel.sunsetInWindow(sunset: nil, kickoff: kickoff, timeZone: utc) == nil)
     }
 }

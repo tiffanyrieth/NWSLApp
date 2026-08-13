@@ -343,8 +343,9 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
     Open-Meteo's 16-day max — the 11-16 window flip-flops run-to-run and a confident strip that far out
     asserts precision it lacks) returns the **4-hour game window** (kickoff −1h…+2h, kickoff at index 1):
     `hours[{time,tempF,feelsLikeF,weatherCode,isDay,windMph,precipPct}]` + `venueName` + the nearest
-    `sunset`. Extra hourly fields (`apparent_temperature`,`wind_speed_10m`,`precipitation_probability`) +
-    `daily=sunset`, `start_date`/`end_date` spanning the window's UTC dates (~2KB, not the 10-day block).
+    `sunset` + `utcOffsetSeconds`. Extra hourly fields (`apparent_temperature`, `relative_humidity_2m` (for
+    the NWS heat index), `wind_speed_10m`, `precipitation_probability`) + `daily=sunset`, `timezone=auto`,
+    `start_date`/`end_date` spanning the window's UTC dates ±1 (~2KB, not the 10-day block).
     ⚠️ **EDGE-cached (`caches.default`), NOT KV** — a forecast changes run-to-run and KV's 1k-writes/day
     free cap is a real scaling wall; the Cache API is unlimited/free/TTL-based. 8h TTL (`FORECAST_TTL_SECONDS`
     — models refresh a few times/day; Open-Meteo stitches to the latest run per fetch). So Open-Meteo is hit

@@ -42,8 +42,9 @@ and it's the thing that stops a wrong-direction rabbit hole).
 - **Roster = a VERIFIED pipeline, not a raw fetch:** last-known-good KV (`proxyCachedAsOf` + "Roster as of…"),
   a <50% continuity guard, nightly 08:00 UTC ESPN×NWSL verification, 90-day owner overrides. **Neither feed
   auto-wins** (ESPN erases real players; the NWSL feed lags transfers + dupes numbers). Detail: backend.md.
-- **Weather** (`MatchWeather`) = PAST-only kickoff-hour temp/sky from **Open-Meteo** via the proxy `/weather`,
-  keyed by a static ESPN-venue-id table, cached write-once. Not a forecast.
+- **Weather** (`MatchWeather`) = TWO modes from **Open-Meteo** via the proxy `/weather` (static ESPN-venue-id
+  table): a PAST match's kickoff-hour temp/sky STAMP (cached write-once in KV) AND an UPCOMING match's
+  game-time FORECAST strip (edge-cached; venue-local hour labels + NWS heat index + sunset). Detail: backend.md.
 - **IG / social content is scraped via Bright Data** (proxy side) — the app doesn't hit Instagram directly.
 - **Feeds carry MORE than we parse** — check `docs/backend.md`'s parsed-vs-unparsed inventory FIRST before
   proposing any new data source (`/summary` already carries `commentary`/`leaders`/`videos`, etc.).

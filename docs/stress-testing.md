@@ -270,6 +270,13 @@ For each subsystem, walk it explicitly:
 
 ## 7. Status ledger
 
+- **NWSL Trivia content pipeline (2026-08-13, roadmap #2, Phase-1 serving): ✅ passes 1k + 100k by
+  construction.** The only user-facing read is `GET /trivia?round=<key>` — one KV get behind a 6h edge cache,
+  keyed per round (~30 keys/season), and the app fetches only the current + previous round (never the whole
+  year). Ingest/candidate are owner-only, two-key-gated, off the user path (one KV write per annual publish).
+  All reads edge-cached/own-key/bounded, no per-user growth → ≈all HITs at any scale. Generation runs on the
+  owner's Claude-subscription quota ($0 API), like KHG. Nothing metered touched.
+
 - **Multi-device integrity hardening (2026-08-13, roadmap #10): ✅ passes 1k + 100k by construction —
   every new read is own-row, index-served, bounded; NO new tables, writes, or fan-out.** Three new load
   paths, all per-active-user (bounded), not per-total-user:

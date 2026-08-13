@@ -26,8 +26,25 @@ struct TriviaQuestion: Identifiable, Codable, Equatable {
     let category: Category
     let difficulty: Difficulty
 
+    // Pipeline tags (roadmap #2, 2026-08-13). Deliberately `String?`, NOT enums: a synthesized `Decodable`
+    // fails the WHOLE array on one unknown enum value, so any future server-added tag value would crash-decode
+    // every question. These decode leniently (missing → nil via decodeIfPresent); the PROXY validates them
+    // against strict allow-lists at ingest, where a bad value is a rejection, not a crash. (The existing
+    // `category`/`difficulty` enums carry that same latent risk — noted, out of scope to change here.)
+    /// "evergreen" | "seasonBound" — generation/audit only; the app doesn't use it.
+    let scope: String?
+    /// The verify-gate source URL — not rendered; a human spot-check backstop.
+    let source: String?
+    /// "standard" | "funFact" — drives the "Fun fact" chip + the per-round quota upstream.
+    let flavor: String?
+    /// The "did you know" context shown after answering (the fun payoff).
+    let revealFact: String?
+
     /// The correct option string, for the results recap.
     var correctAnswer: String { options[correctIndex] }
+
+    /// Whether this is a fun-fact-flavored question (drives the on-card chip).
+    var isFunFact: Bool { flavor == "funFact" }
 
     /// Spec §Question categories — used to balance/label the daily mix.
     enum Category: String, Codable {

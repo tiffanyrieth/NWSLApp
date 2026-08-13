@@ -59,15 +59,6 @@ final class TriviaViewModel {
     /// True once the last question's results have been requested.
     private(set) var isFinished = false
 
-    /// Questions per round (the biweekly redesign: 10, up from the daily 5 — 8/10 feels
-    /// earned where 3/5 felt punishing).
-    private let roundCount = 10
-
-    /// Fixed seed for the one-time "cycle order" shuffle. Constant (not the round
-    /// number) so the pool's playback order is the same on every device and every
-    /// round; only the *page* into it advances per round. ("nWSLTRV1" as hex.)
-    private static let cycleSeed: UInt64 = 0x6E57_534C_5452_5631
-
     private let service: TriviaService
     private let now: () -> Date
 
@@ -86,45 +77,25 @@ final class TriviaViewModel {
 
     // MARK: - Loading
 
-    /// Load the live question pool (proxy `/trivia`) and lock in a round's deterministic 10.
-    /// `round: nil` = the LIVE round (play); passing a round = that round's slate (review —
-    /// determinism recomputes exactly what that round served). Online-only: any failure —
-    /// network error or an empty pool (no playable quiz) — surfaces as an honest error with
-    /// "Try again"; there is no seed fallback.
+    /// Load a round's questions from the proxy `/trivia?round=<editionKey>` route. `round: nil` = the LIVE
+    /// round (play); passing a round = that round's slate (review). The proxy returns the 10 questions the
+    /// yearly pipeline PRE-ASSIGNED to that round (roadmap #2) — the app no longer slices a pool client-side,
+    /// so a round's questions are the same for everyone and never repeat within the season. Only the current
+    /// or a specific (previous) round is ever fetched — never the whole year. Online-only: any failure — a
+    /// network error or an empty round (no playable quiz) — surfaces an honest error; no seed fallback.
     func loadRound(_ requested: Int? = nil) async {
         state = .loading
-        // Before Trivia's first-ever round (a fresh preseason install), fall back to round 1's
-        // slate rather than erroring — the gate on PLAYING is the store's, not the loader's.
+        // Before Trivia's first-ever round (a fresh preseason install), fall back to round 1 rather than
+        // erroring — the gate on PLAYING is the store's, not the loader's.
         round = requested ?? FanZoneCadence.roundNumber(for: .trivia, at: now()) ?? 1
         do {
-            let all = try await service.triviaQuestions()
-            questions = Self.roundSelection(from: all, roundNumber: round, count: roundCount)
+            questions = try await service.triviaQuestions(round: editionKey)
             resetSession()
             state = .loaded
         } catch {
-            Diagnostics.shared.record(.apiFailure, "trivia load: \(error.localizedDescription)")
+            Diagnostics.shared.record(.apiFailure, "trivia load \(editionKey): \(error.localizedDescription)")
             state = .error("Couldn't load this round's trivia — tap to retry.")
         }
-    }
-
-    /// Pure, NON-REPEATING per-round slice (factored out so it's unit-testable without
-    /// the network/clock). Sort by id (so the result is independent of the backend's
-    /// ordering), shuffle ONCE with a fixed seed (the stable cycle order), then take
-    /// the round-numbered block of `count`, wrapping at the end. The whole pool plays
-    /// before any question repeats.
-    static func roundSelection(from all: [TriviaQuestion], roundNumber: Int, count: Int) -> [TriviaQuestion] {
-        let n = all.count
-        guard n > 0, count > 0 else { return [] }
-
-        let ordered = all.sorted { $0.id < $1.id }
-        var generator = SeededGenerator(seed: cycleSeed)
-        let cycle = ordered.shuffled(using: &generator)
-
-        let take = min(count, n)
-        // Round N → block N−1 (rounds are 1-based), wrapping. The extra `+ n) % n`
-        // keeps a defensive round-0/negative input non-crashing.
-        let start = (((roundNumber - 1) * take) % n + n) % n
-        return (0..<take).map { cycle[(start + $0) % n] }
     }
 
     private func resetSession() {
@@ -192,21 +163,5 @@ final class TriviaViewModel {
         zip(questions, picks).map { question, pick in
             QuizAnswer(questionID: question.id, selectedIndex: pick, isCorrect: pick == question.correctIndex)
         }
-    }
-}
-
-/// A tiny deterministic RNG (SplitMix64) so the round's question pick is stable for
-/// a given seed — same round in, same 10 questions out, on every device.
-private struct SeededGenerator: RandomNumberGenerator {
-    private var state: UInt64
-
-    init(seed: UInt64) { state = seed }
-
-    mutating func next() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
-        return z ^ (z >> 31)
     }
 }

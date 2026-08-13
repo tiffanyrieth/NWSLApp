@@ -270,6 +270,21 @@ For each subsystem, walk it explicitly:
 
 ## 7. Status ledger
 
+- **Multi-device integrity hardening (2026-08-13, roadmap #10): ✅ passes 1k + 100k by construction —
+  every new read is own-row, index-served, bounded; NO new tables, writes, or fan-out.** Three new load
+  paths, all per-active-user (bounded), not per-total-user:
+  • **Gap 2 (Predict double-submit lock):** a `predict_submission_marks` SELECT filtered to the open
+    fixtures' event ids (composite-PK-indexed) — a few rows per Predict load. Own-row SELECT policy added;
+    marks carry no picks. No new writes (the mark already existed).
+  • **Gap 3 (KHG/Trivia cross-device played-set):** an own-row `quiz_answers` read, bounded by the 35-day
+    prune to ~current+previous edition (~40 rows/user/sync). Full review (Option 2) reads the SAME rows as
+    a score-only restore — `selected_index` is already stored — so it costs nothing extra. No new table.
+  • **Gap 4 (username foreground hydrate):** one `profiles` row on foreground.
+  Read cost scales per active user, not per total user → 1k trivial, 100k linear-and-bounded (no
+  amplification). The atomic-pair merge (Gap 1) is pure logic — no load path. Nothing metered/capped
+  touched; no proxy budget drawn (all Supabase). Verified via unit tests + the sim seed-the-other-device
+  method (§ below / the plan's verification section).
+
 - **All-NT V2 Live Activity extension (2026-08-06): ✅ GO at 1k — batched token lookup is a MERGE
   REQUIREMENT; 100k lever = Workers Paid Queues (the pre-designated $5/mo slot).**
   **Unit of load — three axes, do not conflate:** (a) LA-**start** fan-out scales with *opt-in followers

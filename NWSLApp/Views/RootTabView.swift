@@ -508,6 +508,11 @@ struct RootTabView: View {
                 // termination (never a network blip) — the isSignedIn onChange below then
                 // surfaces the nudge if Tier-2 intent is stranded.
                 Task { await auth.revalidateSession() }
+                // Re-pull the profile so a display-name change made on ANOTHER device (renames go
+                // through the server-authoritative set_display_name RPC) shows here without waiting for
+                // a full cold launch — hydrateProfile is otherwise only called at launch/sign-in. A
+                // single-row select, best-effort (Diagnostics-logged on failure); signed-in only.
+                if auth.isSignedIn { Task { await auth.hydrateProfile() } }
             }
             // Leaving the foreground flushes any pending no-silent-failure telemetry to the
             // remote sink (best-effort) so a field miss reaches the owner without a user report —

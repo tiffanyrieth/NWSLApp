@@ -125,13 +125,29 @@ struct SuperfanScoringTests {
 
     // MARK: - Reinstall-safe merge
 
-    @Test func mergeTakesGreatestOfEachCountAndMomentum() {
-        let local = SuperfanCounts(predictCorrect: 5, predictTotal: 11, predictMomentum: 2)
+    @Test func mergeTakesTheFullerPairWholeAndHigherMomentum() {
+        // DISCRIMINATING data: local has the HIGHER correct but the LOWER total. The old per-scalar
+        // max took (max correct 10, max total 22) = a 45% accuracy from a numerator and denominator
+        // that never coexisted on one device. Atomic-pair takes the fuller side (server, 22 attempts)
+        // WHOLE — its own (8, 22).
+        let local = SuperfanCounts(predictCorrect: 10, predictTotal: 11, predictMomentum: 2)
         let server = SuperfanCounts(predictCorrect: 8, predictTotal: 22, predictMomentum: 4)
         let merged = local.merged(with: server)
-        #expect(merged.predictCorrect == 8)
-        #expect(merged.predictTotal == 22)
-        #expect(merged.predictMomentum == 4)
+        #expect(merged.predictCorrect == 8)     // server's numerator, NOT local's 10
+        #expect(merged.predictTotal == 22)      // paired with server's own denominator
+        #expect(merged.predictMomentum == 4)    // momentum is standalone → still the higher side
+    }
+
+    @Test func mergeNeverSynthesizesAnAccuracyNeitherDeviceHad() {
+        // local = a perfect small sample (5/5 = 100%), server = a fuller lower one (4/6 = 67%).
+        // Old max → (5, 6) = 83%, an accuracy neither device produced. Atomic-pair → server's real
+        // (4, 6). The correct count never exceeds its paired total.
+        let local = SuperfanCounts(khgCorrect: 5, khgTotal: 5)
+        let server = SuperfanCounts(khgCorrect: 4, khgTotal: 6)
+        let merged = local.merged(with: server)
+        #expect(merged.khgCorrect == 4)
+        #expect(merged.khgTotal == 6)
+        #expect(merged.khgCorrect <= merged.khgTotal)
     }
 
     @Test func mergeNeverLowersServerAfterReinstall() {

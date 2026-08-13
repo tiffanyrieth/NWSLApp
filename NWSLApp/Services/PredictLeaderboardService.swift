@@ -118,8 +118,14 @@ struct PredictLeaderboardService {
             // board can ORDER BY it (and the rank COUNT can compare it) with no rows transferred. If the
             // READ fails we skip the push (throws → caught → retried next load) rather than risk a clobber.
             let server = try await currentScore(teamAbbreviation: teamAbbreviation, userID: userID, season: season)
-            let mergedPoints = max(points, server.points)
-            let mergedMatches = max(matches, server.matches)
+            // Take (points, matches) as an ATOMIC PAIR from the side with more matches — never
+            // max(points) with max(matches) independently, which would pair a points total from one
+            // device with a matches count from the other and store an avg neither produced (the #10
+            // "impossible average"). matches stays monotonic, so this is still clobber-safe.
+            let fuller = LeaderboardRanking.fullerPair(local: (points, matches),
+                                                       server: (server.points, server.matches))
+            let mergedPoints = fuller.num
+            let mergedMatches = fuller.den
             let avg = mergedMatches > 0 ? Double(mergedPoints) / Double(mergedMatches) : 0
             let row = ScoreUpsert(user_id: userID, team_abbreviation: teamAbbreviation,
                                   season: season,

@@ -81,4 +81,35 @@ struct LeaderboardRankingTests {
     @Test func effectiveStandingBothNilIsUnranked() {
         #expect(R.effectiveStanding(local: nil, server: nil) == nil)
     }
+
+    // MARK: - fullerPair (the #10 atomic-pair rule shared by the persisted merges)
+
+    @Test func fullerPairTakesTheGreaterDenominatorWhole() {
+        // The #10 case verbatim: 100pts/5matches (local) vs 80/6 (server). The old per-scalar max
+        // produced (100, 6) → avg 16.7, a number NEITHER device scored. fullerPair takes the fuller
+        // side (6 matches) whole → (80, 6), a real 13.3 avg.
+        let merged = R.fullerPair(local: (num: 100, den: 5), server: (num: 80, den: 6))
+        #expect(merged.num == 80)
+        #expect(merged.den == 6)
+    }
+
+    @Test func fullerPairNeverMixesNumeratorAndDenominatorAcrossSides() {
+        // Whichever side wins, the returned pair is exactly one input pair — never a Frankenstein.
+        let a = R.fullerPair(local: (num: 10, den: 11), server: (num: 8, den: 22))
+        #expect(a == (num: 8, den: 22))
+        let b = R.fullerPair(local: (num: 8, den: 22), server: (num: 10, den: 11))
+        #expect(b == (num: 8, den: 22))
+    }
+
+    @Test func fullerPairTieGoesToLocal() {
+        // Equal denominators (same attempts) → local wins, matching effectiveStanding's tiebreak.
+        let merged = R.fullerPair(local: (num: 9, den: 10), server: (num: 7, den: 10))
+        #expect(merged == (num: 9, den: 10))
+    }
+
+    @Test func fullerPairFreshInstallAdoptsTheServerWhole() {
+        // Local zero (reinstall) always loses to a populated server — reinstall-safety preserved.
+        let merged = R.fullerPair(local: (num: 0, den: 0), server: (num: 30, den: 44))
+        #expect(merged == (num: 30, den: 44))
+    }
 }

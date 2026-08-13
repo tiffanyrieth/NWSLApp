@@ -57,6 +57,17 @@ struct ProgressSyncTests {
         #expect(merged.khgLastWeek == "2026-W30")
     }
 
+    @Test func triviaLifetimeAccuracyMergesAsAnAtomicPair() {
+        // local answered fewer but got more right (60/65 = 92%); server answered more (50/90 = 56%).
+        // The old per-scalar max → (60, 90) = 67%, a lifetime accuracy NEITHER device had. The pair
+        // rule takes the fuller side (90 answered) whole → its real (50, 90).
+        let merged = ProgressSnapshot.merge(
+            local: snapshot(tCorrect: 60, tAnswered: 65),
+            server: snapshot(tCorrect: 50, tAnswered: 90))
+        #expect(merged.triviaLifetimeCorrect == 50)
+        #expect(merged.triviaLifetimeAnswered == 90)
+    }
+
     @Test func streaksTravelAsAPairWithTheirMarker() {
         // Server has the RECENT play (round 10) but a short streak; local has an old long streak
         // (round 6). Taking max of each field separately would fabricate a long live streak — the

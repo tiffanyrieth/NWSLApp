@@ -45,10 +45,15 @@ struct MatchCard: View {
                 centerColumn
                 side(event.awayCompetitor, color: awayColor)
             }
-            rail
+            infoBlock
         }
         .padding(14)
-        .frame(maxWidth: .infinity)
+        // A shared height FLOOR so past (score, 1 info line) and future (no score, venue+TV) land
+        // at the SAME height — the score naturally makes a past card a touch taller, so future pads
+        // up to meet it and the overview stays uniform state-to-state. A LIVE card carries score +
+        // venue + TV, exceeds the floor, and rides intentionally taller ("a game's on right now").
+        // Floor, not fixed height: at larger Dynamic Type the content grows past it and it yields.
+        .frame(maxWidth: .infinity, minHeight: 174)
         // The team-color wash (the sanctioned match gradient at card scale) — now the shared
         // `TeamWashBackground` so Schedule + Predict draw the identical recipe.
         .background { TeamWashBackground(base: .dsBgCard, home: homeColor, away: awayColor) }
@@ -72,16 +77,16 @@ struct MatchCard: View {
                 .foregroundStyle(color)
                 .lineLimit(1)
                 .fixedSize()
-            // Fixed-height score band — reserved even on future cards so every state
-            // is the same height.
-            ZStack {
-                if showScores, let score = competitor?.score {
-                    Text(score)
-                        .dsFont(32, weight: .heavy, design: .rounded, monospacedDigit: true)
-                        .foregroundStyle(Color.dsFgPrimary)
-                }
+            // Score UNDER each crest — only when there IS one (past/live). Held to a fixed 34pt band
+            // (so the big 32pt glyph can't balloon a past card past its neighbors). No band at all on
+            // a future card: that freed vertical space is reused by the venue/TV info block below, so
+            // a future card carries both WITHOUT growing (owner 2026-08-12).
+            if showScores, let score = competitor?.score {
+                Text(score)
+                    .dsFont(32, weight: .heavy, design: .rounded, monospacedDigit: true)
+                    .foregroundStyle(Color.dsFgPrimary)
+                    .frame(height: 34)
             }
-            .frame(height: 34)
         }
         .frame(maxWidth: .infinity)
     }
@@ -115,7 +120,7 @@ struct MatchCard: View {
                     .minimumScaleFactor(0.6)
             }
         }
-        .frame(minHeight: 104)
+        .frame(minHeight: 88)
     }
 
     @ViewBuilder
@@ -168,28 +173,46 @@ struct MatchCard: View {
         match.competition.primaryBroadcastOverride ?? event.broadcastName
     }
 
-    // Bottom rail (broadcast chip + venue). Kept on all states, including finished games: the
-    // broadcast chip helps fans find (and re-find) where a match aired — NWSL games are hard to
-    // track down. ALWAYS rendered at a reserved height (even with no broadcast AND no venue) so a
-    // card's height never depends on whether ESPN happened to supply a venue. Without this, NT games
-    // — which usually carry neither — rendered shorter than the rare one that did, so the cards
-    // "bounced" in a list (owner 2026-08-08: cards must have ONE standard). This mirrors the score
-    // band, which is likewise reserved. NWSL cards are unaffected: they almost always carry a
-    // broadcast, so the rail was already present.
-    private var rail: some View {
-        HStack(spacing: 10) {
-            if let channel = broadcastName {
+    // Venue + broadcast, STATE-AWARE and centered (owner 2026-08-12 redesign). Every element is a
+    // LONE centered element (venue line on its own, chip on its own) so nothing drifts card-to-card:
+    // a lone centered element pins to the card's axis, which kills the old "chip floats left/right
+    // depending on the venue length" tell. Both MLS and NWSL lay it out exactly this way.
+    //   • PAST → venue only, one line. The TV chip is dropped: a finished game's channel isn't
+    //     actionable (no NWSL archive deal), and it still lives on the match-detail screen.
+    //   • FUTURE → venue + TV on two centered lines, dropped into the score space a scoreless card
+    //     already reserves, so the card does NOT grow.
+    //   • LIVE → venue + TV two lines PLUS the score, so it rides a touch taller — an intentional
+    //     "there's a game on right now" flag.
+    // Height stays uniform WITHIN a state (all lone-centered, nothing float-dependent).
+    @ViewBuilder
+    private var infoBlock: some View {
+        VStack(spacing: 6) {
+            venueLine
+            if event.statusState != "post", let channel = broadcastName {
                 BroadcastChip(name: channel)
-            }
-            if let venue = event.venueName {
-                Text(venue)
-                    .dsFont(13)
-                    .foregroundStyle(Color.dsFgSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
             }
         }
         .frame(maxWidth: .infinity, minHeight: 21)
+    }
+
+    // A lone centered "📍 Venue" line. Wraps to two lines rather than shrinking below the readable
+    // floor (the venue is readable prose, so it can't scale under 12pt) — the rare mouthful
+    // ("Northwestern Medicine Field at Martin Stadium") takes a second centered line instead of
+    // truncating; every ordinary venue is one line.
+    @ViewBuilder
+    private var venueLine: some View {
+        if let venue = event.venueName {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Image(systemName: "mappin.and.ellipse")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.dsFgSecondary)
+                Text(venue)
+                    .dsFont(13)
+                    .foregroundStyle(Color.dsFgSecondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+            }
+        }
     }
 
     // MARK: - Helpers

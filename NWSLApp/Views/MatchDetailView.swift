@@ -1161,18 +1161,18 @@ struct MatchDetailView: View {
                 .foregroundStyle(color)
                 .lineLimit(1)
                 .fixedSize()
-            // Score under each crest, on that team's side. A fixed band so a future
-            // match (no score) keeps the same header height as past/live.
-            ZStack {
-                if showScores, let score = competitor?.score {
-                    Text(score)
-                        .dsScoreFont()
-                        .foregroundStyle(Color.dsFgPrimary)
-                }
+            // Score under each crest, on that team's side — only for past/live. A future match
+            // reserves NO score band: there's never a score coming, so the header sheds the
+            // scoreline's dead space and sits shorter than a past/live header (owner 2026-08-12).
+            // The header stays uniform WITHIN a state; a future header is intentionally leaner.
+            if showScores, let score = competitor?.score {
+                Text(score)
+                    .dsScoreFont()
+                    .foregroundStyle(Color.dsFgPrimary)
+                    // minHeight (not fixed) so the band keeps a consistent baseline at default
+                    // text but can grow with the scaled score at larger Dynamic Type sizes.
+                    .frame(minHeight: 44)
             }
-            // minHeight (not a fixed height) so the score band keeps a consistent
-            // baseline at default text but can grow with the scaled score at larger sizes.
-            .frame(minHeight: 44)
         }
         .frame(maxWidth: .infinity)
     }

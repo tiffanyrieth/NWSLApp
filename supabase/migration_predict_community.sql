@@ -87,11 +87,22 @@ create table if not exists public.predict_submission_marks (
   primary key (user_id, event_id)
 );
 
--- RLS on with NO client policies on any of the three — anon/authenticated can neither read nor write
--- them directly. The two SECURITY DEFINER functions below are the only paths in and out.
+-- RLS on. The pick_counts + match_submissions tables have NO client policies — the SECURITY DEFINER
+-- functions below are their only paths in and out. The marks table has ONE client policy: own-row
+-- SELECT (added 2026-08-13, see below) — a deliberate, narrow exception that exposes no picks.
 alter table public.predict_pick_counts        enable row level security;
 alter table public.predict_match_submissions  enable row level security;
 alter table public.predict_submission_marks   enable row level security;
+
+-- Own-row SELECT on the MARKS only (multi-device dedup, #10 / Gap 2, 2026-08-13): a signed-in user may
+-- read WHICH events THEY have already submitted for, so a SECOND device can lock a fixture it already
+-- predicted on ("already made on another device") instead of allowing a second lineup for the same
+-- match. Safe: the marks table stores NO lineup — only (user_id, event_id) — and the policy is own-rows
+-- only, so it reveals nothing about anyone's picks. The counts/submissions tables stay fully sealed.
+drop policy if exists "read own submission marks" on public.predict_submission_marks;
+create policy "read own submission marks" on public.predict_submission_marks
+  for select using (auth.uid() = user_id);
+grant select on public.predict_submission_marks to authenticated;
 
 -- ── Write path (called by the APP as the signed-in user, on submit) ───────────
 

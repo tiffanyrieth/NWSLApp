@@ -176,4 +176,35 @@ struct PredictCommunityTests {
         #expect(c.share(forPlayer: "anyone") == nil)
         #expect(c.consensusXI(slots: [0]).isEmpty)
     }
+
+    // MARK: - Phase.resolve (cross-device double-submit lock, Gap 2)
+
+    private typealias Phase = PredictXIViewModel.PredictionItem.Phase
+
+    @Test func resolveLocalSubmittedAlwaysWins() {
+        let deadline = Date(timeIntervalSince1970: 1_000)
+        // A local submit shows the real XI regardless of a stray server mark or the clock.
+        #expect(Phase.resolve(hasLocalSubmitted: true, submittedElsewhere: true,
+                              now: deadline.addingTimeInterval(-10), deadline: deadline) == .submitted)
+        #expect(Phase.resolve(hasLocalSubmitted: true, submittedElsewhere: false,
+                              now: deadline.addingTimeInterval(10), deadline: deadline) == .submitted)
+    }
+
+    @Test func resolveSubmittedElsewhereLocksEvenInsideTheDeadlineWindow() {
+        let deadline = Date(timeIntervalSince1970: 1_000)
+        // Predicted on another device, still before the deadline → locked, not open.
+        #expect(Phase.resolve(hasLocalSubmitted: false, submittedElsewhere: true,
+                              now: deadline.addingTimeInterval(-10), deadline: deadline) == .submittedElsewhere)
+        // …and still locked (not "closed"/"you missed it") after the deadline — the user DID submit.
+        #expect(Phase.resolve(hasLocalSubmitted: false, submittedElsewhere: true,
+                              now: deadline.addingTimeInterval(10), deadline: deadline) == .submittedElsewhere)
+    }
+
+    @Test func resolveOpenBeforeDeadlineThenClosedAfterWhenNeverSubmitted() {
+        let deadline = Date(timeIntervalSince1970: 1_000)
+        #expect(Phase.resolve(hasLocalSubmitted: false, submittedElsewhere: false,
+                              now: deadline.addingTimeInterval(-10), deadline: deadline) == .open)
+        #expect(Phase.resolve(hasLocalSubmitted: false, submittedElsewhere: false,
+                              now: deadline.addingTimeInterval(10), deadline: deadline) == .closed)
+    }
 }

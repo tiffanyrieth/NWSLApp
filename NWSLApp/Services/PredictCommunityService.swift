@@ -78,7 +78,35 @@ final class PredictCommunityService {
         }
     }
 
-    // MARK: - Read
+    // MARK: - Read own submission marks (cross-device dedup)
+
+    private struct SubmissionMarkRow: Decodable { let event_id: String }
+
+    /// Which of the given events the signed-in user has ALREADY submitted a prediction for — read from
+    /// their OWN `predict_submission_marks` rows (own-row RLS policy). Powers the cross-device lock: a
+    /// fixture in this set was predicted on ANOTHER device, so the second device shows it as
+    /// already-submitted rather than letting the user enter a second lineup for the same match. Filtered
+    /// to the open fixtures' event ids (composite-PK-indexed), so it's a few rows per Predict load — well
+    /// inside the 1k/100k gate. Empty on failure (honest degrade — no worse than before this existed; the
+    /// server RPC still refuses a second COUNT via its (user_id, event_id) PK).
+    func submittedEventIDs(among eventIDs: [String], userID: UUID) async -> Set<String> {
+        guard !eventIDs.isEmpty else { return [] }
+        do {
+            let rows: [SubmissionMarkRow] = try await SupabaseManager.client
+                .from("predict_submission_marks")
+                .select("event_id")
+                .eq("user_id", value: userID)
+                .in("event_id", values: eventIDs)
+                .execute()
+                .value
+            return Set(rows.map { $0.event_id })
+        } catch {
+            Diagnostics.shared.record(.apiFailure, "predict submitted marks read: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    // MARK: - Read distribution
 
     /// Fetch the distribution for one or more fixtures. Keyed by fixtureID in the result.
     ///

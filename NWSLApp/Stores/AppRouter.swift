@@ -71,8 +71,21 @@ final class AppRouter {
             pendingPredictEventID = args[i + 1]
             selectedTab = .home
         }
+        // DEBUG launch arg `-debugOpenTeam <abbr>` deep-links straight to a club's TeamDetailView at
+        // launch (TeamsView appends the matching Club to its nav path once the directory loads), so
+        // in-sim verification of a specific team page doesn't need a synthetic tap — cliclick clicks
+        // are swallowed by the SwiftUI cards and idb HID is dead on Xcode 27. Testing affordance, like
+        // `-debugOpenMatch`.
+        if let i = args.firstIndex(of: "-debugOpenTeam"), i + 1 < args.count {
+            pendingTeamAbbr = args[i + 1]
+            selectedTab = .teams
+        }
         #endif
     }
+
+    /// A club abbreviation a DEBUG deep-link (`-debugOpenTeam`) wants to open. TeamsView consumes it
+    /// once its club directory has loaded, then clears it. DEBUG-only; nil in normal use.
+    var pendingTeamAbbr: String?
 
     /// The match a live push (goal/lineup/FT/…) tap wants to open, by ESPN event id.
     /// Set via `openMatch(eventID:)`; ScheduleView consumes it (`consumePendingMatch`)

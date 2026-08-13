@@ -33,6 +33,8 @@ struct TeamsView: View {
     // For the bell's intent-driven default cascade + Tier-2 sign-in intercept.
     @Environment(NotificationPreferencesStore.self) private var notifications
     @Environment(AuthStore.self) private var auth
+    // For the DEBUG `-debugOpenTeam <abbr>` deep-link (consumed in `.task` after the directory loads).
+    @Environment(AppRouter.self) private var router
 
     // The one extra route on this stack (besides Club → TeamDetailView): the
     // notifications hub, pushed from the header bell + the "Manage" line.
@@ -78,6 +80,15 @@ struct TeamsView: View {
         .task {
             viewModel.clubStore = clubStore
             if case .idle = clubStore.state { await viewModel.load() }
+            #if DEBUG
+            // Consume a `-debugOpenTeam <abbr>` deep-link once the directory is loaded: push that
+            // club's TeamDetailView. Cleared so it fires once, not on every tab return.
+            if let abbr = router.pendingTeamAbbr,
+               let club = viewModel.clubs.first(where: { $0.abbreviation == abbr }) {
+                router.pendingTeamAbbr = nil
+                path.append(club)
+            }
+            #endif
         }
     }
 

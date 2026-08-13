@@ -17,11 +17,16 @@
 
 import Foundation
 
-/// A platform shown in the team social row, in display order. Each maps to a
-/// bundled brand glyph in the asset catalog's `Social/` namespace (template
-/// images, tinted at the call site). The content cards (`TeamContentItem.Platform`)
-/// still use SF Symbols — the social row is the surface that earns real logos.
+/// A platform shown in the team links row, in display order. Social platforms map
+/// to a bundled brand glyph in the asset catalog's `Social/` namespace (template
+/// images, tinted at the call site) — the row is the surface that earns real logos.
+/// The club's own Website has no brand mark, so it uses a neutral SF Symbol instead
+/// (see `glyph`).
 enum SocialPlatform: String, CaseIterable {
+    // The club's own site (no brand mark of its own) — rendered first in the OFFICIAL
+    // row; it links out to the club's shop + tickets, so those don't need their own chips.
+    case website = "Website"
+    // Third-party social platforms — each with a real brand logo + brand color.
     case reddit = "Reddit"
     case bluesky = "Bluesky"
     case instagram = "Instagram"
@@ -32,17 +37,22 @@ enum SocialPlatform: String, CaseIterable {
     /// — cleaner at small sizes, per the spec).
     var label: String { rawValue }
 
-    /// Asset-catalog name of the platform's brand glyph — a template image under
-    /// the `Social/` namespace (`Social/bluesky`, etc.), tinted at the call site
-    /// via `.foregroundStyle`. Bundled vector (SVG), so it renders on the first
-    /// frame with no network.
-    var iconAssetName: String {
+    /// How this platform's glyph is drawn. Social platforms earn their real brand
+    /// logo (a bundled template SVG under `Social/`, tinted at the call site);
+    /// Website/Shop/Tickets have no brand mark, so they use a neutral SF Symbol.
+    enum Glyph {
+        case asset(String)   // bundled brand SVG under `Social/`, template-rendered
+        case symbol(String)  // SF Symbol name
+    }
+
+    var glyph: Glyph {
         switch self {
-        case .reddit:    return "Social/reddit"
-        case .bluesky:   return "Social/bluesky"
-        case .instagram: return "Social/instagram"
-        case .youtube:   return "Social/youtube"
-        case .tiktok:    return "Social/tiktok"
+        case .website:   return .symbol("globe")
+        case .reddit:    return .asset("Social/reddit")
+        case .bluesky:   return .asset("Social/bluesky")
+        case .instagram: return .asset("Social/instagram")
+        case .youtube:   return .asset("Social/youtube")
+        case .tiktok:    return .asset("Social/tiktok")
         }
     }
 }

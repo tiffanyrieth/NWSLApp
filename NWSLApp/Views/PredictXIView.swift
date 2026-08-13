@@ -209,9 +209,11 @@ struct PredictXIView: View {
                 // which read as a nag for a match you'd chosen to skip).
                 let allOpen = viewModel.openItems(store: store)
                 let openForPredictions = allOpen.filter { $0.phase == .open }
-                let lockedWaiting = allOpen.filter { $0.phase == .submitted }   // submitted, pre-kickoff
+                let lockedWaiting = allOpen.filter { $0.phase == .submitted }   // submitted here, pre-kickoff
+                // Predicted on ANOTHER device (server mark, no local XI) — locked, grouped with waiting.
+                let submittedElsewhere = allOpen.filter { $0.phase == .submittedElsewhere }
                 let lockedInFlight = viewModel.inFlightItems(store: store)      // submitted, underway
-                let lockedIn = lockedInFlight + lockedWaiting                   // live first, then waiting
+                let lockedIn = lockedInFlight + lockedWaiting + submittedElsewhere  // live, waiting, elsewhere
                 let results = viewModel.resultItems(store: store)
 
                 if openForPredictions.isEmpty && lockedIn.isEmpty && results.isEmpty {
@@ -384,10 +386,11 @@ struct PredictXIView: View {
             // empty: there was nowhere for a locked-in prediction to live.
             if item.phase == .submitted {
                 route = .locked(fixture.id)
-            } else {
+            } else if item.phase == .open {
                 pendingFixture = fixture
                 gateRequested = true
             }
+            // .submittedElsewhere / .closed: no action — there's no local XI to open (see `.disabled`).
         } label: {
             VStack(alignment: .leading, spacing: 14) {
                 // An underway match shows the live scoreline instead of its kickoff time — it already
@@ -406,7 +409,7 @@ struct PredictXIView: View {
             .opacity(dimmed ? 0.8 : 1)
         }
         .buttonStyle(.plain)
-        .disabled(item.phase == .closed)
+        .disabled(item.phase == .closed || item.phase == .submittedElsewhere)
     }
 
     @ViewBuilder
@@ -440,6 +443,13 @@ struct PredictXIView: View {
                 tint: .secondary,
                 title: "Submissions closed",
                 subtitle: "You didn't submit in time for this one."
+            )
+        case .submittedElsewhere:
+            statusRow(
+                icon: "checkmark.seal.fill",
+                tint: accent,
+                title: "Prediction already made",
+                subtitle: "You made this on another device. Your XI isn't stored here, so it can't be shown."
             )
         case .scored:
             EmptyView()

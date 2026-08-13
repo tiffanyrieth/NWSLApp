@@ -50,10 +50,23 @@ final class PredictXIViewModel {
         var id: String { fixture.id }
 
         enum Phase {
-            case open        // editable / submittable (now < deadline)
-            case closed      // deadline passed, never submitted — out for this match
-            case submitted   // locked in, awaiting the result
-            case scored      // settled + graded
+            case open               // editable / submittable (now < deadline)
+            case closed             // deadline passed, never submitted — out for this match
+            case submitted          // locked in on THIS device, awaiting the result
+            case submittedElsewhere // predicted on ANOTHER device (server mark exists); locked, XI not stored here
+            case scored             // settled + graded
+
+            /// Resolve a slate row's phase from the local submit state + the cross-device server mark.
+            /// A local submit wins (it has the actual XI to show); else a server mark means the user
+            /// already predicted this match on another device → lock it (even inside the 2h pre-kickoff
+            /// window); else it's open until the deadline, then closed. Pure (injected `now`) so the
+            /// lifecycle is unit-testable.
+            static func resolve(hasLocalSubmitted: Bool, submittedElsewhere: Bool,
+                                now: Date, deadline: Date) -> Phase {
+                if hasLocalSubmitted { return .submitted }
+                if submittedElsewhere { return .submittedElsewhere }
+                return now < deadline ? .open : .closed
+            }
         }
     }
 
@@ -85,8 +98,14 @@ final class PredictXIViewModel {
     /// window, so the paused state can name the reopen date. nil in-season or true offseason.
     private(set) var nextOpening: (team: String, kickoff: Date, opensAt: Date)?
 
+    /// Event ids the signed-in user has already submitted a prediction for on ANOTHER device (their own
+    /// `predict_submission_marks`). Fetched in `load`; drives the `.submittedElsewhere` lock in
+    /// `openItems` so a second device can't enter a second lineup for a match already predicted.
+    private(set) var submittedElsewhereEventIDs: Set<String> = []
+
     private let service: ESPNService
     private let leaderboardService: PredictLeaderboardService
+    private let community: PredictCommunityService
     private let now: () -> Date
 
     /// The leaderboard season key (matches the Supabase column default). Single source of truth =
@@ -95,9 +114,11 @@ final class PredictXIViewModel {
 
     init(service: ESPNService = ESPNService(),
          leaderboardService: PredictLeaderboardService = PredictLeaderboardService(),
+         community: PredictCommunityService = PredictCommunityService(),
          now: @escaping () -> Date = Date.init) {
         self.service = service
         self.leaderboardService = leaderboardService
+        self.community = community
         self.now = now
     }
 
@@ -130,6 +151,7 @@ final class PredictXIViewModel {
             store: store)
         #endif
 
+        await loadSubmittedElsewhere(store: store, auth: auth)
         await scoreSettledSubmissions(store: store, auth: auth)
         await loadLeaderboards(store: store, auth: auth)
 
@@ -292,17 +314,26 @@ final class PredictXIViewModel {
     func openItems(store: PredictionStore) -> [PredictionItem] {
         upcomingFixtures.map { fixture in
             let prediction = store.prediction(for: fixture.id)
-            let phase: PredictionItem.Phase
-            if prediction?.state == .submitted {
-                phase = .submitted
-            } else if now() < fixture.deadline {
-                phase = .open
-            } else {
-                phase = .closed
-            }
+            let phase = PredictionItem.Phase.resolve(
+                hasLocalSubmitted: prediction?.state == .submitted,
+                submittedElsewhere: submittedElsewhereEventIDs.contains(fixture.eventID),
+                now: now(), deadline: fixture.deadline)
             return PredictionItem(fixture: fixture, prediction: prediction,
                                   score: nil, finalScore: nil, phase: phase)
         }
+    }
+
+    /// Fetch which open fixtures the user already submitted on ANOTHER device (their own
+    /// `predict_submission_marks`), so `openItems` can lock them (`.submittedElsewhere`) instead of
+    /// letting a second lineup through. Signed-in only; only the fixtures NOT already submitted locally
+    /// (a local submit already shows the full state). Best-effort — a failure leaves the set empty and
+    /// the fixture stays `.open`, no worse than before (the server RPC still refuses the 2nd count).
+    private func loadSubmittedElsewhere(store: PredictionStore, auth: AuthStore) async {
+        guard let userID = auth.userID else { submittedElsewhereEventIDs = []; return }
+        let eventIDs = upcomingFixtures
+            .filter { store.prediction(for: $0.id)?.state != .submitted }
+            .map(\.eventID)
+        submittedElsewhereEventIDs = await community.submittedEventIDs(among: eventIDs, userID: userID)
     }
 
     /// ⚠️ THE IN-FLIGHT SLATE (2026-07-29, owner-reported bug). Submitted predictions whose match has

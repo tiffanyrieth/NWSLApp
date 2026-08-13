@@ -260,16 +260,6 @@
 > - **Backwards transitions prove the PRIOR state was wrong** — `post→in` and `in→pre` are both
 >   impossible in a real match. Cheapest in the watcher, which already persists `prev`.
 
-> ### 🔐 MULTI-DEVICE INTEGRITY — atomic-pair merge (🅿️ PARKED, owner 2026-08-04)
-> _(The render-bug that doubled a row was fixed in #195. The "Superfan doubling" investigation was
-> removed 2026-08-06 — Superfan has been reworked past its original cause; owner re-raises only if seen again.)_
-> **⚠️ STILL OPEN — correlated pairs are max-merged INDEPENDENTLY.** `prediction_scores` maxes `points`
-> and `matches` as separate scalars, and `SuperfanCounts.merged` maxes each game's `correct` and `total`
-> separately. Device A at 100 pts / 5 matches and device B at 80 / 6 merge to 100 / 6 → avg 16.7, a
-> number **neither device produced**. Fix: merge each pair ATOMICALLY — take the side with more progress
-> (the greater denominator) whole, never a numerator from one and a denominator from the other.
-> **🅿️ PARKED for now (owner 2026-08-04) — revisit AFTER Fan Zone if it recurs.**
-
 > ### 📋 PRE-PUBLISH — privacy package (needed BEFORE App Store submission; target mid-Aug)
 > Lower priority than ALIVE work but MUST exist at submission (owner 2026-07-16 — track it here so
 > it isn't lost):

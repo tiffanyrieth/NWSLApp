@@ -66,7 +66,21 @@ enum LeaderboardRanking {
         case (nil, nil): return nil
         case (let l?, nil): return l
         case (nil, let s?): return s
+        // Same rule as `fullerPair` below, on the (points, matches) denominator.
         case (let l?, let s?): return s.matches > l.matches ? s : l
         }
+    }
+
+    /// Merge two `(numerator, denominator)` pairs by taking the side with the greater DENOMINATOR
+    /// WHOLE — never pairing a numerator from one side with a denominator from the other. Maxing the
+    /// two scalars independently synthesizes a ratio neither device produced (100/5 vs 80/6 must not
+    /// become 100/6 → an "average nobody scored"); the atomic pair can't. The denominator is monotonic
+    /// across a user's own devices (a scored item never un-scores), so the greater denominator is the
+    /// fuller record. Ties → `local` (fresher; may carry an item scored since the last push). This is
+    /// the same rule `effectiveStanding` applies for DISPLAY — reused here so the PERSISTED merges
+    /// (`SuperfanCounts.merged`, `PredictLeaderboardService.upsertScore`, `ProgressSnapshot.merge`) match
+    /// it and can't write an impossible average to the leaderboards others rank against.
+    static func fullerPair(local: (num: Int, den: Int), server: (num: Int, den: Int)) -> (num: Int, den: Int) {
+        server.den > local.den ? server : local
     }
 }

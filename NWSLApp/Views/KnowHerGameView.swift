@@ -408,9 +408,12 @@ struct KnowHerGameView: View {
         // (the standalone answer-recap list was removed as a duplicate).
         let picks = yourPicks
         return player.questions.enumerated().map { i, q in
+            // Positional picks when THIS device played; else the cross-device restored pick by question
+            // id (Gap 3) so a 2nd device shows the same "your answer" marks; else no personal mark.
             .init(id: q.id, prompt: q.prompt, options: q.options, correctIndex: q.correctIndex,
                   revealFact: q.revealFact,
-                  yourPick: picks.indices.contains(i) ? picks[i] : nil)
+                  yourPick: picks.indices.contains(i) ? picks[i]
+                            : store.restoredPick(editionKey: viewModel.editionKey, questionID: q.id))
         }
     }
 

@@ -76,19 +76,28 @@ struct SuperfanCounts: Equatable, Codable {
         }
     }
 
-    /// Reinstall-safe merge: the GREATEST of every count + the higher momentum. A fresh install can't
-    /// lower the server, but a genuinely-changed accuracy still recomputes from the merged counts, and a
-    /// reinstall keeps your best momentum (forgiving).
+    /// Reinstall-safe merge: each game's `(correct, total)` is taken as an ATOMIC PAIR from the side
+    /// with the greater `total` (via `LeaderboardRanking.fullerPair`), and momentum takes the higher
+    /// side. A fresh install can't lower the server (its `total` is 0, so the server pair wins whole),
+    /// and a genuinely-fuller device carries its correct+total together — so the merge can never pair a
+    /// `correct` from one device with a `total` from the other and synthesize an accuracy neither
+    /// produced (the old per-scalar `max` did exactly that: 8/22 vs 10/11 → 10/22). `total` stays
+    /// monotonic, so reinstall-safety is preserved. Momentum is a standalone 0–5 engagement value (not a
+    /// ratio partner), so keeping it on `max` — a reinstall keeps your best momentum — is correct.
     func merged(with other: SuperfanCounts) -> SuperfanCounts {
-        SuperfanCounts(
-            predictCorrect: max(predictCorrect, other.predictCorrect),
-            predictTotal:   max(predictTotal, other.predictTotal),
-            bracketCorrect: max(bracketCorrect, other.bracketCorrect),
-            bracketTotal:   max(bracketTotal, other.bracketTotal),
-            khgCorrect:     max(khgCorrect, other.khgCorrect),
-            khgTotal:       max(khgTotal, other.khgTotal),
-            triviaCorrect:  max(triviaCorrect, other.triviaCorrect),
-            triviaTotal:    max(triviaTotal, other.triviaTotal),
+        func fuller(_ lc: Int, _ lt: Int, _ oc: Int, _ ot: Int) -> (Int, Int) {
+            let r = LeaderboardRanking.fullerPair(local: (lc, lt), server: (oc, ot))
+            return (r.num, r.den)
+        }
+        let p = fuller(predictCorrect, predictTotal, other.predictCorrect, other.predictTotal)
+        let b = fuller(bracketCorrect, bracketTotal, other.bracketCorrect, other.bracketTotal)
+        let k = fuller(khgCorrect, khgTotal, other.khgCorrect, other.khgTotal)
+        let t = fuller(triviaCorrect, triviaTotal, other.triviaCorrect, other.triviaTotal)
+        return SuperfanCounts(
+            predictCorrect: p.0, predictTotal: p.1,
+            bracketCorrect: b.0, bracketTotal: b.1,
+            khgCorrect: k.0, khgTotal: k.1,
+            triviaCorrect: t.0, triviaTotal: t.1,
             predictMomentum: max(predictMomentum, other.predictMomentum),
             bracketMomentum: max(bracketMomentum, other.bracketMomentum),
             khgMomentum:     max(khgMomentum, other.khgMomentum),

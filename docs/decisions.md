@@ -46,6 +46,33 @@ not for this. **Unchanged and still binding:** pre-deadline lineups are NEVER up
 community-consensus protections); the plain-upsert merge is deliberate (a regrade must rewrite —
 don't "fix" it into a GREATEST). Mechanism: `docs/data-sync.md` Category 2.
 
+### Multi-device integrity — atomic-pair merge + cross-device dedup (owner 2026-08-13, closes roadmap #10)
+Investigation (three explorers) of the CURRENT code found the old score-DOUBLING (20→40 on a 2nd device)
+was already fixed — every local↔server reconcile is max-or-skip, never additive — but four real gaps
+remained. Owner: close all four now (not for cheating, but so edge cases don't become mystery bug
+reports). **Rulings:**
+- **Atomic-pair merge (#10 proper).** The persisted leaderboard merges maxed numerator and denominator
+  as SEPARATE scalars, so a two-device user could store an average nobody scored (100pts/5 + 80/6 →
+  100/6). Fixed at all THREE sites via one shared `LeaderboardRanking.fullerPair` (take the side with the
+  greater denominator WHOLE — the rule the display-side `effectiveStanding` already used): `SuperfanCounts.merged`,
+  `PredictLeaderboardService.upsertScore`, `ProgressSnapshot.merge` (trivia lifetime). Denominator stays
+  monotonic → reinstall-safety preserved; momentum stays `max` (standalone, not a ratio partner).
+- **Predict double-submit = lock, NOT lineup upload.** A 2nd device reads its own
+  `predict_submission_marks` (an own-row SELECT policy — the ONE narrow exception to that table's sealed
+  design; marks carry no picks) and locks an already-predicted fixture (`.submittedElsewhere`). The
+  pre-deadline no-upload rule STANDS — we never upload the XI, so the 2nd device can't show the picks
+  until the match grades. Uploading lineups for full cross-device view was rejected: it reintroduces the
+  per-user-per-round storage growth the design deliberately avoids (efficiency-is-the-target).
+- **KHG/Trivia cross-device play = FULL review (owner's Option 2).** The played-set + score + exact
+  per-question picks are DERIVED from the `quiz_answers` the server already stores (`selected_index` is
+  there) — no new table, same bounded own-row read either way, so Option 2 costs nothing extra on the
+  stress tests. A 2nd device shows a played round as played + the identical review, and can't replay.
+- **Username staleness.** A foreground `hydrateProfile()` propagates a rename across devices without a
+  cold relaunch. (Usernames were already one-per-Apple-ID, server-authoritative, globally unique.)
+All new reads are own-row, index-served, bounded — pass 1k with 100k headroom. Family Sharing gives each
+person (incl. under-13 child accounts) their own Apple ID, so per-account dedup never cross-blocks
+siblings. Mechanism: `docs/data-sync.md`; the four commits on `feature/multi-device-integrity`.
+
 ### Notifications are OPT-IN — no dark patterns
 Nothing auto-enables at onboarding/launch; the user turns on exactly what they want. The single nuance: an
 EXPLICIT match-alert bell tap IS the opt-in, so it cascades the full default bundle the FIRST time

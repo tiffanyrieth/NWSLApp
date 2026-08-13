@@ -66,8 +66,14 @@ struct ProgressSnapshot: Codable, Equatable {
     static func merge(local: ProgressSnapshot, server: ProgressSnapshot) -> ProgressSnapshot {
         var out = local
 
-        out.triviaLifetimeCorrect = max(local.triviaLifetimeCorrect, server.triviaLifetimeCorrect)
-        out.triviaLifetimeAnswered = max(local.triviaLifetimeAnswered, server.triviaLifetimeAnswered)
+        // Trivia lifetime accuracy is a (correct, answered) RATIO — take it as an ATOMIC PAIR from the
+        // side that answered more, never max each scalar independently (which would synthesize a
+        // lifetime accuracy neither device had; same #10 bug class as the Superfan/Predict merges).
+        let triviaLifetime = LeaderboardRanking.fullerPair(
+            local: (local.triviaLifetimeCorrect, local.triviaLifetimeAnswered),
+            server: (server.triviaLifetimeCorrect, server.triviaLifetimeAnswered))
+        out.triviaLifetimeCorrect = triviaLifetime.num
+        out.triviaLifetimeAnswered = triviaLifetime.den
         out.triviaBestStreak = max(local.triviaBestStreak, server.triviaBestStreak)
         out.triviaSeasonCorrect = max(local.triviaSeasonCorrect, server.triviaSeasonCorrect)
         if server.triviaLastRound > local.triviaLastRound {

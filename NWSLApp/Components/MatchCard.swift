@@ -48,12 +48,16 @@ struct MatchCard: View {
             infoBlock
         }
         .padding(14)
-        // A shared height FLOOR so past (score, 1 info line) and future (no score, venue+TV) land
-        // at the SAME height — the score naturally makes a past card a touch taller, so future pads
-        // up to meet it and the overview stays uniform state-to-state. A LIVE card carries score +
-        // venue + TV, exceeds the floor, and rides intentionally taller ("a game's on right now").
-        // Floor, not fixed height: at larger Dynamic Type the content grows past it and it yields.
-        .frame(maxWidth: .infinity, minHeight: 174)
+        // A shared height FLOOR so past (score, 1 info line) and future (no score, venue+TV two
+        // lines) land at the SAME height. A past card's crest+score column stands at ~185pt on its
+        // own; a future card has no score, so its two-line venue/TV block leaves it ~11pt short — the
+        // floor pads that gap up so future == past and the overview stays uniform state-to-state. The
+        // freed score-band space is thus REUSED for the venue/TV second line (not deleted), so a
+        // future card carries both WITHOUT shrinking below its past neighbors (owner 2026-08-13; the
+        // 08-12 pass mis-set this to 174 and future came out short). A LIVE card carries score + venue
+        // + TV, exceeds the floor, and rides intentionally taller ("a game's on right now"). Floor,
+        // not fixed height: at larger Dynamic Type the content grows past it and it yields.
+        .frame(maxWidth: .infinity, minHeight: 186)
         // The team-color wash (the sanctioned match gradient at card scale) — now the shared
         // `TeamWashBackground` so Schedule + Predict draw the identical recipe.
         .background { TeamWashBackground(base: .dsBgCard, home: homeColor, away: awayColor) }

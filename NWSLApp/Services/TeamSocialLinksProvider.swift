@@ -5,26 +5,29 @@
 //  ⚠️ TEMP / SCAFFOLDING — curated static seed for the TeamDetailView header's
 //  social-links row.
 //
-//  WHAT: each club's official social / community accounts (Reddit, Bluesky,
-//  Instagram, YouTube, TikTok), keyed by team abbreviation, in display order. Only
-//  the platforms a club actually uses are listed — a club with no subreddit simply
-//  has no Reddit icon (the spec forbids dead icons). YouTube + Instagram are the
-//  same verified account URLs TeamContentProvider uses; Reddit/Bluesky/TikTok were
-//  web-verified for the 2026 season.
+//  WHAT: each club's official Website + social / community accounts (Reddit,
+//  Bluesky, Instagram, YouTube, TikTok), keyed by team abbreviation, in display
+//  order. Only the platforms a club actually uses are listed — a club with no
+//  subreddit simply has no Reddit icon (the spec forbids dead icons). YouTube +
+//  Instagram are the same verified account URLs TeamContentProvider uses; the rest
+//  were web-verified for the 2026 season. (Shop/Tickets get no separate chip — the
+//  club homepage links out to both, owner 2026-08-13.)
 //
 //  WHY: there's no backend yet, so this lets the row be fully functional. The async
 //  `links(for:)` signature is already shaped for a real source (a club-profile
 //  endpoint or the planned proxy) — swap the body and neither the view model nor
 //  the views change.
 //
-//  VERIFY-BEFORE-SHIP caveats (Reddit is the soft spot — the firehose is
-//  unfetchable here, so subreddits were confirmed indirectly):
-//   • KC  — r/KCCurrent is the conventional handle but the lowest-confidence cell;
-//           re-check (or drop to none) before a real ship.
-//   • CHI — r/redstars kept over r/ChicagoStars: fan subs rarely migrate on the
-//           Red Stars → Chicago Stars rebrand, but the newer sub may overtake it.
+//  VERIFY notes:
+//   • Website — all 16 clubs, every URL confirmed to return 200 on 2026-08-13.
+//   • Reddit — KC (r/KCCurrent, 4,443 subs) and CHI (r/redstars, 1,542 subs;
+//     r/ChicagoStars is banned/404) both live-verified via browser 2026-08-13.
 //   • BOS, DEN, LOU — no subreddit (BOS/DEN are 2026 expansion sides); omitted, not
-//           guessed. Their Bluesky/TikTok come from each club's official site.
+//     guessed. Their Bluesky/TikTok come from each club's official site.
+//   • Discord — deliberately NOT carried: exactly one club (LA, fan-run) had a
+//     usable public server league-wide, and fan invites rotate/expire (a
+//     maintenance liability for a single chip). Revisit only if a maintained
+//     league-wide Discord directory to pull from is found.
 //
 //  WHEN REMOVED: replace `links(for:)` with the real source returning the same
 //  TeamSocialLinks. The YT/IG overlap with TeamContentProvider collapses then too
@@ -44,6 +47,8 @@ struct TeamSocialLinksProvider {
     /// platform the club doesn't have (nil URL) so the row shows no dead icons.
     private static func make(_ abbr: String) -> TeamSocialLinks {
         let ordered: [(SocialPlatform, String?)] = [
+            // The club's own site first (its hub — it links out to shop + tickets), then socials.
+            (.website, website[abbr]),
             (.reddit, reddit[abbr]),
             (.bluesky, bluesky[abbr]),
             (.instagram, instagram[abbr]),
@@ -65,6 +70,29 @@ struct TeamSocialLinksProvider {
     private static let seed: [String: TeamSocialLinks] = Dictionary(
         uniqueKeysWithValues: abbreviations.map { ($0, make($0)) }
     )
+
+    // MARK: - Club website (the hub — links out to each club's shop + tickets)
+
+    // Each club's official homepage — all 16, every URL confirmed to return 200 on
+    // 2026-08-13. Shop/tickets get no separate chip: the homepage reaches both.
+    private static let website: [String: String] = [
+        "LA":  "https://angelcity.com/",
+        "BAY": "https://bayfc.com/",
+        "BOS": "https://bostonlegacyfc.com/",
+        "CHI": "https://chicagostars.com/",
+        "DEN": "https://www.denversummitfc.com/",
+        "GFC": "https://www.gothamfc.com/",
+        "HOU": "https://www.houstondynamofc.com/houstondash/",
+        "KC":  "https://www.kansascitycurrent.com/",
+        "NC":  "https://www.nccourage.com/",
+        "ORL": "https://www.orlandocitysc.com/pride/",
+        "POR": "https://www.thorns.com/",
+        "LOU": "https://www.racingloufc.com/",
+        "SD":  "https://sandiegowavefc.com/",
+        "SEA": "https://www.reignfc.com/",
+        "UTA": "https://www.rsl.com/utahroyals/",
+        "WAS": "https://washingtonspirit.com/",
+    ]
 
     // MARK: - Per-platform account URLs (real, verified — 2026 season)
 

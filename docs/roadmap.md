@@ -386,6 +386,4 @@
 
 **Pending work only (ALIVE > core > hardening); shipped/decided/dropped work lives in git history + the File Map.**
 
-**Hardening (after ALIVE work):**
-- Team social links — verify a few subreddit handles (KC `r/KCCurrent`; CHI `r/redstars` vs `r/ChicagoStars`).
-- **Club-page links data pass** — Website · Shop · Tickets (OFFICIAL) + Discord (Fan) → `SocialPlatform` + `TeamSocialLinksProvider`, per-club.
+_(Hardening: none open. Team-link subreddit verification + the club-website data pass shipped 2026-08-13; Discord dropped — no maintained league-wide directory exists to pull from, only one club had a usable public server.)_

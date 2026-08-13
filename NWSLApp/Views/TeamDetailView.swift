@@ -228,9 +228,7 @@ struct TeamDetailView: View {
         // scoped to these outbound-link glyphs — all in-app chrome stays club-accent.)
         Button { openURL(link.url) } label: {
             HStack(spacing: 7) {
-                Image(link.platform.iconAssetName)
-                    .resizable()
-                    .scaledToFit()
+                glyph(for: link.platform)
                     .frame(width: socialGlyphSize, height: socialGlyphSize)
                     .foregroundStyle(platformStyle(link.platform))
                 Text(link.platform.label)
@@ -246,11 +244,24 @@ struct TeamDetailView: View {
         .accessibilityLabel("\(link.platform.label) — open")
     }
 
-    // Per-platform brand tint, used ONLY for the link-pill glyphs above (recognizable
-    // destinations). Nowhere else — in-app chrome uses the club accent. Resolves through
-    // the single `PlatformBrand` source (so Instagram tints with its real gradient).
+    // A platform's glyph: a bundled brand SVG (socials) or a neutral SF Symbol (the
+    // club's own Website, which carries no brand mark). Both render as a template
+    // image tinted by `platformStyle`.
+    @ViewBuilder
+    private func glyph(for platform: SocialPlatform) -> some View {
+        switch platform.glyph {
+        case .asset(let name):  Image(name).resizable().scaledToFit()
+        case .symbol(let name): Image(systemName: name).resizable().scaledToFit()
+        }
+    }
+
+    // Per-platform tint, used ONLY for the link-pill glyphs above (recognizable
+    // destinations). Nowhere else — in-app chrome uses the club accent. Socials resolve
+    // through the single `PlatformBrand` source (so Instagram tints with its real
+    // gradient); the club's own Website has no brand color, so it takes the club accent.
     private func platformStyle(_ platform: SocialPlatform) -> AnyShapeStyle {
         switch platform {
+        case .website:   return AnyShapeStyle(accent)   // club's own site → club accent
         case .instagram: return PlatformBrand.instagram
         case .bluesky:   return PlatformBrand.bluesky
         case .youtube:   return PlatformBrand.youtube

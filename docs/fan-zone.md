@@ -181,11 +181,20 @@ One 10-question slate per round, league-wide (no per-team split). `TriviaLanding
 `TriviaRoundView` (`.play` / `.review(round:)`). Scoring: 1 per correct. One scored play per round; the
 streak counts consecutive ROUNDS.
 
-**Round slates are DETERMINISTIC** (`TriviaViewModel.roundSelection`): the pool is id-sorted, shuffled
-once with a fixed seed, then paged by round number. That's what lets a past round be reviewed with **zero
-stored questions** — only the user's score and picks persist. ⚠️ Currently 41 questions in the pool ⇒ 4
-unique rounds, then it wraps. The annual ~530-question generation is a **parked roadmap item**; the
-structure is already waiting for it.
+**Rounds are PRE-GROUPED server-side** (roadmap #2, 2026-08-13). A yearly routine generates + verifies a
+tagged question library; the proxy's deterministic grouper (`src/trivia.ts` `groupIntoRounds`) bin-packs it
+into the season's ~30 biweekly rounds — each round hitting a difficulty mix (2 easy/4 med/4 hard), 2 fun
+facts, ≥4 categories, and **no in-year repeats** — stored as `trivia-pool-v2 = {season, rounds:{editionKey:
+[10 Qs]}}`. The app fetches `GET /trivia?round=<editionKey>` for the current (play) or a previous (review)
+round only — never the whole year (limits study-ahead; Trivia feeds Superfan accuracy). Past-round review
+still needs **zero stored questions** — the proxy re-serves that round's fixed 10. `TriviaViewModel` no
+longer slices client-side (the old `roundSelection`/`SeededGenerator` are gone). **Fail-safe:** the whole
+year publishes up front; a missed annual refresh WRAPS to a prior season (cross-year repeat, acceptable) +
+pages via `triviaStaleServe`, never an empty game. Until the first grouped pool is published, `/trivia?round=`
+BRIDGES on the legacy flat pool (`sliceFlatPool`) so the round-aware app never shows empty. Pipeline detail:
+the plan + `src/trivia.ts` in `nwslapp-proxy`; the generate→verify→ingest flow mirrors KHG (`§5` there).
+`TriviaQuestion` carries optional `scope`/`source`/`flavor`/`revealFact` (lenient `String?`, not enums — a
+strict enum crash-decodes the whole array on an unknown value; the proxy validates strictly at ingest).
 
 ### Predict the XI (comp arena)
 Per-club. Each followed club's next fixture inside a 28-day window; submissions close at **kickoff − 2h**;

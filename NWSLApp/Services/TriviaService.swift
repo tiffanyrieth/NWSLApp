@@ -28,19 +28,19 @@ enum TriviaServiceError: Error {
 struct TriviaService {
     var session: URLSession = .shared
 
-    /// The full question pool from the proxy `/trivia` route (the owner-loaded pool
-    /// from KV). Throws on any failure — disabled connection, network error, or an
-    /// empty response — so the game never silently falls back to a bundled bank.
-    func triviaQuestions() async throws -> [TriviaQuestion] {
-        let live = try await fetchTrivia()
+    /// A specific ROUND's questions from the proxy `/trivia?round=<editionKey>` route — the 10 pre-grouped
+    /// questions the yearly pipeline assigned to that round (roadmap #2). Throws on any failure or an empty
+    /// round, so the game never silently falls back to a bundled bank.
+    func triviaQuestions(round: String) async throws -> [TriviaQuestion] {
+        let live = try await fetchTrivia(round: round)
         guard !live.isEmpty else { throw TriviaServiceError.emptyPool }
         return live
     }
 
     // MARK: - Live fetch
 
-    private func fetchTrivia() async throws -> [TriviaQuestion] {
-        guard let url = AppConfig.triviaURL() else {
+    private func fetchTrivia(round: String? = nil) async throws -> [TriviaQuestion] {
+        guard let url = AppConfig.triviaURL(round: round) else {
             throw ContentServiceError.badURL
         }
         return try await fetch([TriviaQuestion].self, from: url)

@@ -152,15 +152,15 @@ enum AppConfig {
         return contentRouteURL("feed", teams: teams, extra: extra)
     }
 
-    /// The proxy route powering Fan Zone Daily Trivia: `GET /trivia`. Unlike the
-    /// other content routes, Daily Trivia is **league-wide** (one shared question
-    /// pool, not team-scoped — see `games-design-spec.md`), so this builds with no
-    /// `teams` query at all. The Worker returns the owner-loaded `[TriviaQuestion]`
-    /// pool from KV; the app does the deterministic daily-5 selection client-side.
-    /// An empty or unreachable route surfaces an honest error (no seed fallback).
-    /// Returns nil on a malformed URL (the caller then throws → honest error).
-    static func triviaURL() -> URL? {
-        contentRouteURL("trivia", teams: [])
+    /// The proxy route powering Fan Zone NWSL Trivia: `GET /trivia?round=<editionKey>`. League-wide (one
+    /// shared pool, not team-scoped). With a `round` (the current app), the Worker returns THAT round's 10
+    /// pre-grouped questions from the yearly pool (routine-generated, no in-year repeats; roadmap #2). With no
+    /// `round` (legacy builds), it returns the flat `[TriviaQuestion]` pool the app used to slice client-side.
+    /// An empty or unreachable route surfaces an honest error (no seed fallback). Nil on a malformed URL.
+    static func triviaURL(round: String? = nil) -> URL? {
+        var extra: [URLQueryItem] = []
+        if let round, !round.isEmpty { extra.append(URLQueryItem(name: "round", value: round)) }
+        return contentRouteURL("trivia", teams: [], extra: extra)
     }
 
     /// The proxy route powering Fan Zone "Know Her Game": `GET /knowher?teams=WAS,POR,…`.

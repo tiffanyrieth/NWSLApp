@@ -50,6 +50,11 @@ final class NotificationSyncCoordinator {
     /// to nil on a sign-out / user switch so the next identity re-pushes from
     /// scratch.
     private var lastUploadedToken: String?
+    /// The device IANA timezone last written alongside the token. Tracked SEPARATELY from the token so
+    /// a re-upload fires when the timezone changes even if the APNs token is unchanged — otherwise a
+    /// traveler / DST-crosser (whose token doesn't rotate) would keep a stale tz forever, and the
+    /// watcher would fire their Predict-results push at the wrong local hour (the exact case tz serves).
+    private var lastUploadedTimezone: String?
     private var lastPushedSnapshot: NotificationPreferencesSnapshot?
     private var lastUserID: UUID?
 
@@ -138,6 +143,7 @@ final class NotificationSyncCoordinator {
                 }
             }
             lastUploadedToken = nil
+            lastUploadedTimezone = nil
             lastPushedSnapshot = nil
             lastUserID = newID
             restoredForUserID = nil     // a new identity re-arms the reinstall restore
@@ -158,15 +164,19 @@ final class NotificationSyncCoordinator {
             return
         }
 
-        if let token = bridge.deviceToken, token != lastUploadedToken {
-            // Advance the shadow ONLY after the write succeeds — otherwise a failure (after a
+        let currentTimezone = TimeZone.current.identifier
+        if let token = bridge.deviceToken,
+           token != lastUploadedToken || currentTimezone != lastUploadedTimezone {
+            // Advance the shadows ONLY after the write succeeds — otherwise a failure (after a
             // pre-emptive shadow bump) could be skipped by a racing second sync and never retry.
             // The upsert is idempotent, so a rare double-send while one is in flight is harmless.
+            // Re-uploads on a token OR timezone change so a DST shift / travel refreshes the tz.
             Task {
                 do {
-                    try await tokenService.registerToken(token, userID: userID)
+                    try await tokenService.registerToken(token, timezone: currentTimezone, userID: userID)
                     lastUploadedToken = token
-                    NotifTrace.shared.log("device-upsert", .ok, "token=\(token.prefix(10))…")
+                    lastUploadedTimezone = currentTimezone
+                    NotifTrace.shared.log("device-upsert", .ok, "token=\(token.prefix(10))… tz=\(currentTimezone)")
                 } catch {
                     Diagnostics.shared.record(.apiFailure, "notif registerToken: \(error.localizedDescription)")
                     NotifTrace.shared.log("device-upsert", .fail, error.localizedDescription)

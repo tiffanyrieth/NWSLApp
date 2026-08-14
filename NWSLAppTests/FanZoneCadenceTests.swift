@@ -171,4 +171,44 @@ struct FanZoneCadenceTests {
         let saturday = utc("2026-03-21")
         #expect(FanZoneCadence.soccerWeek(for: wednesday) == FanZoneCadence.soccerWeek(for: saturday))
     }
+
+    // MARK: - Notification availability (scheduled "new round" nudge)
+
+    @Test func knowHerPublishHourMatchesTheWatcher() {
+        // CONTRACT test, like anchorMatchesTheProxysCommittedAnchor: must equal KNOWHER_PUBLISH_HOUR_UTC
+        // in nwslapp-match-watcher/src/index.ts. The app must not nudge before the watcher publishes.
+        #expect(FanZoneCadence.knowHerPublishHourUTC == 10)
+    }
+
+    @Test func availabilityInstantIsMidnightForTriviaAndTenUTCForKHG() {
+        let monday = utc("2026-03-09")   // a UTC Monday 00:00
+        // Trivia is deterministic — live at the 00:00 UTC week boundary.
+        #expect(FanZoneCadence.availabilityInstant(for: .trivia, dropMonday: monday) == monday)
+        // KHG swaps when the watcher publishes at 10:00 UTC (00:00 + 10h).
+        #expect(FanZoneCadence.availabilityInstant(for: .knowHerGame, dropMonday: monday)
+                == monday.addingTimeInterval(10 * 3_600))
+    }
+
+    @Test func upcomingKnowHerDropsAreKHGWeekMondaysOnly() {
+        // From week 1 (KHG drop), the next KHG drops are weeks 0, 2, 4… — never a Trivia (odd) week.
+        let drops = FanZoneCadence.upcomingKnowHerDrops(from: utc("2026-03-09"), count: 3)
+        #expect(drops == [utc("2026-03-09"), utc("2026-03-23"), utc("2026-04-06")])
+        for monday in drops { #expect(FanZoneCadence.quizSlot(for: monday) == .knowHerGame) }
+    }
+
+    @Test func upcomingKnowHerDropsFromATriviaWeekStartsAtTheNextKHGWeek() {
+        // Asked during a Trivia week (03-16), the first upcoming KHG drop is the following week (03-23).
+        let drops = FanZoneCadence.upcomingKnowHerDrops(from: utc("2026-03-18"), count: 2)
+        #expect(drops == [utc("2026-03-23"), utc("2026-04-06")])
+    }
+
+    @Test func upcomingKnowHerDropsSkipPreseasonWeeks() {
+        // From the week just before the anchor, the FIRST upcoming drop is the anchor week itself — no
+        // preseason (weekOffset < 0) Monday is ever returned, so no nudge is scheduled before the season.
+        let drops = FanZoneCadence.upcomingKnowHerDrops(from: utc("2026-03-02"), count: 2)
+        #expect(drops == [utc("2026-03-09"), utc("2026-03-23")])
+        for monday in drops { #expect(FanZoneCadence.weekOffset(for: monday) >= 0) }
+        // count 0 → empty.
+        #expect(FanZoneCadence.upcomingKnowHerDrops(from: utc("2026-03-09"), count: 0).isEmpty)
+    }
 }

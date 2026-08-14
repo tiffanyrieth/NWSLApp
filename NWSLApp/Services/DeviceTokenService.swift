@@ -24,11 +24,17 @@ struct DeviceTokenService {
     /// `(user_id, device_id)` so a rotated/reinstalled token REPLACES this device's row in place
     /// instead of accumulating a new row — while a second device (its own `device_id`) keeps its own
     /// row and still receives pushes. `device_id` is the Keychain-stable per-device UUID.
-    func registerToken(_ token: String, userID: UUID) async throws {
+    ///
+    /// `timezone` is the device's IANA identifier (e.g. "America/New_York"). It lets the watcher fire
+    /// scheduled server pushes (Predict results) at the fan's own local morning instead of a single UTC
+    /// instant — NWSL is worldwide, so a fixed hour is midnight for someone. The coordinator re-uploads
+    /// when EITHER the token or the timezone changes, so travel / a DST shift refreshes it.
+    func registerToken(_ token: String, timezone: String, userID: UUID) async throws {
         try await client
             .from("device_tokens")
             .upsert(
-                DeviceTokenInsert(user_id: userID, device_id: DeviceIdentity.deviceID, token: token),
+                DeviceTokenInsert(user_id: userID, device_id: DeviceIdentity.deviceID,
+                                  token: token, timezone: timezone),
                 onConflict: "user_id,device_id"
             )
             .execute()
@@ -52,4 +58,5 @@ private struct DeviceTokenInsert: Encodable {
     let user_id: UUID
     let device_id: String
     let token: String
+    let timezone: String
 }

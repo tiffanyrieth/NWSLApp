@@ -547,6 +547,14 @@ from gitignored `Secrets` (`Services/SupabaseManager.swift`).
   browsable round-by-round through the between-editions review window (owner rule 2026-07-24); an edition's
   lifetime isn't calendar-shaped. The record book (`*_scores`, `*_stats`, `fanzone_progress`)
   is never pruned: one tiny row per user.
+- **Predict-results local-time push (`migration_device_timezone.sql`, 2026-08-14)** — `device_tokens`
+  gains a nullable **`timezone`** column (device IANA id, written by the app at token registration) so the
+  watcher can fire "your Predict result is in" at each fan's local 10am instead of a single 14:00-UTC blast
+  (NWSL is worldwide — a fixed UTC hour is midnight for someone). New **`predict_result_notified`**
+  `(event_id, user_id)` ledger = the per-user idempotency for the hourly local-morning wave (the old single
+  per-fixture KV marker would strand every timezone after the first wave); server-owned (RLS on, no client
+  policy, `grant select, insert to service_role`), self-prunes via pg_cron `> 28 days`. Full mechanism:
+  `docs/notifications.md` (delivery-timing rule).
 
 **Account deletion (right-to-be-forgotten / App Store requirement):** the client can't delete an
 `auth.users` row (needs the service-role key), so Profile → Delete Account calls the proxy

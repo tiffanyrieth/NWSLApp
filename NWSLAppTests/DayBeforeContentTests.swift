@@ -172,11 +172,13 @@ struct DayBeforeContentTests {
                                        dayLabel: "SAT", timeLabel: "4:00 PM", broadcast: nil)
         let s1 = spec(id: "a", fire: fire, title: "A", body: "b", card: cardA, assetToken: "h0|a0")
         let s2 = spec(id: "b", fire: fire, title: "B", body: "b", card: cardA, assetToken: "h0|a0")
+        let spot = NotificationScheduler.SpotlightSpec(
+            identifier: "nwsl.spotlight.1", fireDate: fire, title: "New Know Her Game", body: "b")
 
         // Order-independent (regression: the signature must not depend on now-derived values —
-        // DayBeforeSpec stores a fixed fireDate, never a decaying interval).
-        let sig1 = NotificationScheduler.scheduleSignature(dayBefore: [s1, s2], spotlightEnabled: true)
-        let sig2 = NotificationScheduler.scheduleSignature(dayBefore: [s2, s1], spotlightEnabled: true)
+        // both spec kinds store a fixed fireDate, never a decaying interval).
+        let sig1 = NotificationScheduler.scheduleSignature(dayBefore: [s1, s2], spotlight: [spot])
+        let sig2 = NotificationScheduler.scheduleSignature(dayBefore: [s2, s1], spotlight: [spot])
         #expect(sig1 == sig2)
 
         // Broadcast appearing later → different signature (so a rebuild actually re-renders).
@@ -184,13 +186,16 @@ struct DayBeforeContentTests {
                                             dayLabel: "SAT", timeLabel: "4:00 PM", broadcast: "ESPN")
         let s1TV = spec(id: "a", fire: fire, title: "A", body: "4:00 PM · ESPN",
                         card: cardWithTV, assetToken: "h0|a0")
-        #expect(NotificationScheduler.scheduleSignature(dayBefore: [s1TV, s2], spotlightEnabled: true) != sig1)
+        #expect(NotificationScheduler.scheduleSignature(dayBefore: [s1TV, s2], spotlight: [spot]) != sig1)
 
         // Asset-override flip → different signature.
         let s1Asset = spec(id: "a", fire: fire, title: "A", body: "b", card: cardA, assetToken: "h1|a0")
-        #expect(NotificationScheduler.scheduleSignature(dayBefore: [s1Asset, s2], spotlightEnabled: true) != sig1)
+        #expect(NotificationScheduler.scheduleSignature(dayBefore: [s1Asset, s2], spotlight: [spot]) != sig1)
 
-        // Spotlight bool matters.
-        #expect(NotificationScheduler.scheduleSignature(dayBefore: [s1, s2], spotlightEnabled: false) != sig1)
+        // Spotlight set matters: dropping it (opt-in off) OR a different drop week re-hashes.
+        #expect(NotificationScheduler.scheduleSignature(dayBefore: [s1, s2], spotlight: []) != sig1)
+        let spot2 = NotificationScheduler.SpotlightSpec(
+            identifier: "nwsl.spotlight.2", fireDate: fire, title: "New Know Her Game", body: "b")
+        #expect(NotificationScheduler.scheduleSignature(dayBefore: [s1, s2], spotlight: [spot2]) != sig1)
     }
 }

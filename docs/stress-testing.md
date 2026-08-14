@@ -531,6 +531,16 @@ For each subsystem, walk it explicitly:
   `predict_submission_marks(event_id)` (built in `migration_predict_result_push.sql`) so the recipient
   query isn't a table scan, + the same Queues rail (flat, Workers Paid slot). Only net-new write =
   one small `predict_result_seen` upsert per result-view (bounded by views). No cost cliff.
+  **↳ Localized to per-user 10am (2026-08-14): still ✅ passes 1k, and gentler per query.** The once-daily
+  14:00-UTC pass became an HOURLY local-morning wave (24 light passes/day; each rides the existing
+  per-minute tick, gated by a KV hour-marker — 1 extra KV read per tick within a 5-min window). tz-filtering
+  slices each wave's cohort to ~1/24 of the day's predictors, so every `user_id=in.(…)` funnel list is
+  SMALLER than the old single blast — the load path IMPROVES, not worsens. New writes: the
+  `predict_result_notified` ledger (one small row per notified `(event,user)`, pg-cron-pruned > 28 days,
+  flat Postgres tier — NOT metered KV) + the same Queues rail. **Pre-existing 100k flag (not introduced
+  here):** the funnel builds `user_id=in.(uuid,…)` as a GET query string; at 100k a same-hour cohort of
+  thousands approaches PostgREST URL-length limits — localization *shrinks* per-wave cohorts so it makes
+  this better, but the eventual 100k fix is a POST/RPC funnel. No new cost cliff.
 - **Per-feature proxy-request LEDGER (seed, 2026-07-16 — extend as features land):** the shared
   100k/day budget each feature draws from. Fixed daily: watcher ~64 (discovery) + per-match windows
   ~300-600/match (+ double-poll during live); bracket `*/5` cron 288; social-refresh + KHG crons <10.

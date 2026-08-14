@@ -37,44 +37,6 @@
 > 100% of the research and hands over "add these, drop these — approve?". Cloud-activation is owner-gated like
 > the KHG routine. Full plan context: the approved Social-tab plan (Phase 4).
 
-> ### 🎡 NWSL Trivia — content pipeline (Phase-1 INFRASTRUCTURE built 2026-08-13, on branches; deploy + Phase-2 content remain)
-> ✅ **Phase 1 (the serving pipeline) BUILT + unit-tested, committed on branches** (proxy
-> `feature/trivia-content-pipeline`, app `feature/trivia-round-serving`): a yearly library is deterministically
-> GROUPED into ~30 biweekly rounds server-side (`nwslapp-proxy/src/trivia.ts` `groupIntoRounds` — difficulty
-> 2/4/4, 2 fun facts, ≥4 categories, no in-year repeats), stored as `trivia-pool-v2`, served per-round via
-> `GET /trivia?round=<editionKey>`; the app fetches its round (no more client slicing); a missed refresh WRAPS
-> (fail-safe) + pages `triviaStaleServe`; a BRIDGE serves the legacy flat pool until the first grouped pool
-> lands. Two-key ingest (`/trivia/ingest` + `/trivia/candidate`) + `health_check_trivia.mjs` mirror KHG.
-> ⏳ **REMAINING:** (1) merge both branches; (2) DEPLOY the proxy + set `TRIVIA_INGEST_KEY`/`TRIVIA_CANDIDATE_KEY`
-> secrets (owner); (3) **Phase 2 — the generate/verify routines + tuned prompt** (below) → the first
-> owner-supervised annual generation. Until (3), the app bridges on the flat pool (works, repeats after ~4).
-> Full plan: `~/.claude/plans/cheeky-finding-harbor.md`.
->
-> **CONTENT RULES for the annual batch** (relocated 2026-08-11 from the retired
-> `docs/nwsl-trivia-weekly-redesign.md` planning branch — its UI/cadence half was SUPERSEDED by the
-> 2026-07-23 biweekly rebuild; current structure truth = `docs/fan-zone.md`):
-> - **~300 questions USED/year (30 biweekly rounds × 10) from a ~400 library** (CORRECTED 2026-08-13 — the
->   old "530 → 53 weekly" was the pre-biweekly math). The proxy grouper does round-indexed deterministic
->   assignment → zero in-year repeats with NO "seen" ledger; cross-year overlap is acceptable (owner — the
->   requirement was "not the same question I just saw," not "never repeat NWSL history").
-> - **Tag each question `evergreen` vs `season-bound`; bias HEAVILY evergreen** (settled history, rules,
->   venues, finalized records) so annual rot is near zero. Keep season-bound (current-season stats/records)
->   minimal, refresh at the annual regen. (Rot example: "single-season goals record" breaks the day it's
->   beaten; "when did Utah Royals pause?" never does.)
-> - **Difficulty per round = 2 easy / 4 medium / 4 hard** (owner 2026-08-13, "lean harder") + **2 fun-fact
->   questions/round** (the "oh wow" kind) + **≥4 categories/round** — all ENFORCED BY THE PROXY GROUPER now,
->   not a manual step; the generation prompt just has to produce a pool feasible for those targets.
-> - **One annual fact-check pass** = the VERIFY routine (generator ≠ verifier), tiered: heavy independent
->   re-confirm for fun-facts/surprising claims, light source-check for settled history; default-to-DROP.
-> - **Generation = reuse the KHG automation template, ANNUAL not weekly**, BATCHED BY CATEGORY (a ~400-Q
->   batch is too big for one quality run) → stage to `/trivia/candidate` → verify → `/trivia/ingest` (+ optional
->   mid-season patch if a record falls). ⚠️ **The tuned Trivia generation prompt is authored in Phase 2**;
->   clone `nwslapp-proxy/scripts/knowher-weekly-TEMPLATE.md` + `knowher-verify-routine.md` (the referenced
->   `knowher-generation-prompt.md` never existed — the real KHG assets are the TEMPLATE + assembler).
-> - **Build-time notes:** streak becomes WEEKLY (reinterpret GC `triviaStreak7/30` as weeks or retire);
->   `quiz_answers.edition_key` moves day-key → week-key (old daily community data orphaned, harmless);
->   proxy `quiz-results.ts` already treats Trivia like KHG (always-revealed).
-
 > ### 🏆 The Bracket → offseason-first, semi-automatic (decision LOCKED; the one code change is NOT done)
 > **Decision (locked, owner):** stop running The Bracket year-round on a fixed cadence. Make it primarily
 > an **offseason** feature, with maybe **1–2 editions during the season**. You stock a library of themes;

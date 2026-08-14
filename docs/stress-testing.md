@@ -270,7 +270,7 @@ For each subsystem, walk it explicitly:
 
 ## 7. Status ledger
 
-- **NWSL Trivia content pipeline (2026-08-13, roadmap #2, Phase-1 serving): ✅ passes 1k + 100k by
+- **NWSL Trivia content pipeline (2026-08-13, roadmap #2 — SHIPPED + DEPLOYED, generate/verify routines live): ✅ passes 1k + 100k by
   construction.** The only user-facing read is `GET /trivia?round=<key>` — one KV get behind a 6h edge cache,
   keyed per round (~30 keys/season), and the app fetches only the current + previous round (never the whole
   year). Ingest/candidate are owner-only, two-key-gated, off the user path (one KV write per annual publish).

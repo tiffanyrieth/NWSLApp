@@ -400,17 +400,19 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   third-party buckets (reporter/league Bluesky + news RSS: isNWSL strict; fail-DROP for social /
   fail-open for news); club + player accounts are trusted fast paths. Every card carries a `sourceType`
   (club·reporter·player·league·news) for Feed chips. Plus a flood cap + dedupe.
-- **IG scrape = LOAD-BALANCED across two free tiers** (2026-07-05, after Apify's free $5/mo ran dry
-  mid-cycle): **clubs (16 handles → Home) via Apify** (~192 items/run ≈ $0.86/mo — Home serves the club
-  pool UNCAPPED and pages its ~12/profile depth on refresh, so the cheap actor ignoring per-post limits
-  is a feature) and **players (34 handles → Feed) via Bright Data's Web Scraper API** (recurring free 5k
-  records/mo; `num_of_posts=6` honored ≈ 3,060/mo; players serve-cap at 3/handle anyway). BD is ASYNC:
-  the every-2-day cron triggers, BD POSTs results to the proxy's `/brightdata-webhook` ~1–3 min later
-  (auth = `BD_WEBHOOK_SECRET` echoed in the Authorization header). SPLIT KV keys
-  (`social-cards-club-v1` / `social-cards-player-v1`, per-side keep-last-good — two writers, so a shared
-  key would race). Admin `POST /refresh-social` (`x-admin-key`) forces an immediate refresh (token swap /
-  aborted run). Gotcha: BD bills a record even for an EMPTY handle (renamed/dead account) — quota drains
-  silently, hence the `bdHandleEmpty` diag; keep the player handle list clean.
+- **IG scrape = LOAD-BALANCED across two free tiers** (2026-07-05; **swapped 2026-08-14** to unlock
+  player headroom): **players (→ Feed) via Apify** ($0.30/1k items; the cheap actor ignores
+  `postsPerProfile` and returns ~12/profile, but players serve-cap at 3/handle anyway; 34 handles ×
+  ~12 × ~15 runs/mo ≈ 6,120 items ≈ $1.84/mo — inside the $5 free tier with room for ~90 handles;
+  `MAX_PLAYER_HANDLES=80` guards the budget ceiling) and **clubs (16 handles → Home) via Bright Data's
+  Web Scraper API** (recurring free 5k records/mo; `num_of_posts=6` honored; 16 × 6 × ~15 ≈ 1,440
+  records/mo ≈ $2.16). BD is ASYNC: the every-2-day cron triggers, BD POSTs results to the proxy's
+  `/brightdata-webhook` ~1–3 min later (auth = `BD_WEBHOOK_SECRET` echoed in the Authorization header).
+  SPLIT KV keys (`social-cards-club-v1` written by BD webhook / `social-cards-player-v1` written by
+  Apify cron path, per-side keep-last-good — two writers, so a shared key would race). Admin
+  `POST /refresh-social` (`x-admin-key`) forces an immediate refresh (token swap / aborted run). Gotcha:
+  BD bills a record even for an EMPTY handle (renamed/dead account) — quota drains silently, hence the
+  `bdHandleEmpty` diag; keep the club handle list clean.
 - **📰 Club news — official-source-per-club (`CLUB_NEWS` map, all 16 reach OFFICIAL news since 2026-08-05).**
   Each club has a strategy `kind`: **`rss`** (feed inline, 1 fetch — incl. BOS's Shopify `press.atom`),
   **`index`** (scrape the SSR'd news index for links, then OG-enrich each article — GFC/POR/KC/etc; dates

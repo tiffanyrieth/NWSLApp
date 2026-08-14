@@ -344,6 +344,20 @@
 > 2026-08-09 (#263, `live-activity-v2.md` §8b); on-watch check rides the next TestFlight build, owner
 > re-raises only if it misrenders.)_
 
+> ### 🌍 VERIFY notification LOCAL-TIME on the NEXT TestFlight build (merged 2026-08-14: app #286, watcher #38)
+> Global-audience notification timing is on `main` and the watcher is DEPLOYED, but **dormant-safe** until a
+> build carries the app half: every device is still null-tz → the legacy 14:00-UTC Predict-results send
+> (byte-for-byte the old behaviour). ⚠️ The TestFlight build shipped <24h before this does NOT include it — so
+> verify on the NEXT build:
+> 1. **tz is populating** — confirm `device_tokens.timezone` is non-null after installing + foregrounding (it
+>    writes on token/tz change via `NotificationSyncCoordinator`).
+> 2. **Predict-results dry-run per timezone** (with `MANUAL_TRIGGER_SECRET`):
+>    `POST https://nwslapp-match-watcher.tiffany-rieth.workers.dev/predict-results-run?dryRun=1&atHourUTC=<h>`
+>    — confirm the right cohorts light up (`atHourUTC=0` → Sydney's 10am wave; `=14` → US-Eastern + null-tz
+>    legacy). Returns `{predictors, qualifyingTokens, userIdsWouldMark}` per fixture, no send.
+> 3. **KHG "new round" nudge** (also in this build) fires at local Mon 10am on a KHG drop week — device-check.
+> Deploy-order-safe; do NOT raise the update-gate `minBuild`. Mechanism: `docs/notifications.md` delivery-timing rule.
+
 ---
 
 **Pending work only (ALIVE > core > hardening); shipped/decided/dropped work lives in git history + the File Map.**

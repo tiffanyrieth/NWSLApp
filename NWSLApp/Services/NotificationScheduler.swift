@@ -4,8 +4,12 @@
 //
 //  Owns all *local* notification scheduling — the Tier 1 reminders the phone can
 //  fire by itself, with no server: the day-before match reminder and the weekly
-//  Player Spotlight. (Tier 2 — live kickoff/goals/halftime/full-time — is server
-//  push via APNs and a match-watcher Worker; it does not live here.)
+//  Know Her Game "new round" nudge. (Tier 2 — live kickoff/goals/halftime/full-time
+//  — is server push via APNs and a match-watcher Worker; it does not live here.)
+//
+//  The KHG nudge follows the SCHEDULED-notification model (docs/notifications.md's
+//  event-driven-vs-scheduled rule): fire at a good LOCAL hour, never before content
+//  is live, never at night — see `spotlightFireDate`.
 //
 //  Like FollowSyncCoordinator, this is a coordinator the root holds alive and
 //  starts after launch — it is NOT injected into the environment, because no view
@@ -114,14 +118,15 @@ final class NotificationScheduler {
     /// (pure, no I/O) first and gates on the signature — only when the built set actually changed
     /// do we render the card images (a handful of flat ImageRenderer passes) and re-add.
     func reschedule() {
-        let specs = dayBeforeSpecs()
-        let signature = Self.scheduleSignature(dayBefore: specs, spotlightEnabled: preferences.playerSpotlight)
+        let daySpecs = dayBeforeSpecs()
+        let spotSpecs = spotlightSpecs()
+        let signature = Self.scheduleSignature(dayBefore: daySpecs, spotlight: spotSpecs)
         guard signature != lastScheduleSignature else { return }   // nothing changed → skip the churn
         lastScheduleSignature = signature
 
         // Render behind the gate: only now (the set changed) do we pay for the card images.
-        var requests = specs.compactMap(request(from:))
-        if preferences.playerSpotlight { requests.append(weeklySpotlightRequest()) }
+        var requests = daySpecs.compactMap(request(from:))
+        requests += spotSpecs.compactMap(spotlightRequest(from:))
 
         Task {
             // We own every locally-scheduled request, so clearing all pending ones
@@ -140,16 +145,18 @@ final class NotificationScheduler {
         lastScheduleSignature = nil   // force a full rebuild on the next reschedule
     }
 
-    /// Order-independent hash of the day-before set (+ the spotlight bool). Each `DayBeforeSpec`
-    /// is `Hashable` over its identifier, STABLE fireDate, title, body, card, and assetToken — so a
-    /// re-render triggers when (and only when) any of those change. ⚠️ We hash the fireDate, NOT a
-    /// now-relative interval: the old `scheduleSignature(of:)` hashed the trigger's `timeInterval`,
-    /// which decays every second, so any pending day-before reminder defeated the churn gate and the
-    /// 60s live-poll rebuilt the whole set every minute.
-    nonisolated static func scheduleSignature(dayBefore: [DayBeforeSpec], spotlightEnabled: Bool) -> Int {
+    /// Order-independent hash of the day-before set + the KHG spotlight set. Each spec is `Hashable`
+    /// over its identifier, STABLE fireDate, and content — so a re-render triggers when (and only when)
+    /// any of those change. ⚠️ We hash the fireDate, NOT a now-relative interval: the old
+    /// `scheduleSignature(of:)` hashed the trigger's `timeInterval`, which decays every second, so any
+    /// pending reminder defeated the churn gate and the 60s live-poll rebuilt the whole set every minute.
+    /// The spotlight specs hash their absolute fireDates too, so the set is byte-identical within a week
+    /// (no churn) and rehashes exactly once when a week rolls — re-arming the nudge on the next foreground.
+    /// An empty spotlight array encodes "opt-in off", so no separate bool is needed.
+    nonisolated static func scheduleSignature(dayBefore: [DayBeforeSpec], spotlight: [SpotlightSpec]) -> Int {
         var hasher = Hasher()
         for spec in dayBefore.sorted(by: { $0.identifier < $1.identifier }) { hasher.combine(spec) }
-        hasher.combine(spotlightEnabled)
+        for spec in spotlight.sorted(by: { $0.identifier < $1.identifier }) { hasher.combine(spec) }
         return hasher.finalize()
     }
 
@@ -312,25 +319,108 @@ final class NotificationScheduler {
     }
     #endif
 
-    // MARK: - Weekly Player Spotlight
+    // MARK: - Weekly Know Her Game nudge (scheduled-class — local-time, quiet-hours-guarded)
+    //
+    // The standing rule (docs/notifications.md): a SCHEDULED "new content" notification is delivered on the
+    // LOCAL-TIME model — anchored to a good local hour (10 AM), gated to never precede the content going
+    // live, and quiet-hours-guarded (no night pings). (This is the event-driven-vs-scheduled axis, distinct
+    // from the delivery Tier 1/Tier 2 = local/watcher-push axis; this nudge is delivery-Tier-1 local.) NWSL
+    // is worldwide (100+ followable national teams, international stars), so a fan in London/Sydney must
+    // never be told "new round" before it exists. KHG content publishes at a single global UTC instant;
+    // only the NUDGE is per-timezone. Trivia gets no nudge by design; the future bracket-round nudge
+    // inherits this same model.
 
-    private func weeklySpotlightRequest() -> UNNotificationRequest {
+    static let spotlightTitle = "New Know Her Game"
+    static let spotlightBody = "This week's players are ready — how well do you know them?"
+
+    /// One built KHG "new round" nudge. `Hashable` so it folds into the rebuild signature; the fireDate is
+    /// a STABLE absolute instant (never a decaying interval — see `scheduleSignature`).
+    struct SpotlightSpec: Hashable {
+        let identifier: String    // "nwsl.spotlight.<mondayOrdinal>"
+        let fireDate: Date
+        let title: String
+        let body: String
+    }
+
+    /// How many upcoming KHG drops to keep scheduled. KHG is biweekly, so 4 ≈ 8 weeks of lead; the set
+    /// re-arms whenever the app foregrounds (`observeStores` → `reschedule`). Kept small to preserve
+    /// headroom under iOS's 64-pending cap (4 + the day-before window ≤ 50 stays well clear).
+    private static let spotlightHorizon = 4
+
+    /// The upcoming KHG nudge specs (pure — no I/O). Empty when the opt-in is off. One per upcoming KHG
+    /// drop Monday, each fired on the scheduled local-time model (`spotlightFireDate`); Trivia drop weeks
+    /// produce nothing.
+    private func spotlightSpecs() -> [SpotlightSpec] {
+        guard preferences.playerSpotlight else { return [] }
+        let now = Date()
+        return FanZoneCadence.upcomingKnowHerDrops(from: now, count: Self.spotlightHorizon).compactMap { monday in
+            guard let fire = Self.spotlightFireDate(dropMonday: monday, now: now) else { return nil }
+            return SpotlightSpec(
+                identifier: "nwsl.spotlight.\(FanZoneCadence.mondayOrdinal(monday))",
+                fireDate: fire, title: Self.spotlightTitle, body: Self.spotlightBody)
+        }
+    }
+
+    /// The instant to fire the KHG nudge for `dropMonday`'s week: the LATER of the device's local Monday
+    /// 10:00 (so it reads as a Monday-morning nudge) and the moment KHG content is actually live worldwide
+    /// (`availabilityInstant` + a propagation buffer), then quiet-hours-guarded so it never lands at night.
+    /// Returns nil if that instant has already passed. `calendar`/`now` are injected so the timezone
+    /// behaviour is unit-testable.
+    ///
+    /// The `max` guarantees "fire ≥ content-live" for EVERY timezone (a fan east of the publisher — London,
+    /// Sydney — must not be told "new round" before it exists). The night guard handles the far-east, where
+    /// content going live in local evening/night rolls to the next morning rather than pinging at 11 PM.
+    /// Worked cases: LA/NY → Mon 10 AM local; Hawaii → Mon 10 AM (no midnight ping); London → ~11 AM;
+    /// Sydney → ~8 PM same-day; Auckland → Tue 10 AM.
+    nonisolated static func spotlightFireDate(
+        dropMonday: Date,                       // FanZoneCadence.weekStart → UTC Monday 00:00
+        calendar: Calendar = .current,          // the device's timezone
+        now: Date = Date(),
+        buffer: TimeInterval = 10 * 60,         // covers the ≤5-min edge cache + publish propagation
+        eveningCutoffHour: Int = 21             // 9 PM: no nudge at/after this local hour → roll to next 10 AM
+    ) -> Date? {
+        let availability = FanZoneCadence.availabilityInstant(for: .knowHerGame, dropMonday: dropMonday)
+
+        // "Local Monday 10:00": take the UTC Monday's calendar DATE LABELS (Y/M/D) and reinterpret them at
+        // 10:00 in the device timezone. Deriving from the labels — not from the availability instant's local
+        // calendar day — keeps the anchor on the correct Monday even when the offset pushes the instant into
+        // Sunday locally (US-west) or Tuesday (far-east).
+        var utc = Calendar(identifier: .iso8601)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let ymd = utc.dateComponents([.year, .month, .day], from: dropMonday)
+        var local = DateComponents()
+        local.year = ymd.year; local.month = ymd.month; local.day = ymd.day
+        local.hour = 10; local.minute = 0
+        guard let localMonday10 = calendar.date(from: local) else { return nil }
+
+        var fire = max(localMonday10, availability.addingTimeInterval(buffer))
+
+        // Quiet-hours guard: keep the fire in [10:00, eveningCutoffHour) local; otherwise advance to the
+        // next local 10:00 AM at-or-after it. Only the extreme far-east (UTC+12+) ever trips this.
+        let hour = calendar.component(.hour, from: fire)
+        if hour < 10 || hour >= eveningCutoffHour {
+            if let rolled = calendar.nextDate(after: fire,
+                                              matching: DateComponents(hour: 10, minute: 0),
+                                              matchingPolicy: .nextTime) {
+                fire = rolled
+            }
+        }
+
+        return fire > now ? fire : nil
+    }
+
+    /// Turn a KHG nudge spec into a request, using the day-before absolute-instant trigger. `nil` if the
+    /// fire moment slid into the past between building and adding.
+    private func spotlightRequest(from spec: SpotlightSpec) -> UNNotificationRequest? {
+        let interval = spec.fireDate.timeIntervalSinceNow
+        guard interval > 0 else { return nil }
         let content = UNMutableNotificationContent()
-        content.title = "New Know Her Game"
-        content.body = "This week's players are ready — how well do you know them?"
+        content.title = spec.title
+        content.body = spec.body
         content.sound = .default
-
-        // Monday 10:00 AM, local. UNCalendarNotificationTrigger uses the device's
-        // calendar + timezone by default (weekday 1 = Sunday, so 2 = Monday).
-        var components = DateComponents()
-        components.weekday = 2
-        components.hour = 10
-        components.minute = 0
-        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
         return UNNotificationRequest(
-            identifier: "nwsl.spotlight.weekly",
+            identifier: spec.identifier,
             content: content,
-            trigger: trigger
-        )
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false))
     }
 }

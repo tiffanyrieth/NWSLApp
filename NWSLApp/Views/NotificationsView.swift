@@ -247,10 +247,10 @@ struct NotificationsView: View {
     private var activitySection: some View {
         SettingsGroup(title: "Activity", subtitle: "Not tied to a team") {
             // Deferred (real game backends): persists intent, no permission/gate.
-            SettingsToggleRow(title: "Fan Zone rounds", subtitle: "When a new bracket round or trivia opens",
+            SettingsToggleRow(title: "Fan Zone rounds", subtitle: "When a new bracket round opens",
                               isOn: deferredBinding(\.fanZoneRounds))
             SettingsRowDivider()
-            SettingsToggleRow(title: "Know Her Game", subtitle: "When a new weekly player quiz is ready",
+            SettingsToggleRow(title: "Know Her Game", subtitle: "When a new round of players is ready",
                               isOn: tier1Binding(\.playerSpotlight))
             SettingsRowDivider()
             // Tier-2 (watcher-triggered next-day push) — standalone, sign-in-gated via tier2Binding.

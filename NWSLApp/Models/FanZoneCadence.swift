@@ -137,6 +137,46 @@ enum FanZoneCadence {
         roundStart(for: slot, at: date).addingTimeInterval(14 * 86_400)
     }
 
+    // MARK: - Notification availability (scheduled "new round" nudge)
+
+    /// The UTC hour Know Her Game content goes live each drop Monday — the watcher's Monday publish pass.
+    /// ⚠️ MUST equal `KNOWHER_PUBLISH_HOUR_UTC` in `nwslapp-match-watcher/src/index.ts` (two halves of one
+    /// contract; `FanZoneCadenceTests.knowHerPublishHourMatchesTheWatcher` pins it, like the season anchor).
+    /// Trivia has no publish pass — its round is deterministic and live at the 00:00 UTC week boundary.
+    static let knowHerPublishHourUTC = 10
+
+    /// The single global UTC instant `slot`'s round for `dropMonday`'s week becomes available to fans —
+    /// the "never notify before content is live" gate for the scheduled local-time nudge model. Trivia is
+    /// deterministic at the Monday 00:00 UTC boundary; KHG swaps atomically when the watcher publishes at
+    /// `knowHerPublishHourUTC`. `dropMonday` must be a `weekStart` (UTC Monday 00:00). DST-safe interval
+    /// arithmetic on a UTC instant, matching `roundStart`/`roundCloses`.
+    static func availabilityInstant(for slot: QuizSlot, dropMonday: Date) -> Date {
+        switch slot {
+        case .trivia:      return dropMonday                                                          // Mon 00:00 UTC
+        case .knowHerGame: return dropMonday.addingTimeInterval(Double(knowHerPublishHourUTC) * 3_600) // Mon 10:00 UTC
+        }
+    }
+
+    /// The next `count` Know Her Game drop Mondays (UTC Monday midnights) from `now`, in-season only.
+    /// KHG drops on even week-offsets; this walks forward keeping only its drop weeks, so the caller
+    /// schedules one nudge per upcoming KHG round. Trivia weeks are intentionally skipped (Trivia has no
+    /// "new round" notification), and preseason Mondays (`weekOffset < 0`) are excluded so nothing fires
+    /// before the season anchor. The walk is bounded so a bad anchor can't loop unbounded.
+    static func upcomingKnowHerDrops(from now: Date, count: Int) -> [Date] {
+        guard count > 0 else { return [] }
+        var out: [Date] = []
+        var monday = weekStart(for: now)
+        var steps = 0
+        while out.count < count && steps < count * 2 + 4 {   // KHG is biweekly → ≤ ~2 weeks per drop
+            if weekOffset(for: monday) >= 0 && quizSlot(for: monday) == .knowHerGame {
+                out.append(monday)
+            }
+            monday = monday.addingTimeInterval(7 * 86_400)
+            steps += 1
+        }
+        return out
+    }
+
     /// A stable per-round edition key for `quiz_answers` / community results — e.g. `"2026-R08"`.
     /// Distinct from KHG's own key (which is `{weekKey}-{team}-{athleteId}`, one per featured player);
     /// Trivia has a single slate per round so the round key IS its edition key.

@@ -47,7 +47,8 @@ A visual version of this diagram is published as an Artifact (see the bottom of 
 Everything is **opt-in** — nothing auto-enables at onboarding or launch (owner rule, no dark patterns).
 
 - **Tier 1 — deliverable WITHOUT an account** (scheduled locally on the device): the **day-before** match reminder
-  and **Player Spotlight**. No server involved. ⚠️ iOS caps *pending* local notifications at **64/app**, so
+  and the **Know Her Game "new round" nudge** (see the delivery-timing rule below — it's local but follows the
+  *scheduled* model). No server involved. ⚠️ iOS caps *pending* local notifications at **64/app**, so
   day-before is **windowed to the next 2 fixtures per alerting team**, never the whole season.
 - **Tier 2 — watcher-triggered ⇒ needs an account** (sign-in gated): kickoff / goals / halftime / full-time /
   **lineup-posted** + the **V2 Live Activity**. These require a `device_tokens` row, which requires a signed-in
@@ -64,6 +65,82 @@ in `competition_alert_preferences` (separate from the club-id `team_alert_prefer
 
 Prefs live in Supabase (offline-first, UserDefaults cache). App side: `NotificationPreferencesStore`,
 `TeamAlertStore`, `NotificationScheduler` (Tier 1 local scheduling).
+
+### 1·. Delivery timing — event-driven vs scheduled (⚠️ STANDING RULE, owner 2026-08-14)
+
+This is a **second, orthogonal axis** to the Tier 1/Tier 2 (local-vs-watcher-push) split above — do not
+conflate them. Tier is about *who delivers*; this is about *when*. **NWSL is a worldwide sport** (the #1
+women's league globally; the app supports 100+ followable national teams; core fans in London, Lagos, and
+Sydney follow international stars — Kerr at Gotham, Banda at Pride). So notification timing must be
+correct for the whole globe, **never** reasoned about as if every user were in the US. The recurring AI
+failure this rule targets: "NWSL → US league → US timezones only," which shipped a KHG nudge that fired
+*before* content existed for anyone east of the publisher.
+
+**Event-driven (real-time) notifications** fire at their real/absolute instant, **globally simultaneous**,
+timezone-agnostic — the immediacy *is* the value (a 3 AM goal alert is the point). Members: **kickoff,
+halftime, full-time, goals, red card, VAR/no-goal, lineup posted, the 24h day-before match reminder, and
+the lock-screen V2 Live Activity.** The day-before reminder belongs here because it is anchored to a real
+event (kickoff − 24h); it stays absolute-instant (`DayBeforeSpec.fireDate`) and is easy to toggle off.
+
+**Scheduled (content) notifications** — anything NOT a live-match event (a "new content" nudge) — are
+delivered on the **local-time model**, three layers:
+1. **Anchor** to a good local hour: **10:00 AM local**.
+2. **Gate** so it never precedes the content going live: fire at `max(local 10 AM, the content's global
+   availability instant + a small buffer)`. Content publishes at ONE global UTC instant; only the *nudge*
+   is per-timezone.
+3. **Quiet-hours guard**: never at/after **9:00 PM local** — roll to the next morning's 10 AM. (No
+   midnight pings for the far-east.)
+   This is the standard worldwide pattern (per-user local-time delivery + quiet hours + decouple
+   publish-from-notify — Duolingo, Spotify, news digests, every major push platform). **Any new
+   scheduled notification inherits this model — do not re-derive per-feature.**
+
+Members & availability instants (the "content live" moment for the gate):
+- **Know Her Game "new round" nudge** — availability = **Monday 10:00 UTC** (the watcher's publish pass,
+  `FanZoneCadence.knowHerPublishHourUTC`, mirrors the watcher's `KNOWHER_PUBLISH_HOUR_UTC`). Implemented
+  as local Tier-1 one-shots in `NotificationScheduler.spotlightFireDate` /`spotlightSpecs`, cadence-gated
+  to KHG drop weeks via `FanZoneCadence.upcomingKnowHerDrops`, re-armed on foreground. **Worked cases:**
+  LA/NY → Mon 10 AM local; Hawaii → Mon 10 AM (no midnight); London → ~11 AM; Sydney → ~8 PM same-day;
+  Auckland → Tue 10 AM.
+- **NWSL Trivia** — **gets NO "new round" notification** by owner decision. (Its round is deterministic at
+  the 00:00 UTC boundary; `availabilityInstant(for: .trivia,…)` exists for completeness/future use only.)
+- **The future Fan Zone bracket-round nudge** (`fanZoneRounds` toggle, delivery unbuilt) inherits this
+  model when built. Its toggle copy is narrowed to bracket-only (Trivia is notification-free).
+- **Predict results** (`predictResults`) — a Tier-2 *watcher push*, brought onto the local-time model
+  2026-08-14 (was a fixed 14:00-UTC blast = midnight in Sydney). Because a server push can't be scheduled
+  on-device, the fan's timezone is stored server-side: the app writes `device_tokens.timezone`
+  (`TimeZone.current.identifier`) on token registration, re-uploading whenever the token OR the tz changes
+  (`NotificationSyncCoordinator` — so travel / a DST shift refreshes it). The watcher's
+  `maybeRunPredictResultsPass` runs as an **hourly local-morning wave** (a KV hour-marker, replacing the
+  once-daily hour-14 gate): each UTC hour it pushes unseen + un-notified predictors whose device is at
+  **10:00 local now** (`qualifiesForLocalMorning`, IANA id via `Intl`; **null tz → legacy 14:00-UTC**, so
+  un-migrated apps are unchanged and the rollout is deploy-order-safe). Idempotency is now **per-`(event,
+  user)`** via the `predict_result_notified` ledger (the old single per-fixture KV marker would have
+  stranded every timezone after the first wave); a `predict-nopredictors:${eventId}` KV marker keeps the
+  cheap no-predictor short-circuit. Supervised verify: `POST /predict-results-run?dryRun=1&atHourUTC=<h>`
+  (secret-gated) returns the cohort a given hour's wave would push without sending. Limitation: a result
+  settling after a zone's 10:00 waits until next day's 10:00 for that zone (still far better than a
+  midnight blast; the result is viewable in-app immediately regardless).
+
+**⚠️ LOCAL vs SERVER localization are NOT the same amount of work — budget accordingly.** The *policy*
+above is three lines ("fire at each fan's 10 AM, after content, not at night"), but the *machinery* depends
+entirely on **who holds the clock**, and this is the trap: the two look identical on paper and are wildly
+different to build.
+- **A LOCAL notification (Tier 1: KHG nudge, day-before) gets localization almost free.** The device reads
+  its own `TimeZone.current` at fire time — the phone *is* the clock. It self-schedules, iOS makes the
+  one-shot idempotent, and it's fully provable in the Simulator. No backend, no stored tz, no dedupe.
+- **A SERVER push (Tier 2: Predict results) turns "10 AM local" into a small distributed-systems problem.**
+  The Worker has no idea where anyone is and can't "wait until it's 10 AM for user X." So localizing a
+  server push costs, every time: **(1)** collect the tz on-device + **transmit + store** it
+  (`device_tokens.timezone`); **(2)** keep it **fresh** (re-upload on DST/travel — a stored value goes
+  stale, a live read never does — the stale-tz guard in `NotificationSyncCoordinator`); **(3)** **sweep**
+  hourly instead of waiting (the 24-wave `maybeRunPredictResultsPass`); **(4)** **dedupe across the sweep**
+  (the per-`(event,user)` `predict_result_notified` ledger — a single per-fixture marker BREAKS under
+  waves); **(5)** **DST-harden** the server-side hour math (IANA + `Intl`, target kept clear of the
+  01:00–03:00 spring-forward gap, try/catch a garbage id); **(6)** coordinate **three deploys** (app ·
+  migration · watcher) with an ordering dependency; **(7)** build a **dry-run** affordance because the live
+  path can't be proven in a sim. **The lesson for the next Tier-2 nudge (e.g. bracket-round results as a
+  push): the hour is one line; the tz pipeline + hourly sweep + idempotency ledger already exist — reuse
+  `device_tokens.timezone` / `qualifiesForLocalMorning` / the notified-ledger pattern, don't re-derive.**
 
 ### 1a. Reinstall restore — ⛔ SUPERSEDED 2026-08-01, BEING REMOVED
 
@@ -185,19 +262,14 @@ Full-time detection, the Live Activity teardown, and the fixture index's `ended`
   ESPN stats + Lever 1 into the weekend-verified pool and publishes. No-op until `KNOWHER_INGEST_KEY` is set
   on the watcher (armed only after the supervised first run). Full design: `docs/know-her-game.md §5c`.
 
-⏰ **Scheduled-push delivery time — LOCAL vs fixed-UTC (two follow-ups, not yet done):**
-- **KHG "new players" Monday nudge → already fires in each user's LOCAL time.** It's an *on-device* local
-  notification (`NotificationScheduler.weeklySpotlightRequest`, `UNCalendarNotificationTrigger` weekday 2 /
-  hour 10 in the device's own timezone) — no server, no `device_tokens`. So the KHG side of "10am local" is
-  satisfied by construction. Two pre-existing caveats (NOT introduced by the split): it's a fixed **weekly**
-  local timer but rounds are **biweekly** (so it fires on off-weeks with no new content), and a user far east
-  of PT gets the Monday-10am-local nudge *before* the Monday-3am-PT publish. **Follow-up:** make the nudge
-  biweekly-/publish-aware.
-- **Predict "results ready" push → a single fixed 14:00 UTC send (= 10am ET only; 7am PT).** NOT localized,
-  and **no user timezone is stored anywhere** (`device_tokens` has no tz column; not captured at token
-  registration). **Follow-up (own plan):** capture device tz at registration + bucket the watcher fan-out by
-  offset so it fires at each user's local 10am. Cheap/flat at scale; matters even domestically (10am ET vs PT
-  is a 3-hour spread).
+⏰ **Scheduled-push delivery time — LOCAL vs fixed-UTC (both follow-ups DONE 2026-08-14):**
+- **KHG "new players" Monday nudge → cadence-aware + globally clamped** (`NotificationScheduler.
+  spotlightFireDate`/`spotlightSpecs`). Fires only on KHG drop weeks (not the old fixed weekly timer that
+  mis-fired on Trivia off-weeks), at `max(local Mon 10am, publish + buffer)` with a 9pm quiet-hours guard —
+  so a far-east fan is never nudged before the Monday-10:00-UTC publish. See the delivery-timing rule above.
+- **Predict "results ready" push → per-user local-morning wave** (`device_tokens.timezone` +
+  `qualifiesForLocalMorning` + `predict_result_notified`). See the Predict-results bullet in the
+  delivery-timing rule above for the full mechanism; null-tz devices still fall back to the 14:00-UTC send.
 
 ## 4. Detection
 

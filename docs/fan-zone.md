@@ -189,8 +189,14 @@ facts, ≥4 categories, and **no in-year repeats** — stored as `trivia-pool-v2
 round only — never the whole year (limits study-ahead; Trivia feeds Superfan accuracy). Past-round review
 still needs **zero stored questions** — the proxy re-serves that round's fixed 10. `TriviaViewModel` no
 longer slices client-side (the old `roundSelection`/`SeededGenerator` are gone). **Fail-safe:** the whole
-year publishes up front; a missed annual refresh WRAPS to a prior season (cross-year repeat, acceptable) +
-pages via `triviaStaleServe`, never an empty game. Until the first grouped pool is published, `/trivia?round=`
+year publishes up front; a missed annual refresh WRAPS to a prior season (cross-year repeat, acceptable —
+owner's bar was "not the same question I just saw," NOT "never repeat NWSL history," so no "seen" ledger is
+needed) + pages via `triviaStaleServe`, never an empty game. **Cadence = ANNUAL regen + on-demand mid-season
+patch** (facts rarely move week to week — this is why Trivia has no Monday watcher/stat-injection unlike KHG):
+every question is tagged `scope` **evergreen** (settled history, rules, venues, finalized records — the bulk,
+BIAS HEAVILY here so annual rot ≈ 0) vs **season-bound** (current-season stats/standing records — kept minimal,
+refreshed at the annual regen; e.g. "single-season goals record" rots the day it's beaten, "when did Utah
+Royals pause?" never does). Library ≈400 / ~300 used per year (30 rounds × 10). Until the first grouped pool is published, `/trivia?round=`
 BRIDGES on the legacy flat pool (`sliceFlatPool`) so the round-aware app never shows empty. Pipeline detail:
 the plan + `src/trivia.ts` in `nwslapp-proxy`; the generate→verify→ingest flow mirrors KHG (`§5` there).
 `TriviaQuestion` carries optional `scope`/`source`/`flavor`/`revealFact` (lenient `String?`, not enums — a

@@ -57,6 +57,9 @@ final class FeedViewModel {
     struct Source: Identifiable, Hashable {
         let name: String
         let detail: String
+        /// Bare Bluesky handle (no `@`) when the source has one — lets a mute toggle also
+        /// record the handle so the proxy can exclude a toggled-off DEFAULT (`muted=` param).
+        var handle: String? = nil
         /// A reporter the USER added (Phase 3) — gets the "ADDED" badge in the Sources list.
         var isAdded: Bool = false
         var id: String { name }
@@ -205,7 +208,10 @@ final class FeedViewModel {
     /// Honor the content preferences: drop muted sources and toggled-off types.
     /// (Only the reporter/article toggles exist; other layouts always pass.)
     private func passesPreferences(_ card: ContentCard, _ prefs: FeedPreferencesStore) -> Bool {
-        if prefs.isMuted(card.muteKey) { return false }
+        // Layering rule: a per-source mute governs the curated DEFAULT copy of a voice, never a
+        // user-added one (those are removed via Remove) — so muting a default while also having
+        // added the same handle resurfaces the unfiltered add instead of hiding both copies.
+        if card.userAdded != true, prefs.isMuted(card.muteKey) { return false }
         switch card.layout {
         case .blueskyReporter: return prefs.showReporterPosts
         case .newsArticle:     return prefs.showArticleLinks
@@ -238,13 +244,14 @@ final class FeedViewModel {
             seen.insert(key)
             let detail = item.handle ?? item.sourceName ?? item.platform.rawValue.capitalized
             let isAdded = item.handle.map { addedHandles.contains($0) } ?? false
-            result.append(Source(name: key, detail: detail, isAdded: isAdded))
+            let bare = item.handle.map { $0.hasPrefix("@") ? String($0.dropFirst()) : $0 }
+            result.append(Source(name: key, detail: detail, handle: bare, isAdded: isAdded))
         }
         // Union any added reporters that have no current posts, so they still show in Sources.
         for r in preferences.addedReporters {
             let handleAt = "@" + r.handle
             if !result.contains(where: { $0.detail == handleAt || $0.name == r.displayName }) {
-                result.append(Source(name: r.displayName, detail: handleAt, isAdded: true))
+                result.append(Source(name: r.displayName, detail: handleAt, handle: r.handle, isAdded: true))
             }
         }
         return result.sorted { $0.name < $1.name }

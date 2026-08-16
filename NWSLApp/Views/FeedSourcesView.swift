@@ -224,7 +224,7 @@ struct FeedSourcesView: View {
     private func sourceRow(_ source: FeedViewModel.Source, prefs: FeedPreferencesStore) -> some View {
         let shown = Binding(
             get: { !prefs.isMuted(source.name) },
-            set: { prefs.setMuted(source.name, !$0) }
+            set: { prefs.setMuted(source.name, handle: source.handle, !$0) }
         )
         return Toggle(isOn: shown) {
             HStack(spacing: 6) {

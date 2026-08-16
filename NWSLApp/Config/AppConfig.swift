@@ -145,10 +145,13 @@ enum AppConfig {
     /// come back regardless). **Phase 3 personalization:** `handles` = the user's own-added
     /// Bluesky reporters (fanned out NWSL-gated, not team-scoped); `players` = the IG ids of
     /// players the user follows beyond their teams. Returns nil on a malformed query.
-    static func feedURL(teams: [String], handles: [String] = [], players: [String] = []) -> URL? {
+    /// `muted` = bare handles of toggled-off DEFAULT sources: the Worker drops them from the
+    /// curated fetch and lets a same-handle user add serve unfiltered (the layering rule).
+    static func feedURL(teams: [String], handles: [String] = [], players: [String] = [], muted: [String] = []) -> URL? {
         var extra: [URLQueryItem] = []
         if !handles.isEmpty { extra.append(URLQueryItem(name: "handles", value: handles.joined(separator: ","))) }
         if !players.isEmpty { extra.append(URLQueryItem(name: "players", value: players.joined(separator: ","))) }
+        if !muted.isEmpty { extra.append(URLQueryItem(name: "muted", value: muted.joined(separator: ","))) }
         return contentRouteURL("feed", teams: teams, extra: extra)
     }
 

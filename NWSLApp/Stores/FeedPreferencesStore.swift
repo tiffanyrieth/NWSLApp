@@ -35,6 +35,7 @@ final class FeedPreferencesStore {
     private let postsKey = "feedShowReporterPosts"
     private let articlesKey = "feedShowArticleLinks"
     private let mutedKey = "feedMutedSources"
+    private let mutedHandlesKey = "feedMutedDefaultHandles"
     private let defaultFilterKey = "feedDefaultFilter"
 
     init(defaults: UserDefaults = .standard) {
@@ -44,6 +45,7 @@ final class FeedPreferencesStore {
         self.showReporterPosts = defaults.object(forKey: postsKey) as? Bool ?? true
         self.showArticleLinks = defaults.object(forKey: articlesKey) as? Bool ?? true
         self.mutedSources = Set(defaults.stringArray(forKey: mutedKey) ?? [])
+        self.mutedDefaultHandles = Set(defaults.stringArray(forKey: "feedMutedDefaultHandles") ?? [])
         self.defaultFeedFilter = defaults.string(forKey: defaultFilterKey) ?? "all"
         self.addedReporters = defaults.data(forKey: addedReportersKey)
             .flatMap { try? JSONDecoder().decode([AddedReporter].self, from: $0) } ?? []
@@ -55,13 +57,25 @@ final class FeedPreferencesStore {
         mutedSources.contains(source)
     }
 
-    func setMuted(_ source: String, _ muted: Bool) {
+    /// Bare Bluesky handles (no `@`) of muted sources — sent as `/feed`'s `muted=` param so the
+    /// PROXY excludes a toggled-off default (and lets a same-handle user add resurface
+    /// unfiltered — the layering table's row 4). Name-keyed mutes predating this set (and
+    /// handle-less sources like news outlets) still filter locally via `mutedSources`.
+    private(set) var mutedDefaultHandles: Set<String>
+
+    func setMuted(_ source: String, handle: String? = nil, _ muted: Bool) {
         if muted {
             mutedSources.insert(source)
         } else {
             mutedSources.remove(source)
         }
         defaults.set(Array(mutedSources), forKey: mutedKey)
+        if let bare = handle?.trimmingCharacters(in: .whitespaces).lowercased(),
+           !bare.isEmpty {
+            let key = bare.hasPrefix("@") ? String(bare.dropFirst()) : bare
+            if muted { mutedDefaultHandles.insert(key) } else { mutedDefaultHandles.remove(key) }
+            defaults.set(Array(mutedDefaultHandles), forKey: mutedHandlesKey)
+        }
     }
 
     // MARK: - Phase 3: user-added reporters (Bluesky handles the user follows)

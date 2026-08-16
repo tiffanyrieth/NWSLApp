@@ -49,6 +49,8 @@ final class FeedPreferencesStore {
         self.defaultFeedFilter = defaults.string(forKey: defaultFilterKey) ?? "all"
         self.addedReporters = defaults.data(forKey: addedReportersKey)
             .flatMap { try? JSONDecoder().decode([AddedReporter].self, from: $0) } ?? []
+        self.addedPlayerBsky = defaults.data(forKey: "feedAddedPlayerBsky")
+            .flatMap { try? JSONDecoder().decode([AddedReporter].self, from: $0) } ?? []
         self.unfollowedOwnTeamPlayers = Set(defaults.stringArray(forKey: unfollowedPlayersKey) ?? [])
         self.followedOtherTeamPlayers = Set(defaults.stringArray(forKey: followedPlayersKey) ?? [])
     }
@@ -103,6 +105,24 @@ final class FeedPreferencesStore {
     func removeReporter(handle: String) { addedReporters.removeAll { $0.handle == handle } }
     func isReporterAdded(handle: String) -> Bool { addedReporters.contains { $0.handle == handle } }
 
+    // MARK: - 2c: user-added PLAYER Bluesky accounts (the add-flow's reporter|player pick)
+
+    /// Bluesky accounts the user added AS PLAYERS — routed to the Players chip, and (owner law)
+    /// NEVER Haiku-filtered: a player's own posts need no relevance gate. Same shape + same
+    /// device-local / no-restore stance as `addedReporters`.
+    private(set) var addedPlayerBsky: [AddedReporter] {
+        didSet { defaults.set((try? JSONEncoder().encode(addedPlayerBsky)) ?? Data(), forKey: addedPlayerBskyKey) }
+    }
+    /// Bare handles for the `/feed` `playerBsky=` param.
+    var addedPlayerBskyHandles: [String] { addedPlayerBsky.map(\.handle) }
+
+    func addPlayerBsky(_ player: AddedReporter) {
+        guard !addedPlayerBsky.contains(where: { $0.handle == player.handle }) else { return }
+        addedPlayerBsky.append(player)
+    }
+    func removePlayerBsky(handle: String) { addedPlayerBsky.removeAll { $0.handle == handle } }
+    func isPlayerBskyAdded(handle: String) -> Bool { addedPlayerBsky.contains { $0.handle == handle } }
+
     // MARK: - Phase 3: player follows (beyond your teams)
 
     /// Own-team player IDs (IG handles) the user turned OFF (own-team players show by default).
@@ -129,6 +149,7 @@ final class FeedPreferencesStore {
     }
 
     private let addedReportersKey = "feedAddedReporters"
+    private let addedPlayerBskyKey = "feedAddedPlayerBsky"
     private let unfollowedPlayersKey = "feedUnfollowedOwnTeamPlayers"
     private let followedPlayersKey = "feedFollowedOtherTeamPlayers"
 }

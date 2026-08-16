@@ -44,8 +44,9 @@ struct ContentService {
     func feedCards(followedAbbreviations: Set<String>,
                    handles: [String] = [],
                    players: [String] = [],
-                   muted: [String] = []) async throws -> [ContentCard] {
-        try await fetchFeed(Array(followedAbbreviations), handles: handles, players: players, muted: muted)
+                   muted: [String] = [],
+                   playerBsky: [String] = []) async throws -> [ContentCard] {
+        try await fetchFeed(Array(followedAbbreviations), handles: handles, players: players, muted: muted, playerBsky: playerBsky)
     }
 
     /// The featured-player DIRECTORY (proxy `/feed/players`) — backs the "Follow players"
@@ -73,8 +74,8 @@ struct ContentService {
         return try await fetch([ContentCard].self, from: url)
     }
 
-    private func fetchFeed(_ teams: [String], handles: [String], players: [String], muted: [String]) async throws -> [ContentCard] {
-        guard let url = AppConfig.feedURL(teams: teams, handles: handles, players: players, muted: muted) else {
+    private func fetchFeed(_ teams: [String], handles: [String], players: [String], muted: [String], playerBsky: [String]) async throws -> [ContentCard] {
+        guard let url = AppConfig.feedURL(teams: teams, handles: handles, players: players, muted: muted, playerBsky: playerBsky) else {
             throw ContentServiceError.badURL
         }
         return try await fetch([ContentCard].self, from: url)

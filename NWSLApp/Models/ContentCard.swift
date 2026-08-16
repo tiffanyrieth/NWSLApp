@@ -67,6 +67,9 @@ struct ContentCard: Identifiable, Codable, Hashable {
     /// never Haiku-gated). Drives the layering rule — per-source mutes govern only the
     /// curated DEFAULT copy of a voice; a user-added card is removed via Remove, not mute.
     var userAdded: Bool? = nil
+    /// A featured player's stable id (her IG handle) on her BLUESKY cards — so the app's
+    /// player-follow toggles govern her bsky + IG cards as ONE player (2c).
+    var playerId: String? = nil
 
     /// Join key → the followed `Club`'s crest + color (matched by abbreviation,
     /// the same join MatchStore/Home use; ESPN has no stable competitor id). Nil

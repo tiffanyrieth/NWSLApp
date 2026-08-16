@@ -147,11 +147,12 @@ enum AppConfig {
     /// players the user follows beyond their teams. Returns nil on a malformed query.
     /// `muted` = bare handles of toggled-off DEFAULT sources: the Worker drops them from the
     /// curated fetch and lets a same-handle user add serve unfiltered (the layering rule).
-    static func feedURL(teams: [String], handles: [String] = [], players: [String] = [], muted: [String] = []) -> URL? {
+    static func feedURL(teams: [String], handles: [String] = [], players: [String] = [], muted: [String] = [], playerBsky: [String] = []) -> URL? {
         var extra: [URLQueryItem] = []
         if !handles.isEmpty { extra.append(URLQueryItem(name: "handles", value: handles.joined(separator: ","))) }
         if !players.isEmpty { extra.append(URLQueryItem(name: "players", value: players.joined(separator: ","))) }
         if !muted.isEmpty { extra.append(URLQueryItem(name: "muted", value: muted.joined(separator: ","))) }
+        if !playerBsky.isEmpty { extra.append(URLQueryItem(name: "playerBsky", value: playerBsky.joined(separator: ","))) }
         return contentRouteURL("feed", teams: teams, extra: extra)
     }
 

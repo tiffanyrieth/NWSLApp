@@ -225,7 +225,12 @@ final class FeedViewModel {
     /// cards always pass. A player's id is the card's `@<ig>` handle.
     private func passesPlayerFollow(_ card: ContentCard, _ followed: Set<String>, _ prefs: FeedPreferencesStore) -> Bool {
         guard card.resolvedSourceType == .player else { return true }
-        guard let id = card.handle.map({ $0.hasPrefix("@") ? String($0.dropFirst()) : $0 })?.lowercased(),
+        // 2c: a player Bluesky the USER added is their explicit choice — always passes
+        // (removed via its Remove button, like user-added reporters).
+        if card.userAdded == true { return true }
+        // A featured player's bsky card carries `playerId` (her IG id) so ONE follow toggle
+        // governs both platforms; IG cards keep keying off the @handle as before.
+        guard let id = (card.playerId ?? card.handle.map { $0.hasPrefix("@") ? String($0.dropFirst()) : $0 })?.lowercased(),
               !id.isEmpty else { return true }
         let isOwnTeam = card.teamAbbreviation.map { followed.contains($0) } ?? false
         return prefs.isPlayerFollowed(id, isOwnTeam: isOwnTeam)

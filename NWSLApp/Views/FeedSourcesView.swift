@@ -33,13 +33,22 @@ struct FeedSourcesView: View {
     @State private var didLoadPlayers = false
     private let content = ContentService()
 
-    // Add-a-reporter search
+    // Add-a-Bluesky search (2c: the account is added as a reporter OR a player)
     @State private var searchText = ""
     @State private var searchState: ReporterSearch = .idle
+    @State private var addMode: AddMode = .reporter
 
     enum ReporterSearch: Equatable {
         case idle, loading, notFound, failed
         case found(handle: String, displayName: String)
+    }
+
+    /// What the typed Bluesky handle IS. Reporters get the NWSL-coverage check + Haiku-filtered
+    /// default treatment; players route to the Players chip and are NEVER filtered (owner law:
+    /// a player's own posts need no relevance gate).
+    enum AddMode: String, CaseIterable {
+        case reporter, player
+        var label: String { self == .reporter ? "Reporter" : "Player" }
     }
 
     var body: some View {
@@ -88,6 +97,11 @@ struct FeedSourcesView: View {
     @ViewBuilder
     private func addReporterSection(prefs: FeedPreferencesStore) -> some View {
         Section {
+            Picker("This account is a", selection: $addMode) {
+                ForEach(AddMode.allCases, id: \.self) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: addMode) { _, _ in searchState = .idle }
             HStack {
                 Image(systemName: "at")
                     .dsFont(15)
@@ -101,20 +115,34 @@ struct FeedSourcesView: View {
             }
             searchResultRow(prefs: prefs)
             ForEach(prefs.addedReporters) { r in
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(r.displayName).dsFont(16, weight: .semibold)
-                        Text("@\(r.handle)").dsFont(13).foregroundStyle(Color.dsFgSecondary)
-                    }
-                    Spacer()
-                    Button("Remove") { prefs.removeReporter(handle: r.handle) }
-                        .dsFont(15, weight: .semibold)
-                        .foregroundStyle(Color.dsError)
-                        .buttonStyle(.plain)
-                }
+                addedRow(name: r.displayName, handle: r.handle, tag: nil) { prefs.removeReporter(handle: r.handle) }
             }
-        } header: { Text("Add a reporter") } footer: {
-            Text("Follow any Bluesky reporter or outlet. We check they cover NWSL before adding.")
+            ForEach(prefs.addedPlayerBsky) { p in
+                addedRow(name: p.displayName, handle: p.handle, tag: "PLAYER") { prefs.removePlayerBsky(handle: p.handle) }
+            }
+        } header: { Text("Add from Bluesky") } footer: {
+            Text(addMode == .reporter
+                 ? "Follow any Bluesky reporter or outlet. We check they cover NWSL before adding."
+                 : "Follow a player's own Bluesky. Her posts go to the Players tab — everything she posts, unfiltered.")
+        }
+    }
+
+    private func addedRow(name: String, handle: String, tag: String?, remove: @escaping () -> Void) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(name).dsFont(16, weight: .semibold)
+                    if let tag {
+                        Text(tag).trackedCaps()
+                    }
+                }
+                Text("@\(handle)").dsFont(13).foregroundStyle(Color.dsFgSecondary)
+            }
+            Spacer()
+            Button("Remove", action: remove)
+                .dsFont(15, weight: .semibold)
+                .foregroundStyle(Color.dsError)
+                .buttonStyle(.plain)
         }
     }
 
@@ -124,7 +152,8 @@ struct FeedSourcesView: View {
         case .idle, .loading:
             EmptyView()
         case .notFound:
-            Label("No NWSL posts found for this handle", systemImage: "xmark.circle")
+            Label(addMode == .reporter ? "No NWSL posts found for this handle" : "Couldn't find that Bluesky account",
+                  systemImage: "xmark.circle")
                 .dsFont(15).foregroundStyle(Color.dsFgSecondary)
         case .failed:
             Label("Couldn't check that handle — try again", systemImage: "exclamationmark.triangle")
@@ -139,11 +168,16 @@ struct FeedSourcesView: View {
                     }
                 }
                 Spacer()
-                if prefs.isReporterAdded(handle: handle) {
+                let alreadyAdded = addMode == .reporter ? prefs.isReporterAdded(handle: handle) : prefs.isPlayerBskyAdded(handle: handle)
+                if alreadyAdded {
                     Text("Added").dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
                 } else {
                     Button("Add") {
-                        prefs.addReporter(.init(handle: handle, displayName: displayName))
+                        if addMode == .reporter {
+                            prefs.addReporter(.init(handle: handle, displayName: displayName))
+                        } else {
+                            prefs.addPlayerBsky(.init(handle: handle, displayName: displayName))
+                        }
                     }
                     .dsFont(15, weight: .bold)
                     .foregroundStyle(Color.dsBluesky)
@@ -159,7 +193,11 @@ struct FeedSourcesView: View {
         searchState = .loading
         do {
             let result = try await content.validateReporter(handle: raw)
-            if result.found, result.hasNWSLPosts == true {
+            // Reporters must show NWSL coverage (they're Haiku-filtered defaults-style content);
+            // a PLAYER add only needs the account to exist — her posts are unfiltered by design,
+            // so gating on "has NWSL posts" would wrongly reject players who post life content.
+            let passes = addMode == .reporter ? (result.found && result.hasNWSLPosts == true) : result.found
+            if passes {
                 searchState = .found(handle: raw, displayName: result.displayName ?? raw)
             } else {
                 searchState = .notFound

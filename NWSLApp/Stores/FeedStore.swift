@@ -62,12 +62,13 @@ final class FeedStore {
         let handles = preferences.addedReporterHandles
         let players = preferences.followedPlayerIDs
         let muted = preferences.mutedDefaultHandles.sorted()
-        let personalization = Self.personalizationKey(handles: handles, players: players, muted: muted)
+        let playerBsky = preferences.addedPlayerBskyHandles
+        let personalization = Self.personalizationKey(handles: handles, players: players, muted: muted, playerBsky: playerBsky)
         guard itemsError == nil else { return }
         // Refetch when EITHER the followed-team scope OR the personalization (added reporters /
-        // followed cross-team players / muted defaults) changed since the last successful load.
+        // followed cross-team players / muted defaults / added player bsky) changed since last.
         guard (loadedScope != scope || loadedPersonalization != personalization), !isLoadingItems else { return }
-        await fetch(scope: scope, handles: handles, players: players, muted: muted, personalization: personalization)
+        await fetch(scope: scope, handles: handles, players: players, muted: muted, playerBsky: playerBsky, personalization: personalization)
     }
 
     /// Force a (re)load — pull-to-refresh + retry. Clears a prior error so the view shows the
@@ -79,13 +80,14 @@ final class FeedStore {
         let handles = preferences.addedReporterHandles
         let players = preferences.followedPlayerIDs
         let muted = preferences.mutedDefaultHandles.sorted()
-        await fetch(scope: scope, handles: handles, players: players, muted: muted,
-                    personalization: Self.personalizationKey(handles: handles, players: players, muted: muted))
+        let playerBsky = preferences.addedPlayerBskyHandles
+        await fetch(scope: scope, handles: handles, players: players, muted: muted, playerBsky: playerBsky,
+                    personalization: Self.personalizationKey(handles: handles, players: players, muted: muted, playerBsky: playerBsky))
     }
 
     /// A canonical key for the current personalization, so a change is detected like a scope change.
-    private static func personalizationKey(handles: [String], players: [String], muted: [String]) -> String {
-        "h:\(handles.sorted().joined(separator: ","))|p:\(players.sorted().joined(separator: ","))|m:\(muted.joined(separator: ","))"
+    private static func personalizationKey(handles: [String], players: [String], muted: [String], playerBsky: [String]) -> String {
+        "h:\(handles.sorted().joined(separator: ","))|p:\(players.sorted().joined(separator: ","))|m:\(muted.joined(separator: ","))|pb:\(playerBsky.sorted().joined(separator: ","))"
     }
 
     /// The followed-club abbreviations to scope the live `/feed` query to (the proxy returns
@@ -101,11 +103,11 @@ final class FeedStore {
         )
     }
 
-    private func fetch(scope: Set<String>, handles: [String], players: [String], muted: [String], personalization: String) async {
+    private func fetch(scope: Set<String>, handles: [String], players: [String], muted: [String], playerBsky: [String], personalization: String) async {
         isLoadingItems = true
         defer { isLoadingItems = false; hasCompletedItemsLoad = true }
         do {
-            allItems = try await contentService.feedCards(followedAbbreviations: scope, handles: handles, players: players, muted: muted)
+            allItems = try await contentService.feedCards(followedAbbreviations: scope, handles: handles, players: players, muted: muted, playerBsky: playerBsky)
                 .sorted { $0.timestamp > $1.timestamp }
             itemsError = nil
             // Latch only on success, so an errored load doesn't read as "loaded for this scope".

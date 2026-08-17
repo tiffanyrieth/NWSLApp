@@ -55,3 +55,8 @@ grant execute on function public.increment_counters(jsonb) to service_role;
 --   Fan Zone game opens, last 30 days:
 --     select param as game, sum(count) from analytics_counters
 --       where event = 'fanzone_game_opened' and day > current_date - 30 group by param order by 2 desc;
+
+-- 2026-08-17 (social self-tuning Phase 3): the proxy's reporter-audit endpoint READS this
+-- table as service_role to aggregate the anonymous reporter_added add-signals ("TEAM|handle"
+-- counters) for the discovery routine. Writing stays RPC-only; this grants the read.
+grant select on public.analytics_counters to service_role;

@@ -200,3 +200,30 @@ makes this the alignment that matters most.
 - App worst case: was ~17 calls/tick for any NT follower (~2,040/hr live); now ~7-8 for a
   single-confederation follower. Club-only followers were always cheap (2-3/tick — per-competition,
   not per-team) and are unchanged.
+
+## 7. NT squads as an eligibility source — the social self-tuning ledger (2026-08-16)
+
+The Social Feed's featured-player set is gated **NWSL ∧ NT** (a player must be on an NWSL roster
+*and* have represented a national team). The proxy needed a server-side way to answer "has this
+NWSL player ever been in an NT squad?", so **`GET /social/player-audit?nt=<slug>`** (admin-keyed,
+`handlePlayerAudit` in `nwslapp-proxy/src/index.ts`) fetches one competition's squads from ESPN
+(`site.api.espn.com/.../{slug}/teams/{id}/roster`, grouped-by-position decode), intersects them by
+normalized name with the current NWSL rosters, and appends matches to an **append-only KV ledger**
+`social:nt-ledger` (`{normName: {name, firstSeen, source, nation}}`).
+
+- **It REUSES `WOMENS_NT_FEEDS` — it is NOT a fourth synced list.** The routine loops the same feeds
+  §4 already keeps synced with the app's `NationalTeamFeed.all`; a feed added there is automatically
+  covered. (The app fetches NT rosters ESPN-direct and stores nothing, and the proxy's `/roster`
+  route is NWSL-only — so a server-side fetch is genuinely required here, not a duplicate.)
+- **Earned-not-snapshot:** the ledger only ever grows. Once an NWSL player is observed in any NT
+  squad she is eligible forever; a later missed camp never removes her. Unioning across all 16 feeds
+  makes it strictly more complete than the app's per-country display (§1), which picks the single
+  broadest feed and labels it — so the ledger doesn't inherit the "ZAM shows *friendly* even though
+  WAFCON was more recent" display quirk.
+- **⚠️ §0's "NT rosters are unverifiable by construction" caveat is TOLERABLE here** precisely
+  because eligibility is a *has-ever-appeared* boolean, not a displayed squad or a stat: a stray NT
+  roster error at worst delays a candidate (earned-forever) or adds an already-NWSL player — never
+  the fabrication risk that blocks NT rosters from display/stat use.
+- Promoting a ledger entry into the featured `PLAYER_SOCIAL` set stays **owner-approval-gated** (the
+  Stage 1d discovery routine + a source edit) — the ledger records observed fact, it does not
+  auto-feature anyone. Full design: the social self-tuning plan + `docs/backend.md` IG-scrape §.

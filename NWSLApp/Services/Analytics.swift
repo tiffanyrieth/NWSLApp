@@ -38,6 +38,14 @@ final class Analytics {
         case fanzoneGameOpened(String) // param: predict/bracket/trivia/knowher (HomeView seenKey)
         case feedItemTapped          // no param — do people engage Feed content at all?
         case feedChipTapped(FeedViewModel.ContentFilter) // param: all/reporters/players/clubs
+        /// Phase 3 reporter discovery: param "TEAM|handle" — which club FANBASE added which
+        /// Bluesky reporter, never which fan (the anonymous Level-3 law). Fired once per
+        /// followed team on a reporter add; 3+ adds of one handle among a team's fans is the
+        /// signal the discovery routine researches.
+        case reporterAdded(handle: String, team: String)
+        /// Denominator for the signal: sessions in which ANY reporter was added (fired at most
+        /// once per session — see `logReporterAddSession`).
+        case reporterAddSession
     }
 
     /// In-memory rollup: "event|param" → count. Cleared only after a successful flush, so a
@@ -64,7 +72,18 @@ final class Analytics {
         case .fanzoneGameOpened(let key): return ("fanzone_game_opened", key)
         case .feedItemTapped: return ("feed_item_tapped", "")
         case .feedChipTapped(let filter): return ("feed_chip_tapped", filter.rawValue)
+        case .reporterAdded(let handle, let team): return ("reporter_added", "\(team)|\(handle)")
+        case .reporterAddSession: return ("reporter_add_session", "")
         }
+    }
+
+    /// One `reporterAddSession` per session no matter how many reporters are added — it counts
+    /// SESSIONS that added, the denominator under the per-handle add counts.
+    private var didLogReporterAddSession = false
+    func logReporterAddSession() {
+        guard !didLogReporterAddSession else { return }
+        didLogReporterAddSession = true
+        log(.reporterAddSession)
     }
 
     /// The batch the flush would send right now — split out pure for unit tests.

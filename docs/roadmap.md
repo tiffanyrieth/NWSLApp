@@ -5,38 +5,6 @@
 > (`docs/backend.md`, `live-activity-v2.md`, `notifications.md`, `decisions.md`, …), not here. Order
 > follows the app's priority: ALIVE > core > hardening.
 
-> ### 🔄 SOCIAL FEED SELF-TUNING — the maintenance routine (owner-DEFERRED 2026-08-05, do NOT drop)
-> The 2026-08-05 Social-tab audit shipped everything EXCEPT this: P1 (club-news fixes + 6 reporters + Clubs-chip
-> removal), Phase 2a (ESPN-direct proxy-outage fallback), and **Phase 3 "make it yours"** — the user CAN now add
-> Bluesky reporters + follow players beyond their teams (proxy routes `/feed/players`, `/feed/validate-reporter`,
-> `/feed?handles=&players=`; app Content Preferences UI). **This item is the AUTOMATION on top of that shipped
-> infrastructure** — owner deferred it (her call) because it deserves its own routine-design pass, NOT because
-> it's optional. Two independent components:
->
-> **1. Curated-feed discovery (which reporters should we ADD to the defaults?).** Keeping up with beat reporters
-> for all 16 clubs by hand is a nightmare + risks missed reporters. The signal: the **anonymous discovery
-> analytics** — a per-team → added-handle counter (`Analytics.swift` → proxy `/analytics` → `analytics_counters`,
-> NO ids/IP). ⚠️ **The threshold is computed over ADDERS, not the whole fanbase.** Example (ACFC fans): of those
-> who added ANY handle, count who they added — Fan A→"Tiffany", Fan B→"Tiffany", Fan C→"Kayla", Fan D→"Tiffany"
-> ⇒ the common theme is ACFC fans keep adding "Tiffany", a handle we DON'T carry ⇒ surface it as a default
-> candidate. It must be `adds-of-X / total-adders`, never `/ total-fans` (most fans add nothing). Threshold TBD.
-> Could be a routine OR a manual review of the analytics. **Build needs:** the analytics counter (proxy
-> `/analytics` allowlist entry + an app event fired on add) — this counter is NOT yet built; it was scoped with
-> Phase 3 but belongs here with its only consumer.
->
-> **2. The player-add routine (which national-team players to feature?).** Auto-compute candidates from
-> `current-NT-rosters ∩ current-NWSL-rosters − current 34` (the app already fetches both roster sets), with
-> `bdHandleEmpty` + off-NWSL-roster → DROP (retired/departed solve themselves). ⚠️ **The hard part is
-> BALANCE:** while the list is capped at ~34 (Bright Data free tier), the routine must weigh popularity AGAINST
-> **club representation** — don't let the popular-players pick leave some clubs with ZERO featured players.
-> That's why it deserves dedicated design time. (If the 34 cap is later lifted — e.g. via the Phase-5 IG
-> `business_discovery` API — club-representation becomes far less of a worry and popularity can dominate.)
->
-> **Guardrail (both components):** one-tap OWNER APPROVAL, never no-gate — same routine-class that bit KHG
-> (wrong-model / ledger-bypass), and a bad IG handle bills Bright Data quota every refresh. The routine does
-> 100% of the research and hands over "add these, drop these — approve?". Cloud-activation is owner-gated like
-> the KHG routine. Full plan context: the approved Social-tab plan (Phase 4).
-
 > ### 🏆 The Bracket → offseason-first, semi-automatic (decision LOCKED; the one code change is NOT done)
 > **Decision (locked, owner):** stop running The Bracket year-round on a fixed cadence. Make it primarily
 > an **offseason** feature, with maybe **1–2 editions during the season**. You stock a library of themes;
@@ -107,6 +75,22 @@
 > design a small **"how to watch" affordance** on the match card / Match Detail: per-network guidance
 > (network → the app(s) that carry it + a "free via Plex/Tubi/Pluto" hint for the hard ones). Keep it a
 > curated network→apps map (small, owner-maintained), not a live carriage API. US/NWSL scope like the rest.
+>
+> ### 🌡️ KICKOFF TEMP — fetch during LIVE, not after post (owner 2026-08-15)
+> The historical kickoff temperature is immutable from the moment of kickoff, but the proxy currently
+> blocks it during `state === "in"` ("not-finished") and the app skips weather fetch during `.live`.
+> So the stamp only appears AFTER the match flips to post — and if the fan checks right at that
+> transition, both one-shot fetch attempts can hit the stale 60s "not-finished" edge cache and miss
+> permanently (close + reopen fixes it, but the data should already be there).
+> **Observed 2026-08-14:** GFC vs KC (8pm ET, ended ~10pm) showed 83°F instantly; the three 10pm ET
+> games (SD/DEN, SEA/CHI, UTA/BAY) all ended minutes after midnight and showed nothing — the race
+> window hit all three.
+> **Fix (small, both sides):**
+> - **Proxy:** when `state === "in"`, fall through to the historical path instead of returning
+>   "not-finished" — the kickoff hour is already past, Open-Meteo has the reading, and the write-once
+>   KV means every subsequent request is an instant hit.
+> - **App:** allow `loadWeather` during `.live` so the stamp is cached before the card flips to final.
+> The kickoff temp should be sitting there waiting for the post transition, not racing against it.
 >
 > ### 🌩️ IDEA (low priority, nice-to-have) — weather radar during a delay (owner 2026-07-31)
 > When a match is in a weather delay, show a **radar** on Match Detail — precipitation plus, ideally,
@@ -363,3 +347,63 @@
 **Pending work only (ALIVE > core > hardening); shipped/decided/dropped work lives in git history + the File Map.**
 
 _(Hardening: none open. Team-link subreddit verification + the club-website data pass shipped 2026-08-13; Discord dropped — no maintained league-wide directory exists to pull from, only one club had a usable public server.)_
+
+---
+
+## 🗂️ ANYTIME — not publishing blockers (address whenever; verified working, or polish/watch items)
+
+> These do NOT block publishing. They are follow-ups on shipped systems (verify the automation
+> behaved), or polish that can land in any release.
+
+> ### 🔁 SOCIAL SELF-TUNING — follow-up verification on the automated runs (system SHIPPED 2026-08-17)
+> The self-tuning system (players IG + reporters Bluesky + analytics discovery) is LIVE and
+> automated — `docs/social-tuning.md` is the system doc. What remains is watching the automation
+> prove itself, per the tune-from-real-runs model:
+> - **Reporters (monthly, 1st):** review each run's report — did the quality bar hold (adds are
+>   distinctive NWSL voices, not link-dumps/recaps)? Did drops follow the two-audit streak rule?
+>   Adjust the routine prompt from real outcomes. First automated cycle: Sept 1.
+> - **Players IG (Mar/Jul/Oct 15):** verify each run's report — candidates researched under the
+>   identity gate, adds within the ceiling, drops verified as real departures.
+> - **Near-term watches:** `alozieee` returned 0 cards on the 8/17 scrape (verified account,
+>   likely transient) — confirm she returns on a following cron or investigate; the 8/19 + 8/21
+>   pool scrapes are the first at ~79 handles each — glance at `apifyHandleEmpty` diags after.
+
+> ### 🏳️ NT SQUAD LABEL — show the tournament squad when one is live, not always friendlies-first (owner 2026-08-16)
+> **User-facing inconsistency (owner repro, WAFCON live):** the 8/5 MWI–ZAM match is labeled WAFCON, its
+> lineup shows Chilufya, her player page shows WAFCON 2026 stats — but Teams → NT → **ZAM says "Squad ·
+> International Friendly"**, while **Cameroon says "Squad · Women's Africa Cup of Nations."** A fan tuning
+> into WAFCON expects ZAM's squad to say WAFCON; "friendly" reads like a stale squad.
+> **Why (by design today, `ESPNService.nationalTeamSquad` + `docs/national-teams.md` §0/§1):** the app walks
+> `NationalTeamFeed.all` in FIXED order, friendlies first — deliberately, because the friendlies feed is the
+> BROADEST squad — and shows the FIRST feed with a squad, labeling its source. ZAM has a friendly-feed squad
+> (26) → friendlies wins; Cameroon has none → falls through to WAFCON. Consistent + honest, but
+> broadest-first ≠ what a fan expects during a live tournament.
+> **Direction when picked up:** prefer a feed with an ACTIVE/current tournament squad (e.g. a fixture for
+> that country inside the tournament window) over the friendlies list; keep the honest source label either
+> way. Display-only — does NOT affect the social self-tuning eligibility ledger, which unions ALL feeds
+> (`national-teams.md` §7) and never picks one.
+
+> ### ⚽ NAMELESS GOAL NOTIFICATION — immediate-VAR goals fire without a scorer (observed + root-caused 2026-08-16; PARKED as document-don't-engineer unless owner rules otherwise)
+> **What the owner saw (LA×WAS, 8/16):** the Tier-2 goal push read "GOAL: Angel City FC / LA 1–0 WAS" —
+> no scorer, no minute — and the V2-LA card carried no scorer line. Normally both carry the name
+> ("GOAL: Utah Royals / M. Tanaka 79'…", 8/14).
+> **Mechanism (code + live evidence):** the watcher's goal one-shot fires on the SCORE FLIP
+> (`events.ts` ~483) and attaches the scorer best-effort from the scoreboard's scoring plays AT THAT
+> TICK — no re-fire ever. Normally ESPN publishes the attributed play in the SAME payload as the flip
+> (tick-logged 8/16: Rodman 65' and Sentnor 85' both attributed on the first tick their flips appeared;
+> 7/18 + 8/14 screenshots agree). The nameless case: Sentnor's 37' goal went to VAR review IMMEDIATELY
+> — ESPN's score bot flipped to 1–0, but the scoring-play entry was WITHHELD during the review and
+> never published (verified while live: `scoringPlays: 0` on proxy AND ESPN-direct; only commentary
+> carried "GOAL OVERTURNED BY VAR: Ally Sentnor"), then VAR erased the goal. Same-player A/B the same
+> night (her 85' goal attributed instantly) killed the alternate theories (roster-truth override /
+> position error — irrelevant to attribution; mid-season-transfer linkage — disproven by the 85' goal).
+> The 7/18 pre-VAR goal HAD a name because that review started AFTER the play was already published.
+> **Ruled out:** our code (goal path byte-identical since it worked 8/14 — the only watcher merges
+> since 8/8 are #37 KHG + #38 predict-timing, neither touches events.ts) and the ⌚ Watch change
+> (merged 8/9, worked 8/14).
+> **Why parked:** the window is rare, ~2 minutes, self-limiting (an immediately-reviewed goal usually
+> gets erased anyway), and the team-name fallback is the honest degradation. "Hold a tick for the
+> name" would NOT have helped (attribution never arrived — only a never-observed "published-late"
+> class would benefit). If revisited: the options are hold-one-tick (delays every normal goal buzz)
+> or a quiet follow-up push when attribution lands late (double-buzz risk). Evidence: the 8/16 tick
+> log (scratchpad) + this entry. ⚠️ V2-LA standing rule applies — any change here gets its own session.

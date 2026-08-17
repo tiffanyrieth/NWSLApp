@@ -650,3 +650,16 @@ For each subsystem, walk it explicitly:
   next to the existing fixed traffic. Accepted deliberately: the alternative is unreachable devices
   pinning wrong data for a year, which no server-side fix can correct. **PASSES.**
   **100k lever:** Workers Paid ($5/mo) — the same already-documented slot; no new mechanism.
+
+- **Social self-tuning (players IG + reporters Bluesky + analytics discovery) — PASSES (2026-08-17).**
+  New load paths, all admin/routine-keyed or cron-bound — none scale with users: the audit
+  endpoints run 2–3×/yr (players) + monthly (reporters); `?nt=` fans out ≤~35 ESPN fetches per
+  call (two >50-team feeds excluded for the subrequest cap); `?section=nwsl` fetches 16 rosters
+  live (~17 subrequests). The SCRAPE is the only recurring cost and is bounded by constants, not
+  by users or player count: 2 rotating pools × ≤80 handles/run (`MAX_POOL_HANDLES`) ≈ $4.3/mo of
+  the $5 Apify tier; reporters bounded by `MAX_FEED_HANDLES=24` (Haiku ≈ single-digit $/yr; user
+  adds bypass Haiku entirely — the cost firewall — so user growth adds zero classification
+  spend). Analytics: one anonymous batch/session via the existing Level-3 pipe (already passed).
+  1k test: nothing user-linear beyond the already-accepted /feed cache-key variants. **100k
+  lever:** unchanged — Workers Paid; the scrape ceilings are owner-raised constants gated on the
+  Meta creator-API path, not load.

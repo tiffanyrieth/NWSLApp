@@ -45,7 +45,7 @@ and it's the thing that stops a wrong-direction rabbit hole).
 - **Weather** (`MatchWeather`) = TWO modes from **Open-Meteo** via the proxy `/weather` (static ESPN-venue-id
   table): a PAST match's kickoff-hour temp/sky STAMP (cached write-once in KV) AND an UPCOMING match's
   game-time FORECAST strip (edge-cached; venue-local hour labels + NWS heat index + sunset). Detail: backend.md.
-- **IG / social content is scraped via Bright Data** (proxy side) — the app doesn't hit Instagram directly.
+- **IG / social content is scraped proxy-side** (clubs via Bright Data, players via Apify in two rotating pools; the featured lists are self-tuning KV data — `docs/social-tuning.md`). The app never hits Instagram directly.
 - **Feeds carry MORE than we parse** — check `docs/backend.md`'s parsed-vs-unparsed inventory FIRST before
   proposing any new data source (`/summary` already carries `commentary`/`leaders`/`videos`, etc.).
 

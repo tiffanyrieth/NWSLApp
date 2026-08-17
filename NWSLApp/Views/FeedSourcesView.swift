@@ -175,6 +175,13 @@ struct FeedSourcesView: View {
                     Button("Add") {
                         if addMode == .reporter {
                             prefs.addReporter(.init(handle: handle, displayName: displayName))
+                            // Phase 3 discovery signal (anonymous): count the add per followed
+                            // TEAM ("GFC|handle") — which fanbase wants this voice, never which
+                            // fan — plus the once-per-session denominator.
+                            for team in followedTeamAbbrs {
+                                Analytics.shared.log(.reporterAdded(handle: handle, team: team))
+                            }
+                            Analytics.shared.logReporterAddSession()
                         } else {
                             prefs.addPlayerBsky(.init(handle: handle, displayName: displayName))
                         }

@@ -24,6 +24,15 @@ struct AnalyticsCounterTests {
         #expect(Analytics.wire(.fanzoneGameOpened("knowher")).event == "fanzone_game_opened")
         #expect(Analytics.wire(.feedItemTapped).event == "feed_item_tapped")
         #expect(Analytics.wire(.feedChipTapped(.players)).event == "feed_chip_tapped")
+        #expect(Analytics.wire(.reporterAdded(handle: "x.bsky.social", team: "GFC")).event == "reporter_added")
+        #expect(Analytics.wire(.reporterAddSession).event == "reporter_add_session")
+    }
+
+    @Test func reporterAddedParamIsTeamPipeHandle() {
+        // The discovery-signal contract: "TEAM|handle" — which club FANBASE added which voice,
+        // never which fan. The proxy's audit endpoint splits on the FIRST pipe.
+        #expect(Analytics.wire(.reporterAdded(handle: "kayla.bsky.social", team: "GFC")).param == "GFC|kayla.bsky.social")
+        #expect(Analytics.wire(.reporterAddSession).param == "")
     }
 
     @Test func tabParamsAreStableKeys() {

@@ -26,6 +26,12 @@ nwslapp-match-watcher  (Cloudflare Worker)
    cron  * * * * *   +   30s double-poll during live windows
    diff the scoreboard vs KV (MATCH_STATE, write-on-change)
    detectEvents → kickoff · goal · HT · FT · red card · VAR correction · lineup-posted
+   ⚠️ Goal scorer attribution is BEST-EFFORT AT THE FIRING TICK: the one-shot fires on the SCORE
+   FLIP and attaches the scorer from whatever scoring play the scoreboard carries at that instant
+   (`events.ts` parsePlays/latestPlayFor) — normally same-tick, but a play ESPN hasn't published
+   yet (observed on an immediately-VAR-reviewed goal) means the notification goes out with the
+   team-name fallback and NEVER re-fires. The LA card's scorer lines DO backfill (rebuilt every
+   tick); the push does not. By design — don't "fix" by re-firing (double-buzz per goal).
       │
       ├─ look up device_tokens + preferences (Supabase, service_role) · sign an ES256 .p8 APNs JWT
       │

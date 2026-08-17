@@ -354,6 +354,10 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
 - **`docs/roadmap.md`** — What's Next (OPEN blockers only; the owner's personal punch-list). Done/dropped
   items are removed, not archived — git history keeps the record, and durable lessons live in the system
   docs. It is exempt from the KB relocate-never-delete rule (see the KNOWLEDGE-BASE WRITE PATH bullet).
+- **`docs/social-tuning.md`** — ⭐ the social SELF-TUNING system (players IG + reporters Bluesky +
+  analytics discovery): the laws (identity gate, NWSL∧NT earned-forever, ceilings-never-targets,
+  IG-only defaults), pool rotation, the audit endpoints/keys, the two Claude Remote routines, cost
+  model. Read before touching the featured-player/reporter lists, their KV keys, or the routines.
 - **`docs/roster-source-research.md`** — the 2026-07-29/30 live-verified research on ESPN vs the NWSL
   SDP API: two error classes (fabrication vs lagging fact), invariants-first correction design, what SDP
   has/lacks, live-games verdict (stay on ESPN). Read BEFORE any roster-source or cross-check work.

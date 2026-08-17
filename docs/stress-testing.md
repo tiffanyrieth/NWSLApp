@@ -437,6 +437,16 @@ For each subsystem, walk it explicitly:
   + ≤~20 matchfacts fetches (2.8KB each) + ≤~5 KV writes (`attendance:*`, 60d TTL, ≤~20 live keys).
   Worst day ≤ ~170 subrequests + ≤20 KV writes — free-tier trivial. Enrich hook adds one JSON parse on
   summary MISSes only (the TTL chooser already parses there). Identical at 1k and 100k. Passes.
+- **Kickoff temp during LIVE (2026-08-17):** ✅ **no net new Open-Meteo load; user-count-independent.** A
+  live match ≥30 min in now takes the historical path and KV-writes the kickoff temp ONCE (immutable) — so
+  Open-Meteo is still hit ≤1× per match ever (same as the old post-only path, just captured earlier);
+  every reader after is a KV hit. New app draw = the live poll loop re-calls `/weather` each 60s ONLY until
+  the reading lands (bounded ≤~30 calls/viewer during the <30-min pending window, then a client-side no-op
+  once `weather` is set — the pending pre-check never calls Open-Meteo). Those polls are the same
+  KV-hit/pending class + colo as the existing per-match `/summary` live poll, so the added draw on the
+  shared Cloudflare request pool is proportional to *concurrent live-match viewers*, not total users, and
+  collapses to zero for the rest of the match. 1k PASS; 100k lever = the per-event immutable KV (already in
+  place). No stale fallback (empty = the canary, per [[feedback_no_silent_stale_fallback]]).
 - **Game-time weather forecast (2026-08-11):** ✅ **user-count-independent** and the worked example for
   §3a. `/weather` forecast mode is EDGE-cached (`caches.default`, 8h TTL), never KV — so Open-Meteo is hit
   ≤ once per upcoming match per 8h per colo: ~(7 matches × 3/day × ~10-20 colos) ≈ a few hundred calls/day

@@ -110,7 +110,8 @@ struct MatchDetailView: View {
             // The header score/clock advance separately via `event` (the refreshing store).
             if case .idle = viewModel.summaryState { await viewModel.loadSummary() }
             // Weather — fire alongside the summary, not gated on it (additive). Past → the
-            // historical header stamp; future → the game-time forecast strip; live → no-op.
+            // historical header stamp; future → the game-time forecast strip; live → the kickoff
+            // stamp too, served once the kickoff hour settles (~30 min in).
             // Pass the LIVE temporal state, not the VM's frozen seed.
             await viewModel.loadWeather(temporalState: temporalState)
             while !Task.isCancelled && temporalState != .past {
@@ -118,6 +119,10 @@ struct MatchDetailView: View {
                 try? await Task.sleep(for: interval)
                 if Task.isCancelled { break }
                 await viewModel.refresh()
+                // Retry weather each tick until it lands: during a live match the proxy answers
+                // `not-finished` until the kickoff hour settles, so cache it BEFORE the post flip
+                // (kills the in→post fetch race). No-op once `weather` is set — a bounded few calls.
+                await viewModel.loadWeather(temporalState: temporalState)
             }
             // The poll loop only exits once the match is past — a match that finished while
             // on-screen now has historical weather available, so make one attempt after the loop.
@@ -798,7 +803,7 @@ struct MatchDetailView: View {
     }
 
     // ⚠️ The Venue / Broadcast / Competition tile row was REMOVED (2026-08-03, owner). Every field it
-    // held was already shown elsewhere: venue + broadcast on the header's `compactInfoRow` (and the
+    // held was already shown elsewhere: venue + broadcast on the header's metadata rail (and the
     // broadcast again, richer, on the How-to-watch card), and the competition on the SCHEDULE card the
     // user tapped to get here (shown only for non-regular-season). The tiles duplicated all of it,
     // cramped the venue into a truncating third-width, and added three floating modules to a screen
@@ -929,13 +934,14 @@ struct MatchDetailView: View {
                 teamColumn(event.awayCompetitor, color: matchColors.away.fill)
             }
 
-            // Broadcast color chip + venue (+ attendance for past) — the same rail
-            // as the schedule card — with the past-match kickoff weather as a quiet
-            // centered line beneath it.
+            // A fixed two-row rail: broadcast chip + venue on line 1; weather + attendance
+            // grouped on line 2 for a finished match. Splitting attendance off the venue line
+            // stops a long stadium name from shoving the chip around card-to-card (the old
+            // single flowing row drifted, and blew up to 3 uneven lines for long venues).
             if hasCompactInfo {
                 VStack(spacing: 5) {
-                    compactInfoRow
-                    weatherStamp
+                    HStack(spacing: 10) { broadcastAndVenue }
+                    if showsSecondaryMetaRow { metaSecondaryRow }
                 }
             }
             spanishBroadcastRow
@@ -962,7 +968,7 @@ struct MatchDetailView: View {
             || viewModel.weather?.roundedTemp != nil
     }
 
-    /// One predicate for BOTH the rail gate (`hasCompactInfo`) and `attendanceLine` itself, so the
+    /// One predicate for BOTH the rail gate (`hasCompactInfo`) and `attendanceInline` itself, so the
     /// bare "Attendance:" label (the deliberate number-arrives-later affordance) can never be
     /// rendered by one gate and suppressed by the other. Shows once the match is over and we have
     /// either a figure (from either source) or a loaded summary record awaiting its count.
@@ -970,27 +976,9 @@ struct MatchDetailView: View {
         temporalState == .past && (attendanceText != nil || viewModel.summary?.gameInfo != nil)
     }
 
-    // Broadcast color chip + venue (+ attendance for a finished match) — the
-    // schedule card's rail, scaled into the header.
-    /// ⚠️ Wraps to two lines rather than truncating, because at AX1 this rail could not fit
-    /// broadcast + venue + attendance on one line and `lineLimit(1)` ate the crowd figure
-    /// outright — "Attendance:…" with the number gone (caught by the AX1 pass, 2026-07-31).
-    /// A truncated venue is a cosmetic loss; a silently dropped number is the AX1 gate failing.
-    /// `ViewThatFits` keeps the single-line rail at every normal size and only stacks when it
-    /// genuinely doesn't fit, so nothing changes for the 99% case.
-    private var compactInfoRow: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 10) {
-                broadcastAndVenue
-                attendanceLine
-            }
-            VStack(spacing: 4) {
-                HStack(spacing: 10) { broadcastAndVenue }
-                attendanceLine
-            }
-        }
-    }
-
+    // Row 1: broadcast color chip + venue. Venue wraps to two lines rather than truncating so a
+    // long name survives AX1 (it fits one line at every normal size); on its own row now, a wrap
+    // grows the row's height but never shifts the chip horizontally.
     @ViewBuilder
     private var broadcastAndVenue: some View {
         if let channel = broadcastName {
@@ -1000,36 +988,53 @@ struct MatchDetailView: View {
             Text(venue)
                 .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
-                .lineLimit(1)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
         }
     }
 
-    @ViewBuilder
-    private var attendanceLine: some View {
-        if showsAttendanceLine {
-            HStack(spacing: 10) {
+    // Row 2 (finished match): weather + attendance on one centered line. The 3pt dot separates
+    // them ONLY when both are present, so weather-only or attendance-only reads clean.
+    private var showsSecondaryMetaRow: Bool {
+        temporalState == .past && (showsAttendanceLine || hasWeatherStamp)
+    }
+
+    private var hasWeatherStamp: Bool {
+        temporalState == .past && viewModel.weather?.roundedTemp != nil
+    }
+
+    private var metaSecondaryRow: some View {
+        HStack(spacing: 10) {
+            weatherInline
+            if hasWeatherStamp && showsAttendanceLine {
                 Circle().fill(Color.dsFgQuaternary).frame(width: 3, height: 3)
-                // Label with no number when the count hasn't landed — see attendanceText.
-                Text(attendanceText.map { "Attendance: \($0)" } ?? "Attendance:")
-                    .dsFont(13)
-                    .foregroundStyle(Color.dsFgSecondary)
-                    .lineLimit(1)
             }
+            attendanceInline
         }
     }
 
-    // Historical kickoff weather (past matches only) — a quiet centered line UNDER the
-    // metadata row, not crowded into it. Concatenating Text(Image) + Text keeps the SF
-    // Symbol on the same @ScaledMetric .dsFont axis as the temperature so Dynamic Type
-    // scales the icon and number together; dsFgTertiary reads a step quieter than the row.
+    // Historical kickoff weather (past matches). Concatenating Text(Image) + Text keeps the SF
+    // Symbol on the same @ScaledMetric .dsFont axis as the temperature so Dynamic Type scales the
+    // icon and number together.
     @ViewBuilder
-    private var weatherStamp: some View {
-        if temporalState == .past, let weather = viewModel.weather, let temp = weather.roundedTemp {
+    private var weatherInline: some View {
+        if let weather = viewModel.weather, let temp = weather.roundedTemp {
             (Text(Image(systemName: weather.symbolName)) + Text(" \(temp)°"))
                 .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
                 .lineLimit(1)
                 .accessibilityLabel(weather.accessibilityLabel)
+        }
+    }
+
+    @ViewBuilder
+    private var attendanceInline: some View {
+        if showsAttendanceLine {
+            // Label with no number when the count hasn't landed — see attendanceText.
+            Text(attendanceText.map { "Attendance: \($0)" } ?? "Attendance:")
+                .dsFont(13)
+                .foregroundStyle(Color.dsFgSecondary)
+                .lineLimit(1)
         }
     }
 

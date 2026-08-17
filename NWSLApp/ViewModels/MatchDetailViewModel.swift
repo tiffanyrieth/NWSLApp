@@ -137,11 +137,17 @@ final class MatchDetailViewModel {
     ///
     /// Two modes off the ONE `/weather` route: a PAST match loads the historical kickoff stamp; a FUTURE
     /// match loads the game-time forecast strip (the proxy returns `mode:"forecast"` for a kickoff inside
-    /// the 10-day horizon). A LIVE match loads nothing (no stamp mid-match, no forecast for a game
-    /// underway). The once-per-screen `weather == nil` guard stands: the VM is per-screen `@State`, and
-    /// URLCache + the proxy's 8h forecast TTL handle freshness across re-opens.
+    /// the 10-day horizon). A LIVE match ALSO loads the historical kickoff stamp — the proxy returns it
+    /// once the kickoff hour has settled (~30 min in), so the immutable reading is cached mid-match and is
+    /// already present when the card flips to full-time (no in→post fetch race). Before it settles the
+    /// proxy answers `not-finished`; the live poll loop re-calls this until it lands (this method is a
+    /// no-op once `weather` is set). Display stays past-only — the stamp is a post-match retrospective.
+    /// The once-per-screen `weather == nil` guard stands: the VM is per-screen `@State`, and URLCache +
+    /// the proxy's immutable/8h TTLs handle freshness across re-opens.
     func loadWeather(temporalState: MatchTemporalState) async {
-        guard temporalState == .past || temporalState == .future, weather == nil else { return }
+        // All three states fetch now: future → forecast, past & live → the historical kickoff stamp
+        // (live is served once the kickoff hour settles; see the doc comment). Once-per-screen guard.
+        guard weather == nil else { return }
         do {
             let result = try await service.fetchWeather(eventID: event.id)
             if result.isHistorical || result.isForecast {

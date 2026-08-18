@@ -54,6 +54,22 @@ struct ThumbnailContentCard: View {
         .onTapGesture {
             if let url = card.url { openURL(url) }
         }
+        // Tap-to-open, not a Button — one element + a link trait + an explicit action for VoiceOver
+        // (the play button/thumbnail are decorative visuals subsumed by `.ignore`).
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(voiceOverLabel)
+        .accessibilityAddTraits(.isLink)
+        .accessibilityHint("Opens the video")
+        .accessibilityAction { if let url = card.url { openURL(url) } }
+    }
+
+    private var voiceOverLabel: String {
+        var parts: [String] = []
+        if let t = card.title, !t.isEmpty { parts.append(t) }
+        else if let a = card.authorName, !a.isEmpty { parts.append(a) }
+        let kind = card.layout == .socialVideo ? "\(platformLabel) video" : "YouTube video"
+        parts.append("\(kind), \(card.timestamp.relativeAgo)")
+        return parts.joined(separator: ". ")
     }
 
     // MARK: - Thumbnail (per layout)

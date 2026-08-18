@@ -56,12 +56,23 @@ struct FormBadge: View {
         }
     }
 
+    // The bare letter reads as "W" — spell the result for VoiceOver. (In a grouped row, e.g. a
+    // Standings row's curated label, this is ignored; it carries the standalone Recent Form rows.)
+    private var resultName: String {
+        switch result {
+        case .win: return "Win"
+        case .draw: return "Draw"
+        case .loss: return "Loss"
+        }
+    }
+
     var body: some View {
         Text(letter)
             .dsFont(fontSize, weight: .bold)
             .foregroundStyle(.white)
             .frame(width: size, height: size)
             .background(color, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .accessibilityLabel(resultName)
     }
 }
 

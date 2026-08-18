@@ -350,8 +350,27 @@ struct StandingsView: View {
             // No below-playoff-line dimming — the PLAYOFF LINE divider is the only
             // cutoff cue; every row renders at full opacity for readability.
             .contentShape(Rectangle())   // whole row tappable, incl. padding
+            // One VoiceOver element: the auto-label is an unparseable number string
+            // ("16 PHI 24 22 13 4 5 +18 W W D L W"). Rebuild it as a sentence.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(standingsRowLabel(row, recent: recent, isFollowing: isFollowing))
         }
         .buttonStyle(.plain)
+    }
+
+    private func standingsRowLabel(_ row: StandingsRow, recent: [MatchResult], isFollowing: Bool) -> String {
+        var parts = ["\(row.rank). \(row.club.displayName)",
+                     "\(row.points) points", "\(row.gamesPlayed) played",
+                     "\(row.wins) wins", "\(row.draws) draws", "\(row.losses) losses",
+                     "\(row.goalDifferenceText) goal difference"]
+        if !recent.isEmpty {
+            let form = recent.map { r in
+                switch r { case .win: return "win"; case .draw: return "draw"; case .loss: return "loss" }
+            }.joined(separator: ", ")
+            parts.append("last five: \(form)")
+        }
+        if isFollowing { parts.append("following") }
+        return parts.joined(separator: ", ")
     }
 
     private func statCell(_ value: Int, width: CGFloat) -> some View {

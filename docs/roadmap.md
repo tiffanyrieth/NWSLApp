@@ -219,30 +219,30 @@
 > - README/showcase copy already reframed to match (PR #152); CLAUDE.md carries the
 >   values-vs-mechanics stance so future copy stays consistent.
 
-> ### ♿ PRE-RELEASE GATE — accessibility: **VoiceOver is the only part left** (owner 2026-07-21)
+> ### ♿ PRE-RELEASE GATE — accessibility: **ALL FOUR PARTS DONE** (owner 2026-07-21; VoiceOver 2026-08-17)
 > Accessibility is a release gate, not a nice-to-have — in an inclusive space like NWSL it must not be
-> overlooked. **Three of the four parts are now DONE** (owner-confirmed 2026-07-31, +contrast 2026-08-11):
+> overlooked. All four legs are now complete + mechanically gated:
 > - ✅ **Dynamic Type / AX1** — cap decided, whole app swept, every screen passes (detail below).
 > - ✅ **Colour-blind** — deuter/protan/tritan simulation across the app found **no failures**;
 >   existing rules carry it (✓/✗ glyph shapes, crest+abbreviation, text "your pick" labels).
-> - ✅ **Contrast (WCAG AA)** — DONE 2026-08-11. The app had shipped invisible dark-on-dark text
->   (`dsFgTertiary`/`Quaternary` used as readable text at 1.5–2.3:1 on cards — the weather footer was the
->   caught exemplar). Fixed: `dsFgSecondary` lightened to #AEAEB2 (AA-clean on every surface), tertiary/
->   quaternary made decoration-only, ~230 readable sites swept off failing tokens/`.secondary`, and a
->   **contrast FLOOR** added (`DSColorContrastTests` + `Color.wcagContrastRatio`, CLAUDE.md rule) so a
->   regression fails CI — the color-axis peer of the 12pt font floor. [[feedback_invisible_dark_on_dark_text]].
-> - ❌ **VoiceOver — THE REMAINING WORK.** Partial today: 16 files carry a11y modifiers, so it is not
->   zero, but there has been no systematic pass. This is what blind users need to use the app at all,
->   and it's the reason the AX1 cap is defensible (users needing >AX1 are served by VoiceOver + Zoom).
->   Scope below.
->
-> **VoiceOver scope:** custom-DRAWN elements need
->   explicit `.accessibilityLabel` (formation-pitch dots, `StatComparisonBar`, score header, live clock,
->   image-only crests/headshots); GROUP compound units so a match card reads as one element ("Chicago 0,
->   Angel City 2, Full Time") not fragments; revisit the Dynamic Type **AX1 cap** per-screen (density vs
->   larger AX sizes — trade-off).
-> - **Color-blind:** never rely on color ALONE — redundant encoding (letter/shape/icon) + respond to
->   `@Environment(\.accessibilityDifferentiateWithoutColor)`, usually better than a custom mode.
+> - ✅ **Contrast (WCAG AA)** — DONE 2026-08-11. `dsFgSecondary` lightened to #AEAEB2, tertiary/quaternary
+>   made decoration-only, ~230 sites swept, and a **contrast FLOOR** (`DSColorContrastTests` +
+>   `Color.wcagContrastRatio`, CLAUDE.md rule) fails CI on a regression. [[feedback_invisible_dark_on_dark_text]].
+> - ✅ **VoiceOver — DONE 2026-08-17.** Systematic pass: shared components fixed once
+>   (`PlayerHeadshot` hidden, `StatComparisonBar`/`ScoreRing`/`FormBadge` labelled), match surfaces read
+>   as ONE curated sentence built from the model (`MatchCard` + `MatchDetail` header → "Louisville 4,
+>   Boston 1, full time" — the live minute spoken, not "51 apostrophe", without touching the fragile
+>   `MatchClockKit`), the formation `PitchDot` announces each player's role, and every compound row
+>   (Standings, Bracket leaderboard, `PlayoffMatchupRow`, Superfan breakdown, content-feed cards) is
+>   grouped with a curated label. Content cards also gained a link trait + activation action (they were
+>   tap-to-open but not Buttons). **Mechanically gated by `NWSLAppUITests/AccessibilityAuditUITests`**
+>   (`performAccessibilityAudit` walks each screen, fails CI on an unlabeled/mistraited/undescribed
+>   element) — the VoiceOver peer of the contrast test. Audit scoped to the VoiceOver-specific checks
+>   (`.elementDetection`/`.sufficientElementDescription`/`.trait`); `.dynamicType` + `.contrast`
+>   deliberately excluded (owned by the AX1 gate + `DSColorContrastTests`, and they flag the app's
+>   intentional fixed-size text + team-color-on-wash design). CLAUDE.md carries the "part of done" rule.
+>   ⏳ **Owner's remaining step: a device VoiceOver spot-check** — the audit proves structure; a human
+>   should confirm the labels READ naturally (swipe a match card, standings row, the formation pitch).
 >
 > #### ✅ Dynamic Type / AX1 — SETTLED 2026-07-29 (the cap question above is now ANSWERED)
 > **The cap STAYS at AX1** (owner decision, after testing MLS / NWSL / MLB / Reddit / Swift Alert on

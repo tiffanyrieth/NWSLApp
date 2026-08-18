@@ -67,6 +67,12 @@ struct StatComparisonBar: View {
             // 10pt, not 5: this bar exists to be COMPARED at a glance against the row above it.
             .frame(height: 10)
         }
+        // One VoiceOver element: the split bar is decorative (the numbers carry the comparison),
+        // and the three loose Texts would otherwise read as fragments. Home value is left, away
+        // right — same order as the teams in the card header above. The GeometryReader fill has
+        // no text, so `.ignore` + a curated label is correct (not `.combine`).
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label), \(homeDisplay) versus \(awayDisplay)")
     }
 }
 

@@ -933,6 +933,11 @@ struct MatchDetailView: View {
                 centerColumn
                 teamColumn(event.awayCompetitor, color: matchColors.away.fill)
             }
+            // One VoiceOver element: crests (hidden), abbreviations, scores, and the live clock
+            // would otherwise read as loose fragments. Rebuilt from the model so the live minute
+            // reads as words, not "51 apostrophe" — and without touching the fragile clock view.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(headerVoiceOverLabel)
 
             // A fixed two-row rail: broadcast chip + venue on line 1; weather + attendance
             // grouped on line 2 for a finished match. Splitting attendance off the venue line
@@ -966,6 +971,27 @@ struct MatchDetailView: View {
     private var hasCompactInfo: Bool {
         event.venueName != nil || broadcastName != nil || showsAttendanceLine
             || viewModel.weather?.roundedTemp != nil
+    }
+
+    // Curated VoiceOver label for the score header (full club names on the detail screen).
+    private var headerVoiceOverLabel: String {
+        let home = event.homeCompetitor?.team?.displayName ?? event.homeCompetitor?.team?.abbreviation ?? "Home"
+        let away = event.awayCompetitor?.team?.displayName ?? event.awayCompetitor?.team?.abbreviation ?? "Away"
+        switch temporalState {
+        case .live:
+            let hs = event.homeCompetitor?.score ?? "0"
+            let aw = event.awayCompetitor?.score ?? "0"
+            return "\(home) \(hs), \(away) \(aw), \(event.isHalftime ? "halftime" : "live")"
+        case .past:
+            let hs = event.homeCompetitor?.score ?? "0"
+            let aw = event.awayCompetitor?.score ?? "0"
+            let state = event.isFinalResult ? "full time"
+                : (event.status?.type?.description ?? "suspended").lowercased()
+            return "\(home) \(hs), \(away) \(aw), \(state)"
+        case .future:
+            let date = dateHeadline.map { ", \($0)" } ?? ""
+            return "\(home) versus \(away), kickoff \(kickoffTimeText)\(date)"
+        }
     }
 
     /// One predicate for BOTH the rail gate (`hasCompactInfo`) and `attendanceInline` itself, so the

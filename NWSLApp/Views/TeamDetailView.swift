@@ -90,18 +90,25 @@ struct TeamDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 14) {
-                TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 64)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(club.displayName)
-                        .dsFont(21, weight: .bold)
-                        .foregroundStyle(Color.dsFgPrimary)
-                        .lineLimit(2)
-                    // Live standing line; fall back to the abbreviation so the header
-                    // never looks empty while the roster loads.
-                    Text(viewModel.standingLine ?? club.abbreviation)
-                        .dsFont(16)
-                        .foregroundStyle(Color.dsFgSecondary)
+                // Crest + name/standing as ONE VoiceOver element (the follow/bell buttons stay
+                // separately tappable outside it). Grouping also brings the crest's frame under a
+                // labeled element, so the OCR "image displays text" check is satisfied — an NWSL
+                // crest bakes the club name into its artwork, which this element now represents.
+                HStack(spacing: 14) {
+                    TeamLogo(urlString: club.logoURL, teamAbbreviation: club.abbreviation, size: 64)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(club.displayName)
+                            .dsFont(21, weight: .bold)
+                            .foregroundStyle(Color.dsFgPrimary)
+                            .lineLimit(2)
+                        // Live standing line; fall back to the abbreviation so the header
+                        // never looks empty while the roster loads.
+                        Text(viewModel.standingLine ?? club.abbreviation)
+                            .dsFont(16)
+                            .foregroundStyle(Color.dsFgSecondary)
+                    }
                 }
+                .accessibilityElement(children: .combine)
                 Spacer(minLength: 8)
                 headerActions
             }

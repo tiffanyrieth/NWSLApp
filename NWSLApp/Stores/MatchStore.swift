@@ -86,8 +86,8 @@ final class MatchStore {
     private(set) var partialErrors: [String: String] = [:]
 
     /// The follow lens, handed in by RootTabView. `load()` reads the followed
-    /// national teams (+ later the Champions Cup toggle) so every caller fetches the
-    /// same merged NWSL + competition set — no first-loader-wins. nil = NWSL only.
+    /// national teams so every caller fetches the same merged NWSL + competition set
+    /// — no first-loader-wins. nil = NWSL only. (CONCACAF is fetched regardless.)
     var following: FollowingStore?
 
     private let service: ESPNService
@@ -163,7 +163,7 @@ final class MatchStore {
                 let (nt, _) = await fetchNationalTeamMatches(year: year, followedCodes: followedCodes, dates: dates)
                 fresh += nt
             }
-            if following?.isConcacafFollowed == true, aux.championsCup {
+            if aux.championsCup {
                 let (cc, _) = await fetchChampionsCupMatches(year: year, dates: dates)
                 fresh += cc
             }
@@ -249,7 +249,7 @@ final class MatchStore {
 
             // Followed women's national teams — each feed is an EXTRA: a failure
             // records a partial error, never breaks the NWSL spine (online-only,
-            // no stale fallback). (Champions Cup curated source: a later phase.)
+            // no stale fallback).
             var errors: [String: String] = [:]
             if !followedCodes.isEmpty {
                 let (ntMatches, ntErrors) = await fetchNationalTeamMatches(year: year,
@@ -258,15 +258,16 @@ final class MatchStore {
                 errors = ntErrors
             }
 
-            // CONCACAF W Champions Cup (a CLUB competition ESPN does carry) — fetched
-            // only when the user's global toggle is on. We keep every match involving
-            // an NWSL club here; the My-teams filter narrows to FOLLOWED clubs. Same
-            // soft-fail policy as the national-team feeds (never breaks the spine).
-            if following?.isConcacafFollowed == true {
-                let (ccMatches, ccError) = await fetchChampionsCupMatches(year: year)
-                matches += ccMatches
-                if let ccError { errors[ChampionsCupFeed.label] = ccError }
-            }
+            // CONCACAF W Champions Cup (a CLUB competition ESPN does carry) — CORE league
+            // content, fetched UNCONDITIONALLY (an NWSL club in a continental match is a
+            // product of the league; it belongs on every fan's schedule overview, not
+            // behind an opt-in — the retired toggle). `fetchChampionsCupMatches` already
+            // keeps only matches involving one of the 16 clubs; the My-teams filter then
+            // narrows to FOLLOWED clubs. Same soft-fail policy as the national-team feeds
+            // (never breaks the spine).
+            let (ccMatches, ccError) = await fetchChampionsCupMatches(year: year)
+            matches += ccMatches
+            if let ccError { errors[ChampionsCupFeed.label] = ccError }
 
             // NWSL Challenge Cup (a single annual NWSL-club match, ESPN slug `usa.nwsl.cup`).
             // UNLIKE the Champions Cup, there is NO opt-in toggle — it's AUTO: fetch it whenever

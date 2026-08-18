@@ -3,17 +3,17 @@
 //  NWSLApp
 //
 //  "Competitions" — reached from the "Follow competitions ›" row at the bottom of the
-//  Teams tab. The opt-in extensions that make the app more than NWSL: the CONCACAF W
-//  Champions Cup (a club competition — one global toggle that folds your followed clubs'
-//  continental matches into the Schedule's "My teams") and women's national teams
-//  (followable entities whose matches weave into "My teams" alongside clubs).
+//  Teams tab. Follow women's national teams (followable entities whose matches weave into
+//  "My teams" alongside clubs). CONCACAF W Champions Cup is NOT here anymore — an NWSL
+//  club's continental matches are core schedule content, always shown in the Schedule
+//  overview for everyone (no opt-in), so the old toggle was retired.
 //
-//  Everything turned on here folds into "My teams" — there is no separate schedule chip,
+//  National teams turned on here fold into "My teams" — there is no separate schedule chip.
 //  (National teams ARE browsable since 2026-07-31 — a card taps through to NationalTeamDetailView.)
-//  fixtures in. The National Teams section is ONE inline, searchable, DATA-DRIVEN A-Z list
+//  The National Teams section is ONE inline, searchable, DATA-DRIVEN A-Z list
 //  (`NationalTeamDirectoryStore` → proxy `/national-teams`, real ESPN coverage) — there is no
 //  separate "Browse all" screen. The search bar sits UNDER the section header, scoped to the
-//  list below it (not the Champions Cup toggle above).
+//  list below it.
 //
 
 import SwiftUI
@@ -35,15 +35,11 @@ struct CompetitionsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text("Go beyond the league. Anything you turn on here folds into My teams on your schedule.")
+                Text("Follow your national team. Any team you turn on here folds into My teams on your schedule.")
                     .dsFont(15)
                     .foregroundStyle(Color.dsFgSecondary)
                     .lineSpacing(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
-
-                section("CLUB COMPETITIONS") {
-                    championsCupCard
-                }
 
                 section("NATIONAL TEAMS") {
                     Text("Follow your national team. Their matches appear in My teams alongside your clubs.")
@@ -69,47 +65,10 @@ struct CompetitionsView: View {
         .navigationDestination(isPresented: $showHub) { NotificationsView() }
     }
 
-    // MARK: - Club competitions
-
-    // Elevated to the Teams-tab card weight: a real content card (radiusXl, generous
-    // padding) with a tinted trophy medallion that lights up when the competition is on
-    // — not a basic settings row.
-    private var championsCupCard: some View {
-        let on = following.isConcacafFollowed
-        return HStack(spacing: 13) {
-            Image(systemName: "trophy.fill")
-                .dsFont(19)
-                .foregroundStyle(on ? Color.dsSuccess : Color.dsFgSecondary)
-                .frame(width: 44, height: 44)
-                .background(on ? Color.dsSuccess.opacity(0.16) : Color.dsBgTertiary,
-                            in: RoundedRectangle(cornerRadius: DS.radiusMd, style: .continuous))
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Concacaf W Champions Cup")
-                    .dsFont(16, weight: .semibold)
-                    .foregroundStyle(Color.dsFgPrimary)
-                Text("Adds your clubs' Champions Cup matches to My teams.")
-                    .dsFont(13.5)
-                    .foregroundStyle(Color.dsFgSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 8)
-            Toggle("", isOn: Binding(get: { following.isConcacafFollowed },
-                                     set: { following.setConcacafFollowed($0) }))
-                .labelsHidden()
-                .tint(Color.dsSuccess)
-        }
-        .padding(16)
-        .background(Color.dsBgCard, in: RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DS.radiusXl)
-                .stroke(on ? Color.dsSuccess.opacity(0.35) : .clear, lineWidth: 1)
-        )
-    }
-
     // MARK: - National teams (inline, searchable, data-driven)
 
     // Scoped to the national-teams list below it — deliberately NOT a `.searchable` nav-bar field,
-    // which would read as searching the whole screen (incl. the Champions Cup toggle above).
+    // which would read as searching the whole screen.
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")

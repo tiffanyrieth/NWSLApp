@@ -23,11 +23,6 @@ final class FollowingStore {
     /// through `toggle(_:)` so persistence always stays in sync.
     private(set) var followedIDs: Set<String>
 
-    /// The CONCACAF W Champions Cup global toggle (a CLUB competition). On ⇒ followed
-    /// clubs in the current draw pipe their Champions Cup matches into the Schedule's
-    /// "My teams". One switch covers all qualifying clubs (no per-club granularity).
-    private(set) var isConcacafFollowed: Bool
-
     /// Followed women's national-team FIFA codes ("USA", "MEX"…) — a new kind of
     /// followable entity that sits alongside clubs in "My teams"; their matches are
     /// filtered out of the national-team ESPN feeds by code.
@@ -45,9 +40,9 @@ final class FollowingStore {
     /// about the network, only that "something" may want to observe changes.
     var onFollowsChanged: ((Set<String>) -> Void)?
 
-    /// Fired after a Champions Cup toggle or national-team follow change, so the
-    /// Schedule refetches the competition feeds. Distinct from `onFollowsChanged`
-    /// (clubs → Supabase sync): this is purely a "the schedule needs new data" signal.
+    /// Fired after a national-team follow change, so the Schedule refetches the
+    /// competition feeds. Distinct from `onFollowsChanged` (clubs → Supabase sync):
+    /// this is purely a "the schedule needs new data" signal.
     var onCompetitionFollowsChanged: (() -> Void)?
 
     /// Called after a competition-follow mutation with the new full key set
@@ -71,7 +66,6 @@ final class FollowingStore {
     // WC, …). Now superseded — migrated into the new model on launch, then cleared.
     private static let legacyCompetitionsKey = "followedCompetitionIDs"
     private static let onboardedKey = "hasOnboarded"
-    private static let concacafKey = "isConcacafFollowed"
     private static let nationalTeamsKey = "followedNationalTeamCodes"
 
     /// `defaults` is injectable so tests (and previews) can use an isolated
@@ -80,7 +74,6 @@ final class FollowingStore {
         self.defaults = defaults
         let saved = defaults.stringArray(forKey: Self.storageKey) ?? []
         self.followedIDs = Set(saved)
-        self.isConcacafFollowed = defaults.bool(forKey: Self.concacafKey)
         self.followedNationalTeams = Set(defaults.stringArray(forKey: Self.nationalTeamsKey) ?? [])
         // Treat anyone who already follows a club as onboarded, so existing
         // users (and seeded simulators) don't get sent back through the picker.
@@ -89,20 +82,17 @@ final class FollowingStore {
     }
 
     /// One-time: fold the old onboarding competition slugs into the real model, then
-    /// clear them. USWNT/SheBelieves → follow the USA national team; CONCACAF → the
-    /// Champions Cup toggle. WWC/Olympics have no home yet (whole-tournament UI is
-    /// deferred), so they're dropped. Idempotent — once the legacy key is cleared,
-    /// every later launch reads an empty array and no-ops.
+    /// clear them. USWNT/SheBelieves → follow the USA national team. WWC/Olympics have no
+    /// home yet (whole-tournament UI is deferred) and the retired `concacaf-w-champions`
+    /// slug (CONCACAF is now always-on core schedule content, no toggle) are dropped.
+    /// Idempotent — once the legacy key is cleared, every later launch reads an empty
+    /// array and no-ops.
     private func migrateLegacyCompetitionFollows() {
         let legacy = defaults.stringArray(forKey: Self.legacyCompetitionsKey) ?? []
         guard !legacy.isEmpty else { return }
         if legacy.contains("uswnt") || legacy.contains("shebelieves-cup") {
             followedNationalTeams.insert("USA")
             defaults.set(Array(followedNationalTeams), forKey: Self.nationalTeamsKey)
-        }
-        if legacy.contains("concacaf-w-champions") {
-            isConcacafFollowed = true
-            defaults.set(true, forKey: Self.concacafKey)
         }
         defaults.set([String](), forKey: Self.legacyCompetitionsKey)
     }
@@ -152,40 +142,28 @@ final class FollowingStore {
         onCompetitionFollowKeysChanged?(competitionFollowKeys)
     }
 
-    /// Set the CONCACAF W Champions Cup global toggle; persists + signals the Schedule.
-    func setConcacafFollowed(_ on: Bool) {
-        guard on != isConcacafFollowed else { return }
-        isConcacafFollowed = on
-        defaults.set(on, forKey: Self.concacafKey)
-        onCompetitionFollowsChanged?()
-        onCompetitionFollowKeysChanged?(competitionFollowKeys)
-    }
-
     // MARK: - Competition-follow sync surface
 
     /// The competition follows as a flat namespaced key set — "nt:<CODE>" per followed
-    /// national team + "concacaf" when the Champions Cup is on. This is the exact shape
-    /// stored in the `competition_follows` table, so the sync coordinator treats it just
-    /// like the club follow set.
+    /// national team. This is the exact shape stored in the `competition_follows` table,
+    /// so the sync coordinator treats it just like the club follow set. (A retired
+    /// "concacaf" key used to live here; CONCACAF is now always-on core schedule content
+    /// with no toggle, so any stale server row is pruned once on the next reconcile.)
     var competitionFollowKeys: Set<String> {
-        var keys = Set(followedNationalTeams.map { "nt:\($0)" })
-        if isConcacafFollowed { keys.insert("concacaf") }
-        return keys
+        Set(followedNationalTeams.map { "nt:\($0)" })
     }
 
     /// Replace the competition follows wholesale from a key set (device-authoritative
-    /// mirror reconcile). The twin of `replace(ids:)` for `competition_follows`:
-    /// decodes the flat "nt:<CODE>" / "concacaf" keys back into the two stored fields,
-    /// persists, and signals the Schedule if anything changed. Does NOT fire the sync
-    /// closure — the coordinator is the caller and reconciles the server itself.
+    /// mirror reconcile). The twin of `replace(ids:)` for `competition_follows`: decodes
+    /// the flat "nt:<CODE>" keys back into the stored field, persists, and signals the
+    /// Schedule if anything changed. A retired "concacaf" key is ignored (not decoded
+    /// into anything). Does NOT fire the sync closure — the coordinator is the caller and
+    /// reconciles the server itself.
     func replaceCompetitionFollowKeys(_ keys: Set<String>) {
         let codes = Set(keys.filter { $0.hasPrefix("nt:") }.map { String($0.dropFirst(3)) })
-        let concacaf = keys.contains("concacaf")
-        guard codes != followedNationalTeams || concacaf != isConcacafFollowed else { return }
+        guard codes != followedNationalTeams else { return }
         followedNationalTeams = codes
-        isConcacafFollowed = concacaf
         defaults.set(Array(followedNationalTeams), forKey: Self.nationalTeamsKey)
-        defaults.set(isConcacafFollowed, forKey: Self.concacafKey)
         onCompetitionFollowsChanged?()
     }
 
@@ -221,7 +199,6 @@ final class FollowingStore {
         defaults.set([String](), forKey: storageKey)
         defaults.set([String](), forKey: legacyCompetitionsKey)
         defaults.set(false, forKey: onboardedKey)
-        defaults.set(false, forKey: concacafKey)
         defaults.set([String](), forKey: nationalTeamsKey)
     }
     #endif

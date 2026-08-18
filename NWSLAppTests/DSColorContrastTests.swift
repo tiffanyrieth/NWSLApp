@@ -103,7 +103,7 @@ struct DSColorContrastTests {
         ]
         // Decoration exceptions (file, 1-based line) — verified NOT readable text.
         let allow: Set<String> = [
-            "SuperfanDetailView.swift:496",  // chevron.right icon
+            "SuperfanDetailView.swift:508",  // chevron.right icon
             "PredictXIView.swift:467",       // chevron.right icon
         ]
 

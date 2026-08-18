@@ -155,10 +155,10 @@ struct OnboardingView: View {
         homeContent.warm(following: following, clubStore: clubStore)
     }
 
-    // A quiet pointer, not a toggle list: international competitions (national teams
-    // + the Champions Cup) are followed in their own hub (Teams → Follow competitions),
-    // which is the designed flow. Onboarding stays focused on picking clubs; this just
-    // tells a new fan the rest exists. (The old inert competition toggles lived here.)
+    // A quiet pointer, not a toggle list: national teams are followed in their own hub
+    // (Teams → Follow competitions), which is the designed flow. Onboarding stays focused
+    // on picking clubs; this just tells a new fan the rest exists. (The old inert
+    // competition toggles lived here.)
     private var internationalPointerCard: some View {
         HStack(spacing: 12) {
             Image(systemName: "globe")
@@ -169,7 +169,7 @@ struct OnboardingView: View {
                 Text("Following a national team?")
                     .dsFont(16)
                     .foregroundStyle(Color.dsFgPrimary)
-                Text("Add national teams + the Champions Cup later in Teams → Follow competitions.")
+                Text("Add national teams later in Teams → Follow competitions.")
                     .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .fixedSize(horizontal: false, vertical: true)

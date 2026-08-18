@@ -6,7 +6,11 @@ Each tab has a distinct lens. When adding/redesigning, check the lens matches an
 stay consistent. Full rationale in `Reference/navigation-architecture.md`.
 - **Home** — your teams, right now. Personal + temporal. The engagement hub (live content,
   Player Spotlight, Fan Zone games, "Coming up").
-- **Schedule** — when do they play / what happened? Full-season calendar — INCLUDING the
+- **Schedule** — when do they play / what happened? Full-season calendar. The default chip is
+  **"All"** (renamed from "NWSL" 2026-08-18): the full NWSL slate + every NWSL-club CONCACAF W
+  Champions Cup match (league-wide, regardless of follows) + your followed national teams' fixtures,
+  woven into one timeline. **My teams** narrows the clubs to your follows (keeping followed NTs). See
+  `docs/decisions.md` ("CONCACAF is core league content"). INCLUDING the
   postseason: playoff games render as round-grouped sections (QUARTERFINALS/SEMIFINALS/
   CHAMPIONSHIP, status-colored headers + left bar) at the chronological end, with a year-round
   TBD "road to the championship" tail (ESPN's published season windows) and a clinch-gated

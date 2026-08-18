@@ -288,7 +288,10 @@ over-ask on low-level forks, never guess product/cost calls. **Nothing is imposs
 
 ## UI rules
 
-- **Dark appearance app-wide**, no toggle (page `#1C1C1E`, cards `#2C2C2E`).
+- **Dark appearance app-wide**, no toggle (page `#1C1C1E`, cards `#2C2C2E`). ⚠️ Dark is a deliberate
+  **CANVAS to make vibrant team/brand colors POP**, NOT a muted or "gloomy" aesthetic — the app is
+  colorful; the dark ground is what makes the color read as extra-vibrant (owner 2026-08-18). Never
+  interpret "dark-only" as a call for dark/desaturated/moody visuals.
 - **Reuse the shared component library — don't re-roll** (pre-launch design pass, 2026-07-17): buttons →
   `DSButton`; error/empty → `RetryStateView`; team colors → `Color.teamColor(…)`; team-color card washes →
   `TeamWashBackground` (`TeamColorWash.swift`); player avatars →

@@ -25,6 +25,10 @@ struct PlatformBadge: View {
             .fill(fill)
             .frame(width: size, height: size)
             .overlay { glyph }
+            // Decorative glyph — the platform name is always spelled out in adjacent text
+            // ("YouTube", "Bluesky", …) or subsumed by a card's curated label. Hidden so its
+            // bare SF Symbol can't surface as an undescribed node under a racing parent merge.
+            .accessibilityHidden(true)
     }
 
     /// Brand fill from the single `PlatformBrand` source (Instagram is a gradient).

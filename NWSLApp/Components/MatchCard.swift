@@ -243,6 +243,11 @@ struct MatchCard: View {
                 Image(systemName: "mappin.and.ellipse")
                     .font(.system(size: 11))
                     .foregroundStyle(Color.dsFgSecondary)
+                    // Decorative — the venue name text beside it carries the meaning, and the card's
+                    // curated `voiceOverLabel` already says "at <venue>". Hidden defensively (like
+                    // TeamLogo) so the `.accessibilityElement(children: .ignore)` merge losing its
+                    // race during the first-open reveal can never surface this as an undescribed node.
+                    .accessibilityHidden(true)
                 Text(venue)
                     .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)

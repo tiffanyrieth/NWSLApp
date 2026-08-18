@@ -56,7 +56,21 @@ final class AccessibilityAuditUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 2)
         do {
             try app.performAccessibilityAudit(for: auditTypes) { issue in
-                self.shouldIgnore(issue)
+                // Self-document every finding: attach the offending element + issue to the result
+                // so a future failure names its element in the .xcresult (no screenshot archaeology,
+                // and — unlike NSLog/print — an attachment reliably survives the UITest process
+                // boundary). The gate still fails on it unless `shouldIgnore` whitelists it.
+                let detail = """
+                    screen: \(args.joined(separator: " "))
+                    type: \(issue.auditType)
+                    issue: \(issue.compactDescription)
+                    element: \(issue.element?.debugDescription ?? "nil")
+                    """
+                let attachment = XCTAttachment(string: detail)
+                attachment.name = "Audit issue — \(issue.compactDescription)"
+                attachment.lifetime = .keepAlways
+                self.add(attachment)
+                return self.shouldIgnore(issue)
             }
         } catch {
             // The audit engine itself couldn't finish (a very element-dense screen — not an app

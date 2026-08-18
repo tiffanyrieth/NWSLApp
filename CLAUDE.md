@@ -243,6 +243,16 @@ docs above — go read them):
 - **AX1 check = part of "done" for any new/redesigned screen** (`simctl ui <SIM> content_size
   accessibility-medium`). Dynamic Type caps at AX1, so it's the largest size the app promises and must
   lose NO data. Bar, severity ladder, cap rationale: `docs/roadmap.md` ♿ gate.
+- **VoiceOver = part of "done" for any new/redesigned screen** (the mechanical peer of the AX1 +
+  contrast gates). SwiftUI is accessible by DEFAULT — you only touch the minority: a **custom-drawn**
+  visual (bar/ring/pitch dot/live clock/score header) gets an `.accessibilityLabel`; an **image-only**
+  element (bare crest/headshot) is `.accessibilityHidden(true)` when a text label is adjacent; a
+  **compound row** (match card, standings/leaderboard row, content card) is grouped
+  `.accessibilityElement(children: .ignore)` + a CURATED label (SwiftUI's auto-combine is a garbled
+  fragment concat — never rely on it). Enforced by **`NWSLAppUITests/AccessibilityAuditUITests`**
+  (`performAccessibilityAudit`, walks each screen, fails CI on an unlabeled/miss-described/mistraited
+  element) — add a test when you add a screen; suppress a finding ONLY in its `shouldIgnore` with a
+  reason. Full inventory + patterns: `docs/roadmap.md` ♿ gate.
 - **Stress-test gate = part of "done" for load-bearing features.** Any NEW or REBUILT feature/subsystem
   that adds or changes a **load path** (DB reads/writes, network, push fan-out, KV/storage, cron) must be
   run through the **`docs/stress-testing.md` §5** method and shown to **pass the 1k SIZE test** (+ note the

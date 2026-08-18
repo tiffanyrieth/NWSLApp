@@ -73,6 +73,29 @@ struct PlayoffMatchupRow: View {
             }
         }
         .onAppear { if matchup.state == .live { pulse = true } }
+        // One VoiceOver element (the row sits in a Button): crests/wash/seed/score would otherwise
+        // read as fragments, and the eliminated/live state isn't spoken by the visual dim/pulse.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(voiceOverLabel)
+    }
+
+    private var voiceOverLabel: String {
+        func name(_ s: BracketSide, _ club: Club?) -> String {
+            club?.displayName ?? s.abbreviation ?? "To be determined"
+        }
+        let h = name(matchup.home, homeClub), a = name(matchup.away, awayClub)
+        switch matchup.state {
+        case .post:
+            let hs = matchup.home.score.map(String.init) ?? "", aw = matchup.away.score.map(String.init) ?? ""
+            return "\(h) \(hs), \(a) \(aw), final"
+        case .live:
+            let hs = matchup.home.score.map(String.init) ?? "0", aw = matchup.away.score.map(String.init) ?? "0"
+            return "\(h) \(hs), \(a) \(aw), live"
+        case .pre:
+            let hSeed = matchup.home.seed.map { ", \($0) seed" } ?? ""
+            let aSeed = matchup.away.seed.map { ", \($0) seed" } ?? ""
+            return "\(h)\(hSeed) versus \(a)\(aSeed)"
+        }
     }
 
     // MARK: - Sides (crest hero + abbr + seed + score band, per MatchCard)

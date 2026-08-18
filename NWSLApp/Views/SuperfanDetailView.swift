@@ -205,6 +205,9 @@ struct SuperfanDetailView: View {
                     .dsFont(20).foregroundStyle(tint)
                     .frame(width: 38, height: 38)
                     .background(tint.opacity(0.15), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    // Decorative — the headline/detail carry the meaning; without this VoiceOver
+                    // reads the raw SF Symbol name ("sparkle magnifying glass").
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(item.headline).dsFont(16, weight: .bold).foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -336,6 +339,15 @@ struct SuperfanDetailView: View {
         }
         .padding(12).frame(maxWidth: .infinity)
         .background(Color.dsBgCard).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        // One element: the fill bar is decorative and "12.0 / 25" reads as "12 slash 25".
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel({
+            guard played else { return "\(m.name), not played yet" }
+            let acc = Int((accuracy * 100).rounded())
+            var s = "\(m.name), \(acc) percent accuracy, \(oneDecimal(contribution)) of 25 points"
+            if engagement > 0 { s += ", plus \(engagement) engagement" }
+            return s
+        }())
     }
 
     private func oneDecimal(_ value: Double) -> String {

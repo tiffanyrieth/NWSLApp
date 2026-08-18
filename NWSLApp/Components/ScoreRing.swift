@@ -69,6 +69,11 @@ struct ScoreRingDefaultLabel: View {
                 .dsFont(34, weight: .heavy, design: .rounded).foregroundStyle(accent)
             Text("correct").dsFont(13).foregroundStyle(Color.dsFgSecondary)
         }
+        // "8/11" reads as "8 slash 11" otherwise — one element with a spoken label instead. The
+        // ring arcs behind it are decorative shapes (not VoiceOver elements), so this label is
+        // the ring's only spoken content. (Predict supplies its own custom center + a11y.)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(score) of \(total) correct")
     }
 }
 

@@ -42,6 +42,21 @@ struct PitchDot: View {
                 .shadow(radius: 1)
         }
         .frame(width: 66)
+        // The dot's POSITION on the pitch (role) is conveyed only by pixel placement — lost to
+        // VoiceOver. Speak it: "{name}, number {jersey}, {position}". One element (the disc/photo
+        // are decorative; the monogram number + pitch label would otherwise read as fragments).
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(voiceOverLabel)
+    }
+
+    private var voiceOverLabel: String {
+        let name = player.athlete?.displayName ?? player.athlete?.shortName ?? Self.lastName(player)
+        var parts = [name]
+        if let jersey = player.jersey, !jersey.isEmpty { parts.append("number \(jersey)") }
+        if let role = player.position?.displayName ?? player.position?.abbreviation, !role.isEmpty {
+            parts.append(role)
+        }
+        return parts.joined(separator: ", ")
     }
 
     /// The pitch label: jersey number + short last name ("25 Farmer"), matching the NWSL

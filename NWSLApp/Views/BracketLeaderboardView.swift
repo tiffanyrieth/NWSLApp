@@ -205,6 +205,9 @@ struct BracketLeaderboardView: View {
         }
         .padding(.vertical, 9).padding(.horizontal, 12)
         .background(s.isYou ? accent.opacity(0.10) : .clear)
+        // One element: "16 Emily 24" reads as three fragments otherwise.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(s.rank), \(s.name), \(s.points) points" + (s.isYou ? ", you" : ""))
     }
 
     // MARK: - Your Stats tab

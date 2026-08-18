@@ -51,6 +51,10 @@ struct PlayerHeadshot<Fallback: View>: View {
                     .scaledToFill()
                     .frame(width: size, height: size)
                     .clipShape(Circle())
+                    // A photo carries no text for VoiceOver — the player's name/number is always
+                    // adjacent (or in the grouped row's curated label), so hide the bare image to
+                    // avoid an unlabeled-image element. The monogram fallback keeps its number.
+                    .accessibilityHidden(true)
             } else {
                 fallback()                          // loading / no-photo / unmapped
             }

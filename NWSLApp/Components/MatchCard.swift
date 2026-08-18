@@ -63,6 +63,39 @@ struct MatchCard: View {
         .background { TeamWashBackground(base: .dsBgCard, home: homeColor, away: awayColor) }
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusXl, style: .continuous))
         .onAppear { if event.statusState == "in" { pulse = true } }
+        // One VoiceOver element with a curated sentence instead of the garbled fragment concat
+        // ("[comp] · ABBR · 4 · LIVE · 51' · ABBR · 1 · venue · channel"). `.ignore` because the
+        // crest/score/clock are drawn/animated visuals — the label is rebuilt from the model, so
+        // the live minute reads as words, not "51 apostrophe". The card sits in a NavigationLink,
+        // so VoiceOver adds the button trait + "view details" action on top of this.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(voiceOverLabel)
+    }
+
+    // Curated VoiceOver label — "Louisville Racing 4, Boston 1, full time, at Lynn Family Stadium".
+    private var voiceOverLabel: String {
+        let home = event.homeCompetitor?.team?.displayName ?? event.homeCompetitor?.team?.abbreviation ?? "Home"
+        let away = event.awayCompetitor?.team?.displayName ?? event.awayCompetitor?.team?.abbreviation ?? "Away"
+        var parts: [String] = []
+        if let label = match.competition.displayLabel { parts.append(label) }
+        switch event.statusState {
+        case "in":
+            let hs = event.homeCompetitor?.score ?? "0"
+            let aw = event.awayCompetitor?.score ?? "0"
+            parts.append("\(home) \(hs), \(away) \(aw), \(event.isHalftime ? "halftime" : "live")")
+        case "post":
+            let hs = event.homeCompetitor?.score ?? "0"
+            let aw = event.awayCompetitor?.score ?? "0"
+            let state = event.isFinalResult ? "full time"
+                : (event.status?.type?.description ?? "suspended").lowercased()
+            parts.append("\(home) \(hs), \(away) \(aw), \(state)")
+        default:
+            parts.append("\(home) versus \(away), kickoff \(kickoffTimeText)")
+        }
+        if let venue = event.venueName { parts.append("at \(venue)") }
+        // Channel is shown on future/live cards only (a finished game drops it).
+        if event.statusState != "post", let channel = broadcastName { parts.append("on \(channel)") }
+        return parts.joined(separator: ", ")
     }
 
     // MARK: - Sides (crest hero + score beneath)

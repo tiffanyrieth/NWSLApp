@@ -66,6 +66,22 @@ struct ArticleContentCard: View {
         .onTapGesture {
             if let url = card.url { openURL(url) }
         }
+        // The card is tap-to-open but NOT a Button (see above), so VoiceOver would read it as loose
+        // fragments with no way to activate. Make it one element with the headline/blurb as its
+        // label, a link trait, and an explicit action that mirrors the tap.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(voiceOverLabel)
+        .accessibilityAddTraits(.isLink)
+        .accessibilityHint("Opens in \(outlet)")
+        .accessibilityAction { if let url = card.url { openURL(url) } }
+    }
+
+    private var voiceOverLabel: String {
+        var parts: [String] = []
+        if let h = card.headline { parts.append(h) }
+        if let b = card.blurb, !b.isEmpty { parts.append(b) }
+        parts.append("From \(outlet), \(card.timestamp.relativeAgo)")
+        return parts.joined(separator: ". ")
     }
 
     // MARK: - Header (per-tab)

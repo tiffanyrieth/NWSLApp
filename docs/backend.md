@@ -333,11 +333,18 @@ _ESPN endpoints, the Cloudflare-Worker proxy, and the Supabase backend. Read whe
   archive API for older; one fallback to the other if the hour is missing. **Cached write-once in KV**
   (`weather:{eventId}`, NO TTL — a finished match's weather is immutable → first open backfills, everyone
   after is instant; lazy so it covers ALL history, no cron). Night-aware via `is_day` (sun vs. moon icon
-  app-side). Guarded to state `post`; future/live → `{mode:"unavailable",reason:"not-finished"}`; unknown
+  app-side). Historical path runs for state `post` **AND a LIVE match ≥30 min past kickoff**
+  (`liveWeatherSettled` / `WEATHER_LIVE_SETTLE_MS`, 2026-08-17) — the kickoff-hour reading is settled by
+  then, so it's captured mid-match + KV-written immutably and is already warm when the card flips to
+  full-time (kills the in→post fetch race the app hit at ~10pm-ET finishes). A live match <30 min in →
+  `{mode:"unavailable",reason:"not-finished"}` (60s cache, retried by the app's live poll); a genuine
+  future kickoff → forecast; unknown
   venue → `unknown-venue` + `weatherVenueUnknown` diag (no KV write). Strict `?event` validation (writes
   KV) unlike `/summary`'s pass-through. Deploy gate `health_check_weather.mjs` (FAILS on an NWSL
   `unknown-venue` = a new/renamed stadium needs coords). App side: `MatchWeather` model (WMO→SF-Symbol
-  day/night map) + `MatchDetailView` header stamp (`MatchDetailViewModel.loadWeather`, additive/non-blocking).
+  day/night map) + `MatchDetailView` header stamp (`MatchDetailViewModel.loadWeather`, additive/non-blocking;
+  the live poll loop retries it each 60s tick so the stamp is cached BEFORE the post flip — displayed
+  post-only, but fetched during live).
   - ⚠️ **FORECAST mode (`mode:"forecast"`, 2026-08-11)** — the same route serves the game-time weather
     strip for an UPCOMING match. A future kickoff inside a **10-day horizon** (`FORECAST_MAX_DAYS`; NOT
     Open-Meteo's 16-day max — the 11-16 window flip-flops run-to-run and a confident strip that far out

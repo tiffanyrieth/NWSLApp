@@ -76,22 +76,6 @@
 > (network → the app(s) that carry it + a "free via Plex/Tubi/Pluto" hint for the hard ones). Keep it a
 > curated network→apps map (small, owner-maintained), not a live carriage API. US/NWSL scope like the rest.
 >
-> ### 🌡️ KICKOFF TEMP — fetch during LIVE, not after post (owner 2026-08-15)
-> The historical kickoff temperature is immutable from the moment of kickoff, but the proxy currently
-> blocks it during `state === "in"` ("not-finished") and the app skips weather fetch during `.live`.
-> So the stamp only appears AFTER the match flips to post — and if the fan checks right at that
-> transition, both one-shot fetch attempts can hit the stale 60s "not-finished" edge cache and miss
-> permanently (close + reopen fixes it, but the data should already be there).
-> **Observed 2026-08-14:** GFC vs KC (8pm ET, ended ~10pm) showed 83°F instantly; the three 10pm ET
-> games (SD/DEN, SEA/CHI, UTA/BAY) all ended minutes after midnight and showed nothing — the race
-> window hit all three.
-> **Fix (small, both sides):**
-> - **Proxy:** when `state === "in"`, fall through to the historical path instead of returning
->   "not-finished" — the kickoff hour is already past, Open-Meteo has the reading, and the write-once
->   KV means every subsequent request is an instant hit.
-> - **App:** allow `loadWeather` during `.live` so the stamp is cached before the card flips to final.
-> The kickoff temp should be sitting there waiting for the post transition, not racing against it.
->
 > ### 🌩️ IDEA (low priority, nice-to-have) — weather radar during a delay (owner 2026-07-31)
 > When a match is in a weather delay, show a **radar** on Match Detail — precipitation plus, ideally,
 > recent lightning (soccer delays are a LIGHTNING call far more than a rain call). Explicitly a

@@ -417,10 +417,14 @@ struct RootTabView: View {
             // vectors already render; an override only changes things on the NEXT launch.
             Task(priority: .utility) { await AssetRefreshService.refreshIfDue() }
             // Prewarm the Feed (the known-slow path: the proxy `/feed` does server-side Haiku
-            // tagging) at LOW priority after the foreground critical path, so the first switch
-            // to the Feed tab is instant. Needs the directory loaded for follow-scoping; the
-            // load self-guards, so the tab's own first-appearance load is then a no-op.
-            Task(priority: .background) {
+            // tagging) after the foreground critical path, so the first switch to the Feed tab is
+            // instant. `.utility` (NOT `.background`): the Social tab is a screen the user will
+            // likely visit soon, and `.background` is so deprioritized it was routinely starved on a
+            // busy cold start — the prewarm hadn't run by the time the tab was tapped, so the tab
+            // loaded on-tap. `.utility` prefetches eagerly but still yields to Home/Schedule
+            // (userInitiated/default). Needs the directory for follow-scoping; the load self-guards,
+            // so the tab's own first-appearance load is then a no-op.
+            Task(priority: .utility) {
                 await clubs.loadIfNeeded()
                 await feedStore.loadIfNeeded(following: following, clubStore: clubs, preferences: feedPreferences)
             }

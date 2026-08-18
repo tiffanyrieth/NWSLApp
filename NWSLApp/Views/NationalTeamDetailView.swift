@@ -30,7 +30,10 @@ struct NationalTeamDetailView: View {
 
     private enum LoadState { case loading, loaded, unavailable }
 
-    private var accent: Color { team.accentColor }
+    // NT-FIRST + lift-on-dark (the same resolver the match cards / Live Activity use), so a code that
+    // collides with an NWSL club reads as the country and a dark national hue stays legible on the dark
+    // canvas — not the raw `team.accentColor`, which reads muddy for darker flags.
+    private var accent: Color { Color.teamColor(for: team.code, isNational: true) }
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
     var body: some View {
@@ -71,17 +74,22 @@ struct NationalTeamDetailView: View {
         )
     }
 
-    /// Bundled vector flag, same source as NationalTeamCard (zero network, present on first
-    /// frame). A not-yet-bundled nation degrades to a code block in the accent color.
+    /// Flag resolution mirrors NationalTeamCard exactly: bundled vector flag first (zero network,
+    /// present on first frame — only the 8 featured nations are bundled in the app target), then the
+    /// live flagcdn/ESPN flag via CachedThumbnail for every browse-all / discovered nation, and a
+    /// country-color code block only if even that misses. Without the network tier a non-featured
+    /// country showed just the code block, which is the bug this fixes.
     @ViewBuilder
     private var flagView: some View {
         if let img = AssetRefreshService.override(flag: team.code.uppercased())
             ?? UIImage(named: "Flags/\(team.code.uppercased())") {
             Image(uiImage: img).resizable().scaledToFill()
         } else {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8).fill(accent.opacity(0.2))
-                Text(team.code).dsFont(20, weight: .heavy).foregroundStyle(accent)
+            CachedThumbnail(url: team.flagURL) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8).fill(accent.opacity(0.2))
+                    Text(team.code).dsFont(20, weight: .heavy).foregroundStyle(accent)
+                }
             }
         }
     }
@@ -175,8 +183,18 @@ struct NationalTeamDetailView: View {
             Spacer(minLength: 0)
         }
         .padding(10)
-        .background(Color.dsBgCard)
+        // Uniform card height — a 2-line name (e.g. "D. Oparanozie") must NOT make a taller card than
+        // a 1-line one, so the grid rows stay even. minHeight floors every cell + centers its content
+        // (grows together at AX1), matching the club TeamDetailView roster cell.
+        .frame(maxWidth: .infinity, minHeight: 82, alignment: .leading)
+        // Country-color wash + left edge, matching the club TeamDetailView roster cell — so the
+        // squad section carries the national colors instead of reading as plain gray cards.
+        .background(TeamWashBackground(base: .dsBgCard, home: accent))
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd))
+        .overlay(alignment: .leading) {
+            Rectangle().fill(accent).frame(width: 3)
+                .clipShape(RoundedRectangle(cornerRadius: DS.radiusMd))
+        }
     }
 
     private func initials(for athlete: Athlete) -> String {

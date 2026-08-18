@@ -393,22 +393,17 @@ struct TeamsView: View {
         .padding(.bottom, 8)
     }
 
-    // Active-state count for the green "N ON" badge: the Champions Cup toggle (1) +
-    // each followed national team.
+    // Active-state count for the green "N ON" badge: each followed national team.
+    // (The Champions Cup toggle was retired — CONCACAF is now always-on schedule content.)
     private var competitionFollowCount: Int {
-        (following.isConcacafFollowed ? 1 : 0) + following.followedNationalTeams.count
+        following.followedNationalTeams.count
     }
 
-    // Subtitle reflecting what's turned on behind the row (per the handoff table).
+    // Subtitle reflecting what's turned on behind the row.
     private var competitionsSubtitle: String {
-        let championsCup = following.isConcacafFollowed
         let teams = following.followedNationalTeams.count
-        if !championsCup && teams == 0 { return "Champions Cup, national teams & more" }
-        if championsCup && teams == 0 { return "Champions Cup on" }
-        var parts: [String] = []
-        if championsCup { parts.append("Champions Cup") }
-        parts.append(teams == 1 ? "1 national team" : "\(teams) national teams")
-        return parts.joined(separator: " · ")
+        if teams == 0 { return "Follow your national team" }
+        return teams == 1 ? "1 national team" : "\(teams) national teams"
     }
 
     // "{N} team(s) with match alerts · Manage" → the hub, OR an empty-state hint.

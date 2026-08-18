@@ -173,6 +173,15 @@ For each subsystem, walk it explicitly:
       country-followers; club watchers ~700). Fixed: watcher fixture-window polling (§7) + app
       confederation scoping (§7). Residual open item: model a FULL-SLATE matchday (6-7 NWSL games)
       against the per-user costs in the §7 ledger before launch.
+- [x] **Schedule CONCACAF feed — now ALWAYS fetched (2026-08-18, toggle retired)** — ✅ **passes 1k
+      and 100k: it's ONE shared feed, flat in user count.** Making CONCACAF W Champions Cup core "All"-
+      overview content changed its fetch from opt-in (toggle) to unconditional, so more app instances
+      request it. But it is a single scoreboard (`?league=concacaf.w.champions_cup`) through the caching
+      proxy — identical response for every user → **cache HIT**; origin/ESPN load is bounded regardless of
+      user count. Full loads are launch/foreground/follow-change only (not per-tick); the live windowed
+      refresh stays gated by `auxFeedsWorthPolling` (only polls it when a CONCACAF fixture is within ±36h),
+      so **zero per-tick cost out of season**. Adds at most one more cache-miss Worker call per new-content
+      window, not per user. (Same "shared cached feed" profile as the other scoreboard polls in this list.)
 - [x] **Nightly roster verification (`roster-truth`, shipped 2026-07-31)** — ✅ **passes 1k and 100k
       unchanged: the load is FIXED, not per-user.** One cron run/night: ~36 upstream fetches + ~5 KV
       ops + **one** batched diag write, regardless of whether the app has 2 users or 100,000. Adds

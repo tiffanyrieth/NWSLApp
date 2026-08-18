@@ -160,6 +160,20 @@ reopens them explicitly:
 - **Online-only — no demo/seed/fake data in the running app.** Every surface shows live data or an honest
   "Couldn't load — tap to retry." Never propose a demo/placeholder mode.
 
+### CONCACAF is core league content — always in the Schedule overview; the toggle is RETIRED (owner 2026-08-18)
+A CONCACAF W Champions Cup match involving any of the 16 NWSL clubs is **core schedule content, shown in the
+Schedule overview (the "All" chip) for EVERY user regardless of who they follow** — a Thorns fan sees Bay FC's
+CONCACAF final. It is NOT opt-in: the old `isConcacafFollowed` toggle (onboarding + Competitions) was
+**retired** and the feed is now fetched unconditionally alongside the NWSL spine. **Boundary:** only matches
+with an NWSL club splice in (the fetch filters to the 16 by abbreviation) — a Liga-MX-vs-Liga-MX scouting tie
+stays out ("for that level of CONCACAF coverage there are other apps"). **National teams stay per-follow**
+(personal, opt-in) — they appear in the overview too, but only the ones you follow; that asymmetry is
+intentional (clubs = the league, always shown; NTs = who fans are, opt-in). **Rationale:** the brand is
+everything about your 16 teams — a club in a continental match is a *product of* NWSL (owner's Anthropic→Claude
+analogy); NWSL's own site treating CONCACAF as separate (no note that Spirit reached the March final) is the
+mistake being corrected. Do NOT re-add the toggle or re-gate the fetch. My teams still narrows clubs to your
+follows. The default chip was renamed **"NWSL" → "All"** (adjustable — a taste, not a locked ruling).
+
 ---
 
 ## PROVISIONALLY DONE / owner-iterating (do not "fix," revert, or re-litigate)

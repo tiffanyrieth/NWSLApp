@@ -181,7 +181,8 @@ final class FollowSyncCoordinator {
     }
 
     /// The competition twin of `reconcile` — same UPWARD-ONLY contract against the
-    /// `competition_follows` table (national teams + the Champions Cup toggle).
+    /// `competition_follows` table (national teams; a retired "concacaf" key on an
+    /// existing user's row is pruned here on the first onboarded reconcile).
     private func reconcileCompetitions(userID: UUID) {
         Task {
             let local = following.competitionFollowKeys
@@ -239,7 +240,7 @@ final class FollowSyncCoordinator {
     }
 
     /// The competition twin of `handleLocalChange` — mirrors a single toggled
-    /// national team / Champions Cup change to `competition_follows`.
+    /// national-team follow change to `competition_follows`.
     private func handleCompetitionLocalChange(_ keys: Set<String>) {
         guard let userID = auth.userID else {
             knownCompetitionFollows = keys

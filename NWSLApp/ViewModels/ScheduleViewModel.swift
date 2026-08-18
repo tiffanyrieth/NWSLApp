@@ -56,14 +56,17 @@ final class ScheduleViewModel {
         }
     }
 
-    /// The filter chips. NWSL + My teams always; "Playoffs" appears when 2+ teams have
+    /// The filter chips. "All" + My teams always; "Playoffs" appears when 2+ teams have
     /// mathematically clinched (or the bracket is seeded) — see `visibleFilters`.
+    /// NOTE: the `.nwsl` case is the "All" overview chip (the internal name predates the
+    /// rename — it now shows the full NWSL world: league + Challenge Cup + NWSL-club
+    /// CONCACAF + your followed national teams).
     enum Filter: String, CaseIterable, Identifiable {
         case nwsl, myTeams, playoffs
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .nwsl:     return "NWSL"
+            case .nwsl:     return "All"
             case .myTeams:  return "My teams"
             case .playoffs: return "Playoffs"
             }
@@ -225,28 +228,40 @@ final class ScheduleViewModel {
     // MARK: - Filtering
 
     private func matches(for filter: Filter) -> [ScheduledMatch] {
-        let all = store?.matches ?? []
+        Self.matches(for: filter, in: store?.matches ?? [], followedAbbreviations: followedAbbreviations)
+    }
+
+    /// The per-chip filter, extracted PURE (no store/environment) so it's unit-testable —
+    /// same pattern as `MatchStore.matches(for:in:)`. `all` is the store's already-merged,
+    /// already-curated set (NWSL + Challenge Cup + NWSL-club CONCACAF + followed NTs).
+    static func matches(
+        for filter: Filter, in all: [ScheduledMatch], followedAbbreviations: Set<String>
+    ) -> [ScheduledMatch] {
         switch filter {
-        case .nwsl, .playoffs:
-            // The home-league chip shows NWSL competitions — the regular season/playoffs
-            // AND the NWSL Challenge Cup (an NWSL competition, even though it's excluded
-            // from the league table). The Champions Cup / national-team matches stay out.
-            // (.playoffs shows its own content in the view; the match set is the NWSL one.)
+        case .nwsl:
+            // The "All" overview. The store is ALREADY curated to exactly the right set:
+            // the full NWSL league + Challenge Cup + every NWSL-club CONCACAF match
+            // (filtered to the 16 upstream) + your followed national teams' matches
+            // (followed-filtered upstream). So the overview is simply everything we hold —
+            // one woven timeline, "everything about your teams," not the league in isolation.
+            return all
+        case .playoffs:
+            // The Playoffs chip renders NWSL round sections — its match set is NWSL-only
+            // (regular season/playoffs + Challenge Cup); CONCACAF / national-team matches
+            // stay out of the league-structure view.
             return all.filter { $0.competition.inNWSLScheduleView }
         case .myTeams:
             // "Everything you care about", woven into one timeline:
             //  • National-team matches — already filtered to FOLLOWED teams upstream
             //    in MatchStore, so always keep them.
-            //  • NWSL + Champions Cup matches — keep only those involving a FOLLOWED
-            //    club (the Champions Cup global toggle gates the FETCH; this narrows
-            //    its matches to the clubs you actually follow).
-            let abbreviations = followedAbbreviations
+            //  • NWSL + Champions Cup matches — keep only those involving a FOLLOWED club
+            //    (CONCACAF is always fetched now; this narrows it to the clubs you follow).
             return all.filter { match in
                 if case .international = match.competition { return true }
                 let home = match.event.homeCompetitor?.team?.abbreviation
                 let away = match.event.awayCompetitor?.team?.abbreviation
-                return (home.map(abbreviations.contains) ?? false)
-                    || (away.map(abbreviations.contains) ?? false)
+                return (home.map(followedAbbreviations.contains) ?? false)
+                    || (away.map(followedAbbreviations.contains) ?? false)
             }
         }
     }

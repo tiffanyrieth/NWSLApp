@@ -49,6 +49,45 @@ struct AvatarContentCard: View {
         .onTapGesture {
             if let url = card.url { openURL(url) }
         }
+        // ONE curated element + a link trait — the same treatment ThumbnailContentCard /
+        // ArticleContentCard already apply. Without this the card leaked its children to
+        // VoiceOver as auto-combined fragments: the media image + platform badge as
+        // undescribed nodes, and a live emoji-only / bare-URL `bodyText` as a
+        // "not human-readable" label (the accessibility-audit flake). CLAUDE.md: a compound
+        // content card is grouped + given a curated label, never SwiftUI's auto-combine.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(voiceOverLabel)
+        .accessibilityAddTraits(.isLink)
+        .accessibilityAction { if let url = card.url { openURL(url) } }
+    }
+
+    /// Curated VoiceOver label. Always built from source + time (guaranteed readable words),
+    /// with the post body appended ONLY when it reads as words — a scraped emoji-only or
+    /// bare-URL body is dropped so it can never become a non-human-readable label.
+    private var voiceOverLabel: String {
+        var parts: [String] = []
+        // Source: reporters/players/creators are identified by their handle; a club's own
+        // post is identified by the club name (its `sourceLine` is hidden as redundant).
+        if card.resolvedSourceType != .club {
+            parts.append(sourceLine)
+        } else {
+            let name = club?.displayName ?? card.teamAbbreviation ?? "Team"
+            parts.append("\(name) · \(platformName)")
+        }
+        if let text = card.bodyText, Self.readsAsWords(text) {
+            parts.append(text)
+        }
+        parts.append(card.timestamp.relativeAgo)
+        return parts.joined(separator: ". ")
+    }
+
+    /// True when a string reads as human words for VoiceOver — has at least one letter and
+    /// isn't a single bare URL token. Guards emoji-only / link-only scraped bodies.
+    private static func readsAsWords(_ s: String) -> Bool {
+        let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        if !trimmed.contains(" "), trimmed.contains("://") || trimmed.hasPrefix("www.") { return false }
+        return trimmed.contains(where: \.isLetter)
     }
 
     // MARK: - Header (avatar + two-line identity + team pill / time)

@@ -42,5 +42,10 @@ struct CachedThumbnail<Fallback: View>: View {
             guard image == nil, let url else { return }
             image = await ImageCache.shared.image(for: url)
         }
+        // Decorative in every usage (post/video thumbnails, team flags) — the card's curated
+        // label + adjacent text carry the meaning. Hidden so it can never surface as an
+        // undescribed node if a parent's `.accessibilityElement(children: .ignore)` merge
+        // loses its race (the audit-flake class).
+        .accessibilityHidden(true)
     }
 }

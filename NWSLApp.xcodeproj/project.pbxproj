@@ -611,7 +611,7 @@
 				DEVELOPMENT_TEAM = 24BGA36VVW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Tiffany's NWSL";
+				INFOPLIST_KEY_CFBundleDisplayName = "Crestside";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
@@ -648,7 +648,7 @@
 				DEVELOPMENT_TEAM = 24BGA36VVW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Tiffany's NWSL";
+				INFOPLIST_KEY_CFBundleDisplayName = "Crestside";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
@@ -763,7 +763,7 @@
 				DEVELOPMENT_TEAM = 24BGA36VVW;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = NWSLLiveActivity/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "NWSL Live";
+				INFOPLIST_KEY_CFBundleDisplayName = "Crestside Live";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -791,7 +791,7 @@
 				DEVELOPMENT_TEAM = 24BGA36VVW;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = NWSLLiveActivity/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "NWSL Live";
+				INFOPLIST_KEY_CFBundleDisplayName = "Crestside Live";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -820,7 +820,7 @@
 				DEVELOPMENT_TEAM = 24BGA36VVW;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = NotificationServiceExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "NWSL Notifications";
+				INFOPLIST_KEY_CFBundleDisplayName = "Crestside Notifications";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -849,7 +849,7 @@
 				DEVELOPMENT_TEAM = 24BGA36VVW;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = NotificationServiceExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "NWSL Notifications";
+				INFOPLIST_KEY_CFBundleDisplayName = "Crestside Notifications";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

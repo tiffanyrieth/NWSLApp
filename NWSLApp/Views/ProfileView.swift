@@ -11,7 +11,7 @@
 //
 //  QOL v2: notification settings no longer live here. Every notif toggle moved to
 //  the single NotificationsView hub; Profile just shows one "Notifications" row (with
-//  a "{N} teams" / "Off" detail) that pushes it. A "Support NWSLApp" row joins the
+//  a "{N} teams" / "Off" detail) that pushes it. A "Support Crestside" row joins the
 //  Settings group in Phase B (StoreKit tips).
 //
 
@@ -196,7 +196,7 @@ struct ProfileView: View {
                 }
                 .frame(width: 40, height: 40)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Support NWSLApp")
+                    Text("Support Crestside")
                         .dsFont(16, weight: .semibold)
                         .foregroundStyle(Color.dsFgPrimary)
                     Text("Help keep this app free and growing")

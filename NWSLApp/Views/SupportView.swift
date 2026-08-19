@@ -2,8 +2,8 @@
 //  SupportView.swift
 //  NWSLApp
 //
-//  "Support Crestside" (QOL v2 §5) — optional tips that help keep the app free. Pushed
-//  from the Profile "Support" row. Crestside stays free with no ads, no paywalls, and
+//  "Support Crestside" (QOL v2 §5) — optional tips that help keep the app running. Pushed
+//  from the Profile "Support" row. Crestside is free to download with no ads/tracking, and
 //  supporters get NO extra features — this is purely a way for fans who want to chip
 //  in toward servers, data feeds, and the Apple Developer Program.
 //
@@ -74,7 +74,7 @@ struct SupportView: View {
                 .dsFont(20, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
                 .multilineTextAlignment(.center)
-            Text("Crestside is indie-built and completely free. No ads, no paywalls, no tracking. Your support helps cover servers, data feeds, and the Apple Developer Program — and keeps it that way.")
+            Text("Crestside is indie-built and free to download. No ads, no tracking, no data sold. Tips are optional — they help cover servers, data feeds, and the Apple Developer Program so the core app stays free.")
                 .dsFont(15)
                 .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
@@ -220,7 +220,7 @@ struct SupportView: View {
     }
 
     private var footer: some View {
-        Text("Crestside will always be free. Supporters get no extra features — just the knowledge that you're helping grow women's soccer.")
+        Text("The core of Crestside is free, and tips never unlock features — just the knowledge that you're helping grow women's soccer.")
             .dsFont(13)
             .foregroundStyle(Color.dsFgSecondary)
             .multilineTextAlignment(.center)
@@ -236,7 +236,7 @@ struct SupportView: View {
             Text("Thank you!")
                 .dsFont(24, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
-            Text("Your support directly helps keep Crestside free for every fan. You're part of what makes this community special.")
+            Text("Your support directly helps keep Crestside running for every fan. You're part of what makes this community special.")
                 .dsFont(15)
                 .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)

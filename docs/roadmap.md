@@ -200,24 +200,21 @@
 > - **Backwards transitions prove the PRIOR state was wrong** — `post→in` and `in→pre` are both
 >   impossible in a real match. Cheapest in the watcher, which already persists `prev`.
 
-> ### 📋 PRE-PUBLISH — privacy package (needed BEFORE App Store submission; target mid-Aug)
-> Lower priority than ALIVE work but MUST exist at submission (owner 2026-07-16 — track it here so
-> it isn't lost):
-> - **App Store privacy label** (filled in App Store Connect): Data Linked to You = Contact Info
->   (Sign in with Apple email/account). Data Not Linked to You = Diagnostics + Usage Data (the
->   anonymous telemetry + counters). Data Used to Track You = **None** (no ATT prompt).
-> - **Privacy policy page** (Apple requires a URL at submission): write from the 2026-07-16
->   honest-language work — values as promises (no ads; no data sold; no third-party/cross-app
->   tracking), what IS collected (account basics; anonymous aggregate diagnostics/usage, never
->   linked), retention, delete-account. Host it (GitHub Pages is $0) + paste the URL in ASC.
-> - **Attributions / acknowledgements** (fold into this page or a sibling): **Open-Meteo weather data
->   is CC-BY 4.0 — attribution is required.** The app carries a minimal "Weather by Open-Meteo" line on
->   the forecast card already (one credit covers all Open-Meteo data, forecast + historical stamp); the
->   FULL/proper credit (name + link + license link) belongs here. Add any other third-party data credits
->   at the same time (ESPN is unofficial/uncredited by nature; NWSL matchfacts for the attendance
->   backstop).
-> - README/showcase copy already reframed to match (PR #152); CLAUDE.md carries the
->   values-vs-mechanics stance so future copy stays consistent.
+> ### ✅ PRE-PUBLISH — privacy package: BUILT + LIVE (2026-08-18) — 2 owner steps left
+> - ✅ **Privacy Policy + Terms page** written accurate to the code audit (SIWA email-only/optional,
+>   Supabase per-user data, anon analytics/diagnostics, NO location, tips via Apple), incl. the
+>   **affiliation disclaimer** + full **Open-Meteo CC-BY 4.0** credit. **LIVE at `https://crestside.pages.dev/`**
+>   — a SEPARATE Cloudflare Pages project (source `~/Projects/crestside-site/index.html`), deliberately NOT
+>   the proxy Worker so the backend URL is never exposed. Contact routes to App Store support (no personal
+>   email published).
+> - ✅ **App Privacy label + Privacy Policy URL** entered + PUBLISHED in ASC (9 data types; Tracking=No).
+>   In-app Profile → "Privacy & Terms" row opens the page; `AppConfig.privacyURL` repointed to Pages.
+> - ✅ **Support copy** de-absolutised ("free to download + core free, tip-supported"); tips now ONE-TIME
+>   round $2/$5/$10/$20 (no monthly — Apple 3.1.1; no Restore — consumables).
+> - ⏳ **OWNER STEP 1:** read the privacy statement end-to-end + agree (she's the owner — do it rested).
+> - ⏳ **OWNER STEP 2:** send to external testers (Apple Beta App Review, light). All other ASC gates
+>   (Age 13+, Accessibility, IAP prices, Game Center) are DONE.
+> - ⚠️ These ride **build 36** — build 35 was archived BEFORE tonight's privacy/Support changes.
 
 > ### ♿ PRE-RELEASE GATE — accessibility: **ALL FOUR PARTS DONE** (owner 2026-07-21; VoiceOver 2026-08-17)
 > Accessibility is a release gate, not a nice-to-have — in an inclusive space like NWSL it must not be

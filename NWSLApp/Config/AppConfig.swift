@@ -63,9 +63,11 @@ enum AppConfig {
     /// Force-unwrap is safe: a compile-time constant, valid URL.
     static let scoreboardProxyBase = URL(string: "https://nwslapp-proxy.tiffany-rieth.workers.dev/")!
 
-    /// The hosted Privacy Policy + Terms page (served by the proxy Worker at `/privacy`). Opened
-    /// from Profile → "Privacy Policy & Terms"; also the App Store Connect Privacy Policy URL.
-    static let privacyURL = scoreboardProxyBase.appendingPathComponent("privacy")
+    /// The hosted Privacy Policy + Terms page. Served from a SEPARATE Cloudflare Pages site
+    /// (`crestside-site` repo) — deliberately NOT the proxy Worker, so the app's backend URL is never
+    /// exposed on a public, user-facing page. Opened from Profile → "Privacy Policy & Terms"; also the
+    /// App Store Connect Privacy Policy URL. Force-unwrap is safe: a compile-time constant, valid URL.
+    static let privacyURL = URL(string: "https://crestside.pages.dev/")!
 
     /// Base URL the scoreboard call builds on. The proxy by default; in DEBUG,
     /// passing `-useESPNDirect` in the Run scheme's launch arguments falls back

@@ -7,9 +7,9 @@
 //  supporters get NO extra features — this is purely a way for fans who want to chip
 //  in toward servers, data feeds, and the Apple Developer Program.
 //
-//  StoreKit lives in SupportStore; this is the screen: a hero, a one-time/monthly
-//  switch, the four tip tiers, a CTA, Restore, a "where it goes" breakdown, and a
-//  thank-you state after a successful tip.
+//  StoreKit lives in SupportStore; this is the screen: a hero, the four one-time
+//  tip tiers, a CTA, Restore, a "where it goes" breakdown, and a thank-you state
+//  after a successful tip.
 //
 
 import SwiftUI
@@ -17,7 +17,6 @@ import SwiftUI
 struct SupportView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var store = SupportStore()
-    @State private var monthly = false
     @State private var selected: SupportTier?
 
     // The brand pink + its gradient (spec: linear-gradient(135°, #FF375F, #FF6B8A)).
@@ -48,10 +47,8 @@ struct SupportView: View {
         ScrollView {
             VStack(spacing: 24) {
                 hero
-                billingToggle
                 tierGrid
                 cta
-                restoreLink
                 whereItGoes
                 footer
             }
@@ -82,34 +79,6 @@ struct SupportView: View {
         .padding(.top, 8)
     }
 
-    // One-time / Monthly — a centered two-segment pill; pink when Monthly is active.
-    private var billingToggle: some View {
-        HStack(spacing: 0) {
-            segment("One-time", isActive: !monthly) { monthly = false }
-            segment("Monthly", isActive: monthly) { monthly = true }
-        }
-        .padding(3)
-        .background(Color.dsBgCard)
-        .clipShape(Capsule())
-        .frame(maxWidth: 240)
-    }
-
-    private func segment(_ label: String, isActive: Bool, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label)
-                .dsFont(15, weight: .semibold)
-                .foregroundStyle(isActive ? .white : Color.dsFgSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(
-                    Group {
-                        if isActive { Capsule().fill(monthly ? pink : Color.dsBgTertiary) }
-                    }
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
     private var tierGrid: some View {
         LazyVGrid(columns: columns, spacing: 12) {
             ForEach(SupportStore.tiers) { tier in
@@ -126,7 +95,7 @@ struct SupportView: View {
                 Text(tier.title)
                     .dsFont(16, weight: .semibold)
                     .foregroundStyle(Color.dsFgPrimary)
-                Text(store.displayPrice(tier, monthly: monthly))
+                Text(store.displayPrice(tier))
                     .dsFont(17, weight: .bold)
                     .foregroundStyle(isSelected ? pink : Color.dsFgPrimary)
                 Text(tier.blurb)
@@ -154,7 +123,7 @@ struct SupportView: View {
                      style: .gradient(AnyShapeStyle(pinkGradient)),
                      isEnabled: enabled,
                      isLoading: busy) {
-                if let tier = selected { Task { await store.purchase(tier, monthly: monthly) } }
+                if let tier = selected { Task { await store.purchase(tier) } }
             }
 
             // Honest outcome for a failed/unverified/pending purchase or a restore error —
@@ -171,16 +140,7 @@ struct SupportView: View {
 
     private var ctaLabel: String {
         guard let tier = selected else { return "Choose an amount" }
-        return "Support with \(store.displayPrice(tier, monthly: monthly))"
-    }
-
-    private var restoreLink: some View {
-        Button { Task { await store.restore() } } label: {
-            Text("Restore purchases")
-                .dsFont(15)
-                .foregroundStyle(Color.dsAccent)
-        }
-        .buttonStyle(.plain)
+        return "Support with \(store.displayPrice(tier))"
     }
 
     // MARK: - Where it goes

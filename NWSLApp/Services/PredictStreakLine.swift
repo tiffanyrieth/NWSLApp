@@ -59,7 +59,7 @@ enum PredictStreakLine {
         // 2) Hot streak — the tail of the window is strictly rising for `streakFloor`+ matches.
         let rising = trailingRisingRun(ordered.map(\.starters))
         if rising >= streakFloor {
-            return Result(icon: "bolt.fill", text: "Hot streak — \(rising) matches climbing")
+            return Result(icon: "bolt.fill", text: "Hot streak: \(rising) matches climbing")
         }
 
         // 3) Climbing — rank moved up on some board since the last scored match.

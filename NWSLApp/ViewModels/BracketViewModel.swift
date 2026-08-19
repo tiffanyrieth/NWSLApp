@@ -58,7 +58,7 @@ final class BracketViewModel {
             fetched = try await service.currentEdition()
         } catch {
             Diagnostics.shared.record(.apiFailure, "bracket edition load: \(error.localizedDescription)")
-            state = .error("Couldn't load the bracket — tap to retry.")
+            state = .error("Couldn't load the bracket. Tap to retry.")
             return
         }
         guard let edition = fetched else {

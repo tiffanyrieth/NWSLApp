@@ -101,7 +101,7 @@ struct TierProgress: Equatable {
 
     /// The bar's caption: "13 points to All-Star" — or the MVP terminal line.
     var caption: String {
-        guard let next = current.next else { return "MVP — you've reached the top" }
+        guard let next = current.next else { return "MVP: you've reached the top" }
         return "\(pointsToNext) point\(pointsToNext == 1 ? "" : "s") to \(next.label)"
     }
 }

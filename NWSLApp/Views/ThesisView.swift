@@ -119,7 +119,7 @@ struct ThesisView: View {
 
         // `.callout` (~16pt) scales with Dynamic Type — concatenated colored Text can't use
         // the @ScaledMetric `.dsFont`, so a relative text style keeps it accessible.
-        return (text + Text(" — all in one place.").foregroundColor(secondary))
+        return (text + Text(", all in one place.").foregroundColor(secondary))
             .font(.callout)
     }
 }

@@ -131,7 +131,7 @@ struct FeedView: View {
                 .fill(Color.dsAccent)
                 .frame(width: 16, height: 8)
                 .padding(.trailing, 12)
-            Text("Customize your feed — choose which sources you see")
+            Text("Customize your feed. Choose which sources you see")
                 .dsFont(15, weight: .semibold)
                 .foregroundStyle(.white)
                 .padding(.horizontal, 14)

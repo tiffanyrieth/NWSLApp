@@ -119,7 +119,7 @@ struct CommunityResultsView: View {
     private func loaded(_ r: QuizResults) -> some View {
         if !r.revealed {
             // Trivia, still-open day — the community breakdown reveals after it closes.
-            honest("Results reveal after today's game closes — check back tomorrow.", retry: false)
+            honest("Results reveal after today's game closes. Check back tomorrow.", retry: false)
         } else {
             // Always show the live breakdown once revealed — even at a single responder. Honest counts
             // ("1 fan played", "1 of 1 nailed this") ARE the payoff: the first player sees a real, live

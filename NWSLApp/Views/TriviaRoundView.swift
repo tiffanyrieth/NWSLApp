@@ -137,7 +137,7 @@ struct TriviaRoundView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                Text("A fresh round every two weeks — one attempt. Points add to your Superfan total.")
+                Text("A fresh round every two weeks. One attempt. Points add to your Superfan total.")
                     .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center).padding(.horizontal)
             }
@@ -171,7 +171,7 @@ struct TriviaRoundView: View {
             Image(systemName: "flame.fill").dsFont(18).foregroundStyle(.orange)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(store.streak)-round streak").dsFont(15, weight: .bold)
-                Text("Keep it going — play every round").dsFont(13).foregroundStyle(Color.dsFgSecondary)
+                Text("Keep it going. Play every round").dsFont(13).foregroundStyle(Color.dsFgSecondary)
             }
             Spacer()
         }
@@ -270,7 +270,7 @@ struct TriviaRoundView: View {
                     // but never render a lying 0/10 ring for a round that was simply not played.
                     VStack(spacing: 8) {
                         Text("Round \(viewModel.round)").dsFont(22, weight: .bold)
-                        Text("You didn't play this one — here's how everyone did.")
+                        Text("You didn't play this one. Here's how everyone did.")
                             .dsFont(16).foregroundStyle(Color.dsFgSecondary)
                             .multilineTextAlignment(.center).padding(.horizontal)
                     }
@@ -305,7 +305,7 @@ struct TriviaRoundView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                Text("A fresh 10 drop with every round — keep your streak alive!")
+                Text("A fresh 10 drop with every round. Keep your streak alive!")
                     .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center).padding(.horizontal)
             }
@@ -407,7 +407,7 @@ struct TriviaRoundView: View {
         let total = viewModel.questionCount
         let pct = total > 0 ? Int((Double(displayScore) / Double(total) * 100).rounded()) : 0
         switch pct {
-        case 100: return "Perfect — you really know your league!"
+        case 100: return "Perfect. You really know your league!"
         case 80...: return "You know your league!"
         case 60...: return "Getting there!"
         default: return "We all start somewhere 🌱"

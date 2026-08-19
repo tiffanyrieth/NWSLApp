@@ -102,7 +102,7 @@ final class SupportStore {
                 errorMessage = "Your purchase couldn't be verified, so you weren't charged. Please try again."
             case .pending:
                 // Deferred (Ask to Buy / SCA) — honest: it isn't done yet.
-                errorMessage = "Your tip is pending approval — it'll complete once approved. You haven't been charged yet."
+                errorMessage = "Your tip is pending approval. It'll complete once approved. You haven't been charged yet."
             case .userCancelled:
                 break   // user chose to cancel — no error, no telemetry
             @unknown default:
@@ -111,7 +111,7 @@ final class SupportStore {
             }
         } catch {
             Diagnostics.shared.record(.apiFailure, "support purchase \(id): \(error.localizedDescription)")
-            errorMessage = "Something went wrong with the purchase. You weren't charged — please try again."
+            errorMessage = "Something went wrong with the purchase. You weren't charged. Please try again."
         }
     }
 

@@ -62,7 +62,7 @@ enum SuperfanSpotlight {
             items.append(Item(
                 icon: "arrow.up.forward.circle.fill",
                 headline: "\(gap) to \(next.name)",
-                detail: gap <= 8 ? "You're one good round away." : "Keep showing up — you're climbing.",
+                detail: gap <= 8 ? "You're one good round away." : "Keep showing up. You're climbing.",
                 tone: .nudge))
         }
 
@@ -74,7 +74,7 @@ enum SuperfanSpotlight {
             items.append(Item(
                 icon: "sparkle.magnifyingglass",
                 headline: "\(gameName(g)) is untapped",
-                detail: "You haven't played it yet — it's worth up to 25 of your 100.",
+                detail: "You haven't played it yet. It's worth up to 25 of your 100.",
                 tone: .nudge))
         } else if let weakest = SuperfanGame.allCases.min(by: {
             input.breakdown.contribution(for: $0) < input.breakdown.contribution(for: $1) }),
@@ -82,7 +82,7 @@ enum SuperfanSpotlight {
             items.append(Item(
                 icon: "chart.line.uptrend.xyaxis",
                 headline: "\(gameName(weakest)) has the most room",
-                detail: "It's your lightest channel — a strong round lifts the whole score.",
+                detail: "It's your lightest channel. A strong round lifts the whole score.",
                 tone: .info))
         }
 
@@ -113,7 +113,7 @@ enum SuperfanSpotlight {
         if items.isEmpty || input.total < 15 {
             items.append(Item(
                 icon: "figure.wave",
-                headline: input.total == 0 ? "Fan tier — everyone starts here" : "Just getting warm",
+                headline: input.total == 0 ? "Fan tier: everyone starts here" : "Just getting warm",
                 detail: "Play a game or two and watch this fill up.",
                 tone: .playful))
         }

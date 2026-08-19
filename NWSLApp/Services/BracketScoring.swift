@@ -88,9 +88,9 @@ enum BracketScoring {
         default:       adjective = "Nail-biter";  action = "\(winnerName) barely survived"
         }
         switch outcome {
-        case .correct: return "\(adjective) — \(action)  ·  +\(roundPoints) pts"
+        case .correct: return "\(adjective): \(action)  ·  +\(roundPoints) pts"
         case .missed:  return action
-        case .satOut:  return "\(adjective) — \(action)"
+        case .satOut:  return "\(adjective): \(action)"
         }
     }
 }

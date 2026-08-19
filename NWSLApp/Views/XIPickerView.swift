@@ -103,7 +103,7 @@ struct XIPickerView: View {
     private var submittedBanner: some View {
         HStack(spacing: 10) {
             Image(systemName: "checkmark.seal.fill").foregroundStyle(accent)
-            Text("Submitted — locked in. Awaiting the result.")
+            Text("Submitted. Locked in. Awaiting the result.")
                 .dsFont(16, weight: .semibold)
             Spacer(minLength: 0)
         }
@@ -352,7 +352,7 @@ struct XIPickerView: View {
 
             // The finality is stated BEFORE the tap, not discovered after it.
             if picker.isComplete && !picker.readOnly {
-                Text("One-way — no edits after this. Locks \(Self.lockLabel(fixture.deadline)).")
+                Text("One-way. No edits after this. Locks \(Self.lockLabel(fixture.deadline)).")
                     .dsFont(13)
                     .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)

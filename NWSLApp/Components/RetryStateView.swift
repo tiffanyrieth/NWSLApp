@@ -101,7 +101,7 @@ struct RetryStateView: View {
 #if DEBUG
 #Preview {
     VStack(spacing: 24) {
-        RetryStateView(message: "Couldn't load — tap to retry", style: .inline) {}
+        RetryStateView(message: "Couldn't load. Tap to retry.", style: .inline) {}
         RetryStateView(title: "Couldn't load the squad",
                        message: "Check your connection and try again.",
                        retryLabel: "Retry", icon: "person.3.sequence",

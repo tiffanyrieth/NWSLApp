@@ -61,7 +61,7 @@ struct PlayerBrowseView: View {
                 } header: { teamHeader(abbr, following: isOwn) }
             }
             Section {
-                Text("Currently featuring \(players.count) players — more coming.")
+                Text("Currently featuring \(players.count) players, more coming.")
                     .dsFont(13).foregroundStyle(Color.dsFgSecondary)
             }
         }

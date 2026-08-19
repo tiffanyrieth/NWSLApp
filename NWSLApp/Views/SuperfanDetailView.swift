@@ -376,14 +376,14 @@ struct SuperfanDetailView: View {
                     explainerParagraph("What it measures",
                         "One score for how well-rounded AND how engaged you are across all four Fan Zone games.")
                     explainerParagraph("How the score works",
-                        "Each game is a channel worth up to 25 — 20 for accuracy (how well you called it) plus 5 for showing up (a forgiving bonus that builds as you keep playing and never punishes a single miss). Four channels, so 100 is the max. One game alone caps you at 25 — the top of the scale is earned across all four, and it's meant to be hard.")
+                        "Each game is a channel worth up to 25: 20 for accuracy (how well you called it) plus 5 for showing up (a forgiving bonus that builds as you keep playing and never punishes a single miss). Four channels, so 100 is the max. One game alone caps you at 25. The top of the scale is earned across all four, and it's meant to be hard.")
                     explainerParagraph("You never lose ground",
-                        "Once you reach a tier — Rising, All-Star, MVP — your score won't drop below it for the rest of the season. A rough round can't knock you back down.")
+                        "Once you reach a tier (Rising, All-Star, MVP) your score won't drop below it for the rest of the season. A rough round can't knock you back down.")
                     tierLegend
                     explainerParagraph("Season & history",
                         "Tiers reset each season, but the highest tier you reach is saved for good in Season History below.")
                     explainerParagraph("Your Best Moments",
-                        "Badges you earn for specific feats across the games — a perfect quiz, a called upset, a full lineup.")
+                        "Badges you earn for specific feats across the games: a perfect quiz, a called upset, a full lineup.")
                 }
                 .padding(EdgeInsets(top: 0, leading: 14, bottom: 14, trailing: 14))
             }

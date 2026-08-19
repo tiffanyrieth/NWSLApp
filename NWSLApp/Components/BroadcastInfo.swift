@@ -99,9 +99,9 @@ struct BroadcastInfo {
         note: "Free to watch on ION.",
         access: .free(label: "Free over-the-air"),
         devices: [
-            .init(device: "Roku", steps: "Search \"Scripps\" or \"ION\" in Channel Store — \"ION\" alone may show wrong results, try \"Scripps News\" first"),
+            .init(device: "Roku", steps: "Search \"Scripps\" or \"ION\" in Channel Store. \"ION\" alone may show wrong results, try \"Scripps News\" first"),
             .init(device: "Fire TV", steps: "Search \"ION\" in the Fire TV app store"),
-            .init(device: "Samsung TV", steps: "Available in Samsung TV Plus free channels — check your channel guide"),
+            .init(device: "Samsung TV", steps: "Available in Samsung TV Plus free channels. Check your channel guide"),
             .init(device: "Phone / PC", steps: "Go to iontelevision.com or use the ION app"),
         ])
 
@@ -109,10 +109,10 @@ struct BroadcastInfo {
     /// future-proofs a return, even years out.
     private static let victoryPlus = BroadcastInfo(
         name: "Victory+",
-        note: "Free streaming — no subscription needed.",
+        note: "Free streaming, no subscription needed.",
         access: .free(label: "Free app"),
         devices: [
-            .init(device: "Roku", steps: "Search \"Victory Plus\" spelled out — the \"Victory+\" result is a different (church) app"),
+            .init(device: "Roku", steps: "Search \"Victory Plus\" spelled out. The \"Victory+\" result is a different (church) app"),
             .init(device: "Fire TV", steps: "Search \"Victory Plus\" in the app store"),
             .init(device: "Phone / Tablet", steps: "Download \"Victory+\" from the App Store or Play Store"),
             .init(device: "PC / Laptop", steps: "Go to victoryplus.com and create a free account"),
@@ -120,7 +120,7 @@ struct BroadcastInfo {
 
     private static let nwslPlus = BroadcastInfo(
         name: "NWSL+",
-        note: "NWSL's own streaming platform — free to use.",
+        note: "NWSL's own streaming platform, free to use.",
         access: .free(label: "Free app"),
         devices: [
             .init(device: "Phone / Tablet", steps: "Download the NWSL app from App Store or Play Store"),
@@ -134,7 +134,7 @@ struct BroadcastInfo {
         access: .free(label: "Free over-the-air"),
         devices: [
             .init(device: "TV / Antenna", steps: "Tune to your local ABC channel"),
-            .init(device: "Roku / Fire TV", steps: "Open the ESPN app — ABC sports are available there"),
+            .init(device: "Roku / Fire TV", steps: "Open the ESPN app. ABC sports are available there"),
             .init(device: "Phone / Tablet", steps: "Open the ESPN app and look for the live game"),
             .init(device: "PC / Laptop", steps: "Go to espn.com/watch"),
         ])
@@ -154,7 +154,7 @@ struct BroadcastInfo {
 
     private static let cbssn = BroadcastInfo(
         name: "CBS Sports Network",
-        note: "CBS Sports Network — available through live TV streaming services.",
+        note: "CBS Sports Network, available through live TV streaming services.",
         access: .paid(label: "Live TV subscription"),
         devices: [
             .init(device: "YouTube TV", steps: "Included in the base plan"),
@@ -177,7 +177,7 @@ struct BroadcastInfo {
 
     /// Shared by ESPN and ESPN2 — the handoff lists one table for both.
     private static let espnServices: [Device] = [
-        .init(device: "ESPN Unlimited", steps: "Standalone streaming — includes all ESPN channels"),
+        .init(device: "ESPN Unlimited", steps: "Standalone streaming, includes all ESPN channels"),
         .init(device: "YouTube TV", steps: "Included in the base plan"),
         .init(device: "Hulu + Live TV", steps: "Included in the live TV plan"),
         .init(device: "Fubo", steps: "Included in Fubo plans"),
@@ -187,10 +187,10 @@ struct BroadcastInfo {
 
     private static let espnDeportes = BroadcastInfo(
         name: "ESPN Deportes",
-        note: "ESPN's Spanish-language channel — available through cable or the ESPN app.",
+        note: "ESPN's Spanish-language channel, available through cable or the ESPN app.",
         access: .paid(label: "Cable / ESPN app"),
         devices: [
-            .init(device: "ESPN Unlimited", steps: "Standalone streaming — includes ESPN Deportes"),
+            .init(device: "ESPN Unlimited", steps: "Standalone streaming, includes ESPN Deportes"),
             .init(device: "YouTube TV", steps: "Available with the Spanish Plus add-on"),
             .init(device: "Fubo", steps: "Available with the Latino add-on"),
             .init(device: "DirecTV Stream", steps: "Available in select packages"),

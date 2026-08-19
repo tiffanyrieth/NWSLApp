@@ -94,7 +94,7 @@ final class TriviaViewModel {
             state = .loaded
         } catch {
             Diagnostics.shared.record(.apiFailure, "trivia load \(editionKey): \(error.localizedDescription)")
-            state = .error("Couldn't load this round's trivia — tap to retry.")
+            state = .error("Couldn't load this round's trivia. Tap to retry.")
         }
     }
 

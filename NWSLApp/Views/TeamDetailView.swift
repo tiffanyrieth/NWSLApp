@@ -248,7 +248,7 @@ struct TeamDetailView: View {
             .background(Color.dsBgTertiary, in: Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(link.platform.label) — open")
+        .accessibilityLabel("\(link.platform.label), open")
     }
 
     // A platform's glyph: a bundled brand SVG (socials) or a neutral SF Symbol (the

@@ -669,7 +669,7 @@ struct HomeView: View {
         }
         if picked > 0, picked < 11 {
             model.progress = .init(value: picked, max: 11,
-                                   label: "\(picked) of 11 players picked — tap to finish")
+                                   label: "\(picked) of 11 players picked. Tap to finish")
         }
         return model
     }
@@ -693,7 +693,7 @@ struct HomeView: View {
 
         // The current round is submitted → locked-in done line.
         if let round, bracket.hasSubmitted(round) {
-            model.doneLine = closes.map { "Picks locked in — results drop in \($0)" } ?? "Picks locked in"
+            model.doneLine = closes.map { "Picks locked in. Results drop in \($0)" } ?? "Picks locked in"
             return model
         }
 

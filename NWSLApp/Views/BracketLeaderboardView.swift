@@ -117,7 +117,7 @@ struct BracketLeaderboardView: View {
         } else if !loaded {
             loadingCard
         } else if standings.isEmpty && you == nil {
-            emptyCard("Be the first in", "No picks have been scored yet — play a round to start the board.")
+            emptyCard("Be the first in", "No picks have been scored yet. Play a round to start the board.")
         } else {
             if let you { yourPositionBanner(you) }
             if standings.count >= 3 { podium }

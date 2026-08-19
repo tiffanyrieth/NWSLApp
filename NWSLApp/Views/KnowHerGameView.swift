@@ -120,7 +120,7 @@ struct KnowHerGameView: View {
                 }
                 .buttonStyle(.plain)
 
-                Text("A fresh player each week — one of your followed teams. Points add to your Superfan total.")
+                Text("A fresh player each week, one of your followed teams. Points add to your Superfan total.")
                     .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center).padding(.horizontal)
             }
@@ -275,7 +275,7 @@ struct KnowHerGameView: View {
             Text(player.playerName).dsFont(22, weight: .bold).multilineTextAlignment(.center)
             Text("\(player.position) · \(player.teamAbbreviation.uppercased())")
                 .dsFont(16).foregroundStyle(Color.dsFgSecondary)
-            Text("You didn't play this one — here's how everyone did.")
+            Text("You didn't play this one. Here's how everyone did.")
                 .dsFont(16).foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center).padding(.horizontal)
         }

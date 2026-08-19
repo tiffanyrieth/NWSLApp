@@ -47,7 +47,7 @@ final class HomeContentStore {
     private(set) var hasCompletedContentLoad = false
 
     /// The one simple, honest message both modules show on a failed load.
-    static let loadFailureMessage = "Couldn't load — tap to retry"
+    static let loadFailureMessage = "Couldn't load. Tap to retry."
 
     // The followed-abbreviation set `teamContentItems`/`allSpotlights` currently reflect.
     // nil = never loaded. Set ONLY on a successful fetch, so a failed/empty load doesn't

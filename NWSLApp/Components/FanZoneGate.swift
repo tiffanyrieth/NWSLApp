@@ -318,7 +318,7 @@ struct FanZoneGateSheet: View {
                 Text("Sign in to play")
                     .dsFont(24, weight: .bold)
                     .multilineTextAlignment(.center)
-                Text("\(gameName) is scored. Sign in so your results count — on the leaderboards and in the community stats.")
+                Text("\(gameName) is scored. Sign in so your results count, on the leaderboards and in the community stats.")
                     .dsFont(16)
                     .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
@@ -330,7 +330,7 @@ struct FanZoneGateSheet: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Your results count.")
                         .dsFont(15, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
-                    Text("Your points on the leaderboards, your answers in the community stats — see how you compare across the league.")
+                    Text("Your points on the leaderboards, your answers in the community stats. See how you compare across the league.")
                         .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -373,7 +373,7 @@ struct FanZoneGateSheet: View {
                 Text("You're in! Pick a username.")
                     .dsFont(22, weight: .bold)
                     .multilineTextAlignment(.center)
-                Text("This is how you'll appear across Fan Zone — leaderboards and community stats. Make it good — other fans will see this.")
+                Text("This is how you'll appear across Fan Zone: leaderboards and community stats. Make it good. Other fans will see this.")
                     .dsFont(16)
                     .foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)

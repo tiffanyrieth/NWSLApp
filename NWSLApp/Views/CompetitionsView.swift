@@ -168,7 +168,7 @@ struct CompetitionsView: View {
     }
 
     private var retryView: some View {
-        RetryStateView(message: "Couldn't load teams — tap to retry", style: .inline) {
+        RetryStateView(message: "Couldn't load teams. Tap to retry", style: .inline) {
             await store.load()
         }
     }

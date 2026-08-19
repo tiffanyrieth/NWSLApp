@@ -55,7 +55,7 @@ enum Achievement: String, CaseIterable, Identifiable {
         case .lineupOracle: return "Nailed 9+ of 11 starters in one match."
         case .firstBlood:   return "Played your first Fan Zone game."
         case .wellRounded:  return "Scored in all four games this season."
-        case .upsetRoyalty: return "Backed a big Bracket underdog — and won."
+        case .upsetRoyalty: return "Backed a big Bracket underdog, and won."
         case .knowItAll:    return "Aced 5 different Know Her Game players."
         case .ironFan:      return "Played every week for four weeks straight."
         }

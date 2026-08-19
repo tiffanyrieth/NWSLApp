@@ -529,7 +529,7 @@ struct PredictMatchResultView: View {
         if let next = nextFixture {
             VStack(spacing: 8) {
                 // `.gradient` is how a Fan Zone game tints a CTA with its own colour.
-                DSButton("Next up: \(next.teamAbbreviation) vs \(next.opponentAbbreviation) — predict now",
+                DSButton("Next up: \(next.teamAbbreviation) vs \(next.opponentAbbreviation). Predict now",
                          style: .gradient(AnyShapeStyle(accent))) {
                     onPredictNext?(next)
                 }

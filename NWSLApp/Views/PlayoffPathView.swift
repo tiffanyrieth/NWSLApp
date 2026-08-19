@@ -161,7 +161,7 @@ struct PlayoffPathView: View {
                 .overlay(Circle().strokeBorder(Color.dsFgQuaternary, lineWidth: 2))
             if let championAbbr {
                 // Mixed case deliberately (club name stays proper-case, not shouted).
-                Text("\(clubs.club(forAbbreviation: championAbbr)?.displayName ?? championAbbr) — NWSL CHAMPION")
+                Text("\(clubs.club(forAbbreviation: championAbbr)?.displayName ?? championAbbr): NWSL CHAMPION")
                     .dsFont(12, weight: .bold).tracking(0.4)
                     .foregroundStyle(color(championAbbr))
             } else {

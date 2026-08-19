@@ -55,10 +55,10 @@ enum DisplayNameError: Error, Equatable {
     /// User-facing copy for the entry field's inline error line.
     var message: String {
         switch self {
-        case .taken:      return "That username's taken — try another."
-        case .blocked:    return "That username isn't allowed — pick another."
+        case .taken:      return "That username's taken. Try another."
+        case .blocked:    return "That username isn't allowed. Pick another."
         case .tooShort:   return "Usernames are 2–20 characters."
-        case .saveFailed: return "Couldn't save — check your connection and try again."
+        case .saveFailed: return "Couldn't save. Check your connection and try again."
         }
     }
 }

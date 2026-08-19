@@ -133,7 +133,7 @@ final class KnowHerGameStore {
             loadState = .loaded
         } catch {
             pool = nil
-            loadState = .error("Couldn't load Know Her Game — tap to retry.")
+            loadState = .error("Couldn't load Know Her Game. Tap to retry.")
             Diagnostics.shared.record(.apiFailure, "knowher load: \(error.localizedDescription)")
         }
     }

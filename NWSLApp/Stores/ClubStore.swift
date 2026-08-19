@@ -101,7 +101,7 @@ final class ClubStore {
         case ESPNServiceError.decoding:
             return "Couldn't read the teams response. Pull to retry."
         case ESPNServiceError.badURL:
-            return "Couldn't build the request. This is a bug — please report it."
+            return "Couldn't build the request. This is a bug. Please report it."
         default:
             return "Couldn't load teams. Check your connection and pull to retry."
         }

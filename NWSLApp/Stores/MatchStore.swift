@@ -334,7 +334,7 @@ final class MatchStore {
                 switch item.result {
                 case .success(let m): all += m
                 case .failure(let error):
-                    errors[item.label] = "Couldn't load \(item.label) — pull to retry."
+                    errors[item.label] = "Couldn't load \(item.label). Pull to retry."
                     // One feed dropping while others load is degraded-but-looks-fine —
                     // exactly the silent partial-failure class. Flag each dropped feed.
                     Diagnostics.shared.record(.apiFailure, "schedule feed \(item.label): \(error.localizedDescription)")
@@ -357,7 +357,7 @@ final class MatchStore {
             return (kept, nil)
         } catch {
             Diagnostics.shared.record(.apiFailure, "schedule \(ChampionsCupFeed.label): \(error.localizedDescription)")
-            return ([], "Couldn't load \(ChampionsCupFeed.label) — pull to retry.")
+            return ([], "Couldn't load \(ChampionsCupFeed.label). Pull to retry.")
         }
     }
 
@@ -375,7 +375,7 @@ final class MatchStore {
             return (kept, nil)
         } catch {
             Diagnostics.shared.record(.apiFailure, "schedule \(ChallengeCupFeed.label): \(error.localizedDescription)")
-            return ([], "Couldn't load \(ChallengeCupFeed.label) — pull to retry.")
+            return ([], "Couldn't load \(ChallengeCupFeed.label). Pull to retry.")
         }
     }
 
@@ -444,7 +444,7 @@ final class MatchStore {
         case ESPNServiceError.decoding:
             return "Couldn't read the schedule response. Pull to retry."
         case ESPNServiceError.badURL:
-            return "Couldn't build the request. This is a bug — please report it."
+            return "Couldn't build the request. This is a bug. Please report it."
         default:
             return "Couldn't load the schedule. Check your connection and pull to retry."
         }

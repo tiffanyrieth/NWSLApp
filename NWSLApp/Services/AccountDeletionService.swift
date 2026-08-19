@@ -29,7 +29,7 @@ enum AccountDeletionError: LocalizedError {
         case .invalidResponse:
             return "Couldn't reach the deletion service. Check your connection and try again."
         case .server(let status, _):
-            return "Account deletion failed (HTTP \(status)). Your account was NOT deleted — try again."
+            return "Account deletion failed (HTTP \(status)). Your account was NOT deleted. Try again."
         }
     }
 }

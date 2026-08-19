@@ -163,11 +163,11 @@ struct NationalTeamFeed {
         // Confederation championships + WC/Olympic qualifying (kept in sync with the proxy allowlist
         // + watcher NT_LEAGUES) — a followed team's competitive fixtures, not just friendlies.
         .init(slug: "uefa.w.nations",               label: "UEFA Women's Nations League"),
-        .init(slug: "fifa.wworldq.uefa",            label: "World Cup Qualifying — UEFA"),
+        .init(slug: "fifa.wworldq.uefa",            label: "World Cup Qualifying: UEFA"),
         .init(slug: "afc.w.asian.cup",              label: "AFC Women's Asian Cup"),
         .init(slug: "caf.w.nations",                label: "Women's Africa Cup of Nations"),
         .init(slug: "conmebol.america.femenina",    label: "Copa América Femenina"),
-        .init(slug: "fifa.wwcq.ply",                label: "World Cup Qualifying — Playoff"),
+        .init(slug: "fifa.wwcq.ply",                label: "World Cup Qualifying: Playoff"),
         .init(slug: "fifa.w.concacaf.olympicsq",    label: "Concacaf Olympic Qualifying"),
         .init(slug: "global.pinatar_cup",           label: "Pinatar Cup"),
         .init(slug: "global.w.finalissima",         label: "Women's Finalissima"),

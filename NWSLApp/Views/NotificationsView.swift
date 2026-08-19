@@ -92,7 +92,7 @@ struct NotificationsView: View {
         let ntCodes = following.followedNationalTeams.sorted()
         let hasAny = !clubs.isEmpty || !ntCodes.isEmpty
         return SettingsGroup(
-            title: "Match alerts — your teams",
+            title: "Match alerts: your teams",
             subtitle: "Which teams buzz your phone on match day"
             // No "basic alerts are free / live updates require an account" note: the app
             // is always free, and the sign-in gate explains Tier-2 contextually when a

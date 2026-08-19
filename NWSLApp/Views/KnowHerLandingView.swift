@@ -53,12 +53,12 @@ struct KnowHerLandingView: View {
     private let selectionRules = [
         "Players who have started matches are featured first",
         "Then players with 100+ minutes on the pitch this season",
-        "Each player is only featured once per season — no repeats",
+        "Each player is only featured once per season: no repeats",
     ]
 
     /// Scoring + cadence rules ("How it works") — Batch-2 Fix 4C, mirroring the Trivia landing.
     private let howItWorksRules = [
-        "10 questions about one featured player — a new player for each of your teams every two weeks",
+        "10 questions about one featured player: a new player for each of your teams every two weeks",
         "+1 point per correct answer, 10 max",
         "Play every round to build your streak",
         "Your accuracy across every player quiz feeds up to 25 of your 100 Superfan points",
@@ -316,7 +316,7 @@ struct KnowHerLandingView: View {
         if store.weeklyStreak > 1 {
             HStack(spacing: 8) {
                 Image(systemName: "flame.fill").dsFont(15).foregroundStyle(.orange)
-                Text("\(store.weeklyStreak)-round streak — play every round to keep it")
+                Text("\(store.weeklyStreak)-round streak. Play every round to keep it")
                     .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 Spacer(minLength: 0)
             }

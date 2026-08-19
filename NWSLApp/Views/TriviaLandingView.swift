@@ -39,10 +39,10 @@ struct TriviaLandingView: View {
 
     /// Plain-English round rules ("How it works") — cadence + scoring, in fan language (Batch-2 Fix 4D).
     private let rules = [
-        "10 league-wide questions each round — a fresh round every two weeks, all year",
-        "+1 point per correct answer, 10 max — one attempt per round, no retakes",
+        "10 league-wide questions each round: a fresh round every two weeks, all year",
+        "+1 point per correct answer, 10 max. One attempt per round, no retakes",
         "Play consecutive rounds to build a streak (a small Superfan bonus)",
-        "Your accuracy across every round — plus the streak bonus — feeds up to 25 of your 100 Superfan points",
+        "Your accuracy across every round (plus the streak bonus) feeds up to 25 of your 100 Superfan points",
     ]
 
     var body: some View {
@@ -53,7 +53,7 @@ struct TriviaLandingView: View {
                     lastRoundSection
                 }
                 howItWorks
-                Text("NWSL Trivia and Know Her Game take turns — one of them drops every week.")
+                Text("NWSL Trivia and Know Her Game take turns: one of them drops every week.")
                     .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
@@ -113,7 +113,7 @@ struct TriviaLandingView: View {
             if store.streak > 1 {
                 HStack(spacing: 8) {
                     Image(systemName: "flame.fill").dsFont(15).foregroundStyle(.orange)
-                    Text("\(store.streak)-round streak — play every round to keep it")
+                    Text("\(store.streak)-round streak. Play every round to keep it")
                         .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     Spacer(minLength: 0)
                 }

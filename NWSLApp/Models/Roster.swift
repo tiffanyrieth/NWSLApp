@@ -71,7 +71,7 @@ struct ClubSquad {
     /// points can't be derived). nil when there's no standing summary at all.
     var standingLine: String? {
         guard let standingSummary else { return nil }
-        if let points { return "\(standingSummary) — \(points) pts" }
+        if let points { return "\(standingSummary), \(points) pts" }
         return standingSummary
     }
 }

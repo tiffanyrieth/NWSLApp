@@ -106,7 +106,7 @@ struct NationalTeamDetailView: View {
             // Honest absence — covers both "ESPN publishes no squad for this country" and a
             // failed request (the feed iteration can't distinguish them without extra plumbing).
             // Never fabricated, never a blank screen; retry covers the transient half.
-            RetryStateView(message: "No squad available right now. ESPN may not publish one for \(team.name) — match lineups still appear on match days.") {
+            RetryStateView(message: "No squad available right now. ESPN may not publish one for \(team.name). Match lineups still appear on match days.") {
                 state = .loading
                 Task { await load() }
             }

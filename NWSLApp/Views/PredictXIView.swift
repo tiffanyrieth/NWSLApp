@@ -269,7 +269,7 @@ struct PredictXIView: View {
                 .dsFont(26, weight: .heavy)
                 .foregroundStyle(Color.dsFgPrimary)
                 .multilineTextAlignment(.center)
-            Text("Pick your team's starting XI, formation, and final score before kickoff. Save a draft, tweak it on team news, then submit to lock it in — submissions close 2 hours before kickoff.")
+            Text("Pick your team's starting XI, formation, and final score before kickoff. Save a draft, tweak it on team news, then submit to lock it in. Submissions close 2 hours before kickoff.")
                 .dsFont(15)
                 .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
@@ -420,7 +420,7 @@ struct PredictXIView: View {
             statusRow(
                 icon: count == 0 ? "plus.circle.fill" : "pencil.circle.fill",
                 tint: accent,
-                title: count == 0 ? "Make your prediction" : "Draft · \(count)/11 picked — tap to continue",
+                title: count == 0 ? "Make your prediction" : "Draft · \(count)/11 picked. Tap to continue",
                 subtitle: "Locks \(Self.deadlineLabel(item.fixture.deadline))"
             )
         case .submitted:
@@ -428,7 +428,7 @@ struct PredictXIView: View {
                 icon: item.isSuspended ? "exclamationmark.triangle.fill"
                     : (item.isUnderway ? "dot.radiowaves.left.and.right" : "checkmark.seal.fill"),
                 tint: accent,
-                title: "Locked in — \(item.prediction?.formation ?? "")  ·  \(scoreGuessLabel(item))",
+                title: "Locked in: \(item.prediction?.formation ?? "")  ·  \(scoreGuessLabel(item))",
                 // Underway: "see how the club is picking" was pre-deadline copy and read as though
                 // there were still something to do. Say where it actually stands.
                 subtitle: item.isSuspended
@@ -510,7 +510,7 @@ struct PredictXIView: View {
                 // ⚠️ Load-bearing copy, not decoration: points DO aggregate (they're league-wide) but
                 // ranks do NOT (each club board has its own population). Without this line the card's
                 // combined total sitting above per-club movements reads as one merged standing.
-                Text("Points are league-wide. Ranks are per club — each board is scored separately.")
+                Text("Points are league-wide. Ranks are per club. Each board is scored separately.")
                     .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -784,7 +784,7 @@ struct PredictXIView: View {
             .buttonStyle(.plain)
             if showHowTo {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Pick your team's starting XI, formation, and final score before kickoff. Save a draft, tweak it on team news, then submit to lock it in — submissions close 2 hours before kickoff.")
+                    Text("Pick your team's starting XI, formation, and final score before kickoff. Save a draft, tweak it on team news, then submit to lock it in. Submissions close 2 hours before kickoff.")
                         .dsFont(15).foregroundStyle(Color.dsFgSecondary)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -795,18 +795,18 @@ struct PredictXIView: View {
                         predictPointRow("Correct formation", "+\(PredictionScore.formationPointsValue)")
                         predictPointRow("Exact final score", "+\(PredictionScore.scorelinePointsValue)")
                         predictPointRow("Right result (win / draw / loss)", "+\(PredictionScore.resultPointsValue)")
-                        predictPointRow("Perfect XI — all 11 right", "+\(PredictionScore.perfectPointsValue)")
+                        predictPointRow("Perfect XI: all 11 right", "+\(PredictionScore.perfectPointsValue)")
                         Divider().overlay(Color.dsFgQuaternary)
                         predictPointRow("Most possible in one match", "\(PredictionScore.maxPerMatch) pts", bold: true)
                     }
 
                     // Fix 6 — the two score-related lines are easy to confuse, so spell out the difference.
-                    Text("Right result vs exact score: \u{201C}right result\u{201D} (+3) just means you called the winner or a draw — say WAS win and they win 3\u{2013}1, you get it. \u{201C}Exact score\u{201D} (+10) means you nailed the actual scoreline, like calling 2\u{2013}1 and it finishing 2\u{2013}1. They stack — an exact score is always the right result too, so it banks both.")
+                    Text("Right result vs exact score: \u{201C}right result\u{201D} (+3) just means you called the winner or a draw. Say WAS win and they win 3\u{2013}1, you get it. \u{201C}Exact score\u{201D} (+10) means you nailed the actual scoreline, like calling 2\u{2013}1 and it finishing 2\u{2013}1. They stack. An exact score is always the right result too, so it banks both.")
                         .dsFont(13).foregroundStyle(Color.dsFgSecondary).fixedSize(horizontal: false, vertical: true)
 
-                    Text("Points build up across every match you predict all season, and you're ranked on a per-club leaderboard — by your average score per match, against other fans of your team, not the whole league.")
+                    Text("Points build up across every match you predict all season, and you're ranked on a per-club leaderboard, by your average score per match, against other fans of your team, not the whole league.")
                         .dsFont(15).foregroundStyle(Color.dsFgSecondary).fixedSize(horizontal: false, vertical: true)
-                    Text("Your season accuracy — correct player picks out of every XI slot you've predicted — feeds up to 25 of your 100 Superfan points.")
+                    Text("Your season accuracy (correct player picks out of every XI slot you've predicted) feeds up to 25 of your 100 Superfan points.")
                         .dsFont(15).foregroundStyle(Color.dsFgSecondary).fixedSize(horizontal: false, vertical: true)
                     // Points a returning player at the opt-in that replaced the old post-submit popup (task 16).
                     Text("Want a heads-up when your results land? Turn on \u{201C}Predict results\u{201D} in Notifications and we'll let you know the morning after each match.")
@@ -915,11 +915,11 @@ struct PredictXIView: View {
             // 2026-08-04), so an empty board means nobody has predicted this club's XI in the recency
             // window yet — not that a threshold is unmet.
             if rows.isEmpty {
-                Text("No predictors yet — predict this club's XI to start the board.")
+                Text("No predictors yet. Predict this club's XI to start the board.")
                     .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .padding(.horizontal, 10).padding(.top, 2)
             } else if rows.count == 1, rows.first?.isYou == true {
-                Text("You're first in line — standings grow as more fans play.")
+                Text("You're first in line. Standings grow as more fans play.")
                     .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                     .padding(.horizontal, 10).padding(.top, 2)
             }

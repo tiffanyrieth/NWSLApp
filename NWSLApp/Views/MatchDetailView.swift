@@ -537,7 +537,7 @@ struct MatchDetailView: View {
 
     private func formationHeader(_ roster: MatchRoster) -> String {
         let team = (roster.team?.displayName ?? "—").uppercased()
-        if let formation = roster.formation { return "\(team) — \(formation)" }
+        if let formation = roster.formation { return "\(team), \(formation)" }
         return team
     }
 
@@ -1152,7 +1152,7 @@ struct MatchDetailView: View {
         let clock = event.status?.displayClock
         let period = event.status?.type?.description
         let parts = [clock, period].compactMap { ($0?.isEmpty == false) ? $0 : nil }
-        return parts.isEmpty ? nil : parts.joined(separator: " — ")
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
 
     /// The live clock: a locally-ticking football minute ("51' — Second Half") anchored to
@@ -1161,7 +1161,7 @@ struct MatchDetailView: View {
     @ViewBuilder
     private var liveClockLine: some View {
         let periodName = event.status?.type?.description
-        let suffix = (periodName?.isEmpty == false) ? " — \(periodName!)" : ""
+        let suffix = (periodName?.isEmpty == false) ? ", \(periodName!)" : ""
         // The halftime / anchor / fallback decision lives once in MatchClockKit (halftime shows a
         // static "Halftime", never a ticking 45'+n' through the break — the V2 widget shows a static
         // HT and the app must match; the period-name suffix rides only the ticking minute).

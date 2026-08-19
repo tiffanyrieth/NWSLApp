@@ -611,7 +611,7 @@ private struct ClinchStatusCard: View {
             Text("✓ Clinched a playoff spot")
                 .dsFont(15, weight: .semibold).foregroundStyle(Color.dsStateFinal)
         case .inPosition(let rank, let gamesLeft):
-            Text("In position — #\(rank), \(gamesLeft) game\(gamesLeft == 1 ? "" : "s") left")
+            Text("In position: #\(rank), \(gamesLeft) game\(gamesLeft == 1 ? "" : "s") left")
                 .dsFont(15, weight: .semibold).foregroundStyle(Color.dsStateKickoff)
         case .outOfPicture:
             Text("Outside the playoff line")

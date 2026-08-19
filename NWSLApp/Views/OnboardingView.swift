@@ -136,7 +136,7 @@ struct OnboardingView: View {
             // declaring allegiance + alerts — the #1 first-time-user misread. The bell
             // toggle on each followed row (below) teaches the alerts distinction visually,
             // so the old "following isn't notifications" footnote is no longer needed.
-            Text("Your feed starts here. Tap any clubs you're interested in — their news, videos, and social posts will show up on your Home tab.")
+            Text("Your feed starts here. Tap any clubs you're interested in. Their news, videos, and social posts will show up on your Home tab.")
                 .dsFont(16)
                 .foregroundStyle(Color.dsFgSecondary)
                 // Guarantee full wrapping (never truncate) on the smallest screens (SE/mini).

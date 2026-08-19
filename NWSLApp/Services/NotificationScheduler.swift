@@ -331,7 +331,7 @@ final class NotificationScheduler {
     // inherits this same model.
 
     static let spotlightTitle = "New Know Her Game"
-    static let spotlightBody = "This week's players are ready — how well do you know them?"
+    static let spotlightBody = "This week's players are ready. How well do you know them?"
 
     /// One built KHG "new round" nudge. `Hashable` so it folds into the rebuild signature; the fireDate is
     /// a STABLE absolute instant (never a decaying interval — see `scheduleSignature`).

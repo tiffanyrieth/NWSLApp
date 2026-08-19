@@ -83,7 +83,7 @@ final class StandingsViewModel {
         case ESPNServiceError.decoding:
             return "Couldn't read the standings response. Pull to retry."
         case ESPNServiceError.badURL:
-            return "Couldn't build the request. This is a bug — please report it."
+            return "Couldn't build the request. This is a bug. Please report it."
         default:
             return "Couldn't load standings. Check your connection and pull to retry."
         }

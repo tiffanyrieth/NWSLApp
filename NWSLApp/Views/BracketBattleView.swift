@@ -172,7 +172,7 @@ struct BracketBattleView: View {
         HStack(spacing: 12) {
             Image(systemName: "trophy.fill").dsFont(20).foregroundStyle(accent)
             VStack(alignment: .leading, spacing: 2) {
-                Text(fanCount > 0 ? "Ranked — compete with \(fanCount.formatted()) fans" : "Ranked game")
+                Text(fanCount > 0 ? "Ranked: compete with \(fanCount.formatted()) fans" : "Ranked game")
                     .dsFont(15, weight: .bold).foregroundStyle(Color.dsFgPrimary)
                 Text("Climb the leaderboard. Track your accuracy in Your Stats.")
                     .dsFont(13).foregroundStyle(Color.dsFgSecondary)
@@ -202,9 +202,9 @@ struct BracketBattleView: View {
 
     private static let goodToKnowItems = [
         "New edition every month with a fresh theme",
-        "Top-seeded players get byes — they enter later in the bracket",
+        "Top-seeded players get byes: they enter later in the bracket",
         "Miss a round? You can still play the rest (you just won't earn points for the ones you missed)",
-        "No same-team matchups early — this is about the whole league",
+        "No same-team matchups early. This is about the whole league",
     ]
 
     // A collapsible rule section (collapsed by default): a teal uppercase header + chevron that
@@ -242,12 +242,12 @@ struct BracketBattleView: View {
 
     private static let qualifyingRules = [
         "128 players is too many to start all at once, so qualifying rounds trim the field to 64 before the main bracket begins.",
-        "Some players get a bye — they sit out qualifying and enter later, once the field's already smaller. Byes are earned by seeding (minutes played, games started): the league's most-used players skip the early rounds, while lower-seeded players battle in from round 1. Same idea as the US Open Cup, where the top sides join in later rounds.",
-        "So the draw isn't always fair-feeling — a big name can land a brutal bracket while a lesser-known player gets a clear runway. Seeding rewards the workload; it doesn't promise an easy path.",
+        "Some players get a bye. They sit out qualifying and enter later, once the field's already smaller. Byes are earned by seeding (minutes played, games started): the league's most-used players skip the early rounds, while lower-seeded players battle in from round 1. Same idea as the US Open Cup, where the top sides join in later rounds.",
+        "So the draw isn't always fair-feeling. A big name can land a brutal bracket while a lesser-known player gets a clear runway. Seeding rewards the workload; it doesn't promise an easy path.",
     ]
 
     private static let roundRules = [
-        "When a round opens, you'll see every matchup. Vote on all of them — you can't submit until each one has a pick.",
+        "When a round opens, you'll see every matchup. Vote on all of them. You can't submit until each one has a pick.",
         "Once you submit, that round's picks are locked: no edits, no undo. Rounds stay open 1–2 days; when voting closes, the votes are tallied, winners revealed, points awarded, and the next round opens. Start to finish, an edition runs about 2–3 weeks.",
     ]
 
@@ -300,11 +300,11 @@ struct BracketBattleView: View {
         ("See the matchups",
          "Each round shows you every head-to-head. Two players, one question. Read the theme and decide: who wins this one?"),
         ("Vote the question, not the jersey",
-         "This isn't \"who's your favorite.\" If the theme is Best Goal Celebration, vote the better celebration — even if the other player is on your team. The question is the question."),
+         "This isn't \"who's your favorite.\" If the theme is Best Goal Celebration, vote the better celebration, even if the other player is on your team. The question is the question."),
         ("Predict the crowd",
-         "The community decides who advances. You score points when your pick matches the majority. Think a lesser-known player actually wins the matchup? Trust that read — the crowd might agree with you."),
+         "The community decides who advances. You score points when your pick matches the majority. Think a lesser-known player actually wins the matchup? Trust that read. The crowd might agree with you."),
         ("Lock it in",
-         "Submit your picks for the round. Once submitted, they're locked — no edits, no undo. Results drop when voting closes, with vote percentages and your score."),
+         "Submit your picks for the round. Once submitted, they're locked: no edits, no undo. Results drop when voting closes, with vote percentages and your score."),
     ]
 
     private func pointsTable(rounds: [BracketRound]) -> some View {
@@ -327,12 +327,12 @@ struct BracketBattleView: View {
                 }
             }
             .padding(14).background(Color.dsMdCard).clipShape(RoundedRectangle(cornerRadius: 14))
-            Text("Points increase each round — later picks are worth more because they're harder to predict")
+            Text("Points increase each round: later picks are worth more because they're harder to predict")
                 .dsFont(13).foregroundStyle(Color.dsFgSecondary).frame(maxWidth: .infinity)
-            Text("Your accuracy across the whole edition — correct picks out of every matchup, including rounds you skip — feeds up to 25 of your 100 Superfan points.")
+            Text("Your accuracy across the whole edition (correct picks out of every matchup, including rounds you skip) feeds up to 25 of your 100 Superfan points.")
                 .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 .fixedSize(horizontal: false, vertical: true).padding(.top, 2)
-            Text("This isn't a popularity contest — you're predicting who the crowd will pick, not who you like best. Your favorite might be the nicest person in the league, but if they're up against someone with serious stare-down energy, voting with your heart will cost you points.")
+            Text("This isn't a popularity contest. You're predicting who the crowd will pick, not who you like best. Your favorite might be the nicest person in the league, but if they're up against someone with serious stare-down energy, voting with your heart will cost you points.")
                 .dsFont(13).foregroundStyle(Color.dsFgSecondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2)
@@ -458,7 +458,7 @@ struct BracketBattleView: View {
             .background(accent.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(accent.opacity(0.5), lineWidth: 1.5))
         case .submitted:
-            ctaMutedCard(title: "\(name) — picks locked in", subtitle: "Waiting for the community to vote.")
+            ctaMutedCard(title: "\(name): picks locked in", subtitle: "Waiting for the community to vote.")
         case .closed, .scored:
             // A FINISHED edition gets the champion, not "next round opens soon" — this is the payoff of a
             // three-week bracket and the most shareable moment the Fan Zone has.
@@ -488,7 +488,7 @@ struct BracketBattleView: View {
                 Text("This bracket closed before a final was decided.")
                     .dsFont(16, weight: .semibold).foregroundStyle(Color.dsFgSecondary)
             }
-            Text("Browse every round below — results stay up until the next bracket starts.")
+            Text("Browse every round below. Results stay up until the next bracket starts.")
                 .dsFont(13).foregroundStyle(Color.dsFgSecondary)
         }
         .padding(16).frame(maxWidth: .infinity, alignment: .leading)
@@ -734,7 +734,7 @@ struct BracketBattleView: View {
         let nextName = edition.currentRound.displayName(in: edition.rounds)
         let nextVerb = edition.currentRound.nameIsPlural ? "are" : "is"   // "Semifinals ARE now open"
         return Button { advanceFromResults(seenRound: seenRound) } label: {
-            Text(nextOpen ? "\(nextName) \(nextVerb) now open — make your picks →" : "Back to the bracket")
+            Text(nextOpen ? "\(nextName) \(nextVerb) now open. Make your picks →" : "Back to the bracket")
                 .primaryButtonLabel(accent)
         }
     }
@@ -887,7 +887,7 @@ struct BracketBattleView: View {
             Image(systemName: "lock.fill").dsFont(18).foregroundStyle(accent)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Your picks are locked in").dsFont(15, weight: .bold).foregroundStyle(accent)
-                Text("Results drop when voting closes. No edits until then — good luck.")
+                Text("Results drop when voting closes. No edits until then. Good luck.")
                     .dsFont(13).foregroundStyle(Color.dsFgSecondary)
             }
             Spacer(minLength: 0)
@@ -909,7 +909,7 @@ struct BracketBattleView: View {
         HStack(spacing: 10) {
             Image(systemName: "checkmark.circle.fill").dsFont(20).foregroundStyle(accent)
             VStack(alignment: .leading, spacing: 2) {
-                Text("That's all \(viewModel.totalMatchups) — you're ready.").dsFont(15, weight: .bold).foregroundStyle(accent)
+                Text("That's all \(viewModel.totalMatchups). You're ready.").dsFont(15, weight: .bold).foregroundStyle(accent)
                 Text("Save a draft to keep tinkering, or lock 'em in. Once they're in, there's no take-backs.")
                     .dsFont(13).foregroundStyle(Color.dsFgSecondary)
             }
@@ -964,7 +964,7 @@ struct BracketBattleView: View {
             // Online-only: the write must ack before we lock in. A failure surfaces
             // here; the picks stay editable and the button retries.
             if viewModel.submitState == .failed {
-                Text("Couldn't submit — tap to retry")
+                Text("Couldn't submit. Tap to retry.")
                     .dsFont(15, weight: .semibold)
                     .foregroundStyle(Color.dsError)
                     .frame(maxWidth: .infinity)
@@ -1142,7 +1142,7 @@ struct BracketBattleView: View {
         VStack(spacing: 12) {
             Image(systemName: "trophy").dsFont(40).foregroundStyle(Color.dsFgTertiary)
             Text("Nothing live right now").dsFont(18, weight: .semibold).foregroundStyle(Color.dsFgPrimary)
-            Text("A fresh bracket drops soon — come back and we'll do it all again.").dsFont(15).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center).padding(.horizontal, 32)
+            Text("A fresh bracket drops soon. Come back and we'll do it all again.").dsFont(15).foregroundStyle(Color.dsFgSecondary).multilineTextAlignment(.center).padding(.horizontal, 32)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

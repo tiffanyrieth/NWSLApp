@@ -78,7 +78,7 @@ struct ProfileView: View {
                 Button("Delete", role: .destructive) { Task { await runDeleteAccount() } }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This permanently deletes your account and all your data — follows, match alerts, and Fan Zone scores — from our servers and this device. This can't be undone.")
+                Text("This permanently deletes your account and all your data (follows, match alerts, and Fan Zone scores) from our servers and this device. This can't be undone.")
             }
             .alert("Couldn't delete account", isPresented: Binding(
                 get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })
@@ -140,7 +140,7 @@ struct ProfileView: View {
             }
             .background(Color.dsBgCard)
             .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
-            Text("Match alerts, alert types, and activity — all in one place.")
+            Text("Match alerts, alert types, and activity. All in one place.")
                 .dsFont(13)
                 .foregroundStyle(Color.dsFgSecondary)
                 .padding(.horizontal, 4)

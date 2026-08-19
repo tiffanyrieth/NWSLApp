@@ -34,7 +34,7 @@ final class FeedStore {
     private(set) var hasCompletedItemsLoad: Bool = false
 
     /// The one simple, honest message a failed Feed load shows.
-    static let loadFailureMessage = "Couldn't load — tap to retry"
+    static let loadFailureMessage = "Couldn't load. Tap to retry."
 
     /// The followed-abbreviation set `allItems` currently reflects. nil = never loaded. Set
     /// ONLY on a successful fetch, so a failed/empty load doesn't latch as "loaded for this

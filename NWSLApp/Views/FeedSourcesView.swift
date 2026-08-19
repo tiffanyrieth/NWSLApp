@@ -123,7 +123,7 @@ struct FeedSourcesView: View {
         } header: { Text("Add from Bluesky") } footer: {
             Text(addMode == .reporter
                  ? "Follow any Bluesky reporter or outlet. We check they cover NWSL before adding."
-                 : "Follow a player's own Bluesky. Her posts go to the Players tab — everything she posts, unfiltered.")
+                 : "Follow a player's own Bluesky. Her posts go to the Players tab: everything she posts, unfiltered.")
         }
     }
 
@@ -156,7 +156,7 @@ struct FeedSourcesView: View {
                   systemImage: "xmark.circle")
                 .dsFont(15).foregroundStyle(Color.dsFgSecondary)
         case .failed:
-            Label("Couldn't check that handle — try again", systemImage: "exclamationmark.triangle")
+            Label("Couldn't check that handle. Try again", systemImage: "exclamationmark.triangle")
                 .dsFont(15).foregroundStyle(Color.dsFgSecondary)
         case let .found(handle, displayName):
             HStack {
@@ -237,7 +237,7 @@ struct FeedSourcesView: View {
                 }
             }
         } header: { Text("Follow players") } footer: {
-            Text("Featuring \(players.isEmpty ? "national-team" : "\(players.count)") players — more coming. Follow stars beyond your teams in Browse all.")
+            Text("Featuring \(players.isEmpty ? "national-team" : "\(players.count)") players, more coming. Follow stars beyond your teams in Browse all.")
         }
     }
 

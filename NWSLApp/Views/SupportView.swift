@@ -71,7 +71,7 @@ struct SupportView: View {
                 .dsFont(20, weight: .bold)
                 .foregroundStyle(Color.dsFgPrimary)
                 .multilineTextAlignment(.center)
-            Text("Crestside is indie-built and free to download. No ads, no tracking, no data sold. Tips are optional — they help cover servers, data feeds, and the Apple Developer Program so the core app stays free.")
+            Text("Crestside is indie-built and free to download. No ads, no tracking, no data sold. Tips are optional. They help cover servers, data feeds, and the Apple Developer Program so the core app stays free.")
                 .dsFont(15)
                 .foregroundStyle(Color.dsFgSecondary)
                 .multilineTextAlignment(.center)
@@ -180,7 +180,7 @@ struct SupportView: View {
     }
 
     private var footer: some View {
-        Text("The core of Crestside is free, and tips never unlock features — just the knowledge that you're helping grow women's soccer.")
+        Text("The core of Crestside is free, and tips never unlock features, just the knowledge that you're helping grow women's soccer.")
             .dsFont(13)
             .foregroundStyle(Color.dsFgSecondary)
             .multilineTextAlignment(.center)

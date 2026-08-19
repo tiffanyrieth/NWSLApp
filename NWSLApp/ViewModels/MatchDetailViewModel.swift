@@ -271,7 +271,7 @@ final class MatchDetailViewModel {
         case ESPNServiceError.decoding:
             return "Couldn't read the match details."
         case ESPNServiceError.badURL:
-            return "Couldn't build the request. This is a bug — please report it."
+            return "Couldn't build the request. This is a bug. Please report it."
         default:
             return "Couldn't load match details. Check your connection."
         }

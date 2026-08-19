@@ -174,6 +174,16 @@ analogy); NWSL's own site treating CONCACAF as separate (no note that Spirit rea
 mistake being corrected. Do NOT re-add the toggle or re-gate the fetch. My teams still narrows clubs to your
 follows. The default chip was renamed **"NWSL" → "All"** (adjustable — a taste, not a locked ruling).
 
+### Support tips = ONE-TIME consumables, ROUND pricing (2026-08-18)
+The tip jar is **one-time consumables only** ($2 / $5 / $10 / $20). **Do NOT re-add a monthly/subscription
+tip** — Apple guideline 3.1.1 bars auto-renewable subscriptions that unlock no ongoing exclusive value, and a
+pure tip does not; it would fail App Review (owner had this flagged in a prior publish-readiness report). A
+monthly tier only becomes legitimate IF a premium feature ships behind it (owner is exploring one — custom
+Bluesky filtering via Haiku — but that's future). **Restore button removed** (consumables can't be restored;
+Apple only requires Restore for non-consumables/subscriptions). **Pricing is round on purpose** (no `.99`):
+the app's stance is no dark patterns, and `.99` is retail-psychology the tip screen shouldn't use — round
+reads as a genuine ask, not a store shelf. Don't "helpfully" revert to `.99` or the default Apple ladder.
+
 ---
 
 ## PROVISIONALLY DONE / owner-iterating (do not "fix," revert, or re-litigate)

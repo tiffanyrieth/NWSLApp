@@ -63,6 +63,10 @@ enum AppConfig {
     /// Force-unwrap is safe: a compile-time constant, valid URL.
     static let scoreboardProxyBase = URL(string: "https://nwslapp-proxy.tiffany-rieth.workers.dev/")!
 
+    /// The hosted Privacy Policy + Terms page (served by the proxy Worker at `/privacy`). Opened
+    /// from Profile → "Privacy Policy & Terms"; also the App Store Connect Privacy Policy URL.
+    static let privacyURL = scoreboardProxyBase.appendingPathComponent("privacy")
+
     /// Base URL the scoreboard call builds on. The proxy by default; in DEBUG,
     /// passing `-useESPNDirect` in the Run scheme's launch arguments falls back
     /// to hitting ESPN directly — a quick escape hatch if the proxy misbehaves,

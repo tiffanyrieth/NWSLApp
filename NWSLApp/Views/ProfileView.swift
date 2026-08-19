@@ -31,6 +31,7 @@ struct ProfileView: View {
     @Environment(TeamAlertStore.self) private var alerts
     @Environment(NotificationPreferencesStore.self) private var notifications
     @Environment(AppRouter.self) private var router
+    @Environment(\.openURL) private var openURL
 
     @State private var signInError: String?
     @State private var showDeleteConfirm = false
@@ -47,6 +48,7 @@ struct ProfileView: View {
                     fanZoneStrip
                     settingsSection
                     supportCard
+                    legalSection
                     myTeamsSection
                     if auth.isSignedIn { accountSection }
                     versionLabel
@@ -199,7 +201,7 @@ struct ProfileView: View {
                     Text("Support Crestside")
                         .dsFont(16, weight: .semibold)
                         .foregroundStyle(Color.dsFgPrimary)
-                    Text("Help keep this app free and growing")
+                    Text("Help keep Crestside running and growing")
                         .dsFont(15)
                         .foregroundStyle(Color.dsFgSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -223,6 +225,46 @@ struct ProfileView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - About & Legal
+
+    // Opens the hosted Privacy Policy + Terms page (proxy `/privacy`) via the app's universal
+    // external-link mechanism (the same @Environment(\.openURL) used for update/team links).
+    private var legalSection: some View {
+        settingsGroup("ABOUT & LEGAL") {
+            Button { openURL(AppConfig.privacyURL) } label: { privacyRow }
+                .buttonStyle(.plain)
+        }
+    }
+
+    private var privacyRow: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.dsFgSecondary)
+                Image(systemName: "lock.shield.fill")
+                    .dsFont(15)
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 29, height: 29)
+            Text("Privacy Policy & Terms")
+                .dsFont(16)
+                .foregroundStyle(Color.dsFgPrimary)
+            Spacer(minLength: 8)
+            // External-link glyph (opens in the browser), not a push chevron.
+            Image(systemName: "arrow.up.right")
+                .dsFont(14, weight: .semibold)
+                .foregroundStyle(Color.dsFgSecondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
+        .contentShape(Rectangle())
+        // Grouped as one element with a curated label + link trait (VoiceOver reads it as a link,
+        // not "lock.shield" + "arrow up right"; matches the app's accessibility gate).
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Privacy Policy and Terms")
+        .accessibilityAddTraits(.isLink)
+        .accessibilityHint("Opens in your browser")
     }
 
     private var notificationsRow: some View {
@@ -544,10 +586,18 @@ struct ProfileView: View {
     #endif
 
     private var versionLabel: some View {
-        Text("NWSLApp \(appVersion)")
-            .dsFont(13)
-            .foregroundStyle(Color.dsFgSecondary)
-            .frame(maxWidth: .infinity)
+        VStack(spacing: 10) {
+            // Trademark / affiliation disclaimer — the in-app peer of the one on the Privacy page.
+            Text("Crestside is an independent fan app. League, club, and broadcast names and logos are trademarks of their respective owners. Not affiliated with, endorsed by, or sponsored by the NWSL, any club, or any broadcaster.")
+                .dsFont(12)
+                .foregroundStyle(Color.dsFgSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8)
+            Text("Crestside \(appVersion)")
+                .dsFont(13)
+                .foregroundStyle(Color.dsFgSecondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private var appVersion: String {

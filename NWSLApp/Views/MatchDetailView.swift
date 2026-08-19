@@ -1160,7 +1160,7 @@ struct MatchDetailView: View {
     /// static `clockLine` when the raw clock/anchor aren't available.
     @ViewBuilder
     private var liveClockLine: some View {
-        let periodName = event.status?.type?.description
+        let periodName = Self.shortPeriodLabel(event.status?.type?.description)
         let suffix = (periodName?.isEmpty == false) ? ", \(periodName!)" : ""
         // The halftime / anchor / fallback decision lives once in MatchClockKit (halftime shows a
         // static "Halftime", never a ticking 45'+n' through the break — the V2 widget shows a static
@@ -1170,13 +1170,27 @@ struct MatchDetailView: View {
                 statusState: event.statusState, isHalftime: event.isHalftime,
                 clockSeconds: event.status?.clock, period: event.status?.period,
                 anchor: matchStore.tickAnchor(for: event.id),
-                halftimeLabel: "Halftime", fallback: clockLine),
+                halftimeLabel: "HT", fallback: clockLine),
             suffix: suffix
         ) { label in
             Text(label)
                 .dsFont(15, weight: .medium)
                 .foregroundStyle(Color.dsStateClock)   // orange live clock
                 .multilineTextAlignment(.center)
+        }
+    }
+
+    /// ESPN's `status.type.description` mapped to the app's short period labels (sports-UI
+    /// convention: numeral ordinals). Fail-open: an unmapped value passes through unchanged, per
+    /// the ESPN defensive-decode rule. Only ever surfaces as the ticking-minute suffix ("51', 2nd Half").
+    static func shortPeriodLabel(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        switch raw.lowercased() {
+        case "first half":  return "1st Half"
+        case "second half": return "2nd Half"
+        case "first half extra time", "second half extra time", "extra time", "overtime":
+            return "ET"
+        default: return raw
         }
     }
 
@@ -1217,7 +1231,7 @@ struct MatchDetailView: View {
                 liveIndicator
                 liveClockLine
             case .past:
-                Text("FULL TIME")
+                Text("FT")
                     .dsFont(12, weight: .bold)
                     .tracking(0.6)
                     .foregroundStyle(Color.dsStateFinal)

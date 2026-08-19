@@ -137,14 +137,15 @@ struct MatchCard: View {
             case "in":
                 EmptyView()
             case "post":
-                // A suspended/abandoned match also reports `post` — show ESPN's own label
-                // ("Suspended") rather than claiming FULL TIME on a match still to be finished.
-                Text(event.isFinalResult
-                     ? "FULL TIME"
-                     : (event.status?.type?.description ?? "SUSPENDED").uppercased())
-                    .dsFont(12)
-                    .tracking(0.3)
-                    .foregroundStyle(Color.dsFgSecondary)
+                // A final match relies on the "FT" pill above — no redundant "FULL TIME" beneath it.
+                // A suspended/abandoned match also reports `post`; show ESPN's own label ("Suspended")
+                // since the pill only carries a terse "SUSP", not the reason.
+                if !event.isFinalResult {
+                    Text((event.status?.type?.description ?? "SUSPENDED").uppercased())
+                        .dsFont(12)
+                        .tracking(0.3)
+                        .foregroundStyle(Color.dsFgSecondary)
+                }
             default:
                 // Cyan kickoff time — completes the temporal-color set with the
                 // orange live clock and green FT.

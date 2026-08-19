@@ -156,10 +156,8 @@ struct PlayoffMatchupRow: View {
             case .live:
                 EmptyView()
             case .post:
-                Text("FULL TIME")
-                    .dsFont(12)
-                    .tracking(0.3)
-                    .foregroundStyle(Color.dsFgSecondary)
+                // The "FT" pill above carries the final state — no redundant "FULL TIME" beneath it.
+                EmptyView()
             case .pre:
                 if matchup.kickoff != nil {
                     Text(kickoffTimeText)

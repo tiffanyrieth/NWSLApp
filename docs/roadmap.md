@@ -60,7 +60,14 @@
 > community-stats reveal entirely** — don't render the 100%-everything bars or the empty contrarian
 > panel. Show a simple "in progress" / sealed-until-results state instead. Once more than one fan has
 > voted, show the reveal as normal.
-> ⏳ **To implement (small):** gate the locked-screen community section on submission-count > 1.
+> ⏳ **To implement (small):** gate the locked-screen community section on submission-count > 1
+> (`PredictLockedView` — the `revealed` computed prop drives every community sub-view; `PredictCommunity`
+> already carries `submissions: Int`).
+> ⚠️ **BRUSHES the 2026-07-22 "no min-participants gate" ruling** (`.claude/rules/fan-zone.md`: "no Fan Zone
+> surface hides itself at low scale… don't restore a minimum-participants gate"). Reconciliation to settle:
+> they're compatible IF the gate is strictly the **N=1 pure-self** case (the "board" is literally your own
+> picks at 100% — no community at all), with **≥2 voters still showing the reveal + raw counts** (honoring
+> 07-22). **OWNER DEFERRED this debate to AFTER 0.5.0 ships (2026-08-19)** — not built.
 
 > ### 📺 "FIND THE MATCH" — where/how to actually watch (owner 2026-08-08)
 > The broadcast chip already NAMES the network (great — ION games are the hardest to find). Next step: help

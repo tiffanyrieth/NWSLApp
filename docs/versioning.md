@@ -7,7 +7,9 @@ _Read when bumping the version or preparing a build/release._
   under the *same* marketing version. **Do NOT bump the patch digit for a feature** — features stay `.0`;
   **patches (`0.4.1`…) are reserved for BUG FIXES** after the big release. A **minor bump (`0.4`→`0.5`)**
   starts the next era. Reserve **1.0.0** for the first public App Store launch. (So far: 0.1.x prototype →
-  0.3.x backbone → **0.4.0 flagship**, shipping as successive builds.)
+  0.3.x backbone → **0.4.0 flagship** (shipped as successive builds through 0.4.5 / build 35) →
+  **0.5.0 = the EXTERNAL-BETA era** (build 36, 2026-08-19 — the first build going to EXTERNAL TestFlight
+  testers). 1.0.0 stays reserved for the public App Store launch.)
 - **Xcode fields:** "Marketing Version" (`CFBundleShortVersionString`, stays `0.4.0` across the flagship's
   builds) + "Build" (`CFBundleVersion`, a monotonic int bumped per TestFlight upload). Tag releases in git;
   proxy-only changes don't bump the app version.
@@ -26,9 +28,16 @@ _Read when bumping the version or preparing a build/release._
   - **History:** raised for the FIRST time on 2026-07-31 — `21 → 31` alongside the build-31 TestFlight,
     retiring builds ≤30 (28 was known-broken). Before that it had sat at 21 since introduction, so the
     gate had never fired for anyone; an earlier raise was written but lost on an unmerged branch (7/27).
+  - **2026-08-19: build 36 / 0.5.0 did NOT raise `minBuild` (stays 31).** A routine milestone bump, not a
+    broken-build retirement, so the order rule doesn't apply — nothing to retire.
   - **To force an update:** after the fixed build is live, raise `MIN_APP_BUILD` + `wrangler deploy` the
     proxy. The app side fails OPEN (an unreachable `/config` never blocks), so the endpoint being down is
     safe. See `AppGateView` / `ForceUpdateService`.
-- **Distribution:** Simulator + Personal Team sideload now; Dev Program active (paid); TestFlight (OTA) for
-  testers. App Store deferred until presentable.
+- **Distribution:** Simulator + Personal Team sideload; Dev Program active (paid); TestFlight (OTA) for
+  testers. **EXTERNAL TestFlight opens at 0.5.0 / build 36 (2026-08-19).** ⚠️ An external build must be
+  uploaded from Xcode's **"App Store Connect"** distribution option — NOT **"TestFlight Internal Only"**,
+  which is a locked-down internal-team path that can't be promoted to external testing or the App Store.
+  External testers also need a passed **Beta App Review**, which is triggered by *adding the build to an
+  External group in App Store Connect* (the upload alone doesn't trigger it; internal testing needs no
+  review). App Store (1.0.0) deferred until presentable.
 
